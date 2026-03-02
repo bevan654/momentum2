@@ -41,7 +41,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: 'com.momentum.fitnessapp',
     googleServicesFile: './google-services.json',
-    minSdkVersion: 26,
+    minSdkVersion: 24,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
@@ -58,12 +58,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           'Momentum reads your health data (steps, calories, heart rate) to display your daily activity.',
         NSHealthUpdateUsageDescription:
           'Momentum saves your workout data to Apple Health.',
-      },
-    ],
-    [
-      'react-native-health-connect',
-      {
-        requestPermissionsOnFirstRun: false,
       },
     ],
     [
