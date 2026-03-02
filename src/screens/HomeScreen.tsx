@@ -9,15 +9,14 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useNutritionStore } from '../stores/useNutritionStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
-import { useStreakStore } from '../stores/useStreakStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWeightStore } from '../stores/useWeightStore';
 import NutritionCard from '../components/home/NutritionCard';
 import WaterCard from '../components/home/WaterCard';
-import StreakCard from '../components/home/StreakCard';
+import MotivationCard from '../components/home/MotivationCard';
 import SupplementsCard from '../components/home/SupplementsCard';
 import ActivityCard from '../components/home/ActivityCard';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 
 function HomeScreen() {
   const user = useAuthStore((s) => s.user);
@@ -28,7 +27,6 @@ function HomeScreen() {
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
   const fetchExerciseCatalog = useWorkoutStore((s) => s.fetchExerciseCatalog);
   const fetchWeightData = useWeightStore((s) => s.fetchWeightData);
-  const refreshStreak = useStreakStore((s) => s.refreshStreak);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
   const navigation = useNavigation<any>();
@@ -43,22 +41,12 @@ function HomeScreen() {
       fetchSupplementGoals(user.id);
       fetchExerciseCatalog(user.id).then(() => fetchWorkoutHistory(user.id));
       fetchWeightData(user.id);
-      refreshStreak(user.id);
     }
   }, [user?.id]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (user?.id) {
-        refreshStreak(user.id);
-      }
-    }, [user?.id])
-  );
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && user?.id) {
-        refreshStreak(user.id);
         fetchTodayNutrition(user.id);
         fetchTodaySupplements(user.id);
       }
@@ -121,7 +109,7 @@ function HomeScreen() {
         <NutritionCard />
         <View style={styles.supplementCol}>
           <WaterCard />
-          <StreakCard />
+          <MotivationCard />
         </View>
       </View>
 

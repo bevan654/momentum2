@@ -42,8 +42,11 @@ export default function AddSupplementModal({ visible, onClose }: Props) {
     [activeKeys],
   );
 
+  const MAX_SUPPLEMENTS = 2;
+  const atLimit = configs.length >= MAX_SUPPLEMENTS;
+
   const handleAddPreset = useCallback((preset: typeof SUPPLEMENT_PRESETS[0]) => {
-    if (!userId) return;
+    if (!userId || atLimit) return;
     const config: SupplementConfig = {
       key: preset.key,
       name: preset.name,
@@ -55,10 +58,10 @@ export default function AddSupplementModal({ visible, onClose }: Props) {
     };
     addConfig(userId, config);
     onClose();
-  }, [userId, addConfig, onClose]);
+  }, [userId, atLimit, addConfig, onClose]);
 
   const handleAddCustom = useCallback(() => {
-    if (!userId) return;
+    if (!userId || atLimit) return;
     const name = customName.trim();
     const goal = parseFloat(customGoal);
     if (!name || isNaN(goal) || goal <= 0) return;
@@ -79,7 +82,7 @@ export default function AddSupplementModal({ visible, onClose }: Props) {
     addConfig(userId, config);
     resetCustom();
     onClose();
-  }, [userId, customName, customGoal, customUnit, configs, activeKeys, addConfig, onClose]);
+  }, [userId, atLimit, customName, customGoal, customUnit, configs, activeKeys, addConfig, onClose]);
 
   const resetCustom = () => {
     setCustomName('');
