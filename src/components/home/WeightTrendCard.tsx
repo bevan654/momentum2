@@ -35,6 +35,7 @@ export default function WeightTrendCard() {
     useShallow((s) => ({ current: s.current, trend: s.trend, change: s.change, entries: s.entries, emaPoints: s.emaPoints })),
   );
   const userId = useAuthStore((s) => s.user?.id);
+  const goalWeight = useAuthStore((s) => s.profile?.goal_weight ?? null);
   const logWeight = useWeightStore((s) => s.logWeight);
   const deleteWeight = useWeightStore((s) => s.deleteWeight);
   const fetchWeightData = useWeightStore((s) => s.fetchWeightData);
@@ -113,6 +114,17 @@ export default function WeightTrendCard() {
         </View>
       </View>
 
+      {/* Goal projection */}
+      {goalWeight !== null && hasData && current !== null && (
+        <GoalProjection
+          current={current}
+          goalWeight={goalWeight}
+          change={change}
+          selectedDays={selectedDays}
+          colors={colors}
+        />
+      )}
+
       {/* Chart or empty state */}
       {hasData ? (
         <TouchableOpacity activeOpacity={0.7} onPress={() => setShowHistoryModal(true)}>
@@ -150,6 +162,89 @@ export default function WeightTrendCard() {
     </View>
   );
 }
+
+const GoalProjection = React.memo(function GoalProjection({
+  current,
+  goalWeight,
+  change,
+  selectedDays,
+  colors,
+}: {
+  current: number;
+  goalWeight: number;
+  change: number | null;
+  selectedDays: number;
+  colors: ThemeColors;
+}) {
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const remaining = goalWeight - current;
+  const needsToLose = remaining < 0;
+  const needsToGain = remaining > 0;
+
+  // Goal already reached (within 0.1 kg tolerance)
+  if (Math.abs(remaining) < 0.1) {
+    return (
+      <View style={styles.goalSection}>
+        <Text style={styles.goalLabel}>Goal: {goalWeight} kg</Text>
+        <Text style={[styles.goalText, { color: colors.accentGreen }]}>
+          Goal reached!
+        </Text>
+      </View>
+    );
+  }
+
+  const weightPerDay = change !== null ? change / selectedDays : 0;
+
+  // Not enough data to project
+  if (Math.abs(weightPerDay) < 0.001) {
+    return (
+      <View style={styles.goalSection}>
+        <Text style={styles.goalLabel}>Goal: {goalWeight} kg</Text>
+        <Text style={styles.goalText}>{Math.abs(Math.round(remaining * 10) / 10)} kg to {needsToLose ? 'lose' : 'gain'}</Text>
+      </View>
+    );
+  }
+
+  const isLosingWeight = weightPerDay < 0;
+  const isGainingWeight = weightPerDay > 0;
+  const movingTowardGoal = (needsToLose && isLosingWeight) || (needsToGain && isGainingWeight);
+
+  if (!movingTowardGoal) {
+    const directionWord = isGainingWeight ? 'Gaining' : 'Losing';
+    const goalWord = needsToLose ? 'lose' : 'gain';
+    return (
+      <View style={styles.goalSection}>
+        <Text style={styles.goalLabel}>Goal: {goalWeight} kg</Text>
+        <Text style={[styles.goalText, { color: colors.accentOrange }]}>
+          {directionWord}: Need to {goalWord} {Math.abs(Math.round(remaining * 10) / 10)} kg
+        </Text>
+      </View>
+    );
+  }
+
+  // Moving toward goal — estimate time
+  const daysToGoal = Math.abs(remaining / weightPerDay);
+  let timeString: string;
+  if (daysToGoal < 60) {
+    const weeks = Math.round(daysToGoal / 7);
+    timeString = `~${Math.max(weeks, 1)} week${weeks !== 1 ? 's' : ''}`;
+  } else {
+    const months = Math.round(daysToGoal / 30);
+    timeString = `~${months} month${months !== 1 ? 's' : ''}`;
+  }
+
+  const remainingKg = Math.abs(Math.round(remaining * 10) / 10);
+
+  return (
+    <View style={styles.goalSection}>
+      <Text style={styles.goalLabel}>Goal: {goalWeight} kg</Text>
+      <Text style={[styles.goalText, { color: colors.accent }]}>
+        {timeString} to goal ({remainingKg} kg to {needsToLose ? 'lose' : 'gain'})
+      </Text>
+    </View>
+  );
+});
 
 const WeightChart = React.memo(function WeightChart({
   entries,
@@ -339,6 +434,29 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(11),
     lineHeight: ms(15),
     fontFamily: Fonts.medium,
+  },
+  goalSection: {
+    backgroundColor: colors.surface,
+    borderRadius: sw(10),
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(10),
+    marginBottom: sw(16),
+    alignItems: 'center',
+  },
+  goalLabel: {
+    color: colors.textSecondary,
+    fontSize: ms(12),
+    lineHeight: ms(16),
+    fontFamily: Fonts.medium,
+    marginBottom: sw(2),
+    textAlign: 'center',
+  },
+  goalText: {
+    color: colors.textPrimary,
+    fontSize: ms(14),
+    lineHeight: ms(20),
+    fontFamily: Fonts.semiBold,
+    textAlign: 'center',
   },
   emptyState: {
     backgroundColor: colors.surface,
