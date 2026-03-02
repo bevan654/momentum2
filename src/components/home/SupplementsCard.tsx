@@ -10,8 +10,10 @@ import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import AddSupplementModal from './AddSupplementModal';
 
 const GRID_GAP = sw(10);
-const GRID_PADDING = sw(16); // matches HomeScreen content paddingHorizontal
+const GRID_PADDING = sw(16);
 const CELL_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
+const FULL_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
+const MAX_SUPPLEMENTS = 2;
 
 function formatIncrement(value: number): string {
   if (value >= 1000 && value % 1000 === 0) return `${value / 1000}k`;
@@ -25,10 +27,12 @@ interface CellProps {
   total: number;
   onAdd: (key: string, amount: number) => void;
   onReset: (key: string) => void;
+  /** When true, renders without own bg/shadow/width (used inside splitCard) */
+  embedded?: boolean;
 }
 
 const SupplementCell = React.memo(function SupplementCell({
-  config, total, onAdd, onReset,
+  config, total, onAdd, onReset, embedded,
 }: CellProps) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -36,7 +40,7 @@ const SupplementCell = React.memo(function SupplementCell({
   const complete = total >= config.dailyGoal;
 
   return (
-    <View style={styles.cell}>
+    <View style={embedded ? styles.cellEmbedded : styles.cell}>
       {/* Header */}
       <View style={styles.cellHeader}>
         <View style={[styles.iconWrap, { backgroundColor: config.color + '15' }]}>
@@ -85,23 +89,7 @@ const SupplementCell = React.memo(function SupplementCell({
   );
 });
 
-/* ─── Add Cell (dashed placeholder) ───────────────────── */
-
-function AddCell({ onPress }: { onPress: () => void }) {
-  const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-
-  return (
-    <TouchableOpacity style={styles.addCell} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.addCellInner}>
-        <Ionicons name="add" size={ms(22)} color={colors.textTertiary} />
-        <Text style={styles.addCellText}>Add</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-/* ─── Supplements Card (grid) ─────────────────────────── */
+/* ─── Supplements Card ────────────────────────────────── */
 
 export default function SupplementsCard() {
   const configs = useSupplementStore((s) => s.supplementConfigs);
@@ -109,6 +97,8 @@ export default function SupplementsCard() {
   const addSupplement = useSupplementStore((s) => s.addSupplement);
   const resetSupplement = useSupplementStore((s) => s.resetSupplement);
   const userId = useAuthStore((s) => s.user?.id);
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [modalVisible, setModalVisible] = useState(false);
 
   const handleAdd = useCallback((key: string, amount: number) => {
@@ -121,6 +111,66 @@ export default function SupplementsCard() {
     if (userId) resetSupplement(userId, key);
   }, [userId, resetSupplement]);
 
+  // 0 supplements → full-width empty state with add button
+  if (configs.length === 0) {
+    return (
+      <>
+        <TouchableOpacity
+          style={styles.emptyCard}
+          onPress={() => setModalVisible(true)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.addIconWrap}>
+            <Ionicons name="add" size={ms(20)} color={colors.textTertiary} />
+          </View>
+          <Text style={styles.emptyLabel}>Add Supplement</Text>
+        </TouchableOpacity>
+
+        <AddSupplementModal
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+        />
+      </>
+    );
+  }
+
+  // 1 supplement → full-width card split in half (supplement | add button)
+  if (configs.length === 1) {
+    const config = configs[0];
+    return (
+      <>
+        <View style={styles.splitCard}>
+          <View style={styles.splitLeft}>
+            <SupplementCell
+              config={config}
+              total={totals[config.key] || 0}
+              onAdd={handleAdd}
+              onReset={handleReset}
+              embedded
+            />
+          </View>
+          <View style={styles.splitDivider} />
+          <TouchableOpacity
+            style={styles.splitRight}
+            onPress={() => setModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.addIconWrap}>
+              <Ionicons name="add" size={ms(20)} color={colors.textTertiary} />
+            </View>
+            <Text style={styles.addLabel}>Add</Text>
+          </TouchableOpacity>
+        </View>
+
+        <AddSupplementModal
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+        />
+      </>
+    );
+  }
+
+  // 2 supplements → normal grid, no add button
   return (
     <>
       <View style={gridStyles.grid}>
@@ -133,7 +183,6 @@ export default function SupplementsCard() {
             onReset={handleReset}
           />
         ))}
-        <AddCell onPress={() => setModalVisible(true)} />
       </View>
 
       <AddSupplementModal
@@ -144,7 +193,7 @@ export default function SupplementsCard() {
   );
 }
 
-/* ─── Grid styles (static, no theme dependency) ──────── */
+/* ─── Grid styles (static) ────────────────────────────── */
 
 const gridStyles = StyleSheet.create({
   grid: {
@@ -157,7 +206,63 @@ const gridStyles = StyleSheet.create({
 /* ─── Theme-dependent styles ──────────────────────────── */
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  /* Cell (supplement card) */
+  /* Empty state (0 supplements) */
+  emptyCard: {
+    width: FULL_WIDTH,
+    backgroundColor: colors.card,
+    borderRadius: sw(14),
+    paddingVertical: sw(20),
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(8),
+    ...colors.cardShadow,
+  },
+  emptyLabel: {
+    color: colors.textTertiary,
+    fontSize: ms(13),
+    lineHeight: ms(17),
+    fontFamily: Fonts.semiBold,
+  },
+
+  /* Split card (full-width, 1 supplement + add) */
+  splitCard: {
+    width: FULL_WIDTH,
+    flexDirection: 'row',
+    backgroundColor: colors.card,
+    borderRadius: sw(14),
+    overflow: 'hidden',
+    ...colors.cardShadow,
+  },
+  splitLeft: {
+    width: '50%',
+  },
+  splitDivider: {
+    width: 1,
+    backgroundColor: colors.cardBorder,
+    marginVertical: sw(12),
+  },
+  splitRight: {
+    width: '50%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(6),
+  },
+  addIconWrap: {
+    width: sw(36),
+    height: sw(36),
+    borderRadius: sw(10),
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addLabel: {
+    color: colors.textTertiary,
+    fontSize: ms(12),
+    lineHeight: ms(16),
+    fontFamily: Fonts.semiBold,
+  },
+
+  /* Cell (standalone half-width card) */
   cell: {
     width: CELL_WIDTH,
     backgroundColor: colors.card,
@@ -165,6 +270,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     padding: sw(12),
     gap: sw(6),
     ...colors.cardShadow,
+  },
+  /* Cell embedded inside splitCard (no bg/shadow/width) */
+  cellEmbedded: {
+    flex: 1,
+    padding: sw(12),
+    gap: sw(6),
   },
   cellHeader: {
     flexDirection: 'row',
@@ -226,28 +337,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   cellAddBtnText: {
     color: colors.textSecondary,
-    fontSize: ms(12),
-    lineHeight: ms(16),
-    fontFamily: Fonts.semiBold,
-  },
-
-  /* Add cell */
-  addCell: {
-    width: CELL_WIDTH,
-    minHeight: sw(100),
-    borderRadius: sw(14),
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: colors.cardBorder,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addCellInner: {
-    alignItems: 'center',
-    gap: sw(4),
-  },
-  addCellText: {
-    color: colors.textTertiary,
     fontSize: ms(12),
     lineHeight: ms(16),
     fontFamily: Fonts.semiBold,
