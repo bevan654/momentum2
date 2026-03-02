@@ -862,11 +862,15 @@ export async function fetchWorkoutDates(
 
   if (!data || data.length === 0) return [];
 
-  // Extract date portion and deduplicate
+  // Convert UTC timestamps to local dates and deduplicate
   const seen = new Set<string>();
   const dates: string[] = [];
   for (const row of data) {
-    const d = row.created_at.slice(0, 10); // YYYY-MM-DD
+    const local = new Date(row.created_at);
+    const yyyy = local.getFullYear();
+    const mm = String(local.getMonth() + 1).padStart(2, '0');
+    const dd = String(local.getDate()).padStart(2, '0');
+    const d = `${yyyy}-${mm}-${dd}`;
     if (!seen.has(d)) {
       seen.add(d);
       dates.push(d);
