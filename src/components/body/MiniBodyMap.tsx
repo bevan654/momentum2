@@ -8,14 +8,14 @@ import { calculateMuscleVolume } from '../../utils/muscleVolume';
 /* Brighter palettes so the body is visible at small scale */
 const PALETTES = {
   dark: [
-    '#1C2A3A', '#263E55', '#255A80', '#3678A3', '#5BA3CC', '#88E3FA', '#56D4F4',
+    '#1A1A1E', '#2E2E32', '#505054', '#747478', '#A0A0A4', '#D0D0D2', '#FFFFFF',
   ],
   light: [
-    '#BCC4CE', '#8AB0D0', '#6090B8', '#4078A8', '#2868A0', '#1656A0', '#1D8FE1',
+    '#DCDCDE', '#B4B4B8', '#8E8E92', '#6A6A6E', '#484850', '#2A2A2E', '#1A1A1A',
   ],
 };
 
-const BORDERS = { dark: '#3A4A5A', light: '#98A0AC' };
+const BORDERS = { dark: '#2A2A2E', light: '#A0A0A4' };
 
 const DEFAULT_SCALE = 0.25;
 

@@ -7,7 +7,6 @@ import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useThemeStore, type ThemeMode } from '../../stores/useThemeStore';
 import AvatarCircle from '../friends/AvatarCircle';
-import AccentColorPicker from './AccentColorPicker';
 import { BUILD_VERSION } from '../../constants/buildInfo';
 
 interface Props {
@@ -50,7 +49,6 @@ export default function ProfileMainView({ onOpenSettings, onClose }: Props) {
             <ModeChip label="Light" value="light" current={mode} onPress={setMode} colors={colors} />
             <ModeChip label="Dark" value="dark" current={mode} onPress={setMode} colors={colors} />
           </View>
-          <AccentColorPicker />
         </View>
       </View>
 

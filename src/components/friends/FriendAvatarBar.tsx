@@ -32,7 +32,6 @@ function FriendAvatarBar({ onOpenProfile, onOpenSearch }: Props) {
             username={friend.username}
             email={friend.email}
             size={sw(56)}
-            bgColor={colors.accentBlue}
           />
           <Text style={styles.avatarLabel} numberOfLines={1}>
             {label}

@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
 import { useThemeStore, ThemeMode } from '../stores/useThemeStore';
 
+/** Brand accents — derived from the monochrome app icon */
+const BRAND_ACCENT_DARK = '#FFFFFF';   // White — ring & M highlights
+const BRAND_ACCENT_LIGHT = '#3A3A3C';  // Charcoal — logo background
+
 export interface ThemeColors {
   background: string;
   card: string;
@@ -127,21 +131,21 @@ interface BasePalette {
 }
 
 const darkBase: BasePalette = {
-  background: '#0D0D0F',
-  card: '#1A1A1E',
-  cardBorder: '#2A2A2E',
-  surface: '#242428',
+  background: '#000000',
+  card: '#0E0E0E',
+  cardBorder: '#1C1C1E',
+  surface: '#141414',
   textPrimary: '#FFFFFF',
   textSecondary: '#8E8E93',
   textTertiary: '#636366',
   tabInactive: '#636366',
-  ringTrack: '#2A2A2E',
-  tintBackground: 0.04,
-  tintCard: 0.06,
-  tintSurface: 0.07,
-  tintBorder: 0.08,
-  tintRingTrack: 0.06,
-  accentMutedAmount: 0.15,
+  ringTrack: '#1C1C1E',
+  tintBackground: 0.00,
+  tintCard: 0.02,
+  tintSurface: 0.02,
+  tintBorder: 0.03,
+  tintRingTrack: 0.02,
+  accentMutedAmount: 0.10,
   shadowColor: '#000000',
   shadowOffsetY: 0,
   shadowOpacity: 0,
@@ -182,11 +186,11 @@ const bases: Record<ThemeMode, BasePalette> = {
 let _cacheKey = '';
 let _cached: ThemeColors | null = null;
 
-export function getThemeColors(mode: ThemeMode, accent: string): ThemeColors {
-  const key = mode + accent;
-  if (key === _cacheKey && _cached) return _cached;
+export function getThemeColors(mode: ThemeMode): ThemeColors {
+  if (mode === _cacheKey && _cached) return _cached;
 
   const b = bases[mode];
+  const accent = mode === 'dark' ? BRAND_ACCENT_DARK : BRAND_ACCENT_LIGHT;
 
   const cardColor = mix(b.card, accent, b.tintCard);
 
@@ -206,7 +210,7 @@ export function getThemeColors(mode: ThemeMode, accent: string): ThemeColors {
     accent,
     fat: shared.fat,
     accentMuted: mix(b.background, accent, b.accentMutedAmount),
-    textOnAccent: '#FFFFFF',
+    textOnAccent: mode === 'dark' ? '#1A1A1A' : '#FFFFFF',
     tabActive: accent,
 
     ring: {
@@ -223,10 +227,10 @@ export function getThemeColors(mode: ThemeMode, accent: string): ThemeColors {
     },
     actionTintGreen: mode === 'light' ? '#E8F5E9' : cardColor,
     actionTintOrange: mode === 'light' ? '#FFF3E0' : cardColor,
-    diaryPage: mode === 'light' ? '#FAF4EB' : '#181610',
+    diaryPage: mode === 'light' ? '#FAF4EB' : '#0A0A08',
   };
 
-  _cacheKey = key;
+  _cacheKey = mode;
   _cached = colors;
   return colors;
 }
@@ -235,6 +239,5 @@ export function getThemeColors(mode: ThemeMode, accent: string): ThemeColors {
 
 export function useColors(): ThemeColors {
   const mode = useThemeStore((s) => s.mode);
-  const accent = useThemeStore((s) => s.accentColor);
-  return useMemo(() => getThemeColors(mode, accent), [mode, accent]);
+  return useMemo(() => getThemeColors(mode), [mode]);
 }

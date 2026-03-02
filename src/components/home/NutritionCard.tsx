@@ -212,8 +212,8 @@ const createStyles = (colors: ThemeColors) =>
     },
     macroSection: {
       alignSelf: 'stretch',
-      gap: sw(6),
-      marginTop: sw(8),
+      gap: sw(8),
+      marginTop: sw(10),
     },
     macroRow: {
       flexDirection: 'row',

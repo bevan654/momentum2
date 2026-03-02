@@ -74,6 +74,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: sw(14),
     padding: sw(14),
     justifyContent: 'space-between',
+    gap: sw(8),
     ...colors.cardShadow,
   },
   header: {

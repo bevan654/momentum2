@@ -38,7 +38,7 @@ function LeaderboardRow({ entry, isCurrentUser, accentColor, valueLabel }: Props
         username={entry.profile.username}
         email={entry.profile.email}
         size={sw(34)}
-        bgColor={isCurrentUser ? colors.accentGreen : colors.accentBlue}
+        bgColor={isCurrentUser ? colors.accentGreen : undefined}
       />
 
       {/* Name */}
