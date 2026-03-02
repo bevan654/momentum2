@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import Svg, { Rect, Circle, Polyline, Line, Text as SvgText } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useShallow } from 'zustand/shallow';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
@@ -46,12 +47,30 @@ export default function WeightTrendCard() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const selectedDays = RANGES.find((r) => r.label === selectedRange)!.days;
+  const chartOpacity = useSharedValue(1);
+  const prevRange = useRef(selectedRange);
 
   useEffect(() => {
     if (userId) {
+      if (prevRange.current !== selectedRange) {
+        chartOpacity.value = withTiming(0, { duration: 150, easing: Easing.out(Easing.ease) }, () => {
+          // Data fetch triggers re-render, then fade back in
+        });
+        prevRange.current = selectedRange;
+      }
       fetchWeightData(userId, selectedDays);
     }
   }, [userId, selectedRange]);
+
+  useEffect(() => {
+    if (entries.length > 0) {
+      chartOpacity.value = withTiming(1, { duration: 250, easing: Easing.in(Easing.ease) });
+    }
+  }, [entries]);
+
+  const chartAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: chartOpacity.value,
+  }));
 
   const hasData = entries.length > 0;
   const changeColor = change !== null ? (change <= 0 ? colors.accentGreen : colors.accentOrange) : colors.textSecondary;
@@ -128,7 +147,9 @@ export default function WeightTrendCard() {
       {/* Chart or empty state */}
       {hasData ? (
         <TouchableOpacity activeOpacity={0.7} onPress={() => setShowHistoryModal(true)}>
-          <WeightChart entries={entries} emaPoints={emaPoints} colors={colors} />
+          <Animated.View style={chartAnimatedStyle}>
+            <WeightChart entries={entries} emaPoints={emaPoints} colors={colors} />
+          </Animated.View>
           {/* Legend */}
           <View style={styles.legend}>
             <View style={styles.legendItem}>
