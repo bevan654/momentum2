@@ -36,10 +36,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
-      NSHealthShareUsageDescription:
-        'Momentum reads your health data (steps, calories, heart rate) to display your daily activity.',
-      NSHealthUpdateUsageDescription:
-        'Momentum saves your workout data to Apple Health.',
     },
   },
   android: {
@@ -54,7 +50,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-secure-store',
-    '@kingstinct/react-native-healthkit',
+    [
+      '@kingstinct/react-native-healthkit',
+      {
+        NSHealthShareUsageDescription:
+          'Momentum reads your health data (steps, calories, heart rate) to display your daily activity.',
+        NSHealthUpdateUsageDescription:
+          'Momentum saves your workout data to Apple Health.',
+      },
+    ],
     [
       'react-native-health-connect',
       {
