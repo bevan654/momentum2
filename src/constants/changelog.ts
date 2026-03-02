@@ -13,6 +13,17 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.26',
+    date: '2026-03-02',
+    title: "What's New",
+    items: [
+      'Redesigned supplement cards — track up to 2 supplements side by side',
+      'Add new supplements directly from the card with the built-in Add button',
+      'Daily motivation quotes on the home screen to keep you going',
+      'Refreshed home screen layout with cleaner card design',
+    ],
+  },
+  {
     version: '1.0.23',
     date: '2026-02-23',
     title: "What's New",
