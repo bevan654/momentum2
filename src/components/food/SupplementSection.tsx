@@ -11,19 +11,23 @@ import { useAuthStore } from '../../stores/useAuthStore';
 function SupplementSection() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { creatine, creatineGoal, addCreatine, resetCreatine } = useSupplementStore();
+  const supplementConfigs = useSupplementStore((s) => s.supplementConfigs);
+  const supplementTotals = useSupplementStore((s) => s.supplementTotals);
+  const addSupplement = useSupplementStore((s) => s.addSupplement);
+  const resetSupplement = useSupplementStore((s) => s.resetSupplement);
   const userId = useAuthStore((s) => s.user?.id);
-  const taken = creatine >= creatineGoal;
 
-  const handleToggle = useCallback(() => {
+  const handleToggle = useCallback((key: string, dailyGoal: number, taken: boolean) => {
     if (!userId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (taken) {
-      resetCreatine(userId);
+      resetSupplement(userId, key);
     } else {
-      addCreatine(userId, creatineGoal);
+      addSupplement(userId, key, dailyGoal);
     }
-  }, [userId, taken, creatineGoal, addCreatine, resetCreatine]);
+  }, [userId, addSupplement, resetSupplement]);
+
+  if (supplementConfigs.length === 0) return null;
 
   return (
     <View style={styles.card}>
@@ -34,26 +38,33 @@ function SupplementSection() {
         </View>
       </View>
 
-      {/* Creatine toggle */}
-      <TouchableOpacity
-        onPress={handleToggle}
-        style={[styles.supplementRow, taken && styles.supplementDone]}
-        activeOpacity={0.6}
-      >
-        <View style={styles.supplementLeft}>
-          <Ionicons
-            name={taken ? 'checkmark-circle' : 'ellipse-outline'}
-            size={ms(20)}
-            color={taken ? colors.accentGreen : colors.textTertiary}
-          />
-          <Text style={[styles.supplementName, taken && styles.supplementNameDone]}>
-            Creatine
-          </Text>
-        </View>
-        <Text style={[styles.supplementAmount, taken && styles.supplementAmountDone]}>
-          {creatine}g / {creatineGoal}g
-        </Text>
-      </TouchableOpacity>
+      {supplementConfigs.map((config) => {
+        const total = supplementTotals[config.key] || 0;
+        const taken = total >= config.dailyGoal;
+
+        return (
+          <TouchableOpacity
+            key={config.key}
+            onPress={() => handleToggle(config.key, config.dailyGoal, taken)}
+            style={[styles.supplementRow, taken && styles.supplementDone]}
+            activeOpacity={0.6}
+          >
+            <View style={styles.supplementLeft}>
+              <Ionicons
+                name={taken ? 'checkmark-circle' : 'ellipse-outline'}
+                size={ms(20)}
+                color={taken ? colors.accentGreen : colors.textTertiary}
+              />
+              <Text style={[styles.supplementName, taken && styles.supplementNameDone]}>
+                {config.name}
+              </Text>
+            </View>
+            <Text style={[styles.supplementAmount, taken && styles.supplementAmountDone]}>
+              {total}{config.unit} / {config.dailyGoal}{config.unit}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }

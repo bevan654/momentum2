@@ -30,8 +30,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.momentum.fitnessapp',
+    entitlements: {
+      'com.apple.developer.healthkit': true,
+      'com.apple.developer.healthkit.background-delivery': true,
+    },
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      NSHealthShareUsageDescription:
+        'Momentum reads your health data (steps, calories, heart rate) to display your daily activity.',
+      NSHealthUpdateUsageDescription:
+        'Momentum saves your workout data to Apple Health.',
     },
   },
   android: {
@@ -46,6 +54,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-secure-store',
+    '@kingstinct/react-native-healthkit',
+    [
+      'react-native-health-connect',
+      {
+        requestPermissionsOnFirstRun: false,
+      },
+    ],
     [
       'expo-notifications',
       {

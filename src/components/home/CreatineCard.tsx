@@ -9,23 +9,29 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { sw, ms } from '../../theme/responsive';
 
 export default function CreatineCard() {
-  const { creatine, creatineGoal, addCreatine, resetCreatine } = useSupplementStore();
+  const supplementConfigs = useSupplementStore((s) => s.supplementConfigs);
+  const supplementTotals = useSupplementStore((s) => s.supplementTotals);
+  const addSupplement = useSupplementStore((s) => s.addSupplement);
+  const resetSupplement = useSupplementStore((s) => s.resetSupplement);
   const userId = useAuthStore((s) => s.user?.id);
+  const creatineConfig = supplementConfigs.find((c) => c.key === 'creatine');
+  const creatine = supplementTotals['creatine'] || 0;
+  const creatineGoal = creatineConfig?.dailyGoal || 5;
   const taken = creatine >= creatineGoal;
-  const progress = Math.min(creatine / creatineGoal, 1);
+  const progress = creatineGoal > 0 ? Math.min(creatine / creatineGoal, 1) : 0;
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handleAdd = (g: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (userId) addCreatine(userId, g);
+    if (userId) addSupplement(userId, 'creatine', g);
   };
 
   const handleReset = useCallback(() => {
     if (!userId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    resetCreatine(userId);
-  }, [userId, resetCreatine]);
+    resetSupplement(userId, 'creatine');
+  }, [userId, resetSupplement]);
 
   return (
     <View style={styles.container}>
