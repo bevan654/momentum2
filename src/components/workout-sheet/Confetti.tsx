@@ -10,9 +10,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { sw } from '../../theme/responsive';
 
-const PARTICLE_COUNT = 32;
-const BURST_DURATION = 400;
-const FALL_DURATION = 1400;
+const PARTICLE_COUNT = 16;
+const BURST_DURATION = 350;
+const FALL_DURATION = 1200;
 
 const DEFAULT_COLORS = [
   '#FFD700', // gold

@@ -21,14 +21,14 @@ import type { WorkoutRankResult, ExerciseScoreEntry } from '../../utils/strength
    Timing constants (exported so the modal can compute delays)
    ═══════════════════════════════════════════════════════ */
 
-export const RANK_INITIAL_DELAY = 400;
-export const RANK_ROW_STAGGER = 550;
+export const RANK_INITIAL_DELAY = 200;
+export const RANK_ROW_STAGGER = 300;
 
-const BAR_DURATION = 600;
-const FADE_DURATION = 300;
-const BADGE_SPRING = { damping: 12, stiffness: 180 };
-const OVERALL_DELAY_AFTER_LAST = 500;
-const OVERALL_SPRING = { damping: 14, stiffness: 160 };
+const BAR_DURATION = 400;
+const FADE_DURATION = 200;
+const BADGE_SPRING = { damping: 14, stiffness: 200 };
+const OVERALL_DELAY_AFTER_LAST = 300;
+const OVERALL_SPRING = { damping: 16, stiffness: 180 };
 
 /* ═══════════════════════════════════════════════════════
    Helpers
@@ -72,13 +72,6 @@ export function AnimatedRankBar({ entry, animateIndex, colors }: RankBarProps) {
     // Badge pops after bar fill
     const badgeDelay = barDelay + BAR_DURATION * 0.7;
     badgeScale.value = withDelay(badgeDelay, withSpring(1, BADGE_SPRING));
-
-    // Haptic at badge pop
-    const hapticTimeout = setTimeout(() => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }, badgeDelay);
-
-    return () => clearTimeout(hapticTimeout);
   }, []);
 
   const barAnimStyle = useAnimatedStyle(() => ({
@@ -186,7 +179,7 @@ const RANK_ORDER = [
   'Master', 'Grandmaster', 'Titan', 'Mythic', 'Legend',
 ] as const;
 
-const RANK_STEP_DURATION = 450;
+const RANK_STEP_DURATION = 300;
 
 interface OverallProps {
   exerciseCount: number;
@@ -220,17 +213,12 @@ export function OverallRankReveal({ exerciseCount, colors }: OverallProps) {
     const timers: ReturnType<typeof setTimeout>[] = [];
 
     // Card entrance
-    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 300 }));
+    cardOpacity.value = withDelay(delay, withTiming(1, { duration: 250 }));
     cardScale.value = withDelay(delay, withSpring(1, OVERALL_SPRING));
-
-    // Initial haptic
-    timers.push(setTimeout(() => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }, delay));
 
     if (hasRankUp) {
       // ── Rank-up cycling animation ──────────────────────
-      const cycleStart = delay + 500;
+      const cycleStart = delay + 300;
 
       for (let i = 0; i <= rankSteps; i++) {
         const stepTime = cycleStart + i * RANK_STEP_DURATION;
@@ -241,58 +229,48 @@ export function OverallRankReveal({ exerciseCount, colors }: OverallProps) {
           setDisplayRank(rankName);
 
           if (isFinal) {
-            // Final rank — big celebration
             setIsLanding(true);
             setLabel('RANK UP!');
-            shieldScale.value = withSpring(1.3, { damping: 6, stiffness: 180 });
+            shieldScale.value = withSpring(1.3, { damping: 8, stiffness: 200 });
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } else {
-            // Intermediate rank — pulse + light haptic
-            shieldScale.value = withSpring(1.2, { damping: 8, stiffness: 220 });
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            // Reset shield scale for next pulse
+            shieldScale.value = withSpring(1.15, { damping: 10, stiffness: 220 });
             timers.push(setTimeout(() => {
-              shieldScale.value = withSpring(1, { damping: 10, stiffness: 200 });
-            }, 200));
+              shieldScale.value = withSpring(1, { damping: 12, stiffness: 200 });
+            }, 150));
           }
         }, stepTime));
       }
 
-      // Score count-up starts after rank cycling finishes
-      const countStart = cycleStart + rankSteps * RANK_STEP_DURATION + 400;
-      const countSteps = 16;
-      const countStepDuration = 800 / countSteps;
+      // Score count-up after rank cycling
+      const countStart = cycleStart + rankSteps * RANK_STEP_DURATION + 300;
+      const countSteps = 8;
+      const countStepDuration = 500 / countSteps;
 
       for (let i = 0; i <= countSteps; i++) {
         timers.push(setTimeout(() => {
           const val = (overallScore * i) / countSteps;
           setDisplayScore(val.toFixed(1));
-          if (i > 0 && i % 4 === 0 && i < countSteps) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
           if (i === countSteps) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           }
         }, countStart + i * countStepDuration));
       }
     } else {
-      // ── No rank change — just show current rank + count-up ──
-      const countStart = delay + 500;
-      const countSteps = 16;
-      const countStepDuration = 800 / countSteps;
+      // ── No rank change — show current rank + count-up ──
+      const countStart = delay + 300;
+      const countSteps = 8;
+      const countStepDuration = 500 / countSteps;
 
       timers.push(setTimeout(() => {
-        shieldScale.value = withSpring(1.15, { damping: 6, stiffness: 200 });
+        shieldScale.value = withSpring(1.15, { damping: 8, stiffness: 200 });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }, delay + 300));
+      }, delay + 200));
 
       for (let i = 0; i <= countSteps; i++) {
         timers.push(setTimeout(() => {
           const val = (overallScore * i) / countSteps;
           setDisplayScore(val.toFixed(1));
-          if (i > 0 && i % 4 === 0 && i < countSteps) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
           if (i === countSteps) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           }

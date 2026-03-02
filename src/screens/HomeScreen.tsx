@@ -30,7 +30,6 @@ function HomeScreen() {
   const fetchWeightData = useWeightStore((s) => s.fetchWeightData);
   const refreshStreak = useStreakStore((s) => s.refreshStreak);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
-  const startWorkout = useActiveWorkoutStore((s) => s.startWorkout);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
   const navigation = useNavigation<any>();
   const colors = useColors();
@@ -80,7 +79,7 @@ function HomeScreen() {
     if (isActive) {
       showSheet();
     } else {
-      startWorkout();
+      navigation.navigate('Workouts', { screen: 'StartWorkout' });
     }
   };
 
