@@ -25,7 +25,6 @@ function CommentRow({ comment, isReply, isOwn, onReply, onDelete }: Props) {
         username={comment.profile.username}
         email={comment.profile.email}
         size={isReply ? sw(24) : sw(30)}
-        bgColor={colors.accentBlue}
       />
       <View style={styles.content}>
         <Text style={styles.textLine}>

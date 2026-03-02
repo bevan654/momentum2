@@ -214,7 +214,7 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.bold,
     },
     dayNumSel: {
-      color: '#FFFFFF',
+      color: colors.textOnAccent,
     },
     dayNumToday: {
       color: colors.accent,

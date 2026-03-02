@@ -44,15 +44,15 @@ import {
 
 const PALETTES = {
   dark: [
-    '#141D28', '#1E3B53', '#255A80', '#3678A3', '#5BA3CC', '#88E3FA', '#56D4F4',
+    '#141414', '#2A2A2E', '#4A4A4E', '#6E6E72', '#9A9A9E', '#CDCDD0', '#FFFFFF',
   ],
   light: [
-    '#C8CED6', '#94B8D8', '#6B9DC8', '#4882B8', '#2B6CB0', '#1A56A0', '#1D8FE1',
+    '#E0E0E2', '#B8B8BC', '#909096', '#6E6E72', '#4A4A4E', '#2A2A2E', '#1A1A1A',
   ],
 };
 
-const BORDERS = { dark: '#2A2A2E', light: '#A0A8B4' };
-const HIGHLIGHT_TEXT = { dark: '#56D4F4', light: '#1D8FE1' };
+const BORDERS = { dark: '#1C1C1E', light: '#A0A0A4' };
+const HIGHLIGHT_TEXT = { dark: '#FFFFFF', light: '#1A1A1A' };
 
 /* --- Slug → MuscleGroup for recovery lookup --------------- */
 

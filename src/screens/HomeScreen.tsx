@@ -149,7 +149,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: sw(16),
     paddingTop: sw(10),
     paddingBottom: sw(14),
-    gap: sw(12),
+    gap: sw(16),
   },
   greeting: {
     color: colors.textSecondary,
@@ -197,6 +197,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   supplementCol: {
     flex: 1,
-    gap: sw(10),
+    gap: sw(14),
   },
 });

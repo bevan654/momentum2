@@ -140,7 +140,6 @@ function FeedCard({
                 username={item.profile.username}
                 email={item.profile.email}
                 size={sw(36)}
-                bgColor={colors.accentBlue}
               />
               <View style={styles.headerInfo}>
                 <View style={styles.nameRow}>
