@@ -6,21 +6,19 @@ import {
   Text,
   Pressable,
   TouchableOpacity,
-  PanResponder,
-  LayoutAnimation,
-  UIManager,
-  Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSpring,
   withSequence,
+  withDelay,
   interpolate,
   cancelAnimation,
   Extrapolation,
+  runOnJS,
 } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -28,16 +26,11 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { ActiveSet } from '../../stores/useActiveWorkoutStore';
 
-/* ── Enable LayoutAnimation on Android ─────────────────── */
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
 /* ── Constants ─────────────────────────────────────────── */
 
 const SWIPE_THRESHOLD = 80;
 const ACTION_WIDTH = sw(72);
+const ROW_HEIGHT = sw(42);
 
 /* ── Props ─────────────────────────────────────────────── */
 
@@ -73,8 +66,6 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
   const kgRef = useRef<TextInput>(null);
   const repsRef = useRef<TextInput>(null);
 
-  // Sync from store → local only when store diverges from local
-  // (e.g. undo, restore — NOT from our own onChangeText calls)
   const localKgRef = useRef(localKg);
   const localRepsRef = useRef(localReps);
   localKgRef.current = localKg;
@@ -103,8 +94,16 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
   const translateX = useSharedValue(0);
   const fadeAnim = useSharedValue(0);
   const flashAnim = useSharedValue(0);
+  const rowHeight = useSharedValue(ROW_HEIGHT);
+  const rowOpacity = useSharedValue(1);
+  const rowMargin = useSharedValue(sw(1));
 
-  const wrapperStyle = useAnimatedStyle(() => ({ opacity: fadeAnim.value }));
+  const wrapperStyle = useAnimatedStyle(() => ({
+    opacity: fadeAnim.value * rowOpacity.value,
+    height: rowHeight.value,
+    marginVertical: rowMargin.value,
+    overflow: 'hidden' as const,
+  }));
 
   const leftActionAnimStyle = useAnimatedStyle(() => ({
     opacity: interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP),
@@ -131,9 +130,9 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
     opacity: interpolate(flashAnim.value, [0, 1], [0, 0.15]),
   }));
 
-  // Fade in on mount; cancel all animations on unmount
+  // Fade in on mount
   useEffect(() => {
-    fadeAnim.value = withTiming(1, { duration: 250 });
+    fadeAnim.value = withTiming(1, { duration: 200 });
     return () => {
       cancelAnimation(translateX);
       cancelAnimation(fadeAnim);
@@ -141,7 +140,7 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
     };
   }, []);
 
-  /* ── Callback refs (always fresh for PanResponder) ── */
+  /* ── Callback refs (always fresh for gesture) ────── */
 
   const onToggleRef = useRef(onToggle);
   const onDeleteRef = useRef(onDelete);
@@ -153,55 +152,57 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
     onCycleSetType();
   }, [onCycleSetType]);
 
-  /* ── Pan responder for swipe ───────────────────────── */
+  /* ── JS-thread callbacks for gestures ─────────────── */
 
-  const springBack = useCallback(() => {
-    translateX.value = withSpring(0, { stiffness: 180, damping: 12 });
+  const fireComplete = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onToggleRef.current();
   }, []);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) =>
-        Math.abs(g.dx) > 15 && Math.abs(g.dy) < 10,
-      onPanResponderMove: (_, g) => {
+  const fireDelete = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    onDeleteRef.current?.();
+  }, []);
+
+  /* ── Gesture Handler pan ─────────────────────────── */
+
+  const canDelete = !!onDelete;
+
+  const panGesture = useMemo(() =>
+    Gesture.Pan()
+      .activeOffsetX([-15, 15])
+      .failOffsetY([-10, 10])
+      .onUpdate((e) => {
+        'worklet';
         const maxRight = SWIPE_THRESHOLD + 20;
-        const canDelete = !!onDeleteRef.current;
         const maxLeft = canDelete ? -(SWIPE_THRESHOLD + 20) : 0;
-        const clamped = Math.max(maxLeft, Math.min(maxRight, g.dx));
-        translateX.value = clamped;
-      },
-      onPanResponderRelease: (_, g) => {
-        if (g.dx > SWIPE_THRESHOLD) {
-          // Complete: snap then spring back
+        translateX.value = Math.max(maxLeft, Math.min(maxRight, e.translationX));
+      })
+      .onEnd((e) => {
+        'worklet';
+        if (e.translationX > SWIPE_THRESHOLD) {
+          // Complete
           translateX.value = withSequence(
-            withSpring(SWIPE_THRESHOLD + 10, { stiffness: 250, damping: 20 }),
-            withSpring(0, { stiffness: 180, damping: 14 }),
+            withTiming(SWIPE_THRESHOLD + 10, { duration: 80 }),
+            withTiming(0, { duration: 180 }),
           );
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           flashAnim.value = withSequence(
-            withTiming(1, { duration: 120 }),
-            withTiming(0, { duration: 350 }),
+            withTiming(1, { duration: 100 }),
+            withTiming(0, { duration: 300 }),
           );
-          onToggleRef.current();
-        } else if (g.dx < -SWIPE_THRESHOLD && onDeleteRef.current) {
-          // Delete: snap then spring back
-          translateX.value = withSequence(
-            withSpring(-(SWIPE_THRESHOLD + 10), { stiffness: 250, damping: 20 }),
-            withSpring(0, { stiffness: 180, damping: 14 }),
-          );
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-          onDeleteRef.current();
+          runOnJS(fireComplete)();
+        } else if (e.translationX < -SWIPE_THRESHOLD && canDelete) {
+          // Delete: slide out then collapse
+          translateX.value = withTiming(-400, { duration: 200 });
+          rowOpacity.value = withDelay(100, withTiming(0, { duration: 150 }));
+          rowHeight.value = withDelay(150, withTiming(0, { duration: 200 }));
+          rowMargin.value = withDelay(150, withTiming(0, { duration: 200 }));
+          runOnJS(fireDelete)();
         } else {
-          // Spring back
-          translateX.value = withSpring(0, { stiffness: 180, damping: 12 });
+          translateX.value = withTiming(0, { duration: 180 });
         }
-      },
-      onPanResponderTerminate: () => {
-        translateX.value = withSpring(0, { stiffness: 180, damping: 12 });
-      },
-    }),
-  ).current;
+      }),
+  [canDelete]);
 
   /* ── Set type config ───────────────────────────────── */
 
@@ -262,89 +263,90 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
       </View>
 
       {/* Swipeable row */}
-      <Animated.View
-        {...panResponder.panHandlers}
-        style={[
-          styles.row,
-          completed && styles.rowCompleted,
-          rowSwipeStyle,
-        ]}
-      >
-        {/* Green flash overlay */}
+      <GestureDetector gesture={panGesture}>
         <Animated.View
-          style={[StyleSheet.absoluteFill, flashOverlayStyle]}
-          pointerEvents="none"
-        />
-
-        {/* Set number / type badge */}
-        <Pressable
-          onPress={handleCycleType}
-          style={({ pressed }) => [
-            styles.setNumBadge,
-            { backgroundColor: typeConfig.bg },
-            pressed && styles.setNumBadgePressed,
+          style={[
+            styles.row,
+            completed && styles.rowCompleted,
+            rowSwipeStyle,
           ]}
         >
-          {completed ? (
-            <Ionicons name="checkmark" size={ms(14)} color={colors.accentGreen} />
-          ) : (
-            <Text style={[styles.setNumText, { color: typeConfig.color }]}>
-              {typeConfig.label || (index + 1).toString()}
-            </Text>
-          )}
-        </Pressable>
+          {/* Green flash overlay */}
+          <Animated.View
+            style={[StyleSheet.absoluteFill, flashOverlayStyle]}
+            pointerEvents="none"
+          />
 
-        {/* Previous performance */}
-        <View style={styles.prevContainer}>
-          <Text
-            style={[styles.prevText, completed && styles.prevTextCompleted]}
-            numberOfLines={1}
+          {/* Set number / type badge */}
+          <Pressable
+            onPress={handleCycleType}
+            style={({ pressed }) => [
+              styles.setNumBadge,
+              { backgroundColor: typeConfig.bg },
+              pressed && styles.setNumBadgePressed,
+            ]}
           >
-            {formatPrev(prevSet)}
-          </Text>
-        </View>
+            {completed ? (
+              <Ionicons name="checkmark" size={ms(14)} color={colors.accentGreen} />
+            ) : (
+              <Text style={[styles.setNumText, { color: typeConfig.color }]}>
+                {typeConfig.label || (index + 1).toString()}
+              </Text>
+            )}
+          </Pressable>
 
-        {/* KG input */}
-        <View style={[styles.inputContainer, completed && styles.inputContainerCompleted]}>
-          <TextInput
-            ref={kgRef}
-            style={[styles.input, completed && styles.inputTextCompleted]}
-            value={localKg}
-            onChangeText={(v) => { setLocalKg(v); onUpdate('kg', v); }}
-            onFocus={() => handleFocus(kgRef, localKg)}
-            onBlur={() => { if (localKg !== set.kg) onUpdate('kg', localKg); }}
-            placeholder="—"
-            placeholderTextColor={colors.textTertiary + '50'}
-            keyboardType="decimal-pad"
-            editable={!completed}
-          />
-        </View>
+          {/* Previous performance */}
+          <View style={styles.prevContainer}>
+            <Text
+              style={[styles.prevText, completed && styles.prevTextCompleted]}
+              numberOfLines={1}
+            >
+              {formatPrev(prevSet)}
+            </Text>
+          </View>
 
-        {/* REPS input */}
-        <View style={[styles.inputContainer, completed && styles.inputContainerCompleted]}>
-          <TextInput
-            ref={repsRef}
-            style={[styles.input, completed && styles.inputTextCompleted]}
-            value={localReps}
-            onChangeText={(v) => { setLocalReps(v); onUpdate('reps', v); }}
-            onFocus={() => handleFocus(repsRef, localReps)}
-            onBlur={() => { if (localReps !== set.reps) onUpdate('reps', localReps); }}
-            placeholder="—"
-            placeholderTextColor={colors.textTertiary + '50'}
-            keyboardType="number-pad"
-            editable={!completed}
-          />
-        </View>
+          {/* KG input */}
+          <View style={[styles.inputContainer, completed && styles.inputContainerCompleted]}>
+            <TextInput
+              ref={kgRef}
+              style={[styles.input, completed && styles.inputTextCompleted]}
+              value={localKg}
+              onChangeText={(v) => { setLocalKg(v); onUpdate('kg', v); }}
+              onFocus={() => handleFocus(kgRef, localKg)}
+              onBlur={() => { if (localKg !== set.kg) onUpdate('kg', localKg); }}
+              placeholder="—"
+              placeholderTextColor={colors.textTertiary + '50'}
+              keyboardType="decimal-pad"
+              editable={!completed}
+            />
+          </View>
 
-        {/* Complete / uncomplete toggle */}
-        <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onToggle(); }} style={styles.checkBtn} activeOpacity={0.6}>
-          <Ionicons
-            name={completed ? 'checkmark-circle' : 'ellipse-outline'}
-            size={ms(22)}
-            color={completed ? colors.accentGreen : colors.textTertiary + '60'}
-          />
-        </TouchableOpacity>
-      </Animated.View>
+          {/* REPS input */}
+          <View style={[styles.inputContainer, completed && styles.inputContainerCompleted]}>
+            <TextInput
+              ref={repsRef}
+              style={[styles.input, completed && styles.inputTextCompleted]}
+              value={localReps}
+              onChangeText={(v) => { setLocalReps(v); onUpdate('reps', v); }}
+              onFocus={() => handleFocus(repsRef, localReps)}
+              onBlur={() => { if (localReps !== set.reps) onUpdate('reps', localReps); }}
+              placeholder="—"
+              placeholderTextColor={colors.textTertiary + '50'}
+              keyboardType="number-pad"
+              editable={!completed}
+            />
+          </View>
+
+          {/* Complete / uncomplete toggle */}
+          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onToggle(); }} style={styles.checkBtn} activeOpacity={0.6}>
+            <Ionicons
+              name={completed ? 'checkmark-circle' : 'ellipse-outline'}
+              size={ms(22)}
+              color={completed ? colors.accentGreen : colors.textTertiary + '60'}
+            />
+          </TouchableOpacity>
+        </Animated.View>
+      </GestureDetector>
     </Animated.View>
   );
 }
@@ -356,9 +358,7 @@ export default React.memo(SetRow);
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     wrapper: {
-      marginVertical: sw(1),
       borderRadius: sw(10),
-      overflow: 'hidden',
     },
 
     /* ── Background actions ──────────────────────────── */

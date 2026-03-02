@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ActiveExercise } from '../stores/useActiveWorkoutStore';
 
 const KEY = 'active_workout_state';
+const REST_PREF_KEY = 'rest_duration_preference';
 
 export interface PersistedWorkout {
   startTime: number;
@@ -38,4 +39,19 @@ export async function loadWorkoutAsync(): Promise<PersistedWorkout | null> {
 
 export function clearWorkout(): void {
   AsyncStorage.removeItem(KEY).catch(() => {});
+}
+
+export function saveRestPreference(seconds: number): void {
+  AsyncStorage.setItem(REST_PREF_KEY, String(seconds)).catch(() => {});
+}
+
+export async function loadRestPreference(): Promise<number> {
+  try {
+    const raw = await AsyncStorage.getItem(REST_PREF_KEY);
+    if (raw) {
+      const n = parseInt(raw, 10);
+      if (n > 0) return n;
+    }
+  } catch {}
+  return 90;
 }

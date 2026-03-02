@@ -8,9 +8,7 @@ import {
   StyleSheet,
   Platform,
   KeyboardAvoidingView,
-  Modal,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
@@ -93,8 +91,6 @@ const CatalogRow = React.memo(function CatalogRow({ item, onSelect, s, c }: Cata
 export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
-
-  const insets = useSafeAreaInsets();
 
   /* ── Store selectors ───────────────────────────────── */
   const userId = useAuthStore((s) => s.user?.id);
@@ -237,8 +233,9 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
 
   /* ── Render ────────────────────────────────────────── */
   return (
-    <Modal visible={visible} animationType="none" statusBarTranslucent>
-      <View style={[s.overlay, { paddingTop: insets.top + sw(8) }]}>
+    <>
+    {visible && (
+      <View style={[StyleSheet.absoluteFill, s.overlay]}>
         <KeyboardAvoidingView
           style={s.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -427,39 +424,40 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
           )}
         </KeyboardAvoidingView>
       </View>
+    )}
 
-      <FoodDetailModal
-        visible={detailVisible}
-        food={detailFood}
-        initialMealSlot={mealSlot}
-        initialIsPlanned={false}
-        targetHour={targetHour}
-        onDismiss={handleDetailDismiss}
-        onAdded={handleDetailAdded}
-        onFoodSwap={setDetailFood}
-      />
-      <BarcodeScannerModal
-        visible={scannerVisible}
-        onDismiss={handleScanDismiss}
-        onFoodFound={handleScanFound}
-        onNotFound={handleScanNotFound}
-      />
-      <CreateMealModal
-        visible={createMealVisible}
-        mealSlot={mealSlot}
-        targetHour={targetHour}
-        onDismiss={handleCreateMealDismiss}
-        onLogged={handleMealLogged}
-        initialMeal={selectedSavedMeal}
-      />
-      <QuickAddModal
-        visible={quickAddVisible}
-        mealSlot={mealSlot}
-        targetHour={targetHour}
-        onDismiss={handleQuickAddDismiss}
-        onAdded={handleQuickAdded}
-      />
-    </Modal>
+    <FoodDetailModal
+      visible={detailVisible}
+      food={detailFood}
+      initialMealSlot={mealSlot}
+      initialIsPlanned={false}
+      targetHour={targetHour}
+      onDismiss={handleDetailDismiss}
+      onAdded={handleDetailAdded}
+      onFoodSwap={setDetailFood}
+    />
+    <BarcodeScannerModal
+      visible={scannerVisible}
+      onDismiss={handleScanDismiss}
+      onFoodFound={handleScanFound}
+      onNotFound={handleScanNotFound}
+    />
+    <CreateMealModal
+      visible={createMealVisible}
+      mealSlot={mealSlot}
+      targetHour={targetHour}
+      onDismiss={handleCreateMealDismiss}
+      onLogged={handleMealLogged}
+      initialMeal={selectedSavedMeal}
+    />
+    <QuickAddModal
+      visible={quickAddVisible}
+      mealSlot={mealSlot}
+      targetHour={targetHour}
+      onDismiss={handleQuickAddDismiss}
+      onAdded={handleQuickAdded}
+    />
+    </>
   );
 }
 
@@ -470,6 +468,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: colors.background,
+    paddingTop: sw(12),
   },
   /* Header */
   header: {

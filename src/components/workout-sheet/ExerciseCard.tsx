@@ -1,22 +1,16 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  LayoutAnimation,
-  Modal,
-  Pressable,
-  findNodeHandle,
-  UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
-import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
+import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import type { ActiveExercise } from '../../stores/useActiveWorkoutStore';
-import MusclePill from '../workouts/MusclePill';
 import SetRow from './SetRow';
 
 interface Props {
@@ -38,113 +32,52 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, onRepla
   const toggleSetComplete = useActiveWorkoutStore((s) => s.toggleSetComplete);
   const cycleSetType = useActiveWorkoutStore((s) => s.cycleSetType);
   const moveExercise = useActiveWorkoutStore((s) => s.moveExercise);
-  const linkSuperset = useActiveWorkoutStore((s) => s.linkSuperset);
-  const unlinkSuperset = useActiveWorkoutStore((s) => s.unlinkSuperset);
-
-  const isSupersetted = exercise.supersetWith !== null;
-
-  /* ── Dropdown state ────────────────────────────────── */
-
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
-  const triggerRef = useRef<View>(null);
-
-  const openMenu = useCallback(() => {
-    const node = findNodeHandle(triggerRef.current);
-    if (node) {
-      UIManager.measure(node, (_x, _y, width, height, pageX, pageY) => {
-        setMenuPos({
-          top: pageY + height + sw(4),
-          right: SCREEN_WIDTH - (pageX + width),
-        });
-        setMenuOpen(true);
-      });
-    } else {
-      setMenuOpen(true);
-    }
-  }, []);
-
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
-
-  const menuAction = useCallback(
-    (fn: () => void) => {
-      closeMenu();
-      fn();
-    },
-    [closeMenu],
-  );
-
-  /* ── Menu items ────────────────────────────────────── */
-
-  type MenuItem = { icon: string; label: string; color: string; onPress: () => void; disabled?: boolean };
-
-  const menuItems: MenuItem[] = useMemo(() => {
-    const items: MenuItem[] = [
-      {
-        icon: 'chevron-up-outline',
-        label: 'Move Up',
-        color: colors.textPrimary,
-        onPress: () => menuAction(() => moveExercise(exerciseIndex, 'up')),
-        disabled: exerciseIndex === 0,
-      },
-      {
-        icon: 'chevron-down-outline',
-        label: 'Move Down',
-        color: colors.textPrimary,
-        onPress: () => menuAction(() => moveExercise(exerciseIndex, 'down')),
-        disabled: isLast,
-      },
-      {
-        icon: 'swap-horizontal-outline',
-        label: 'Replace Exercise',
-        color: colors.textPrimary,
-        onPress: () => menuAction(() => onReplace(exerciseIndex)),
-      },
-    ];
-
-    if (!isLast) {
-      items.push({
-        icon: isSupersetted ? 'link' : 'link-outline',
-        label: isSupersetted ? 'Remove Superset' : 'Superset',
-        color: isSupersetted ? colors.accent : colors.textPrimary,
-        onPress: () =>
-          menuAction(() =>
-            isSupersetted ? unlinkSuperset(exerciseIndex) : linkSuperset(exerciseIndex),
-          ),
-      });
-    }
-
-    items.push({
-      icon: 'trash-outline',
-      label: 'Remove Exercise',
-      color: colors.accentRed,
-      onPress: () => menuAction(() => removeExercise(exerciseIndex)),
-    });
-
-    return items;
-  }, [
-    colors, exerciseIndex, isLast, isSupersetted,
-    moveExercise, onReplace, linkSuperset, unlinkSuperset, removeExercise, menuAction,
-  ]);
 
   return (
     <View style={styles.card}>
-      {/* Header: title + dropdown trigger on same line */}
+      {/* Header: title + action icons */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.name} numberOfLines={1}>{exercise.name}</Text>
-          {exercise.category && <MusclePill category={exercise.category} />}
-        </View>
+        <Text style={styles.name} numberOfLines={1}>{exercise.name}</Text>
 
-        <TouchableOpacity
-          ref={triggerRef}
-          onPress={openMenu}
-          style={styles.menuTrigger}
-          activeOpacity={0.6}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="ellipsis-horizontal" size={ms(16)} color={colors.textSecondary} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => moveExercise(exerciseIndex, 'up')}
+            disabled={exerciseIndex === 0}
+            style={styles.actionBtn}
+            activeOpacity={0.6}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+          >
+            <Ionicons name="chevron-up" size={ms(14)} color={exerciseIndex === 0 ? colors.textTertiary + '40' : colors.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => moveExercise(exerciseIndex, 'down')}
+            disabled={isLast}
+            style={styles.actionBtn}
+            activeOpacity={0.6}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+          >
+            <Ionicons name="chevron-down" size={ms(14)} color={isLast ? colors.textTertiary + '40' : colors.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => onReplace(exerciseIndex)}
+            style={styles.actionBtn}
+            activeOpacity={0.6}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+          >
+            <Ionicons name="swap-horizontal-outline" size={ms(14)} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => removeExercise(exerciseIndex)}
+            style={styles.actionBtn}
+            activeOpacity={0.6}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+          >
+            <Ionicons name="trash-outline" size={ms(13)} color={colors.accentRed} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Column headers */}
@@ -174,50 +107,13 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, onRepla
       {/* Add Set button */}
       <TouchableOpacity
         style={styles.addSetBtn}
-        onPress={() => {
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-          addSet(exerciseIndex);
-        }}
+        onPress={() => addSet(exerciseIndex)}
         activeOpacity={0.7}
       >
         <Ionicons name="add" size={ms(14)} color={colors.accent} />
         <Text style={styles.addSetText}>Add Set</Text>
       </TouchableOpacity>
 
-      {/* Dropdown menu */}
-      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={closeMenu}>
-        <Pressable style={styles.overlay} onPress={closeMenu}>
-          <View style={[styles.menu, { top: menuPos.top, right: menuPos.right }]}>
-            {menuItems.map((item, i) => (
-              <TouchableOpacity
-                key={item.label}
-                style={[
-                  styles.menuItem,
-                  item.disabled && styles.menuItemDisabled,
-                  i < menuItems.length - 1 && styles.menuItemBorder,
-                ]}
-                onPress={item.onPress}
-                disabled={item.disabled}
-                activeOpacity={0.6}
-              >
-                <Ionicons
-                  name={item.icon as any}
-                  size={ms(15)}
-                  color={item.disabled ? colors.textTertiary + '40' : item.color}
-                />
-                <Text
-                  style={[
-                    styles.menuItemText,
-                    { color: item.disabled ? colors.textTertiary + '40' : item.color },
-                  ]}
-                >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -237,27 +133,26 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: sw(6),
   },
-  headerLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(6),
-    marginRight: sw(8),
-  },
   name: {
     color: colors.textPrimary,
     fontSize: ms(14),
     fontFamily: Fonts.bold,
     lineHeight: ms(20),
     flexShrink: 1,
+    flex: 1,
+    marginRight: sw(8),
   },
-  menuTrigger: {
-    width: sw(30),
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(2),
+  },
+  actionBtn: {
+    width: sw(26),
     height: sw(26),
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: sw(8),
+    borderRadius: sw(6),
   },
   colHeaders: {
     flexDirection: 'row',
@@ -291,41 +186,4 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(16),
   },
 
-  /* ── Dropdown ──────────────────────────────────────── */
-  overlay: {
-    flex: 1,
-  },
-  menu: {
-    position: 'absolute',
-    minWidth: sw(180),
-    backgroundColor: colors.card,
-    borderRadius: sw(12),
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    paddingVertical: sw(4),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(10),
-    paddingVertical: sw(10),
-    paddingHorizontal: sw(14),
-  },
-  menuItemDisabled: {
-    opacity: 0.4,
-  },
-  menuItemBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.cardBorder,
-  },
-  menuItemText: {
-    fontSize: ms(13),
-    fontFamily: Fonts.medium,
-    lineHeight: ms(18),
-  },
 });

@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { saveWorkout, loadWorkoutAsync, clearWorkout } from '../utils/workoutStorage';
+import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference } from '../utils/workoutStorage';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useStreakStore } from './useStreakStore';
 import { useRankStore } from './useRankStore';
@@ -87,6 +87,8 @@ const SET_TYPE_CYCLE: Record<string, string> = {
 let _timerInterval: ReturnType<typeof setInterval> | null = null;
 let _persistTimeout: ReturnType<typeof setTimeout> | null = null;
 let _workoutRestored = false; // Guard: prevent _persist before restore
+let _preferredRestDuration = 90; // Loaded from AsyncStorage at module init
+loadRestPreference().then((d) => { _preferredRestDuration = d; });
 
 // ── Store interface ────────────────────────────────────
 
@@ -217,6 +219,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       startTime: now,
       elapsedSeconds: 0,
       exercises: [],
+      restDuration: _preferredRestDuration,
       startedFromRoutine: null,
       isResting: false,
       restRemaining: 0,
@@ -257,6 +260,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       startTime: now,
       elapsedSeconds: 0,
       exercises,
+      restDuration: _preferredRestDuration,
       startedFromRoutine: routine.id,
       isResting: false,
       restRemaining: 0,
@@ -802,6 +806,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   setRestDuration: (seconds) => {
     if (get().isResting) return;
     set({ restDuration: seconds });
+    _preferredRestDuration = seconds;
+    saveRestPreference(seconds);
     get()._persist();
   },
 

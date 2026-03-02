@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -226,13 +226,11 @@ function AnimatedCheckmark({ colors, styles }: { colors: ThemeColors; styles: Re
   const scale = useSharedValue(0);
 
   useEffect(() => {
-    // Brief delay for modal to settle, then spring in
-    scale.value = withDelay(150, withSpring(1, { damping: 10, stiffness: 200 }));
+    scale.value = withDelay(100, withSpring(1, { damping: 14, stiffness: 220 }));
 
-    // Haptic on the "pop"
     const t = setTimeout(() => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }, 250);
+    }, 200);
     return () => clearTimeout(t);
   }, []);
 
@@ -318,20 +316,29 @@ export default function WorkoutSummaryModal(props: Props) {
 
   const prCount = data.prCount;
 
-  const rankResult = useMemo(() => {
-    const exercises = isJustCompleted
-      ? (displayExercises ?? (data as WorkoutSummary).exercises).map((ex) => ({
-          name: ex.name,
-          exercise_type: catalogMap[ex.name]?.exercise_type || 'weighted',
-          sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed })),
-        }))
-      : (data as WorkoutWithDetails).exercises.map((ex) => ({
-          name: ex.name,
-          exercise_type: ex.exercise_type,
-          sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed })),
-        }));
-    if (exercises.length === 0) return null;
-    return computeWorkoutRank({ exercises, bodyweight, catalog: catalogMap });
+  // Defer rank computation so it doesn't block the first render frame
+  const [rankResult, setRankResult] = useState<WorkoutRankResult | null>(null);
+  const rankDepsRef = useRef({ data, bodyweight, catalogMap, isJustCompleted, displayExercises });
+  rankDepsRef.current = { data, bodyweight, catalogMap, isJustCompleted, displayExercises };
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const { data: d, bodyweight: bw, catalogMap: cm, isJustCompleted: jc, displayExercises: de } = rankDepsRef.current;
+      const exercises = jc
+        ? (de ?? (d as WorkoutSummary).exercises).map((ex) => ({
+            name: ex.name,
+            exercise_type: cm[ex.name]?.exercise_type || 'weighted',
+            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed })),
+          }))
+        : (d as WorkoutWithDetails).exercises.map((ex) => ({
+            name: ex.name,
+            exercise_type: ex.exercise_type,
+            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed })),
+          }));
+      if (exercises.length === 0) { setRankResult(null); return; }
+      setRankResult(computeWorkoutRank({ exercises, bodyweight: bw, catalog: cm }));
+    });
+    return () => cancelAnimationFrame(id);
   }, [data, bodyweight, catalogMap, isJustCompleted, displayExercises]);
 
   // ── Edit handlers ────────────────────────────────
