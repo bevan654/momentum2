@@ -154,6 +154,7 @@ function BodyStatsEditor() {
   const updateProfile = useAuthStore((s) => s.updateProfile);
 
   const [weight, setWeight] = useState(String(profile?.starting_weight || ''));
+  const [goalWeight, setGoalWeight] = useState(String(profile?.goal_weight || ''));
 
   const handleWeightBlur = useCallback(() => {
     const val = parseFloat(weight);
@@ -164,9 +165,19 @@ function BodyStatsEditor() {
     }
   }, [weight, profile, updateProfile]);
 
+  const handleGoalWeightBlur = useCallback(() => {
+    const val = parseFloat(goalWeight);
+    if (!isNaN(val) && val > 0) {
+      updateProfile({ goal_weight: val });
+    } else {
+      setGoalWeight(String(profile?.goal_weight || ''));
+    }
+  }, [goalWeight, profile, updateProfile]);
+
   return (
     <View>
       <GoalRow label="Starting Weight" value={weight} onChange={setWeight} onBlur={handleWeightBlur} unit="kg" />
+      <GoalRow label="Goal Weight" value={goalWeight} onChange={setGoalWeight} onBlur={handleGoalWeightBlur} unit="kg" />
     </View>
   );
 }

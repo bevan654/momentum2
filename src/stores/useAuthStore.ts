@@ -15,6 +15,7 @@ interface Profile {
   age: number | null;
   gender: string | null;
   starting_weight: number | null;
+  goal_weight: number | null;
   share_workouts: boolean;
   show_streak: boolean;
   notifications_enabled: boolean;
@@ -83,7 +84,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   fetchProfile: async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, email, username, height, age, gender, starting_weight, share_workouts, show_streak, notifications_enabled, leaderboard_opt_in')
+      .select('id, email, username, height, age, gender, starting_weight, goal_weight, share_workouts, show_streak, notifications_enabled, leaderboard_opt_in')
       .eq('id', userId)
       .single();
 
