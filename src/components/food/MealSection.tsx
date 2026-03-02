@@ -20,7 +20,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { FoodEntry } from '../../stores/useFoodLogStore';
-import type { SupplementEntry } from '../../stores/useSupplementStore';
+import { useSupplementStore, type SupplementEntry } from '../../stores/useSupplementStore';
 
 /* ─── Constants ────────────────────────────────────────── */
 
@@ -416,13 +416,14 @@ interface SupplementCardProps {
 const SupplementCard = React.memo(function SupplementCard({
   supplement, onDelete, styles, colors,
 }: SupplementCardProps) {
+  const configs = useSupplementStore((s) => s.supplementConfigs);
   const isWater = supplement.type === 'water';
-  const icon = isWater ? 'water-outline' : 'flash-outline';
-  const label = isWater ? 'Water' : 'Creatine';
-  const amount = isWater
-    ? `${Math.round(supplement.amount)} ml`
-    : `${supplement.amount} g`;
-  const tint = isWater ? colors.water : colors.creatine;
+  const config = !isWater ? configs.find((c) => c.key === supplement.type) : undefined;
+  const icon = isWater ? 'water-outline' : (config?.icon || 'ellipse-outline');
+  const label = isWater ? 'Water' : (config?.name || supplement.type);
+  const unit = isWater ? 'ml' : (config?.unit || 'g');
+  const amount = `${Math.round(supplement.amount)} ${unit}`;
+  const tint = isWater ? colors.water : (config?.color || colors.creatine);
   const handleDelete = useCallback(() => onDelete?.(supplement), [supplement, onDelete]);
 
   return (

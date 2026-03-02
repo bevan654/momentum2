@@ -14,7 +14,8 @@ import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWeightStore } from '../stores/useWeightStore';
 import NutritionCard from '../components/home/NutritionCard';
 import WaterCard from '../components/home/WaterCard';
-import CreatineCard from '../components/home/CreatineCard';
+import StreakCard from '../components/home/StreakCard';
+import SupplementsCard from '../components/home/SupplementsCard';
 import ActivityCard from '../components/home/ActivityCard';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
@@ -115,14 +116,17 @@ function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Nutrition + Supplements */}
+      {/* Nutrition + Water + Streak */}
       <View style={styles.nutritionRow}>
         <NutritionCard />
         <View style={styles.supplementCol}>
           <WaterCard />
-          <CreatineCard />
+          <StreakCard />
         </View>
       </View>
+
+      {/* Supplements */}
+      <SupplementsCard />
 
       {/* Activity Calendar */}
       <View style={styles.activityWrap}>
