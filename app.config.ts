@@ -41,6 +41,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: 'com.momentum.fitnessapp',
     googleServicesFile: './google-services.json',
+    minSdkVersion: 26,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
