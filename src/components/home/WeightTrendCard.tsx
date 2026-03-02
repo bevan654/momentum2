@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import Svg, { Rect, Circle, Polyline, Line, Text as SvgText } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useShallow } from 'zustand/shallow';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
@@ -46,12 +47,30 @@ export default function WeightTrendCard() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const selectedDays = RANGES.find((r) => r.label === selectedRange)!.days;
+  const chartOpacity = useSharedValue(1);
+  const prevRange = useRef(selectedRange);
 
   useEffect(() => {
     if (userId) {
+      if (prevRange.current !== selectedRange) {
+        chartOpacity.value = withTiming(0, { duration: 150, easing: Easing.out(Easing.ease) }, () => {
+          // Data fetch triggers re-render, then fade back in
+        });
+        prevRange.current = selectedRange;
+      }
       fetchWeightData(userId, selectedDays);
     }
   }, [userId, selectedRange]);
+
+  useEffect(() => {
+    if (entries.length > 0) {
+      chartOpacity.value = withTiming(1, { duration: 250, easing: Easing.in(Easing.ease) });
+    }
+  }, [entries]);
+
+  const chartAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: chartOpacity.value,
+  }));
 
   const hasData = entries.length > 0;
   const changeColor = change !== null ? (change <= 0 ? colors.accentGreen : colors.accentOrange) : colors.textSecondary;
@@ -115,20 +134,29 @@ export default function WeightTrendCard() {
       </View>
 
       {/* Goal projection */}
-      {goalWeight !== null && hasData && current !== null && (
-        <GoalProjection
-          current={current}
-          goalWeight={goalWeight}
-          change={change}
-          selectedDays={selectedDays}
-          colors={colors}
-        />
+      {hasData && current !== null && (
+        goalWeight !== null ? (
+          <GoalProjection
+            current={current}
+            goalWeight={goalWeight}
+            change={change}
+            entries={entries}
+            selectedDays={selectedDays}
+            colors={colors}
+          />
+        ) : (
+          <View style={styles.goalSection}>
+            <Text style={styles.goalText}>Set a goal weight in Settings</Text>
+          </View>
+        )
       )}
 
       {/* Chart or empty state */}
       {hasData ? (
         <TouchableOpacity activeOpacity={0.7} onPress={() => setShowHistoryModal(true)}>
-          <WeightChart entries={entries} emaPoints={emaPoints} colors={colors} />
+          <Animated.View style={chartAnimatedStyle}>
+            <WeightChart entries={entries} emaPoints={emaPoints} colors={colors} />
+          </Animated.View>
           {/* Legend */}
           <View style={styles.legend}>
             <View style={styles.legendItem}>
@@ -167,12 +195,14 @@ const GoalProjection = React.memo(function GoalProjection({
   current,
   goalWeight,
   change,
+  entries,
   selectedDays,
   colors,
 }: {
   current: number;
   goalWeight: number;
   change: number | null;
+  entries: { date: string; weight: number }[];
   selectedDays: number;
   colors: ThemeColors;
 }) {
@@ -190,11 +220,20 @@ const GoalProjection = React.memo(function GoalProjection({
         <Text style={[styles.goalText, { color: colors.accentGreen }]}>
           Goal reached!
         </Text>
+        <Text style={[styles.goalDisclaimer, { opacity: 0 }]}>Based on limited data</Text>
       </View>
     );
   }
 
-  const weightPerDay = change !== null ? change / selectedDays : 0;
+  // Use actual tracking span instead of selected range
+  const firstDate = new Date(entries[0].date);
+  const lastDate = new Date(entries[entries.length - 1].date);
+  const actualDays = Math.max(Math.round((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)), 1);
+  const limitedData = actualDays < selectedDays * 0.75;
+  const actualWeeks = Math.max(Math.round(actualDays / 7), 1);
+  const limitedLabel = `Only ${actualWeeks} week${actualWeeks !== 1 ? 's' : ''} of data available`;
+
+  const weightPerDay = change !== null ? change / actualDays : 0;
 
   // Not enough data to project
   if (Math.abs(weightPerDay) < 0.001) {
@@ -202,6 +241,7 @@ const GoalProjection = React.memo(function GoalProjection({
       <View style={styles.goalSection}>
         <Text style={styles.goalLabel}>Goal: {goalWeight} kg</Text>
         <Text style={styles.goalText}>{Math.abs(Math.round(remaining * 10) / 10)} kg to {needsToLose ? 'lose' : 'gain'}</Text>
+        <Text style={[styles.goalDisclaimer, { opacity: 0 }]}>Based on limited data</Text>
       </View>
     );
   }
@@ -219,6 +259,7 @@ const GoalProjection = React.memo(function GoalProjection({
         <Text style={[styles.goalText, { color: colors.accentOrange }]}>
           {directionWord}: Need to {goalWord} {Math.abs(Math.round(remaining * 10) / 10)} kg
         </Text>
+        <Text style={[styles.goalDisclaimer, !limitedData && { opacity: 0 }]}>{limitedLabel}</Text>
       </View>
     );
   }
@@ -242,6 +283,7 @@ const GoalProjection = React.memo(function GoalProjection({
       <Text style={[styles.goalText, { color: colors.accent }]}>
         {timeString} to goal ({remainingKg} kg to {needsToLose ? 'lose' : 'gain'})
       </Text>
+      <Text style={[styles.goalDisclaimer, !limitedData && { opacity: 0 }]}>{limitedLabel}</Text>
     </View>
   );
 });
@@ -457,6 +499,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(20),
     fontFamily: Fonts.semiBold,
     textAlign: 'center',
+  },
+  goalDisclaimer: {
+    color: colors.textTertiary,
+    fontSize: ms(11),
+    lineHeight: ms(15),
+    fontFamily: Fonts.medium,
+    textAlign: 'center',
+    marginTop: sw(4),
   },
   emptyState: {
     backgroundColor: colors.surface,
