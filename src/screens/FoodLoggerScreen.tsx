@@ -1,11 +1,13 @@
 import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { sw, ms } from '../theme/responsive';
 import { Fonts } from '../theme/typography';
 import { useFoodLogStore } from '../stores/useFoodLogStore';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useSupplementStore, type SupplementEntry } from '../stores/useSupplementStore';
 import DateNavigator from '../components/food/DateNavigator';
 import MealSection from '../components/food/MealSection';
 import AddFoodModal from '../components/food/AddFoodModal';
@@ -34,6 +36,10 @@ function FoodLoggerScreen() {
   const togglePlanned = useFoodLogStore((s) => s.togglePlanned);
   const moveEntryToHour = useFoodLogStore((s) => s.moveEntryToHour);
   const deleteMealGroup = useFoodLogStore((s) => s.deleteMealGroup);
+
+  const supplementEntries = useSupplementStore((s) => s.dateEntries);
+  const fetchDateSupplements = useSupplementStore((s) => s.fetchDateSupplements);
+  const deleteSupplementEntry = useSupplementStore((s) => s.deleteSupplementEntry);
 
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -69,6 +75,7 @@ function FoodLoggerScreen() {
     if (!userId) return;
     hasScrolledRef.current = false;
     fetchDayEntries(userId, selectedDate);
+    fetchDateSupplements(userId, selectedDate);
   }, [userId, selectedDate]);
 
   // Auto-scroll to current time after layout (only for today)
@@ -98,6 +105,15 @@ function FoodLoggerScreen() {
   const handleAddFood = useCallback((mealSlot: string, hour?: number) => {
     setAddMealSlot(mealSlot);
     setAddHour(hour);
+    setAddModalVisible(true);
+  }, []);
+
+  const handleFabPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const h = new Date().getHours();
+    const slot = h < 11 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'snack' : 'dinner';
+    setAddMealSlot(slot);
+    setAddHour(h);
     setAddModalVisible(true);
   }, []);
 
@@ -180,6 +196,11 @@ function FoodLoggerScreen() {
     deleteMealGroup(groupId);
   }, [deleteMealGroup]);
 
+  const handleDeleteSupplement = useCallback((supplement: SupplementEntry) => {
+    if (!userId) return;
+    deleteSupplementEntry(userId, supplement);
+  }, [userId, deleteSupplementEntry]);
+
   const handleDismissGroupEdit = useCallback(() => {
     setEditGroupModalVisible(false);
     setEditGroupId(null);
@@ -210,6 +231,7 @@ function FoodLoggerScreen() {
         <View ref={contentRef} collapsable={false}>
           <MealSection
             entries={entries}
+            supplementEntries={supplementEntries}
             onTogglePlanned={togglePlanned}
             onAddFood={handleAddFood}
             onPressEntry={handlePressEntry}
@@ -217,6 +239,7 @@ function FoodLoggerScreen() {
             onMoveEntry={moveEntryToHour}
             onPressMealGroup={handlePressMealGroup}
             onDeleteMealGroup={handleDeleteMealGroup}
+            onDeleteSupplement={handleDeleteSupplement}
             nowRef={nowRef}
             isToday={isToday}
           />
@@ -247,6 +270,9 @@ function FoodLoggerScreen() {
         editMealGroupId={editGroupId}
         editMealGroupEntries={editGroupEntries}
       />
+      <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.8}>
+        <Ionicons name="add" size={ms(26)} color={colors.textOnAccent} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -292,5 +318,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   diaryPage: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: sw(16),
+    right: sw(16),
+    width: sw(52),
+    height: sw(52),
+    borderRadius: sw(26),
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...colors.cardShadow,
+    shadowOpacity: 0.3,
+    elevation: 6,
   },
 });

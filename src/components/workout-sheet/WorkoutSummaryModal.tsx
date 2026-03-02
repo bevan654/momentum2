@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -536,17 +537,182 @@ export default function WorkoutSummaryModal(props: Props) {
     setDurationPickerVisible(false);
   }, []);
 
+  /* ── Shared inner content ───────────────────────────── */
+
+  const statsContent = editing ? (
+    <View style={styles.statsRow}>
+      <TouchableOpacity style={styles.statItem} onPress={() => setDurationPickerVisible(true)} activeOpacity={0.7}>
+        <Text style={styles.statValue}>{formatDuration(editDuration)}</Text>
+        <Text style={styles.durationEditHint}>tap to edit</Text>
+      </TouchableOpacity>
+      <View style={styles.statDivider} />
+      <View style={styles.statItem}>
+        <Text style={styles.statValue}>{editExercises.length}</Text>
+        <Text style={styles.statLabel}>Exercises</Text>
+      </View>
+      <View style={styles.statDivider} />
+      <View style={styles.statItem}>
+        <Text style={styles.statValue}>{editExercises.reduce((n, ex) => n + ex.sets.length, 0)}</Text>
+        <Text style={styles.statLabel}>Sets</Text>
+      </View>
+    </View>
+  ) : (
+    <View style={styles.statsRow}>
+      <View style={styles.statItem}>
+        <Text style={styles.statValue}>{formatDuration(displayDuration)}</Text>
+        <Text style={styles.statLabel}>Duration</Text>
+      </View>
+      <View style={styles.statDivider} />
+      <View style={styles.statItem}>
+        <Text style={styles.statValue}>{formatVolume(displayVolume)}</Text>
+        <Text style={styles.statLabel}>Volume</Text>
+      </View>
+      <View style={styles.statDivider} />
+      <View style={styles.statItem}>
+        <Text style={styles.statValue}>{totalExercises}</Text>
+        <Text style={styles.statLabel}>Exercises</Text>
+      </View>
+      <View style={styles.statDivider} />
+      <View style={styles.statItem}>
+        <Text style={styles.statValue}>{totalSets}</Text>
+        <Text style={styles.statLabel}>Sets</Text>
+      </View>
+    </View>
+  );
+
+  const exerciseContent = editing ? (
+    <View style={styles.exerciseDetailList}>
+      {editExercises.map((ex, i) => (
+        <EditableExerciseSection
+          key={i}
+          exercise={ex}
+          exIdx={i}
+          canRemove={editExercises.length > 1}
+          colors={colors}
+          styles={styles}
+          onUpdateSet={updateEditSet}
+          onRemoveSet={removeEditSet}
+          onAddSet={addEditSet}
+          onRemoveExercise={removeEditExercise}
+        />
+      ))}
+    </View>
+  ) : isJustCompleted ? (
+    <View style={styles.exerciseDetailList}>
+      {(displayExercises ?? (data as WorkoutSummary).exercises).map((ex, i) => (
+        <SummaryExerciseSection key={i} exercise={ex} colors={colors} styles={styles} rankResult={rankResult} animateIndex={rankResult ? i : undefined} />
+      ))}
+      {rankResult && Object.keys(rankResult.exerciseScores).length > 0 && (
+        <OverallRankReveal
+          exerciseCount={(displayExercises ?? (data as WorkoutSummary).exercises).filter((ex) => rankResult.exerciseScores[ex.name]?.score > 0).length}
+          colors={colors}
+        />
+      )}
+    </View>
+  ) : (
+    <View style={styles.exerciseDetailList}>
+      {(data as WorkoutWithDetails).exercises.map((ex) => (
+        <ExerciseDetailSection key={ex.id} exercise={ex} colors={colors} styles={styles} rankResult={rankResult} />
+      ))}
+    </View>
+  );
+
+  const editFooter = (
+    <View style={styles.footerRow}>
+      <TouchableOpacity style={styles.cancelEditBtn} onPress={cancelEditing} activeOpacity={0.7} disabled={saving}>
+        <Text style={styles.cancelEditBtnText}>Cancel</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.saveEditBtn} onPress={saveEdits} activeOpacity={0.7} disabled={saving}>
+        {saving ? (
+          <ActivityIndicator size="small" color={colors.textOnAccent} />
+        ) : (
+          <Text style={styles.saveEditBtnText}>Save</Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+
+  const shareData = {
+    exercises: displayExercises ?? (
+      isJustCompleted
+        ? (data as WorkoutSummary).exercises
+        : (data as WorkoutWithDetails).exercises.map((ex) => ({
+            name: ex.name,
+            category: ex.category,
+            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed, set_type: s.set_type })),
+          }))
+    ),
+    duration: displayDuration,
+    date: isJustCompleted ? new Date() : new Date((data as WorkoutWithDetails).created_at),
+    workoutName: workoutName.trim() || null,
+    catalogMap,
+  };
+
+  const subModals = (
+    <>
+      {durationPickerVisible && (
+        <DurationPickerModal
+          visible
+          onConfirm={handleDurationConfirm}
+          onCancel={() => setDurationPickerVisible(false)}
+        />
+      )}
+      {showShare && (
+        <ShareWorkoutModal
+          visible={showShare}
+          data={shareData}
+          onClose={() => setShowShare(false)}
+        />
+      )}
+    </>
+  );
+
+  /* ── Historical mode: full-screen slide page ─────── */
+
+  if (!isJustCompleted) {
+    return (
+      <Modal
+        visible
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        statusBarTranslucent
+        onRequestClose={onDismiss}
+      >
+        <HistoricalPage
+          data={data as WorkoutWithDetails}
+          colors={colors}
+          styles={styles}
+          editing={editing}
+          onDismiss={onDismiss}
+          onDelete={onDelete}
+          handleDelete={handleDelete}
+          deleting={deleting}
+          startEditing={startEditing}
+          workoutId={workoutId}
+          rankResult={rankResult}
+          prCount={prCount}
+          statsContent={statsContent}
+          exerciseContent={exerciseContent}
+          editFooter={editFooter}
+          saving={saving}
+          setShowShare={setShowShare}
+        />
+        {subModals}
+      </Modal>
+    );
+  }
+
+  /* ── Just-completed mode: centered card overlay ──── */
+
   return (
-    <Modal visible transparent animationType="fade">
+    <Modal visible transparent animationType="fade" statusBarTranslucent>
       <View style={styles.overlay}>
         <TouchableWithoutFeedback onPress={editing ? undefined : onDismiss}>
           <View style={StyleSheet.absoluteFill} />
         </TouchableWithoutFeedback>
         <View style={styles.modal}>
-          {/* Confetti burst (just-completed only, hidden in edit mode) */}
-          {isJustCompleted && !editing && <Confetti />}
+          {!editing && <Confetti />}
 
-          {/* Close button (hidden in edit mode) */}
           {!editing && (
             <TouchableOpacity style={styles.closeBtn} onPress={onDismiss} activeOpacity={0.6}>
               <Ionicons name="close" size={ms(18)} color={colors.textTertiary} />
@@ -558,12 +724,11 @@ export default function WorkoutSummaryModal(props: Props) {
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Header */}
             {editing ? (
               <View style={styles.header}>
                 <Text style={styles.title}>Edit Workout</Text>
               </View>
-            ) : isJustCompleted ? (
+            ) : (
               <View style={styles.header}>
                 <AnimatedCheckmark colors={colors} styles={styles} />
                 <Text style={styles.title}>Workout Complete!</Text>
@@ -577,16 +742,8 @@ export default function WorkoutSummaryModal(props: Props) {
                   returnKeyType="done"
                 />
               </View>
-            ) : (
-              <View style={styles.header}>
-                <Text style={styles.title}>Workout Summary</Text>
-                <Text style={styles.dateSubtitle}>
-                  {formatWorkoutDate((data as WorkoutWithDetails).created_at)}
-                </Text>
-              </View>
             )}
 
-            {/* Rank + PR row (hidden in edit mode) */}
             {!editing && (rankResult || prCount > 0) && (
               <View style={styles.tagRow}>
                 {rankResult && <RankBadge rank={rankResult.rank} size="normal" />}
@@ -599,192 +756,138 @@ export default function WorkoutSummaryModal(props: Props) {
               </View>
             )}
 
-            {/* Stats row */}
-            {editing ? (
-              <View style={styles.statsRow}>
-                <TouchableOpacity style={styles.statItem} onPress={() => setDurationPickerVisible(true)} activeOpacity={0.7}>
-                  <Text style={styles.statValue}>{formatDuration(editDuration)}</Text>
-                  <Text style={styles.durationEditHint}>tap to edit</Text>
-                </TouchableOpacity>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{editExercises.length}</Text>
-                  <Text style={styles.statLabel}>Exercises</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{editExercises.reduce((n, ex) => n + ex.sets.length, 0)}</Text>
-                  <Text style={styles.statLabel}>Sets</Text>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{formatDuration(displayDuration)}</Text>
-                  <Text style={styles.statLabel}>Duration</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{formatVolume(displayVolume)}</Text>
-                  <Text style={styles.statLabel}>Volume</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{totalExercises}</Text>
-                  <Text style={styles.statLabel}>Exercises</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{totalSets}</Text>
-                  <Text style={styles.statLabel}>Sets</Text>
-                </View>
-              </View>
-            )}
+            {statsContent}
 
-            {/* Muscle heatmap (non-edit only) */}
-            {!editing && isJustCompleted && (displayExercises ?? (data as WorkoutSummary).exercises).length > 0 && (
+            {!editing && (displayExercises ?? (data as WorkoutSummary).exercises).length > 0 && (
               <MuscleHeatmap exercises={(displayExercises ?? (data as WorkoutSummary).exercises) as any} embedded />
             )}
-            {!editing && !isJustCompleted && (data as WorkoutWithDetails).exercises.length > 0 && (
-              <MuscleHeatmap exercises={(data as WorkoutWithDetails).exercises} embedded />
-            )}
 
-            {/* Exercise sections */}
-            {editing ? (
-              <View style={styles.exerciseDetailList}>
-                {editExercises.map((ex, i) => (
-                  <EditableExerciseSection
-                    key={i}
-                    exercise={ex}
-                    exIdx={i}
-                    canRemove={editExercises.length > 1}
-                    colors={colors}
-                    styles={styles}
-                    onUpdateSet={updateEditSet}
-                    onRemoveSet={removeEditSet}
-                    onAddSet={addEditSet}
-                    onRemoveExercise={removeEditExercise}
-                  />
-                ))}
-              </View>
-            ) : isJustCompleted ? (
-              <View style={styles.exerciseDetailList}>
-                {(displayExercises ?? (data as WorkoutSummary).exercises).map((ex, i) => (
-                  <SummaryExerciseSection key={i} exercise={ex} colors={colors} styles={styles} rankResult={rankResult} animateIndex={rankResult ? i : undefined} />
-                ))}
-                {rankResult && Object.keys(rankResult.exerciseScores).length > 0 && (
-                  <OverallRankReveal
-                    exerciseCount={(displayExercises ?? (data as WorkoutSummary).exercises).filter((ex) => rankResult.exerciseScores[ex.name]?.score > 0).length}
-                    colors={colors}
-                  />
-                )}
-              </View>
-            ) : (
-              <View style={styles.exerciseDetailList}>
-                {(data as WorkoutWithDetails).exercises.map((ex) => (
-                  <ExerciseDetailSection key={ex.id} exercise={ex} colors={colors} styles={styles} rankResult={rankResult} />
-                ))}
-              </View>
-            )}
+            {exerciseContent}
           </ScrollView>
 
-          {/* Footer buttons */}
-          {editing ? (
+          {editing ? editFooter : (
             <View style={styles.footerRow}>
-              <TouchableOpacity style={styles.cancelEditBtn} onPress={cancelEditing} activeOpacity={0.7} disabled={saving}>
-                <Text style={styles.cancelEditBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveEditBtn} onPress={saveEdits} activeOpacity={0.7} disabled={saving}>
-                {saving ? (
-                  <ActivityIndicator size="small" color={colors.textOnAccent} />
-                ) : (
-                  <Text style={styles.saveEditBtnText}>Save</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.footerRow}>
-              {!isJustCompleted && onDelete && (
-                <TouchableOpacity
-                  style={styles.deleteBtn}
-                  onPress={handleDelete}
-                  activeOpacity={0.7}
-                  disabled={deleting}
-                >
-                  <Ionicons name="trash-outline" size={ms(16)} color={colors.accentRed} />
+              {workoutId && (
+                <TouchableOpacity style={styles.smallIconBtn} onPress={startEditing} activeOpacity={0.7}>
+                  <Ionicons name="pencil" size={ms(16)} color={colors.accent} />
                 </TouchableOpacity>
               )}
-              {isJustCompleted ? (
-                <>
-                  {workoutId && (
-                    <TouchableOpacity style={styles.smallIconBtn} onPress={startEditing} activeOpacity={0.7}>
-                      <Ionicons name="pencil" size={ms(16)} color={colors.accent} />
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity style={styles.shareBtnMain} onPress={() => setShowShare(true)} activeOpacity={0.7}>
-                    <Ionicons name="share-outline" size={ms(18)} color={colors.textOnAccent} />
-                    <Text style={styles.shareBtnMainText}>Share</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.smallIconBtn} onPress={onDismiss} activeOpacity={0.7}>
-                    <Ionicons name="checkmark" size={ms(18)} color={colors.accentGreen} />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  {workoutId && (
-                    <TouchableOpacity style={styles.editBtn} onPress={startEditing} activeOpacity={0.7}>
-                      <Ionicons name="pencil" size={ms(16)} color={colors.accent} />
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity style={styles.shareBtn} onPress={() => setShowShare(true)} activeOpacity={0.7}>
-                    <Ionicons name="share-outline" size={ms(16)} color={colors.accentGreen} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.doneBtn}
-                    onPress={onDismiss}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.doneBtnText}>Close</Text>
-                  </TouchableOpacity>
-                </>
-              )}
+              <TouchableOpacity style={styles.shareBtnMain} onPress={() => setShowShare(true)} activeOpacity={0.7}>
+                <Ionicons name="share-outline" size={ms(18)} color={colors.textOnAccent} />
+                <Text style={styles.shareBtnMainText}>Share</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.smallIconBtn} onPress={onDismiss} activeOpacity={0.7}>
+                <Ionicons name="checkmark" size={ms(18)} color={colors.accentGreen} />
+              </TouchableOpacity>
             </View>
           )}
         </View>
       </View>
-
-      {/* Duration picker modal (edit mode) */}
-      {durationPickerVisible && (
-        <DurationPickerModal
-          visible
-          onConfirm={handleDurationConfirm}
-          onCancel={() => setDurationPickerVisible(false)}
-        />
-      )}
-
-      {/* Share workout modal */}
-      {showShare && (
-        <ShareWorkoutModal
-          visible={showShare}
-          data={{
-            exercises: displayExercises ?? (
-              isJustCompleted
-                ? (data as WorkoutSummary).exercises
-                : (data as WorkoutWithDetails).exercises.map((ex) => ({
-                    name: ex.name,
-                    category: ex.category,
-                    sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed, set_type: s.set_type })),
-                  }))
-            ),
-            duration: displayDuration,
-            date: isJustCompleted ? new Date() : new Date((data as WorkoutWithDetails).created_at),
-            workoutName: workoutName.trim() || null,
-            catalogMap,
-          }}
-          onClose={() => setShowShare(false)}
-        />
-      )}
+      {subModals}
     </Modal>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HistoricalPage — full-screen workout detail page
+   ═══════════════════════════════════════════════════════════ */
+
+function HistoricalPage({
+  data, colors, styles, editing, onDismiss, onDelete, handleDelete, deleting,
+  startEditing, workoutId, rankResult, prCount, statsContent, exerciseContent,
+  editFooter, saving, setShowShare,
+}: {
+  data: WorkoutWithDetails;
+  colors: ThemeColors;
+  styles: ReturnType<typeof createStyles>;
+  editing: boolean;
+  onDismiss: () => void;
+  onDelete?: () => void;
+  handleDelete: () => void;
+  deleting: boolean;
+  startEditing: () => void;
+  workoutId: string | undefined;
+  rankResult: WorkoutRankResult | null;
+  prCount: number;
+  statsContent: React.ReactNode;
+  exerciseContent: React.ReactNode;
+  editFooter: React.ReactNode;
+  saving: boolean;
+  setShowShare: (v: boolean) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const ps = useMemo(() => pageStyles(colors), [colors]);
+
+  return (
+    <View style={[ps.container, { paddingTop: insets.top }]}>
+      {/* Page header */}
+      <View style={ps.pageHeader}>
+        <TouchableOpacity onPress={onDismiss} style={ps.backBtn} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <View style={ps.pageHeaderCenter}>
+          <Text style={ps.pageTitle} numberOfLines={1}>
+            {editing ? 'Edit Workout' : 'Workout Summary'}
+          </Text>
+          {!editing && (
+            <Text style={ps.pageDate}>{formatWorkoutDate(data.created_at)}</Text>
+          )}
+        </View>
+        <View style={ps.backBtn} />
+      </View>
+
+      {/* Scrollable content */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={ps.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Rank + PR row */}
+        {!editing && (rankResult || prCount > 0) && (
+          <View style={styles.tagRow}>
+            {rankResult && <RankBadge rank={rankResult.rank} size="normal" />}
+            {prCount > 0 && (
+              <View style={styles.prBadge}>
+                <Ionicons name="trophy" size={ms(11)} color={colors.accentOrange} />
+                <Text style={styles.prBadgeText}>{prCount} PR{prCount > 1 ? 's' : ''}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {statsContent}
+
+        {!editing && data.exercises.length > 0 && (
+          <MuscleHeatmap exercises={data.exercises} embedded />
+        )}
+
+        {exerciseContent}
+      </ScrollView>
+
+      {/* Footer */}
+      <View style={[ps.footer, { paddingBottom: Math.max(insets.bottom, sw(12)) }]}>
+        {editing ? editFooter : (
+          <View style={styles.footerRow}>
+            {onDelete && (
+              <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7} disabled={deleting}>
+                <Ionicons name="trash-outline" size={ms(16)} color={colors.accentRed} />
+              </TouchableOpacity>
+            )}
+            {workoutId && (
+              <TouchableOpacity style={styles.editBtn} onPress={startEditing} activeOpacity={0.7}>
+                <Ionicons name="pencil" size={ms(16)} color={colors.accent} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.shareBtn} onPress={() => setShowShare(true)} activeOpacity={0.7}>
+              <Ionicons name="share-outline" size={ms(16)} color={colors.accentGreen} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.doneBtn} onPress={onDismiss} activeOpacity={0.8}>
+              <Text style={styles.doneBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -1194,5 +1297,54 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(15),
     fontFamily: Fonts.bold,
     lineHeight: ms(21),
+  },
+});
+
+/* ─── Page-mode styles (historical full-screen) ────── */
+
+const pageStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: sw(16),
+    paddingVertical: sw(12),
+  },
+  backBtn: {
+    width: sw(36),
+    height: sw(36),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pageHeaderCenter: {
+    flex: 1,
+    alignItems: 'center',
+    gap: sw(2),
+  },
+  pageTitle: {
+    color: colors.textPrimary,
+    fontSize: ms(18),
+    lineHeight: ms(24),
+    fontFamily: Fonts.bold,
+  },
+  pageDate: {
+    color: colors.textTertiary,
+    fontSize: ms(12),
+    lineHeight: ms(16),
+    fontFamily: Fonts.medium,
+  },
+  scrollContent: {
+    padding: sw(16),
+    paddingBottom: sw(20),
+  },
+  footer: {
+    paddingHorizontal: sw(16),
+    paddingTop: sw(12),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.cardBorder,
   },
 });

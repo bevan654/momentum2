@@ -8,24 +8,12 @@ import { useAuthStore } from '../../stores/useAuthStore';
 
 export default function SupplementConfigEditor() {
   const userId = useAuthStore((s) => s.user?.id);
-  const waterGoal = useSupplementStore((s) => s.waterGoal);
   const creatineGoal = useSupplementStore((s) => s.creatineGoal);
   const updateSupplementGoals = useSupplementStore((s) => s.updateSupplementGoals);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const [waterText, setWaterText] = useState(String(waterGoal));
   const [creatineText, setCreatineText] = useState(String(creatineGoal));
-
-  const handleWaterBlur = useCallback(() => {
-    if (!userId) return;
-    const val = parseInt(waterText, 10);
-    if (!isNaN(val) && val > 0) {
-      updateSupplementGoals(userId, { water_goal: val });
-    } else {
-      setWaterText(String(waterGoal));
-    }
-  }, [userId, waterText, waterGoal, updateSupplementGoals]);
 
   const handleCreatineBlur = useCallback(() => {
     if (!userId) return;
@@ -39,17 +27,6 @@ export default function SupplementConfigEditor() {
 
   return (
     <View>
-      <View style={styles.row}>
-        <Text style={styles.label}>Water Goal (ml)</Text>
-        <TextInput
-          style={styles.input}
-          value={waterText}
-          onChangeText={setWaterText}
-          onBlur={handleWaterBlur}
-          keyboardType="number-pad"
-          placeholderTextColor={colors.textTertiary}
-        />
-      </View>
       <View style={styles.row}>
         <Text style={styles.label}>Creatine Goal (g)</Text>
         <TextInput

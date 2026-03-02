@@ -48,11 +48,12 @@ export default function CreatineCard() {
       </View>
 
       <View style={styles.buttons}>
-        {taken ? (
-          <TouchableOpacity style={styles.addButton} onPress={handleReset} activeOpacity={0.7}>
-            <Text style={styles.addButtonText}>Undo</Text>
+        {creatine > 0 && (
+          <TouchableOpacity style={styles.undoButton} onPress={handleReset} activeOpacity={0.7}>
+            <Ionicons name="arrow-undo" size={ms(14)} color={colors.textSecondary} />
           </TouchableOpacity>
-        ) : (
+        )}
+        {!taken && (
           <>
             <TouchableOpacity style={styles.addButton} onPress={() => handleAdd(5)} activeOpacity={0.7}>
               <Text style={styles.addButtonText}>+5g</Text>
@@ -132,6 +133,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   buttons: {
     flexDirection: 'row',
     gap: sw(6),
+  },
+  undoButton: {
+    backgroundColor: colors.surface,
+    borderRadius: sw(8),
+    paddingHorizontal: sw(10),
+    alignItems: 'center',
+    minHeight: sw(32),
+    justifyContent: 'center',
   },
   addButton: {
     flex: 1,

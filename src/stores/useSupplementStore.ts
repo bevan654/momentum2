@@ -1,16 +1,27 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 
+export interface SupplementEntry {
+  id: string;
+  type: 'water' | 'creatine';
+  amount: number;
+  created_at: string;
+}
+
 interface SupplementState {
   water: number;
   waterGoal: number;
   creatine: number;
   creatineGoal: number;
   loading: boolean;
+  /** Supplement entries for a specific date (used by food diary) */
+  dateEntries: SupplementEntry[];
   fetchTodaySupplements: (userId: string) => Promise<void>;
   fetchSupplementGoals: (userId: string) => Promise<void>;
+  fetchDateSupplements: (userId: string, date: string) => Promise<void>;
   addWater: (userId: string, ml: number) => Promise<void>;
   addCreatine: (userId: string, g: number) => Promise<void>;
+  deleteSupplementEntry: (userId: string, entry: SupplementEntry) => Promise<void>;
   undoLastWater: (userId: string) => Promise<void>;
   resetCreatine: (userId: string) => Promise<void>;
   updateSupplementGoals: (userId: string, goals: { water_goal?: number; creatine_goal?: number }) => Promise<void>;
@@ -27,6 +38,18 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   creatine: 0,
   creatineGoal: 5,
   loading: false,
+  dateEntries: [],
+
+  fetchDateSupplements: async (userId: string, date: string) => {
+    const { data } = await supabase
+      .from('supplement_entries')
+      .select('id, type, amount, created_at')
+      .eq('user_id', userId)
+      .eq('date', date)
+      .order('created_at', { ascending: true });
+
+    set({ dateEntries: (data as SupplementEntry[]) || [] });
+  },
 
   fetchTodaySupplements: async (userId: string) => {
     const date = todayDate();
@@ -76,8 +99,10 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     });
 
     if (error) {
-      // Rollback on error
       set((s) => ({ water: s.water - ml }));
+    } else {
+      // Refresh dateEntries so food diary updates
+      get().fetchDateSupplements(userId, todayDate());
     }
   },
 
@@ -93,6 +118,34 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
     if (error) {
       set((s) => ({ creatine: s.creatine - g }));
+    } else {
+      get().fetchDateSupplements(userId, todayDate());
+    }
+  },
+
+  deleteSupplementEntry: async (userId: string, entry: SupplementEntry) => {
+    // Optimistic: remove from dateEntries and adjust totals
+    const prev = get().dateEntries;
+    set((s) => ({
+      dateEntries: s.dateEntries.filter((e) => e.id !== entry.id),
+      ...(entry.type === 'water'
+        ? { water: Math.max(0, s.water - entry.amount) }
+        : { creatine: Math.max(0, s.creatine - entry.amount) }),
+    }));
+
+    const { error } = await supabase
+      .from('supplement_entries')
+      .delete()
+      .eq('id', entry.id);
+
+    if (error) {
+      // Rollback
+      set((s) => ({
+        dateEntries: prev,
+        ...(entry.type === 'water'
+          ? { water: s.water + entry.amount }
+          : { creatine: s.creatine + entry.amount }),
+      }));
     }
   },
 
@@ -121,8 +174,9 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .eq('id', data.id);
 
     if (error) {
-      // Rollback
       set((s) => ({ water: s.water + amount }));
+    } else {
+      get().fetchDateSupplements(userId, todayDate());
     }
   },
 
@@ -140,8 +194,9 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .eq('type', 'creatine');
 
     if (error) {
-      // Rollback
       set({ creatine: prevCreatine });
+    } else {
+      get().fetchDateSupplements(userId, todayDate());
     }
   },
 

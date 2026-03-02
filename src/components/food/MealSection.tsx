@@ -20,6 +20,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { FoodEntry } from '../../stores/useFoodLogStore';
+import type { SupplementEntry } from '../../stores/useSupplementStore';
 
 /* ─── Constants ────────────────────────────────────────── */
 
@@ -224,14 +225,15 @@ interface HourRowProps {
   onMoveEntry?: (entryId: string, hour: number) => void;
   onPressMealGroup?: (groupId: string, entries: FoodEntry[]) => void;
   onDeleteMealGroup?: (groupId: string) => void;
+  onDeleteSupplement?: (supplement: SupplementEntry) => void;
 }
 
 const HourRow = React.memo(function HourRow({
   hour, items, entries, isFirst, isLast, hasSection, accentColor,
   styles, colors, onAddFood, onPressEntry, onEditEntry, onTogglePlanned, onMoveEntry,
-  onPressMealGroup, onDeleteMealGroup,
+  onPressMealGroup, onDeleteMealGroup, onDeleteSupplement,
 }: HourRowProps) {
-  const hasEntries = entries.length > 0;
+  const hasEntries = entries.length > 0 || items.length > 0;
   const handleAdd = useCallback(() => onAddFood(getDefaultSlot(hour), hour), [hour, onAddFood]);
   const noopPressMealGroup = useCallback((_gid: string, _entries: FoodEntry[]) => {}, []);
   const noopDeleteMealGroup = useCallback((_gid: string) => {}, []);
@@ -262,6 +264,14 @@ const HourRow = React.memo(function HourRow({
               entries={item.entries}
               onPress={onPressMealGroup || noopPressMealGroup}
               onDelete={onDeleteMealGroup || noopDeleteMealGroup}
+              styles={styles}
+              colors={colors}
+            />
+          ) : item.type === 'supplement' ? (
+            <SupplementCard
+              key={`sup-${item.supplement.id}`}
+              supplement={item.supplement}
+              onDelete={onDeleteSupplement}
               styles={styles}
               colors={colors}
             />
@@ -323,7 +333,8 @@ const NowLine = React.memo(function NowLine({ styles }: { styles: ReturnType<typ
 
 type TimelineItem =
   | { type: 'entry'; entry: FoodEntry }
-  | { type: 'mealGroup'; groupId: string; groupName: string; entries: FoodEntry[] };
+  | { type: 'mealGroup'; groupId: string; groupName: string; entries: FoodEntry[] }
+  | { type: 'supplement'; supplement: SupplementEntry };
 
 /* ─── Meal group card (memoized) ──────────────────────── */
 
@@ -393,10 +404,48 @@ const MealGroupCard = React.memo(function MealGroupCard({
   );
 });
 
+/* ─── Supplement card (memoized) ──────────────────────── */
+
+interface SupplementCardProps {
+  supplement: SupplementEntry;
+  onDelete?: (supplement: SupplementEntry) => void;
+  styles: ReturnType<typeof createStyles>;
+  colors: ThemeColors;
+}
+
+const SupplementCard = React.memo(function SupplementCard({
+  supplement, onDelete, styles, colors,
+}: SupplementCardProps) {
+  const isWater = supplement.type === 'water';
+  const icon = isWater ? 'water-outline' : 'flash-outline';
+  const label = isWater ? 'Water' : 'Creatine';
+  const amount = isWater
+    ? `${Math.round(supplement.amount)} ml`
+    : `${supplement.amount} g`;
+  const tint = isWater ? colors.water : colors.creatine;
+  const handleDelete = useCallback(() => onDelete?.(supplement), [supplement, onDelete]);
+
+  return (
+    <View style={[styles.entryCard, styles.supplementCard, { borderLeftColor: tint }]}>
+      <View style={styles.entryTopRow}>
+        <Ionicons name={icon} size={ms(14)} color={tint} />
+        <Text style={[styles.entryName, { color: tint }]}>{label}</Text>
+        <Text style={styles.entryCal}>{amount}</Text>
+        {onDelete && (
+          <Pressable onPress={handleDelete} hitSlop={8}>
+            <Ionicons name="close-circle" size={ms(16)} color={colors.textTertiary} />
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+});
+
 /* ─── Props ────────────────────────────────────────────── */
 
 interface Props {
   entries: FoodEntry[];
+  supplementEntries?: SupplementEntry[];
   onTogglePlanned: (id: string) => void;
   onAddFood: (mealSlot: string, hour?: number) => void;
   onPressEntry: (entry: FoodEntry) => void;
@@ -404,11 +453,12 @@ interface Props {
   onMoveEntry?: (entryId: string, hour: number) => void;
   onPressMealGroup?: (groupId: string, entries: FoodEntry[]) => void;
   onDeleteMealGroup?: (groupId: string) => void;
+  onDeleteSupplement?: (supplement: SupplementEntry) => void;
   nowRef?: React.RefObject<View>;
   isToday?: boolean;
 }
 
-function MealSection({ entries, onTogglePlanned, onAddFood, onPressEntry, onEditEntry, onMoveEntry, onPressMealGroup, onDeleteMealGroup, nowRef, isToday = true }: Props) {
+function MealSection({ entries, supplementEntries, onTogglePlanned, onAddFood, onPressEntry, onEditEntry, onMoveEntry, onPressMealGroup, onDeleteMealGroup, onDeleteSupplement, nowRef, isToday = true }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -425,32 +475,30 @@ function MealSection({ entries, onTogglePlanned, onAddFood, onPressEntry, onEdit
     return map;
   }, [entries]);
 
+  /* ── Supplement entries grouped by hour ──────────── */
+  const suppByHour = useMemo(() => {
+    const map: Record<number, SupplementEntry[]> = {};
+    if (!supplementEntries) return map;
+    for (const s of supplementEntries) {
+      try {
+        const h = new Date(s.created_at).getHours();
+        if (!map[h]) map[h] = [];
+        map[h].push(s);
+      } catch { /* skip */ }
+    }
+    return map;
+  }, [supplementEntries]);
+
   /* ── Group entries into TimelineItems per hour ────── */
   const itemsByHour = useMemo(() => {
     const map: Record<number, TimelineItem[]> = {};
-    for (const h of Object.keys(entriesByHour)) {
-      const hourEntries = entriesByHour[+h];
-      const items: TimelineItem[] = [];
-      const groupMap = new Map<string, FoodEntry[]>();
+    // Collect all hours that have either food or supplement entries
+    const allHours = new Set<number>();
+    for (const h of Object.keys(entriesByHour)) allHours.add(+h);
+    for (const h of Object.keys(suppByHour)) allHours.add(+h);
 
-      for (const e of hourEntries) {
-        if (e.meal_group_id) {
-          const arr = groupMap.get(e.meal_group_id);
-          if (arr) arr.push(e);
-          else groupMap.set(e.meal_group_id, [e]);
-        } else {
-          items.push({ type: 'entry', entry: e });
-        }
-      }
-
-      // Insert meal groups at position of their first entry
-      const groupInsertOrder: { groupId: string; firstIdx: number }[] = [];
-      for (const [gid] of groupMap) {
-        const firstEntry = groupMap.get(gid)![0];
-        const idx = hourEntries.indexOf(firstEntry);
-        groupInsertOrder.push({ groupId: gid, firstIdx: idx });
-      }
-      groupInsertOrder.sort((a, b) => a.firstIdx - b.firstIdx);
+    for (const h of allHours) {
+      const hourEntries = entriesByHour[h] || [];
 
       // Rebuild items in correct order
       const finalItems: TimelineItem[] = [];
@@ -459,7 +507,7 @@ function MealSection({ entries, onTogglePlanned, onAddFood, onPressEntry, onEdit
         if (e.meal_group_id) {
           if (!usedGroups.has(e.meal_group_id)) {
             usedGroups.add(e.meal_group_id);
-            const groupEntries = groupMap.get(e.meal_group_id)!;
+            const groupEntries = hourEntries.filter((x) => x.meal_group_id === e.meal_group_id);
             finalItems.push({
               type: 'mealGroup',
               groupId: e.meal_group_id,
@@ -472,10 +520,15 @@ function MealSection({ entries, onTogglePlanned, onAddFood, onPressEntry, onEdit
         }
       }
 
-      map[+h] = finalItems;
+      // Append supplement entries for this hour
+      for (const s of (suppByHour[h] || [])) {
+        finalItems.push({ type: 'supplement', supplement: s });
+      }
+
+      map[h] = finalItems;
     }
     return map;
-  }, [entriesByHour]);
+  }, [entriesByHour, suppByHour]);
 
   const sectionCals = useMemo(() => {
     const totals: Record<number, number> = {};
@@ -533,6 +586,7 @@ function MealSection({ entries, onTogglePlanned, onAddFood, onPressEntry, onEdit
               onMoveEntry={onMoveEntry}
               onPressMealGroup={onPressMealGroup}
               onDeleteMealGroup={onDeleteMealGroup}
+              onDeleteSupplement={onDeleteSupplement}
             />,
           );
           if (isToday && h === currentHour) {
@@ -720,6 +774,11 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(11),
       fontFamily: Fonts.extraBold,
       letterSpacing: 0.3,
+    },
+    /* Supplement card */
+    supplementCard: {
+      borderLeftWidth: sw(3),
+      backgroundColor: colors.surface,
     },
     /* Meal group card */
     mealGroupCard: {
