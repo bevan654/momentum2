@@ -224,6 +224,7 @@ CREATE TABLE public.profiles (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   starting_weight numeric,
+  goal_weight numeric,
   username text UNIQUE,
   height numeric,
   age integer,
