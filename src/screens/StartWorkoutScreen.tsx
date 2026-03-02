@@ -39,7 +39,7 @@ export default function StartWorkoutScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => navigation.navigate('WorkoutHistory')} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.title}>Start Workout</Text>

@@ -25,7 +25,7 @@ const DISMISS_THRESHOLD = 80;
 const VELOCITY_THRESHOLD = 800;
 
 /* ─── Spring / timing configs ─────────────────────────── */
-const OPEN_SPRING = { damping: 28, stiffness: 280, mass: 0.8 };
+const OPEN_SPRING = { damping: 26, stiffness: 400, mass: 0.7 };
 const SNAP_SPRING = { damping: 24, stiffness: 350, mass: 0.7 };
 const CLOSE_DURATION = 280;
 

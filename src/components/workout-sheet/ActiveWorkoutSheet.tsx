@@ -319,9 +319,9 @@ const SheetOverlay = React.memo(function SheetOverlay({
         style={[styles.sheet, sheetStyle]}
         renderToHardwareTextureAndroid
       >
-        {/* Drag handle */}
+        {/* Drag handle — large touch target for reliable iOS gestures */}
         <GestureDetector gesture={panGesture}>
-          <Animated.View style={styles.handleRow}>
+          <Animated.View style={styles.handleRow} hitSlop={{ top: 10, bottom: 10 }}>
             <View style={styles.handle} />
           </Animated.View>
         </GestureDetector>
@@ -421,12 +421,12 @@ const createStyles = (colors: ThemeColors) =>
     },
     handleRow: {
       alignItems: 'center',
-      paddingVertical: sw(14),
+      paddingVertical: sw(18),
     },
     handle: {
       width: HANDLE_W,
-      height: sw(4),
-      borderRadius: sw(2),
+      height: sw(5),
+      borderRadius: sw(3),
       backgroundColor: colors.cardBorder,
     },
     scroll: {

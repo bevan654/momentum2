@@ -9,6 +9,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useStreakStore } from '../../stores/useStreakStore';
 import AvatarCircle from '../friends/AvatarCircle';
 import { openProfileSheet } from '../../navigation/TabNavigator';
+import { BUILD_VERSION } from '../../constants/buildInfo';
 
 export default function Header() {
   const insets = useSafeAreaInsets();
@@ -18,10 +19,22 @@ export default function Header() {
   const currentStreak = useStreakStore((s) => s.currentStreak);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good Morning';
+    if (h < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }, []);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.row}>
         <Image source={require('../../../assets/icon.png')} style={styles.logo} />
+
+        <View>
+          <Text style={styles.greeting}>{greeting}, {username || 'there'}</Text>
+          <Text style={styles.version}>{BUILD_VERSION}</Text>
+        </View>
 
         <View style={styles.spacer} />
 
@@ -69,6 +82,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: sw(32),
     height: sw(32),
     borderRadius: sw(8),
+  },
+  greeting: {
+    color: colors.textSecondary,
+    fontSize: ms(14),
+    lineHeight: ms(18),
+    fontFamily: Fonts.semiBold,
+  },
+  version: {
+    color: colors.textTertiary,
+    fontSize: ms(10),
+    lineHeight: ms(13),
+    fontFamily: Fonts.medium,
   },
   spacer: {
     flex: 1,

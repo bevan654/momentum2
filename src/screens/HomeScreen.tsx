@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native';
+import { View, ScrollView, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
@@ -18,7 +18,6 @@ import CreatineCard from '../components/home/CreatineCard';
 import ActivityCard from '../components/home/ActivityCard';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
-
 function HomeScreen() {
   const user = useAuthStore((s) => s.user);
   const fetchTodayNutrition = useNutritionStore((s) => s.fetchTodayNutrition);
@@ -34,14 +33,6 @@ function HomeScreen() {
   const navigation = useNavigation<any>();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const username = useAuthStore((s) => s.profile?.username ?? null);
-
-  const greeting = useMemo(() => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good Morning';
-    if (h < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  }, []);
 
   useEffect(() => {
     if (user?.id) {
@@ -89,11 +80,12 @@ function HomeScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.greeting}>
-        {greeting}, {username || 'there'}
-      </Text>
-
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      bounces
+    >
       {/* Quick actions */}
       <View style={styles.actionRow}>
         <TouchableOpacity
@@ -136,26 +128,25 @@ function HomeScreen() {
       <View style={styles.activityWrap}>
         <ActivityCard />
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 export default React.memo(HomeScreen);
 
+const NUTRITION_ROW_H = sw(295);
+const ACTIVITY_H = sw(370);
+
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: {
+  scroll: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  content: {
     paddingHorizontal: sw(16),
     paddingTop: sw(10),
-    paddingBottom: sw(14),
-    gap: sw(16),
-  },
-  greeting: {
-    color: colors.textSecondary,
-    fontSize: ms(16),
-    lineHeight: ms(22),
-    fontFamily: Fonts.semiBold,
+    paddingBottom: sw(24),
+    gap: sw(14),
   },
   actionRow: {
     flexDirection: 'row',
@@ -188,15 +179,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     letterSpacing: -0.1,
   },
   nutritionRow: {
-    flex: 4,
+    height: NUTRITION_ROW_H,
     flexDirection: 'row',
     gap: sw(10),
   },
-  activityWrap: {
-    flex: 5,
-  },
   supplementCol: {
     flex: 1,
-    gap: sw(14),
+    gap: sw(10),
+  },
+  activityWrap: {
+    height: ACTIVITY_H,
   },
 });
