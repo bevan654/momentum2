@@ -108,15 +108,17 @@ export default function SupplementsCard() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [modalVisible, setModalVisible] = useState(false);
   const [powderSheetVisible, setPowderSheetVisible] = useState(false);
+  const [pendingScoopAmount, setPendingScoopAmount] = useState(1);
 
-  const handlePickPowder = useCallback(() => {
+  const handlePickPowder = useCallback((amount: number) => {
+    setPendingScoopAmount(amount);
     setPowderSheetVisible(true);
   }, []);
 
   const handleSelectPowder = useCallback((powder: ProteinPowder) => {
-    if (userId) logScoop(userId, powder);
+    if (userId) logScoop(userId, powder, pendingScoopAmount);
     setPowderSheetVisible(false);
-  }, [userId, logScoop]);
+  }, [userId, logScoop, pendingScoopAmount]);
 
   const showProteinPowder = scoopGoal > 0;
   const totalCells = configs.length + (showProteinPowder ? 1 : 0);

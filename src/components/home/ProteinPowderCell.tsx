@@ -16,7 +16,7 @@ const CELL_WIDTH = Math.floor((FULL_WIDTH - GRID_GAP) / 2);
 
 interface Props {
   embedded?: boolean;
-  onPickPowder?: () => void;
+  onPickPowder?: (amount: number) => void;
 }
 
 const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPickPowder }: Props) {
@@ -32,15 +32,15 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
   const progress = scoopGoal > 0 ? Math.min(todayScoops / scoopGoal, 1) : 0;
   const complete = todayScoops >= scoopGoal && scoopGoal > 0;
 
-  const handleAdd = useCallback(() => {
+  const handleAdd = useCallback((amount: number) => {
     if (!userId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (powders.length === 0) return;
     if (powders.length === 1) {
-      logScoop(userId, powders[0]);
+      logScoop(userId, powders[0], amount);
     } else if (onPickPowder) {
-      onPickPowder();
+      onPickPowder(amount);
     }
   }, [userId, powders, logScoop, onPickPowder]);
 
@@ -87,13 +87,22 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
           {powders.length === 0 ? (
             <Text style={styles.setupText}>Set up in Settings</Text>
           ) : (
-            <TouchableOpacity
-              style={styles.cellAddBtn}
-              onPress={handleAdd}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cellAddBtnText}>+1 scoop</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={styles.cellAddBtn}
+                onPress={() => handleAdd(1)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cellAddBtnText}>+1</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.cellAddBtn}
+                onPress={() => handleAdd(0.5)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cellAddBtnText}>+0.5</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       )}

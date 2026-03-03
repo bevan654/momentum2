@@ -20,6 +20,7 @@ export interface ProteinPowderLogEntry {
   id: string;
   powder_id: string | null;
   food_entry_id: string | null;
+  amount: number;
   date: string;
   created_at: string;
 }
@@ -55,7 +56,7 @@ interface ProteinPowderState {
   updatePowder: (powderId: string, updates: Partial<Pick<ProteinPowder, 'name' | 'calories' | 'protein' | 'carbs' | 'fat'>>) => Promise<void>;
   deletePowder: (powderId: string) => Promise<void>;
   updateScoopGoal: (userId: string, goal: number) => Promise<void>;
-  logScoop: (userId: string, powder: ProteinPowder) => Promise<void>;
+  logScoop: (userId: string, powder: ProteinPowder, amount?: number) => Promise<void>;
   undoLastScoop: (userId: string) => Promise<void>;
 }
 
@@ -112,15 +113,17 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('protein_powder_log')
-        .select('id, powder_id, food_entry_id, date, created_at')
+        .select('id, powder_id, food_entry_id, amount, date, created_at')
         .eq('user_id', userId)
         .eq('date', date)
         .order('created_at', { ascending: true });
 
       if (!error && data) {
+        const entries = data.map((d) => ({ ...d, amount: Number(d.amount) || 1 })) as ProteinPowderLogEntry[];
+        const total = entries.reduce((sum, e) => sum + e.amount, 0);
         set({
-          todayScoops: data.length,
-          todayLogEntries: data as ProteinPowderLogEntry[],
+          todayScoops: total,
+          todayLogEntries: entries,
         });
       }
     } catch {}
@@ -217,24 +220,24 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
 
   /* ─── Scoop logging ─────────────────────────────────── */
 
-  logScoop: async (userId: string, powder: ProteinPowder) => {
+  logScoop: async (userId: string, powder: ProteinPowder, amount: number = 1) => {
     // Optimistic
-    set((s) => ({ todayScoops: s.todayScoops + 1 }));
+    set((s) => ({ todayScoops: s.todayScoops + amount }));
 
     try {
-      // 1. Create food entry
+      // 1. Create food entry (scale macros by amount)
       const { data: foodEntry, error: foodError } = await supabase
         .from('food_entries')
         .insert({
           user_id: userId,
-          name: powder.name,
-          calories: Number(powder.calories) || 0,
-          protein: Number(powder.protein) || 0,
-          carbs: Number(powder.carbs) || 0,
-          fat: Number(powder.fat) || 0,
+          name: amount === 1 ? powder.name : `${powder.name} (${amount} scoop)`,
+          calories: Math.round((Number(powder.calories) || 0) * amount),
+          protein: Math.round(((Number(powder.protein) || 0) * amount) * 10) / 10,
+          carbs: Math.round(((Number(powder.carbs) || 0) * amount) * 10) / 10,
+          fat: Math.round(((Number(powder.fat) || 0) * amount) * 10) / 10,
           meal_type: 'snack',
           quantity: 1,
-          serving_size: 1,
+          serving_size: amount,
           serving_unit: 'scoop',
           is_planned: false,
         })
@@ -250,9 +253,10 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
           user_id: userId,
           powder_id: powder.id,
           food_entry_id: foodEntry.id,
+          amount,
           date: todayDate(),
         })
-        .select('id, powder_id, food_entry_id, date, created_at')
+        .select('id, powder_id, food_entry_id, amount, date, created_at')
         .single();
 
       if (logError) throw logError;
@@ -269,7 +273,7 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
       syncFoodLog(userId);
     } catch {
       // Rollback
-      set((s) => ({ todayScoops: Math.max(0, s.todayScoops - 1) }));
+      set((s) => ({ todayScoops: Math.max(0, s.todayScoops - amount) }));
     }
   },
 
@@ -278,9 +282,11 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
     const last = entries[entries.length - 1];
     if (!last) return;
 
+    const undoAmount = last.amount;
+
     // Optimistic
     set((s) => ({
-      todayScoops: Math.max(0, s.todayScoops - 1),
+      todayScoops: Math.max(0, s.todayScoops - undoAmount),
       todayLogEntries: s.todayLogEntries.filter((e) => e.id !== last.id),
     }));
 
@@ -297,7 +303,7 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
     } catch {
       // Rollback
       set((s) => ({
-        todayScoops: s.todayScoops + 1,
+        todayScoops: s.todayScoops + undoAmount,
         todayLogEntries: [...s.todayLogEntries, last],
       }));
     }
