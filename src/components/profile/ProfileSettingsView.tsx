@@ -8,6 +8,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useSupplementStore } from '../../stores/useSupplementStore';
 import SupplementConfigEditor from './SupplementConfigEditor';
+import ProteinPowderSettings from './ProteinPowderSettings';
 
 interface Props {
   onBack: () => void;
@@ -58,7 +59,13 @@ export default function ProfileSettingsView({ onBack }: Props) {
           <SupplementConfigEditor />
         </View>
 
-        {/* 5. Support */}
+        {/* 5. Protein Powder */}
+        <SectionHeader title="Protein Powder" />
+        <View style={styles.card}>
+          <ProteinPowderSettings />
+        </View>
+
+        {/* 6. Support */}
         <SectionHeader title="Support" />
         <View style={styles.card}>
           <LinkRow label="Privacy Policy" url="https://momentum.app/privacy" />

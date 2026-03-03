@@ -11,6 +11,7 @@ import { useSupplementStore } from '../stores/useSupplementStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWeightStore } from '../stores/useWeightStore';
+import { useProteinPowderStore } from '../stores/useProteinPowderStore';
 import NutritionCard from '../components/home/NutritionCard';
 import WaterCard from '../components/home/WaterCard';
 import MotivationCard from '../components/home/MotivationCard';
@@ -27,6 +28,9 @@ function HomeScreen() {
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
   const fetchExerciseCatalog = useWorkoutStore((s) => s.fetchExerciseCatalog);
   const fetchWeightData = useWeightStore((s) => s.fetchWeightData);
+  const fetchPowders = useProteinPowderStore((s) => s.fetchPowders);
+  const fetchScoopGoal = useProteinPowderStore((s) => s.fetchScoopGoal);
+  const fetchTodayScoops = useProteinPowderStore((s) => s.fetchTodayScoops);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
   const navigation = useNavigation<any>();
@@ -41,6 +45,9 @@ function HomeScreen() {
       fetchSupplementGoals(user.id);
       fetchExerciseCatalog(user.id).then(() => fetchWorkoutHistory(user.id));
       fetchWeightData(user.id);
+      fetchPowders(user.id);
+      fetchScoopGoal(user.id);
+      fetchTodayScoops(user.id);
     }
   }, [user?.id]);
 
@@ -49,6 +56,7 @@ function HomeScreen() {
       if (state === 'active' && user?.id) {
         fetchTodayNutrition(user.id);
         fetchTodaySupplements(user.id);
+        fetchTodayScoops(user.id);
       }
     });
     return () => sub.remove();
