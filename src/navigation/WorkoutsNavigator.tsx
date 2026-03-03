@@ -1,5 +1,5 @@
 import React from 'react';
-import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import WorkoutHistoryScreen from '../screens/WorkoutHistoryScreen';
 import StartWorkoutScreen from '../screens/StartWorkoutScreen';
 import CreateRoutineScreen from '../screens/CreateRoutineScreen';
@@ -10,15 +10,15 @@ export type WorkoutsStackParamList = {
   CreateRoutine: undefined;
 };
 
-const Stack = createStackNavigator<WorkoutsStackParamList>();
+const Stack = createNativeStackNavigator<WorkoutsStackParamList>();
 
 export default function WorkoutsNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
+        animation: 'ios_from_right',
         gestureEnabled: true,
-        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
       }}
     >
       <Stack.Screen name="WorkoutHistory" component={WorkoutHistoryScreen} />
