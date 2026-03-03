@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -10,7 +10,9 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useRoutineStore } from '../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
+import type { WorkoutWithDetails } from '../stores/useWorkoutStore';
 import RoutineCard from '../components/workouts/RoutineCard';
+import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
 
 type WorkoutsStackParamList = {
   WorkoutHistory: undefined;
@@ -28,8 +30,11 @@ export default function StartWorkoutScreen() {
   const startFromRoutine = useActiveWorkoutStore((s) => s.startFromRoutine);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const prevMap = useWorkoutStore((s) => s.prevMap);
+  const workouts = useWorkoutStore((s) => s.workouts);
+  const deleteWorkout = useWorkoutStore((s) => s.deleteWorkout);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [selectedWorkout, setSelectedWorkout] = useState<WorkoutWithDetails | null>(null);
 
   useEffect(() => {
     if (userId) fetchRoutines(userId);
@@ -104,7 +109,58 @@ export default function StartWorkoutScreen() {
             />
           ))
         )}
+
+        {/* Recent Sessions */}
+        {workouts.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Recent Sessions</Text>
+            </View>
+            {workouts.slice(0, 5).map((w) => {
+              const d = new Date(w.created_at);
+              const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+              const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+              const dateStr = `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+              const durationMin = Math.round(w.duration / 60);
+              const vol = w.totalVolume >= 1000 ? `${(w.totalVolume / 1000).toFixed(1)}k` : `${w.totalVolume}`;
+              return (
+                <TouchableOpacity
+                  key={w.id}
+                  style={styles.recentRow}
+                  activeOpacity={0.6}
+                  onPress={() => setSelectedWorkout(w)}
+                >
+                  <View style={styles.recentRowLeft}>
+                    <Text style={styles.recentDate}>{dateStr}</Text>
+                    <Text style={styles.recentMeta}>
+                      {w.exercises.length} exercise{w.exercises.length !== 1 ? 's' : ''}
+                      {'  ·  '}{durationMin} min
+                    </Text>
+                  </View>
+                  <View style={styles.recentRowRight}>
+                    <Text style={styles.recentVolume}>{vol}</Text>
+                    <Text style={styles.recentVolUnit}>kg</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={ms(14)} color={colors.textTertiary} />
+                </TouchableOpacity>
+              );
+            })}
+          </>
+        )}
       </ScrollView>
+
+      {selectedWorkout && (
+        <WorkoutSummaryModal
+          mode="historical"
+          data={selectedWorkout}
+          onDismiss={() => setSelectedWorkout(null)}
+          onDelete={async () => {
+            const id = selectedWorkout.id;
+            setSelectedWorkout(null);
+            await deleteWorkout(id);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -214,6 +270,50 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textTertiary,
     fontSize: ms(13),
     lineHeight: ms(18),
+    fontFamily: Fonts.medium,
+  },
+
+  /* ── Recent Sessions ───────────────────────────── */
+  recentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: sw(10),
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.cardBorder,
+  },
+  recentRowLeft: {
+    flex: 1,
+    gap: sw(2),
+  },
+  recentDate: {
+    color: colors.textPrimary,
+    fontSize: ms(13),
+    lineHeight: ms(18),
+    fontFamily: Fonts.semiBold,
+  },
+  recentMeta: {
+    color: colors.textTertiary,
+    fontSize: ms(11),
+    lineHeight: ms(15),
+    fontFamily: Fonts.medium,
+  },
+  recentRowRight: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: sw(2),
+    marginRight: sw(8),
+  },
+  recentVolume: {
+    color: colors.textPrimary,
+    fontSize: ms(14),
+    lineHeight: ms(20),
+    fontFamily: Fonts.extraBold,
+    letterSpacing: -0.3,
+  },
+  recentVolUnit: {
+    color: colors.textTertiary,
+    fontSize: ms(10),
+    lineHeight: ms(14),
     fontFamily: Fonts.medium,
   },
 });
