@@ -316,6 +316,7 @@ CREATE TABLE public.protein_powder_log (
   user_id uuid NOT NULL,
   powder_id uuid,
   food_entry_id uuid,
+  amount numeric NOT NULL DEFAULT 1,
   date date NOT NULL DEFAULT CURRENT_DATE,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT protein_powder_log_pkey PRIMARY KEY (id),
