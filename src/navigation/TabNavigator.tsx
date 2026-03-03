@@ -269,7 +269,7 @@ export default function TabNavigator() {
 
   return (
     <View style={styles.root}>
-      <Header />
+      <Header activeTab={activeTab} />
       <Tab.Navigator
         tabBar={renderTabBar}
         tabBarPosition="bottom"
