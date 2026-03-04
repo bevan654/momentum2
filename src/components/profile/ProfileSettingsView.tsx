@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Linking, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Linking, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
@@ -7,30 +7,17 @@ import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useSupplementStore } from '../../stores/useSupplementStore';
+import { useProteinPowderStore } from '../../stores/useProteinPowderStore';
 import SupplementConfigEditor from './SupplementConfigEditor';
-import ProteinPowderSettings from './ProteinPowderSettings';
 
 interface Props {
   onBack: () => void;
-  scrollToSection?: string | null;
 }
 
-export default function ProfileSettingsView({ onBack, scrollToSection }: Props) {
+export default function ProfileSettingsView({ onBack }: Props) {
   const profile = useAuthStore((s) => s.profile);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const scrollRef = useRef<ScrollView>(null);
-  const sectionYRef = useRef<Record<string, number>>({});
-
-  useEffect(() => {
-    if (scrollToSection) {
-      const timer = setTimeout(() => {
-        const y = sectionYRef.current[scrollToSection];
-        if (y != null) scrollRef.current?.scrollTo({ y, animated: true });
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [scrollToSection]);
 
   return (
     <KeyboardAvoidingView
@@ -38,7 +25,7 @@ export default function ProfileSettingsView({ onBack, scrollToSection }: Props) 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? sw(90) : 0}
     >
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Back button */}
         <TouchableOpacity style={styles.backRow} onPress={onBack} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={ms(22)} color={colors.textPrimary} />
@@ -73,11 +60,9 @@ export default function ProfileSettingsView({ onBack, scrollToSection }: Props) 
         </View>
 
         {/* 5. Protein Powder */}
-        <View onLayout={(e) => { sectionYRef.current['proteinPowder'] = e.nativeEvent.layout.y; }}>
         <SectionHeader title="Protein Powder" />
-        </View>
         <View style={styles.card}>
-          <ProteinPowderSettings />
+          <ProteinPowderToggle />
         </View>
 
         {/* 6. Support */}
@@ -200,6 +185,32 @@ function BodyStatsEditor() {
     <View>
       <GoalRow label="Starting Weight" value={weight} onChange={setWeight} onBlur={handleWeightBlur} unit="kg" />
       <GoalRow label="Goal Weight" value={goalWeight} onChange={setGoalWeight} onBlur={handleGoalWeightBlur} unit="kg" />
+    </View>
+  );
+}
+
+/* ─── Protein Powder Toggle ─────────────────────────────── */
+
+function ProteinPowderToggle() {
+  const userId = useAuthStore((s) => s.user?.id);
+  const enabled = useProteinPowderStore((s) => s.enabled);
+  const setEnabled = useProteinPowderStore((s) => s.setEnabled);
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const handleToggle = useCallback((value: boolean) => {
+    if (userId) setEnabled(userId, value);
+  }, [userId, setEnabled]);
+
+  return (
+    <View style={styles.switchRow}>
+      <Text style={styles.fieldLabel}>Enable Protein Powder</Text>
+      <Switch
+        value={enabled}
+        onValueChange={handleToggle}
+        trackColor={{ false: colors.surface, true: colors.accent + '60' }}
+        thumbColor={enabled ? colors.accent : colors.textTertiary}
+      />
     </View>
   );
 }

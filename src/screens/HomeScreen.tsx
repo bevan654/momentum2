@@ -17,6 +17,7 @@ import NutritionCard from '../components/home/NutritionCard';
 import WaterCard from '../components/home/WaterCard';
 import ProteinPowderCell from '../components/home/ProteinPowderCell';
 import PowderSelectSheet from '../components/home/PowderSelectSheet';
+import ProteinPowderSettingsModal from '../components/home/ProteinPowderSettingsModal';
 import SupplementsCard from '../components/home/SupplementsCard';
 import ActivityCard from '../components/home/ActivityCard';
 import { useNavigation } from '@react-navigation/native';
@@ -35,12 +36,15 @@ function HomeScreen() {
   const fetchTodayScoops = useProteinPowderStore((s) => s.fetchTodayScoops);
   const powders = useProteinPowderStore((s) => s.powders);
   const logScoop = useProteinPowderStore((s) => s.logScoop);
+  const enabled = useProteinPowderStore((s) => s.enabled);
+  const fetchEnabled = useProteinPowderStore((s) => s.fetchEnabled);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
   const navigation = useNavigation<any>();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [powderSheetVisible, setPowderSheetVisible] = useState(false);
+  const [powderSettingsVisible, setPowderSettingsVisible] = useState(false);
   const [pendingScoopAmount, setPendingScoopAmount] = useState(1);
 
   const handlePickPowder = useCallback((amount: number) => {
@@ -65,6 +69,7 @@ function HomeScreen() {
       fetchPowders(user.id);
       fetchScoopGoal(user.id);
       fetchTodayScoops(user.id);
+      fetchEnabled(user.id);
     }
   }, [user?.id]);
 
@@ -134,7 +139,13 @@ function HomeScreen() {
         <NutritionCard />
         <View style={styles.supplementCol}>
           <WaterCard />
-          <ProteinPowderCell embedded onPickPowder={handlePickPowder} />
+          {enabled && (
+            <ProteinPowderCell
+              embedded
+              onPickPowder={handlePickPowder}
+              onOpenSettings={() => setPowderSettingsVisible(true)}
+            />
+          )}
         </View>
       </View>
 
@@ -143,6 +154,10 @@ function HomeScreen() {
         onClose={() => setPowderSheetVisible(false)}
         powders={powders}
         onSelect={handleSelectPowder}
+      />
+      <ProteinPowderSettingsModal
+        visible={powderSettingsVisible}
+        onClose={() => setPowderSettingsVisible(false)}
       />
 
       {/* Supplements */}

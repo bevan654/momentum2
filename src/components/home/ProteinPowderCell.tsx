@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
-import { openProfileToSection } from '../../navigation/TabNavigator';
 import { Fonts } from '../../theme/typography';
 import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { useProteinPowderStore } from '../../stores/useProteinPowderStore';
@@ -18,9 +17,10 @@ const CELL_WIDTH = Math.floor((FULL_WIDTH - GRID_GAP) / 2);
 interface Props {
   embedded?: boolean;
   onPickPowder?: (amount: number) => void;
+  onOpenSettings?: () => void;
 }
 
-const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPickPowder }: Props) {
+const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPickPowder, onOpenSettings }: Props) {
   const powders = useProteinPowderStore((s) => s.powders);
   const scoopGoal = useProteinPowderStore((s) => s.scoopGoal);
   const todayScoops = useProteinPowderStore((s) => s.todayScoops);
@@ -54,8 +54,8 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
 
   const handleSetGoal = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    openProfileToSection('proteinPowder');
-  }, []);
+    onOpenSettings?.();
+  }, [onOpenSettings]);
 
   // Unconfigured state — prompt to set goal
   if (unconfigured) {
@@ -84,7 +84,11 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
   }
 
   return (
-    <View style={embedded ? styles.cellEmbedded : styles.cell}>
+    <TouchableOpacity
+      style={embedded ? styles.cellEmbedded : styles.cell}
+      onPress={handleSetGoal}
+      activeOpacity={0.8}
+    >
       {/* Header */}
       <View style={styles.cellHeader}>
         <View style={styles.iconWrap}>
@@ -135,7 +139,7 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 });
 
