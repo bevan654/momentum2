@@ -1,7 +1,10 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useNutritionStore } from './useNutritionStore';
 import { useFoodLogStore } from './useFoodLogStore';
+
+const ENABLED_KEY = 'protein_powder_enabled';
 
 /* ─── Types ────────────────────────────────────────────── */
 
@@ -58,10 +61,13 @@ interface ProteinPowderState {
   todayScoops: number;
   todayLogEntries: ProteinPowderLogEntry[];
   loading: boolean;
+  enabled: boolean;
 
   fetchPowders: (userId: string) => Promise<void>;
   fetchScoopGoal: (userId: string) => Promise<void>;
   fetchTodayScoops: (userId: string) => Promise<void>;
+  fetchEnabled: (userId: string) => Promise<void>;
+  setEnabled: (userId: string, enabled: boolean) => Promise<void>;
   addPowder: (userId: string, powder: Omit<ProteinPowder, 'id' | 'user_id' | 'sort_order'>) => Promise<void>;
   updatePowder: (powderId: string, updates: Partial<Pick<ProteinPowder, 'name' | 'calories' | 'protein' | 'carbs' | 'fat'>>) => Promise<void>;
   deletePowder: (powderId: string) => Promise<void>;
@@ -76,6 +82,7 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
   todayScoops: 0,
   todayLogEntries: [],
   loading: false,
+  enabled: false,
 
   /* ─── Data fetching ─────────────────────────────────── */
 
@@ -141,6 +148,20 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
           todayLogEntries: entries,
         });
       }
+    } catch {}
+  },
+
+  fetchEnabled: async (_userId: string) => {
+    try {
+      const val = await AsyncStorage.getItem(ENABLED_KEY);
+      set({ enabled: val === 'true' });
+    } catch {}
+  },
+
+  setEnabled: async (_userId: string, enabled: boolean) => {
+    set({ enabled });
+    try {
+      await AsyncStorage.setItem(ENABLED_KEY, String(enabled));
     } catch {}
   },
 

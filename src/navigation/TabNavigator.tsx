@@ -30,19 +30,8 @@ const Tab = createMaterialTopTabNavigator();
 
 /* ─── Profile sheet trigger (called from HomeScreen avatar) ── */
 let _openProfileSheet: (() => void) | null = null;
-let _profileInitialSection: string | null = null;
 export function openProfileSheet() {
-  _profileInitialSection = null;
   _openProfileSheet?.();
-}
-export function openProfileToSection(section: string) {
-  _profileInitialSection = section;
-  _openProfileSheet?.();
-}
-export function consumeProfileInitialSection(): string | null {
-  const s = _profileInitialSection;
-  _profileInitialSection = null;
-  return s;
 }
 
 /* ─── Tab config ────────────────────────────────────────── */

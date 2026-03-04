@@ -3,7 +3,6 @@ import { View, StyleSheet } from 'react-native';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { useThemeStore } from '../stores/useThemeStore';
 import { useProfileSettingsStore } from '../stores/useProfileSettingsStore';
-import { consumeProfileInitialSection } from '../navigation/TabNavigator';
 import ProfileMainView from '../components/profile/ProfileMainView';
 import ProfileSettingsView from '../components/profile/ProfileSettingsView';
 
@@ -12,8 +11,7 @@ interface Props {
 }
 
 export default function ProfileScreen({ onClose }: Props) {
-  const initialSection = useMemo(() => consumeProfileInitialSection(), []);
-  const [subView, setSubView] = useState<'main' | 'settings'>(initialSection ? 'settings' : 'main');
+  const [subView, setSubView] = useState<'main' | 'settings'>('main');
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -31,7 +29,7 @@ export default function ProfileScreen({ onClose }: Props) {
       {subView === 'main' ? (
         <ProfileMainView onOpenSettings={openSettings} onClose={onClose} />
       ) : (
-        <ProfileSettingsView onBack={closeSettings} scrollToSection={initialSection} />
+        <ProfileSettingsView onBack={closeSettings} />
       )}
     </View>
   );
