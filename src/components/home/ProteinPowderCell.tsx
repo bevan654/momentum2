@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -7,6 +7,7 @@ import { Fonts } from '../../theme/typography';
 import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { useProteinPowderStore } from '../../stores/useProteinPowderStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import Confetti from '../workout-sheet/Confetti';
 
 const POWDER_COLOR = '#86EFAC';
 const GRID_GAP = sw(10);
@@ -33,6 +34,19 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
   const progress = scoopGoal > 0 ? Math.min(todayScoops / scoopGoal, 1) : 0;
   const complete = todayScoops >= scoopGoal && scoopGoal > 0;
   const unconfigured = scoopGoal === 0;
+
+  // Confetti on goal completion
+  const [showConfetti, setShowConfetti] = useState(false);
+  const wasComplete = useRef(complete);
+
+  useEffect(() => {
+    if (complete && !wasComplete.current) {
+      setShowConfetti(true);
+      const timer = setTimeout(() => setShowConfetti(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    wasComplete.current = complete;
+  }, [complete]);
 
   const handleAdd = useCallback((amount: number) => {
     if (!userId) return;
@@ -85,10 +99,11 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
 
   return (
     <TouchableOpacity
-      style={embedded ? styles.cellEmbedded : styles.cell}
+      style={[embedded ? styles.cellEmbedded : styles.cell, showConfetti && styles.overflowVisible]}
       onPress={handleSetGoal}
       activeOpacity={0.8}
     >
+      {showConfetti && <Confetti />}
       {/* Header */}
       <View style={styles.cellHeader}>
         <View style={styles.iconWrap}>
@@ -155,6 +170,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     padding: sw(12),
     gap: sw(6),
     ...colors.cardShadow,
+  },
+  overflowVisible: {
+    overflow: 'visible',
+    zIndex: 100,
   },
   cellEmbedded: {
     flex: 1,

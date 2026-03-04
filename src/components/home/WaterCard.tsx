@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -7,6 +7,7 @@ import { Fonts } from '../../theme/typography';
 import { useSupplementStore } from '../../stores/useSupplementStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { sw, ms } from '../../theme/responsive';
+import Confetti from '../workout-sheet/Confetti';
 
 interface Props {
   onOpenSettings?: () => void;
@@ -18,6 +19,20 @@ export default function WaterCard({ onOpenSettings }: Props) {
   const progress = Math.min(water / waterGoal, 1);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  // Confetti on goal completion
+  const [showConfetti, setShowConfetti] = useState(false);
+  const wasComplete = useRef(water >= waterGoal && waterGoal > 0);
+
+  useEffect(() => {
+    const isComplete = water >= waterGoal && waterGoal > 0;
+    if (isComplete && !wasComplete.current) {
+      setShowConfetti(true);
+      const timer = setTimeout(() => setShowConfetti(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    wasComplete.current = isComplete;
+  }, [water, waterGoal]);
 
   const handleAdd = (ml: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -31,7 +46,8 @@ export default function WaterCard({ onOpenSettings }: Props) {
   }, [userId, water, undoLastWater]);
 
   return (
-    <TouchableOpacity style={styles.container} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onOpenSettings?.(); }} activeOpacity={0.8}>
+    <TouchableOpacity style={[styles.container, showConfetti && styles.overflowVisible]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onOpenSettings?.(); }} activeOpacity={0.8}>
+      {showConfetti && <Confetti />}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.iconWrap}>
@@ -76,6 +92,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'space-between',
     gap: sw(8),
     ...colors.cardShadow,
+  },
+  overflowVisible: {
+    overflow: 'visible',
+    zIndex: 100,
   },
   header: {
     flexDirection: 'row',
