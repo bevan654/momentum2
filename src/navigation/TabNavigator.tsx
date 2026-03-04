@@ -15,6 +15,7 @@ import FriendsScreen from '../screens/FriendsScreen';
 import LaboratoryScreen from '../screens/LaboratoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { useFriendsStore } from '../stores/useFriendsStore';
+import DevContentScreen from '../screens/DevContentScreen';
 import WorkoutsNavigator from './WorkoutsNavigator';
 import ActiveWorkoutSheet from '../components/workout-sheet/ActiveWorkoutSheet';
 import FriendProfileModal from '../components/friends/FriendProfileModal';
@@ -42,9 +43,10 @@ const TAB_ICONS: Record<string, string> = {
   Home: 'home',
   Nutrition: 'nutrition-outline',
   Community: 'people-outline',
+  Dev: 'construct-outline',
 };
 
-const TAB_COUNT = 5;
+const TAB_COUNT = 6;
 const HOME_INDEX = 2; // center slot
 const HOME_BTN = sw(46);
 const BADGE_SIZE = sw(16);
@@ -287,6 +289,7 @@ export default function TabNavigator() {
         <Tab.Screen name="Home" component={HomeScreen} />
         <Tab.Screen name="Nutrition" component={FoodLoggerScreen} />
         <Tab.Screen name="Community" component={FriendsScreen} />
+        <Tab.Screen name="Dev" component={DevContentScreen} />
       </Tab.Navigator>
       <BottomSheet visible={profileVisible} onClose={closeProfile} height="92%" modal>
         <ProfileScreen onClose={closeProfile} />

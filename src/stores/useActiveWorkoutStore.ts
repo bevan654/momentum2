@@ -8,6 +8,7 @@ import { useWorkoutStore } from './useWorkoutStore';
 import { useStreakStore } from './useStreakStore';
 import { useRankStore } from './useRankStore';
 import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity } from '../services/liveActivityManager';
+import { playBeep } from '../utils/beepSound';
 import type { WorkoutActivitySnapshot } from '../services/liveActivityManager';
 
 const REST_NOTIF_ID = 'rest-timer';
@@ -87,6 +88,7 @@ const SET_TYPE_CYCLE: Record<string, string> = {
 let _timerInterval: ReturnType<typeof setInterval> | null = null;
 let _persistTimeout: ReturnType<typeof setTimeout> | null = null;
 let _workoutRestored = false; // Guard: prevent _persist before restore
+let _restResumeBase: number | null = null; // Remaining seconds when rest was resumed after pause
 let _preferredRestDuration = 90; // Loaded from AsyncStorage at module init
 loadRestPreference().then((d) => { _preferredRestDuration = d; });
 
@@ -103,6 +105,7 @@ interface ActiveWorkoutState {
   restRemaining: number;
   restStartedAt: number | null;
   isResting: boolean;
+  restPaused: boolean;
 
   // Summary
   showSummary: boolean;
@@ -150,6 +153,8 @@ interface ActiveWorkoutState {
   setRestDuration: (seconds: number) => void;
   startRest: () => void;
   stopRest: () => void;
+  pauseRest: () => void;
+  resumeRest: () => void;
   tick: () => void;
 
   // Stubs
@@ -198,6 +203,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   restRemaining: 0,
   restStartedAt: null,
   isResting: false,
+  restPaused: false,
 
   showSummary: false,
   summaryData: null,
@@ -558,8 +564,6 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
     if (_timerInterval) clearInterval(_timerInterval);
 
-    const elapsed = Math.floor((Date.now() - saved.startTime) / 1000);
-
     // Back-fill category for exercises saved before category field was added
     const { catalogMap } = useWorkoutStore.getState();
     const exercises = saved.exercises.map((ex) => ({
@@ -580,6 +584,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         restStartedAt = saved.restStartedAt;
       }
     }
+
+    const elapsed = Math.floor((Date.now() - saved.startTime) / 1000);
 
     set({
       isActive: true,
@@ -813,7 +819,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
   startRest: () => {
     const { restDuration } = get();
-    set({ isResting: true, restRemaining: restDuration, restStartedAt: Date.now() });
+    _restResumeBase = null;
+    set({ isResting: true, restPaused: false, restRemaining: restDuration, restStartedAt: Date.now() });
     updateWorkoutActivity(_buildSnapshot(get()));
 
     // Cancel any previous rest notification first, then schedule new one
@@ -835,9 +842,39 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   stopRest: () => {
-    set({ isResting: false, restRemaining: 0, restStartedAt: null });
+    _restResumeBase = null;
+    set({ isResting: false, restPaused: false, restRemaining: 0, restStartedAt: null });
     updateWorkoutActivity(_buildSnapshot(get()));
     Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+  },
+
+  pauseRest: () => {
+    const { isResting, restRemaining } = get();
+    if (!isResting || restRemaining <= 0) return;
+    set({ restPaused: true, restStartedAt: null });
+    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+  },
+
+  resumeRest: () => {
+    const { isResting, restPaused, restRemaining } = get();
+    if (!isResting || !restPaused || restRemaining <= 0) return;
+    _restResumeBase = restRemaining;
+    set({ restPaused: false, restStartedAt: Date.now() });
+    // Re-schedule notification for remaining time
+    Notifications.scheduleNotificationAsync({
+      identifier: REST_NOTIF_ID,
+      content: {
+        title: 'Rest Complete!',
+        body: 'Time for your next set.',
+        sound: 'default',
+        data: { type: 'rest_complete' },
+        ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: new Date(Date.now() + restRemaining * 1000),
+      },
+    }).catch(() => {});
   },
 
   tick: () => {
@@ -848,15 +885,22 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       patch.elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
     }
 
-    if (isResting && restStartedAt) {
+    const restPaused = get().restPaused;
+    if (isResting && restStartedAt && !restPaused) {
+      const base = _restResumeBase ?? restDuration;
       const elapsed = Math.floor((Date.now() - restStartedAt) / 1000);
-      const remaining = Math.max(0, restDuration - elapsed);
+      const remaining = Math.max(0, base - elapsed);
       if (remaining <= 0) {
         // Apply elapsed update first, then stop rest (separate set to avoid stale merge)
         if (patch.elapsedSeconds !== undefined) set(patch);
         get().stopRest();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        playBeep();
         return;
+      }
+      // Beep at 3, 2, 1
+      if (remaining <= 3 && remaining !== get().restRemaining) {
+        playBeep();
       }
       patch.restRemaining = remaining;
     }

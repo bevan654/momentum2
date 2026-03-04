@@ -30,9 +30,11 @@ function WorkoutHeader() {
   const elapsedSeconds = useActiveWorkoutStore((s) => s.elapsedSeconds);
   const restDuration = useActiveWorkoutStore((s) => s.restDuration);
   const isResting = useActiveWorkoutStore((s) => s.isResting);
+  const restPaused = useActiveWorkoutStore((s) => s.restPaused);
   const setRestDuration = useActiveWorkoutStore((s) => s.setRestDuration);
   const startRest = useActiveWorkoutStore((s) => s.startRest);
-  const stopRest = useActiveWorkoutStore((s) => s.stopRest);
+  const pauseRest = useActiveWorkoutStore((s) => s.pauseRest);
+  const resumeRest = useActiveWorkoutStore((s) => s.resumeRest);
   const discardWorkout = useActiveWorkoutStore((s) => s.discardWorkout);
   const finishWorkout = useActiveWorkoutStore((s) => s.finishWorkout);
   const exercises = useActiveWorkoutStore((s) => s.exercises);
@@ -115,10 +117,10 @@ function WorkoutHeader() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.iconBtn}
-          onPress={isResting ? stopRest : startRest}
+          onPress={isResting ? (restPaused ? resumeRest : pauseRest) : startRest}
         >
           <Ionicons
-            name={isResting ? 'pause' : 'play'}
+            name={isResting && !restPaused ? 'pause' : 'play'}
             size={ms(16)}
             color={colors.accent}
           />
