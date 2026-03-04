@@ -18,6 +18,8 @@ import WaterCard from '../components/home/WaterCard';
 import ProteinPowderCell from '../components/home/ProteinPowderCell';
 import PowderSelectSheet from '../components/home/PowderSelectSheet';
 import ProteinPowderSettingsModal from '../components/home/ProteinPowderSettingsModal';
+import WaterSettingsModal from '../components/home/WaterSettingsModal';
+import NutritionSettingsModal from '../components/home/NutritionSettingsModal';
 import SupplementsCard from '../components/home/SupplementsCard';
 import ActivityCard from '../components/home/ActivityCard';
 import { useNavigation } from '@react-navigation/native';
@@ -44,6 +46,8 @@ function HomeScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [powderSheetVisible, setPowderSheetVisible] = useState(false);
+  const [nutritionSettingsVisible, setNutritionSettingsVisible] = useState(false);
+  const [waterSettingsVisible, setWaterSettingsVisible] = useState(false);
   const [powderSettingsVisible, setPowderSettingsVisible] = useState(false);
   const [pendingScoopAmount, setPendingScoopAmount] = useState(1);
 
@@ -136,9 +140,9 @@ function HomeScreen() {
 
       {/* Nutrition + Water + Protein Powder */}
       <View style={styles.nutritionRow}>
-        <NutritionCard />
+        <NutritionCard onOpenSettings={() => setNutritionSettingsVisible(true)} />
         <View style={styles.supplementCol}>
-          <WaterCard />
+          <WaterCard onOpenSettings={() => setWaterSettingsVisible(true)} />
           {enabled && (
             <ProteinPowderCell
               embedded
@@ -154,6 +158,14 @@ function HomeScreen() {
         onClose={() => setPowderSheetVisible(false)}
         powders={powders}
         onSelect={handleSelectPowder}
+      />
+      <NutritionSettingsModal
+        visible={nutritionSettingsVisible}
+        onClose={() => setNutritionSettingsVisible(false)}
+      />
+      <WaterSettingsModal
+        visible={waterSettingsVisible}
+        onClose={() => setWaterSettingsVisible(false)}
       />
       <ProteinPowderSettingsModal
         visible={powderSettingsVisible}

@@ -8,7 +8,11 @@ import { useSupplementStore } from '../../stores/useSupplementStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { sw, ms } from '../../theme/responsive';
 
-export default function WaterCard() {
+interface Props {
+  onOpenSettings?: () => void;
+}
+
+export default function WaterCard({ onOpenSettings }: Props) {
   const { water, waterGoal, addWater, undoLastWater } = useSupplementStore();
   const userId = useAuthStore((s) => s.user?.id);
   const progress = Math.min(water / waterGoal, 1);
@@ -27,7 +31,7 @@ export default function WaterCard() {
   }, [userId, water, undoLastWater]);
 
   return (
-    <View style={styles.container}>
+    <TouchableOpacity style={styles.container} onPress={onOpenSettings} activeOpacity={0.8}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.iconWrap}>
@@ -59,7 +63,7 @@ export default function WaterCard() {
           <Text style={styles.addButtonText}>+500</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
