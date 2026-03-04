@@ -386,12 +386,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
               onPress={onOpenAdd}
               activeOpacity={0.7}
             >
-              <Ionicons
-                name="add"
-                size={ms(20)}
-                color={colors.textOnAccent}
-              />
-              <Text style={styles.addBtnText}>Add Exercise</Text>
+              <Ionicons name="add" size={ms(28)} color={colors.textOnAccent} />
             </TouchableOpacity>
           </View>
         )}
@@ -448,25 +443,18 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(20),
     },
     footer: {
-      paddingHorizontal: sw(16),
-      paddingVertical: sw(12),
+      alignItems: 'center',
+      paddingVertical: sw(10),
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.cardBorder,
     },
     addBtn: {
-      flexDirection: 'row',
+      width: sw(52),
+      height: sw(52),
+      borderRadius: sw(26),
+      backgroundColor: colors.accent,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.accent,
-      borderRadius: sw(12),
-      paddingVertical: sw(14),
-      gap: sw(6),
-    },
-    addBtnText: {
-      color: colors.textOnAccent,
-      fontSize: ms(16),
-      fontFamily: Fonts.bold,
-      lineHeight: ms(22),
     },
     supersetConnector: {
       flexDirection: 'row',
