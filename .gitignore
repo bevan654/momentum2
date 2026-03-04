@@ -47,6 +47,12 @@ momentumfitness/
 promo/
 remotion/
 
+# Supabase temp
+supabase/.temp/
+
+# Local env
+env
+
 # Claude Code / claude-flow local state
 .claude/
 .claude-flow/

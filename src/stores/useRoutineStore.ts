@@ -6,12 +6,17 @@ export interface RoutineExercise {
   name: string;
   exercise_order: number;
   default_sets: number;
+  default_reps: number;
+  default_rest_seconds: number;
+  set_reps: number[];
+  set_weights: number[];
   exercise_type: string;
 }
 
 export interface Routine {
   id: string;
   name: string;
+  days: number[];
   exercises: RoutineExercise[];
   created_at: string;
   updated_at: string;
@@ -24,7 +29,15 @@ interface RoutineState {
   createRoutine: (
     userId: string,
     name: string,
-    exercises: Omit<RoutineExercise, 'id'>[]
+    exercises: Omit<RoutineExercise, 'id'>[],
+    days?: number[]
+  ) => Promise<{ error: string | null }>;
+  updateRoutine: (
+    userId: string,
+    routineId: string,
+    name: string,
+    exercises: Omit<RoutineExercise, 'id'>[],
+    days?: number[]
   ) => Promise<{ error: string | null }>;
   deleteRoutine: (routineId: string) => Promise<{ error: string | null }>;
 }
@@ -46,15 +59,27 @@ export const useRoutineStore = create<RoutineState>((set, get) => ({
         const routines: Routine[] = data.map((r: any) => ({
           id: r.id,
           name: r.name,
+          days: Array.isArray(r.days) ? r.days : [],
           exercises: (r.routine_exercises || [])
             .sort((a: any, b: any) => a.exercise_order - b.exercise_order)
-            .map((e: any) => ({
-              id: e.id,
-              name: e.name,
-              exercise_order: e.exercise_order,
-              default_sets: e.default_sets,
-              exercise_type: e.exercise_type,
-            })),
+            .map((e: any) => {
+              const reps = e.default_reps ?? 10;
+              const sets = e.default_sets ?? 3;
+              const setReps: number[] = Array.isArray(e.set_reps)
+                ? e.set_reps
+                : Array(sets).fill(reps);
+              return {
+                id: e.id,
+                name: e.name,
+                exercise_order: e.exercise_order,
+                default_sets: sets,
+                default_reps: reps,
+                default_rest_seconds: e.default_rest_seconds ?? 90,
+                set_reps: setReps,
+                set_weights: Array.isArray(e.set_weights) ? e.set_weights : Array(sets).fill(0),
+                exercise_type: e.exercise_type,
+              };
+            }),
           created_at: r.created_at,
           updated_at: r.updated_at,
         }));
@@ -65,10 +90,10 @@ export const useRoutineStore = create<RoutineState>((set, get) => ({
     }
   },
 
-  createRoutine: async (userId, name, exercises) => {
+  createRoutine: async (userId, name, exercises, days = []) => {
     const { data: routine, error } = await supabase
       .from('routines')
-      .insert({ user_id: userId, name })
+      .insert({ user_id: userId, name, days })
       .select('id')
       .single();
 
@@ -80,6 +105,45 @@ export const useRoutineStore = create<RoutineState>((set, get) => ({
         name: e.name,
         exercise_order: e.exercise_order,
         default_sets: e.default_sets,
+        default_reps: e.default_reps,
+        default_rest_seconds: e.default_rest_seconds,
+        set_reps: e.set_reps,
+        set_weights: e.set_weights,
+        exercise_type: e.exercise_type,
+      }));
+
+      const { error: exError } = await supabase
+        .from('routine_exercises')
+        .insert(rows);
+
+      if (exError) return { error: exError.message };
+    }
+
+    await get().fetchRoutines(userId);
+    return { error: null };
+  },
+
+  updateRoutine: async (userId, routineId, name, exercises, days = []) => {
+    const { error } = await supabase
+      .from('routines')
+      .update({ name, days })
+      .eq('id', routineId);
+
+    if (error) return { error: error.message };
+
+    // Replace all exercises: delete old, insert new
+    await supabase.from('routine_exercises').delete().eq('routine_id', routineId);
+
+    if (exercises.length > 0) {
+      const rows = exercises.map((e) => ({
+        routine_id: routineId,
+        name: e.name,
+        exercise_order: e.exercise_order,
+        default_sets: e.default_sets,
+        default_reps: e.default_reps,
+        default_rest_seconds: e.default_rest_seconds,
+        set_reps: e.set_reps,
+        set_weights: e.set_weights,
         exercise_type: e.exercise_type,
       }));
 
