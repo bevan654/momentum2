@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import {
   Canvas,
   Path as SkiaPath,
@@ -30,7 +30,11 @@ function makeRing(cx: number, cy: number, r: number) {
 
 /* ─── Main component ─────────────────────────────────── */
 
-export default function NutritionCard() {
+interface Props {
+  onOpenSettings?: () => void;
+}
+
+export default function NutritionCard({ onOpenSettings }: Props) {
   const { calories, calorieGoal, protein, proteinGoal, carbs, carbsGoal, fat, fatGoal } =
     useNutritionStore();
   const colors = useColors();
@@ -65,7 +69,7 @@ export default function NutritionCard() {
   const fOver = fat > fatGoal && fatGoal > 0;
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity style={styles.card} onPress={onOpenSettings} activeOpacity={0.8}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.iconWrap}>
@@ -126,7 +130,7 @@ export default function NutritionCard() {
           <Text style={styles.macroValue}>{fat}<Text style={styles.macroGoal}>/{fatGoal}</Text></Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
