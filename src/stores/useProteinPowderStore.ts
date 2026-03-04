@@ -25,6 +25,16 @@ export interface ProteinPowderLogEntry {
   created_at: string;
 }
 
+/* ─── Default powder ──────────────────────────────────── */
+
+const DEFAULT_POWDER = {
+  name: 'ON Gold Standard Double Rich Chocolate',
+  calories: 119,
+  protein: 24,
+  carbs: 3,
+  fat: 1,
+};
+
 /* ─── Helpers ──────────────────────────────────────────── */
 
 function todayDate() {
@@ -90,6 +100,11 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
             sort_order: d.sort_order,
           })),
         });
+
+        // Seed default powder if user has none
+        if (data.length === 0) {
+          get().addPowder(userId, DEFAULT_POWDER);
+        }
       }
     } catch {}
   },
@@ -215,6 +230,11 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
 
     if (error) {
       set({ scoopGoal: prev });
+    }
+
+    // Re-seed default powder when goal reset to 0 and user has no powders
+    if (!error && goal === 0 && get().powders.length === 0) {
+      get().addPowder(userId, DEFAULT_POWDER);
     }
   },
 

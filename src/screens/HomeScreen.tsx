@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, ScrollView, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,9 +12,11 @@ import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWeightStore } from '../stores/useWeightStore';
 import { useProteinPowderStore } from '../stores/useProteinPowderStore';
+import type { ProteinPowder } from '../stores/useProteinPowderStore';
 import NutritionCard from '../components/home/NutritionCard';
 import WaterCard from '../components/home/WaterCard';
-import MotivationCard from '../components/home/MotivationCard';
+import ProteinPowderCell from '../components/home/ProteinPowderCell';
+import PowderSelectSheet from '../components/home/PowderSelectSheet';
 import SupplementsCard from '../components/home/SupplementsCard';
 import ActivityCard from '../components/home/ActivityCard';
 import { useNavigation } from '@react-navigation/native';
@@ -31,11 +33,26 @@ function HomeScreen() {
   const fetchPowders = useProteinPowderStore((s) => s.fetchPowders);
   const fetchScoopGoal = useProteinPowderStore((s) => s.fetchScoopGoal);
   const fetchTodayScoops = useProteinPowderStore((s) => s.fetchTodayScoops);
+  const powders = useProteinPowderStore((s) => s.powders);
+  const logScoop = useProteinPowderStore((s) => s.logScoop);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
   const navigation = useNavigation<any>();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [powderSheetVisible, setPowderSheetVisible] = useState(false);
+  const [pendingScoopAmount, setPendingScoopAmount] = useState(1);
+
+  const handlePickPowder = useCallback((amount: number) => {
+    setPendingScoopAmount(amount);
+    setPowderSheetVisible(true);
+  }, []);
+
+  const handleSelectPowder = useCallback((powder: ProteinPowder) => {
+    if (user?.id) logScoop(user.id, powder, pendingScoopAmount);
+    setPowderSheetVisible(false);
+  }, [user?.id, logScoop, pendingScoopAmount]);
+
 
   useEffect(() => {
     if (user?.id) {
@@ -112,14 +129,21 @@ function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Nutrition + Water + Streak */}
+      {/* Nutrition + Water + Protein Powder */}
       <View style={styles.nutritionRow}>
         <NutritionCard />
         <View style={styles.supplementCol}>
           <WaterCard />
-          <MotivationCard />
+          <ProteinPowderCell embedded onPickPowder={handlePickPowder} />
         </View>
       </View>
+
+      <PowderSelectSheet
+        visible={powderSheetVisible}
+        onClose={() => setPowderSheetVisible(false)}
+        powders={powders}
+        onSelect={handleSelectPowder}
+      />
 
       {/* Supplements */}
       <SupplementsCard />
