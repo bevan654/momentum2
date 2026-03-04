@@ -286,13 +286,9 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
               pressed && styles.setNumBadgePressed,
             ]}
           >
-            {completed ? (
-              <Ionicons name="checkmark" size={ms(14)} color={colors.accentGreen} />
-            ) : (
-              <Text style={[styles.setNumText, { color: typeConfig.color }]}>
-                {typeConfig.label || (index + 1).toString()}
-              </Text>
-            )}
+            <Text style={[styles.setNumText, { color: completed ? colors.accentGreen : typeConfig.color }]}>
+              {(index + 1).toString()}
+            </Text>
           </Pressable>
 
           {/* Previous performance */}

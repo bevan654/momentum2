@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -67,11 +68,13 @@ interface Props {
   exerciseIndex: number;
   isLast: boolean;
   totalExercises: number;
+  isCurrent?: boolean;
   onReplace: (exerciseIndex: number) => void;
+  onExerciseFocus?: (exerciseIndex: number) => void;
   onInputFocus?: (y: number) => void;
 }
 
-function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, onReplace, onInputFocus }: Props) {
+function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurrent, onReplace, onExerciseFocus, onInputFocus }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const addSet = useActiveWorkoutStore((s) => s.addSet);
@@ -170,7 +173,10 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, onRepla
   ), [removeExercise, exerciseIndex, styles]);
 
   return (
-    <View style={styles.swipeContainer}>
+    <Pressable
+      style={[styles.swipeContainer, isCurrent && styles.currentBorder]}
+      onPress={() => onExerciseFocus?.(exerciseIndex)}
+    >
     <Swipeable
       ref={swipeableRef}
       renderRightActions={renderRightActions}
@@ -235,11 +241,11 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, onRepla
             index={setIdx}
             set={set}
             prevSet={exercise.prevSets?.[setIdx] || null}
-            onUpdate={(field, value) => updateSet(exerciseIndex, setIdx, field, value)}
-            onToggle={() => toggleSetComplete(exerciseIndex, setIdx)}
+            onUpdate={(field, value) => { onExerciseFocus?.(exerciseIndex); updateSet(exerciseIndex, setIdx, field, value); }}
+            onToggle={() => { onExerciseFocus?.(exerciseIndex); toggleSetComplete(exerciseIndex, setIdx); }}
             onCycleSetType={() => cycleSetType(exerciseIndex, setIdx)}
             onDelete={exercise.sets.length > 1 ? () => removeSet(exerciseIndex, setIdx) : null}
-            onInputFocus={onInputFocus}
+            onInputFocus={(y) => { onExerciseFocus?.(exerciseIndex); onInputFocus?.(y); }}
           />
         ))}
 
@@ -254,7 +260,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, onRepla
         </TouchableOpacity>
       </View>
     </Swipeable>
-    </View>
+    </Pressable>
   );
 }
 
@@ -266,6 +272,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: sw(8),
     borderWidth: sw(2),
     borderColor: colors.cardBorder,
+  },
+  currentBorder: {
+    borderWidth: sw(1),
+    borderColor: colors.textTertiary,
   },
   card: {
     backgroundColor: colors.card,
