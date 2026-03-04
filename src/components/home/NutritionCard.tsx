@@ -1,5 +1,6 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import {
   Canvas,
   Path as SkiaPath,
@@ -61,6 +62,11 @@ export default function NutritionCard({ onOpenSettings }: Props) {
 
   const heroPath = useMemo(() => makeRing(CANVAS_CENTER, CANVAS_CENTER, HERO_R), []);
 
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onOpenSettings?.();
+  }, [onOpenSettings]);
+
   const pFill = proteinGoal > 0 ? Math.min(protein / proteinGoal, 1) : 0;
   const cFill = carbsGoal > 0 ? Math.min(carbs / carbsGoal, 1) : 0;
   const fFill = fatGoal > 0 ? Math.min(fat / fatGoal, 1) : 0;
@@ -69,7 +75,7 @@ export default function NutritionCard({ onOpenSettings }: Props) {
   const fOver = fat > fatGoal && fatGoal > 0;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onOpenSettings} activeOpacity={0.8}>
+    <TouchableOpacity style={styles.card} onPress={handlePress} activeOpacity={0.8}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.iconWrap}>
@@ -81,7 +87,7 @@ export default function NutritionCard({ onOpenSettings }: Props) {
       {/* Hero ring */}
       <View style={styles.heroSection}>
         <View style={styles.heroWrap}>
-          <Canvas style={styles.heroCanvas}>
+          <Canvas style={styles.heroCanvas} pointerEvents="none">
             <SkiaPath path={heroPath} style="stroke" strokeWidth={HERO_STROKE} strokeCap="round" color={colors.ring.track} />
             <SkiaPath path={heroPath} style="stroke" strokeWidth={HERO_STROKE + sw(10)} strokeCap="round" end={calEnd} color={heroColor + '22'}>
               <BlurMask blur={sw(12)} style="normal" />

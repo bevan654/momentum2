@@ -31,7 +31,7 @@ export default function WaterCard({ onOpenSettings }: Props) {
   }, [userId, water, undoLastWater]);
 
   return (
-    <TouchableOpacity style={styles.container} onPress={onOpenSettings} activeOpacity={0.8}>
+    <TouchableOpacity style={styles.container} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onOpenSettings?.(); }} activeOpacity={0.8}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.iconWrap}>
