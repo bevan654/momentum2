@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
+import { openProfileToSection } from '../../navigation/TabNavigator';
 import { Fonts } from '../../theme/typography';
 import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { useProteinPowderStore } from '../../stores/useProteinPowderStore';
@@ -31,6 +32,7 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
 
   const progress = scoopGoal > 0 ? Math.min(todayScoops / scoopGoal, 1) : 0;
   const complete = todayScoops >= scoopGoal && scoopGoal > 0;
+  const unconfigured = scoopGoal === 0;
 
   const handleAdd = useCallback((amount: number) => {
     if (!userId) return;
@@ -49,6 +51,37 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     undoLastScoop(userId);
   }, [userId, undoLastScoop]);
+
+  const handleSetGoal = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    openProfileToSection('proteinPowder');
+  }, []);
+
+  // Unconfigured state — prompt to set goal
+  if (unconfigured) {
+    return (
+      <View style={embedded ? styles.cellEmbedded : styles.cell}>
+        <View style={styles.cellHeader}>
+          <View style={styles.iconWrap}>
+            <Ionicons name="nutrition-outline" size={ms(12)} color={POWDER_COLOR} />
+          </View>
+          <Text style={styles.cellName} numberOfLines={1}>Protein Powder</Text>
+        </View>
+
+        <View style={styles.setupSection}>
+          <Text style={styles.setupHint}>Track your daily scoops</Text>
+          <TouchableOpacity
+            style={styles.setupBtn}
+            onPress={handleSetGoal}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="settings-outline" size={ms(12)} color={POWDER_COLOR} />
+            <Text style={styles.setupBtnText}>Set Goal</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={embedded ? styles.cellEmbedded : styles.cell}>
@@ -81,29 +114,23 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
         />
       </View>
 
-      {/* Button */}
+      {/* Buttons */}
       {!complete && (
         <View style={styles.cellButtons}>
-          {powders.length === 0 ? (
-            <Text style={styles.setupText}>Set up in Settings</Text>
-          ) : (
-            <>
-              <TouchableOpacity
-                style={styles.cellAddBtn}
-                onPress={() => handleAdd(1)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.cellAddBtnText}>+1</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cellAddBtn}
-                onPress={() => handleAdd(0.5)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.cellAddBtnText}>+0.5</Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <TouchableOpacity
+            style={styles.cellAddBtn}
+            onPress={() => handleAdd(1)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.cellAddBtnText}>+1</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cellAddBtn}
+            onPress={() => handleAdd(0.5)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.cellAddBtnText}>+0.5</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -125,8 +152,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   cellEmbedded: {
     flex: 1,
-    padding: sw(12),
-    gap: sw(6),
+    backgroundColor: colors.card,
+    borderRadius: sw(14),
+    padding: sw(14),
+    justifyContent: 'space-between',
+    gap: sw(8),
+    ...colors.cardShadow,
   },
   cellHeader: {
     flexDirection: 'row',
@@ -193,10 +224,31 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(16),
     fontFamily: Fonts.semiBold,
   },
-  setupText: {
+  setupSection: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: sw(8),
+  },
+  setupHint: {
     color: colors.textTertiary,
     fontSize: ms(11),
     lineHeight: ms(15),
     fontFamily: Fonts.medium,
+  },
+  setupBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(5),
+    backgroundColor: POWDER_COLOR + '15',
+    borderRadius: sw(8),
+    paddingVertical: sw(6),
+    paddingHorizontal: sw(12),
+  },
+  setupBtnText: {
+    color: POWDER_COLOR,
+    fontSize: ms(12),
+    lineHeight: ms(16),
+    fontFamily: Fonts.semiBold,
   },
 });

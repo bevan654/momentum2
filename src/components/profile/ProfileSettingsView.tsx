@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Linking, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -12,12 +12,25 @@ import ProteinPowderSettings from './ProteinPowderSettings';
 
 interface Props {
   onBack: () => void;
+  scrollToSection?: string | null;
 }
 
-export default function ProfileSettingsView({ onBack }: Props) {
+export default function ProfileSettingsView({ onBack, scrollToSection }: Props) {
   const profile = useAuthStore((s) => s.profile);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const scrollRef = useRef<ScrollView>(null);
+  const sectionYRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    if (scrollToSection) {
+      const timer = setTimeout(() => {
+        const y = sectionYRef.current[scrollToSection];
+        if (y != null) scrollRef.current?.scrollTo({ y, animated: true });
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [scrollToSection]);
 
   return (
     <KeyboardAvoidingView
@@ -25,7 +38,7 @@ export default function ProfileSettingsView({ onBack }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? sw(90) : 0}
     >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Back button */}
         <TouchableOpacity style={styles.backRow} onPress={onBack} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={ms(22)} color={colors.textPrimary} />
@@ -60,7 +73,9 @@ export default function ProfileSettingsView({ onBack }: Props) {
         </View>
 
         {/* 5. Protein Powder */}
+        <View onLayout={(e) => { sectionYRef.current['proteinPowder'] = e.nativeEvent.layout.y; }}>
         <SectionHeader title="Protein Powder" />
+        </View>
         <View style={styles.card}>
           <ProteinPowderSettings />
         </View>

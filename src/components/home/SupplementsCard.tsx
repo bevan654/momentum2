@@ -5,13 +5,9 @@ import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { useSupplementStore, type SupplementConfig } from '../../stores/useSupplementStore';
-import { useProteinPowderStore } from '../../stores/useProteinPowderStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import AddSupplementModal from './AddSupplementModal';
-import ProteinPowderCell from './ProteinPowderCell';
-import PowderSelectSheet from './PowderSelectSheet';
-import type { ProteinPowder } from '../../stores/useProteinPowderStore';
 
 const GRID_GAP = sw(10);
 const GRID_PADDING = sw(16);
@@ -100,28 +96,12 @@ export default function SupplementsCard() {
   const totals = useSupplementStore((s) => s.supplementTotals);
   const addSupplement = useSupplementStore((s) => s.addSupplement);
   const resetSupplement = useSupplementStore((s) => s.resetSupplement);
-  const scoopGoal = useProteinPowderStore((s) => s.scoopGoal);
-  const powders = useProteinPowderStore((s) => s.powders);
-  const logScoop = useProteinPowderStore((s) => s.logScoop);
   const userId = useAuthStore((s) => s.user?.id);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [powderSheetVisible, setPowderSheetVisible] = useState(false);
-  const [pendingScoopAmount, setPendingScoopAmount] = useState(1);
 
-  const handlePickPowder = useCallback((amount: number) => {
-    setPendingScoopAmount(amount);
-    setPowderSheetVisible(true);
-  }, []);
-
-  const handleSelectPowder = useCallback((powder: ProteinPowder) => {
-    if (userId) logScoop(userId, powder, pendingScoopAmount);
-    setPowderSheetVisible(false);
-  }, [userId, logScoop, pendingScoopAmount]);
-
-  const showProteinPowder = scoopGoal > 0;
-  const totalCells = configs.length + (showProteinPowder ? 1 : 0);
+  const totalCells = configs.length;
 
   const handleAdd = useCallback((key: string, amount: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -158,22 +138,17 @@ export default function SupplementsCard() {
 
   // 1 cell → full-width card split in half (cell | add button)
   if (totalCells === 1) {
-    const hasSupp = configs.length === 1;
     return (
       <>
         <View style={styles.splitCard}>
           <View style={styles.splitLeft}>
-            {hasSupp ? (
-              <SupplementCell
-                config={configs[0]}
-                total={totals[configs[0].key] || 0}
-                onAdd={handleAdd}
-                onReset={handleReset}
-                embedded
-              />
-            ) : (
-              <ProteinPowderCell embedded onPickPowder={handlePickPowder} />
-            )}
+            <SupplementCell
+              config={configs[0]}
+              total={totals[configs[0].key] || 0}
+              onAdd={handleAdd}
+              onReset={handleReset}
+              embedded
+            />
           </View>
           <View style={styles.splitDivider} />
           <TouchableOpacity
@@ -192,12 +167,6 @@ export default function SupplementsCard() {
           visible={modalVisible}
           onClose={() => setModalVisible(false)}
         />
-        <PowderSelectSheet
-          visible={powderSheetVisible}
-          onClose={() => setPowderSheetVisible(false)}
-          powders={powders}
-          onSelect={handleSelectPowder}
-        />
       </>
     );
   }
@@ -215,18 +184,11 @@ export default function SupplementsCard() {
             onReset={handleReset}
           />
         ))}
-        {showProteinPowder && <ProteinPowderCell onPickPowder={handlePickPowder} />}
       </View>
 
       <AddSupplementModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-      />
-      <PowderSelectSheet
-        visible={powderSheetVisible}
-        onClose={() => setPowderSheetVisible(false)}
-        powders={powders}
-        onSelect={handleSelectPowder}
       />
     </>
   );
