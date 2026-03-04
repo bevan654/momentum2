@@ -99,12 +99,14 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
       </View>
 
       {/* Value */}
-      <View style={styles.cellValueRow}>
-        <Text style={styles.cellCurrent}>{todayScoops}</Text>
-        <Text style={styles.cellGoal}>/{scoopGoal} scoops</Text>
-        {complete && (
-          <Ionicons name="checkmark-circle" size={ms(14)} color={POWDER_COLOR} style={{ marginLeft: sw(4) }} />
-        )}
+      <View style={complete ? styles.completeSection : undefined}>
+        <View style={[styles.cellValueRow, complete && { justifyContent: 'center' }]}>
+          <Text style={complete ? styles.cellCurrentComplete : styles.cellCurrent}>{todayScoops}</Text>
+          <Text style={complete ? styles.cellGoalComplete : styles.cellGoal}>/{scoopGoal} scoops</Text>
+          {complete && (
+            <Ionicons name="checkmark-circle" size={ms(18)} color={POWDER_COLOR} style={{ marginLeft: sw(4) }} />
+          )}
+        </View>
       </View>
 
       {/* Progress */}
@@ -119,17 +121,17 @@ const ProteinPowderCell = React.memo(function ProteinPowderCell({ embedded, onPi
         <View style={styles.cellButtons}>
           <TouchableOpacity
             style={styles.cellAddBtn}
-            onPress={() => handleAdd(1)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.cellAddBtnText}>+1</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.cellAddBtn}
             onPress={() => handleAdd(0.5)}
             activeOpacity={0.7}
           >
             <Text style={styles.cellAddBtnText}>+0.5</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cellAddBtn}
+            onPress={() => handleAdd(1)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.cellAddBtnText}>+1</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -190,11 +192,29 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.extraBold,
     letterSpacing: -0.5,
   },
+  cellCurrentComplete: {
+    color: colors.textPrimary,
+    fontSize: ms(28),
+    lineHeight: ms(32),
+    fontFamily: Fonts.extraBold,
+    letterSpacing: -0.5,
+  },
   cellGoal: {
     color: colors.textTertiary,
     fontSize: ms(11),
     lineHeight: ms(15),
     fontFamily: Fonts.regular,
+  },
+  cellGoalComplete: {
+    color: colors.textTertiary,
+    fontSize: ms(14),
+    lineHeight: ms(18),
+    fontFamily: Fonts.regular,
+  },
+  completeSection: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   progressTrack: {
     height: sw(4),
