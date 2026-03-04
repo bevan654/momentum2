@@ -38,7 +38,7 @@ import CreateCustomExerciseModal from './CreateCustomExerciseModal';
 /* ─── Constants ───────────────────────────────────────── */
 
 const SCREEN_H = Dimensions.get('window').height;
-const SHEET_H = Math.round(SCREEN_H * 0.8);
+const SHEET_H = Math.round(SCREEN_H * 0.88);
 const RADIUS = sw(20);
 const DISMISS_THRESHOLD = 80;
 const VELOCITY_THRESHOLD = 800;

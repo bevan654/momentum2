@@ -1,39 +1,64 @@
 import React, { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { sw, ms } from '../theme/responsive';
 import { Fonts } from '../theme/typography';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AvatarViewer from '../components/dev/AvatarViewer';
+import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 
-interface Props {
-  onBack?: () => void;
-}
-
-export default function DevContentScreen({ onBack }: Props) {
+export default function DevContentScreen() {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  return (
-    <View style={[styles.container, !onBack && { paddingTop: 0 }]}>
-      {onBack && (
-        <View style={[styles.header, { marginTop: insets.top }]}>
-          <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.6}>
-            <Ionicons name="chevron-back" size={ms(22)} color={colors.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.title}>Dev</Text>
-          <View style={{ width: ms(22) }} />
-        </View>
-      )}
+  const handleStartMockWorkout = () => {
+    const { startWorkout, addExercise, updateSet, addSet, toggleSetComplete } = useActiveWorkoutStore.getState();
+    startWorkout();
 
+    // Bench Press — previous session: 4×80kg×8 = 2560kg vol
+    addExercise('Bench Press', 'weighted', 'Chest', [
+      { kg: 80, reps: 8 },
+      { kg: 80, reps: 8 },
+      { kg: 80, reps: 7 },
+      { kg: 75, reps: 8 },
+    ]);
+    // Pre-fill first two sets as completed to show progress
+    updateSet(0, 0, 'kg', '80');
+    updateSet(0, 0, 'reps', '8');
+    toggleSetComplete(0, 0);
+    addSet(0);
+    updateSet(0, 1, 'kg', '82.5');
+    updateSet(0, 1, 'reps', '8');
+    toggleSetComplete(0, 1);
+
+    // Squat — previous session: 3×100kg×5 = 1500kg vol
+    addExercise('Squat', 'weighted', 'Legs', [
+      { kg: 100, reps: 5 },
+      { kg: 100, reps: 5 },
+      { kg: 100, reps: 4 },
+    ]);
+
+    // Pull Up — no previous data (first time)
+    addExercise('Pull Up', 'bodyweight', 'Back');
+  };
+
+  return (
+    <View style={styles.container}>
       <ScrollView
         style={styles.list}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       >
+        <Text style={styles.sectionLabel}>Mock Workout</Text>
+        <TouchableOpacity
+          style={styles.mockButton}
+          onPress={handleStartMockWorkout}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="barbell-outline" size={ms(20)} color={colors.textOnAccent} />
+          <Text style={styles.mockButtonText}>Start Mock Workout</Text>
+        </TouchableOpacity>
+
         <Text style={styles.sectionLabel}>Avatar</Text>
         <AvatarViewer />
       </ScrollView>
@@ -46,23 +71,6 @@ const createStyles = (colors: ThemeColors) =>
     container: {
       flex: 1,
       backgroundColor: colors.background,
-    },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: sw(16),
-      paddingTop: sw(12),
-      paddingBottom: sw(8),
-    },
-    backBtn: {
-      padding: sw(4),
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: ms(17),
-      lineHeight: ms(23),
-      fontFamily: Fonts.bold,
     },
     list: {
       flex: 1,
@@ -80,5 +88,21 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.bold,
       alignSelf: 'flex-start',
       marginTop: sw(8),
+    },
+    mockButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: sw(8),
+      backgroundColor: colors.accent,
+      borderRadius: sw(12),
+      paddingVertical: sw(14),
+      paddingHorizontal: sw(24),
+      alignSelf: 'stretch',
+    },
+    mockButtonText: {
+      color: colors.textOnAccent,
+      fontSize: ms(16),
+      fontFamily: Fonts.semiBold,
     },
   });
