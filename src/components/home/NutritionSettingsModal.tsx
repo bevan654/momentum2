@@ -1,14 +1,20 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Pressable,
   Modal, StyleSheet, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import ReAnimated, {
+  useSharedValue, useAnimatedStyle, withTiming, Easing,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
 import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+
+const ANIM_DURATION = 250;
+const ANIM_EASING = Easing.out(Easing.cubic);
 
 interface Props {
   visible: boolean;
@@ -27,8 +33,34 @@ export default function NutritionSettingsModal({ visible, onClose }: Props) {
   const [carbs, setCarbs] = useState(String(goals.carbs_goal));
   const [fat, setFat] = useState(String(goals.fat_goal));
 
+  // Animation
+  const backdropOpacity = useSharedValue(0);
+  const modalOpacity = useSharedValue(0);
+  const modalTranslateY = useSharedValue(sw(30));
+
+  useEffect(() => {
+    if (visible) {
+      backdropOpacity.value = withTiming(1, { duration: ANIM_DURATION, easing: ANIM_EASING });
+      modalOpacity.value = withTiming(1, { duration: ANIM_DURATION, easing: ANIM_EASING });
+      modalTranslateY.value = withTiming(0, { duration: ANIM_DURATION, easing: ANIM_EASING });
+    } else {
+      backdropOpacity.value = 0;
+      modalOpacity.value = 0;
+      modalTranslateY.value = sw(30);
+    }
+  }, [visible]);
+
+  const backdropAnimStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
+
+  const modalAnimStyle = useAnimatedStyle(() => ({
+    opacity: modalOpacity.value,
+    transform: [{ translateY: modalTranslateY.value }],
+  }));
+
   // Sync when modal opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) {
       setCal(String(goals.calorie_goal));
       setPro(String(goals.protein_goal));
@@ -48,63 +80,66 @@ export default function NutritionSettingsModal({ visible, onClose }: Props) {
   }, [userId, updateGoals]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <Pressable style={styles.backdropBase} onPress={onClose}>
+        <ReAnimated.View style={[styles.backdropFill, backdropAnimStyle]} />
         <KeyboardAvoidingView
           style={styles.centered}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <Pressable style={styles.modal}>
-            <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-              <View style={styles.titleRow}>
-                <View style={styles.titleIcon}>
-                  <Ionicons name="restaurant-outline" size={ms(16)} color={colors.accent} />
+          <Pressable style={styles.modalPressable}>
+            <ReAnimated.View style={[styles.modal, modalAnimStyle]}>
+              <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                <View style={styles.titleRow}>
+                  <View style={styles.titleIcon}>
+                    <Ionicons name="restaurant-outline" size={ms(16)} color={colors.accent} />
+                  </View>
+                  <Text style={styles.title}>Nutrition Goals</Text>
                 </View>
-                <Text style={styles.title}>Nutrition Goals</Text>
-              </View>
 
-              <GoalInputRow
-                label="Calories"
-                value={cal}
-                onChange={setCal}
-                onBlur={() => save('calorie_goal', cal, setCal, goals.calorie_goal)}
-                unit="kcal"
-                colors={colors}
-                styles={styles}
-              />
-              <GoalInputRow
-                label="Protein"
-                value={pro}
-                onChange={setPro}
-                onBlur={() => save('protein_goal', pro, setPro, goals.protein_goal)}
-                unit="g"
-                colors={colors}
-                styles={styles}
-              />
-              <GoalInputRow
-                label="Carbs"
-                value={carbs}
-                onChange={setCarbs}
-                onBlur={() => save('carbs_goal', carbs, setCarbs, goals.carbs_goal)}
-                unit="g"
-                colors={colors}
-                styles={styles}
-              />
-              <GoalInputRow
-                label="Fat"
-                value={fat}
-                onChange={setFat}
-                onBlur={() => save('fat_goal', fat, setFat, goals.fat_goal)}
-                unit="g"
-                colors={colors}
-                styles={styles}
-              />
+                <GoalInputRow
+                  label="Calories"
+                  value={cal}
+                  onChange={setCal}
+                  onBlur={() => save('calorie_goal', cal, setCal, goals.calorie_goal)}
+                  unit="kcal"
+                  colors={colors}
+                  styles={styles}
+                />
+                <GoalInputRow
+                  label="Protein"
+                  value={pro}
+                  onChange={setPro}
+                  onBlur={() => save('protein_goal', pro, setPro, goals.protein_goal)}
+                  unit="g"
+                  colors={colors}
+                  styles={styles}
+                />
+                <GoalInputRow
+                  label="Carbs"
+                  value={carbs}
+                  onChange={setCarbs}
+                  onBlur={() => save('carbs_goal', carbs, setCarbs, goals.carbs_goal)}
+                  unit="g"
+                  colors={colors}
+                  styles={styles}
+                />
+                <GoalInputRow
+                  label="Fat"
+                  value={fat}
+                  onChange={setFat}
+                  onBlur={() => save('fat_goal', fat, setFat, goals.fat_goal)}
+                  unit="g"
+                  colors={colors}
+                  styles={styles}
+                />
 
-              {/* Done button */}
-              <TouchableOpacity style={styles.doneBtn} onPress={onClose} activeOpacity={0.7}>
-                <Text style={styles.doneBtnText}>Done</Text>
-              </TouchableOpacity>
-            </ScrollView>
+                {/* Done button */}
+                <TouchableOpacity style={styles.doneBtn} onPress={onClose} activeOpacity={0.7}>
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </ReAnimated.View>
           </Pressable>
         </KeyboardAvoidingView>
       </Pressable>
@@ -141,8 +176,11 @@ function GoalInputRow({ label, value, onChange, onBlur, unit, colors, styles }: 
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  backdrop: {
+  backdropBase: {
     flex: 1,
+  },
+  backdropFill: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   centered: {
@@ -150,13 +188,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  modalPressable: {
+    width: '85%',
+    maxWidth: sw(340),
+    maxHeight: '80%',
+  },
   modal: {
     backgroundColor: colors.card,
     borderRadius: sw(16),
     padding: sw(24),
-    width: '85%',
-    maxWidth: sw(340),
-    maxHeight: '80%',
   },
   titleRow: {
     flexDirection: 'row',

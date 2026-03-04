@@ -1,8 +1,11 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Pressable,
   Modal, StyleSheet, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import ReAnimated, {
+  useSharedValue, useAnimatedStyle, withTiming, Easing,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
@@ -12,6 +15,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import AddPowderModal from '../profile/AddPowderModal';
 
 const POWDER_COLOR = '#86EFAC';
+const ANIM_DURATION = 250;
+const ANIM_EASING = Easing.out(Easing.cubic);
 
 interface Props {
   visible: boolean;
@@ -31,8 +36,34 @@ export default function ProteinPowderSettingsModal({ visible, onClose }: Props) 
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [editingPowder, setEditingPowder] = useState<ProteinPowder | null>(null);
 
+  // Animation
+  const backdropOpacity = useSharedValue(0);
+  const modalOpacity = useSharedValue(0);
+  const modalTranslateY = useSharedValue(sw(30));
+
+  useEffect(() => {
+    if (visible) {
+      backdropOpacity.value = withTiming(1, { duration: ANIM_DURATION, easing: ANIM_EASING });
+      modalOpacity.value = withTiming(1, { duration: ANIM_DURATION, easing: ANIM_EASING });
+      modalTranslateY.value = withTiming(0, { duration: ANIM_DURATION, easing: ANIM_EASING });
+    } else {
+      backdropOpacity.value = 0;
+      modalOpacity.value = 0;
+      modalTranslateY.value = sw(30);
+    }
+  }, [visible]);
+
+  const backdropAnimStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
+
+  const modalAnimStyle = useAnimatedStyle(() => ({
+    opacity: modalOpacity.value,
+    transform: [{ translateY: modalTranslateY.value }],
+  }));
+
   // Sync goalText when modal opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) setGoalText(String(scoopGoal || ''));
   }, [visible, scoopGoal]);
 
@@ -66,73 +97,76 @@ export default function ProteinPowderSettingsModal({ visible, onClose }: Props) 
   }, []);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <Pressable style={styles.backdropBase} onPress={onClose}>
+        <ReAnimated.View style={[styles.backdropFill, backdropAnimStyle]} />
         <KeyboardAvoidingView
           style={styles.centered}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <Pressable style={styles.modal}>
-            <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-              <View style={styles.titleRow}>
-                <View style={styles.titleIcon}>
-                  <Ionicons name="nutrition-outline" size={ms(16)} color={POWDER_COLOR} />
-                </View>
-                <Text style={styles.title}>Protein Powder</Text>
-              </View>
-
-              {/* Daily Scoop Goal */}
-              <Text style={styles.sectionLabel}>Daily Scoop Goal</Text>
-              <View style={styles.goalRow}>
-                <TextInput
-                  style={styles.goalInput}
-                  value={goalText}
-                  onChangeText={setGoalText}
-                  onBlur={handleGoalBlur}
-                  keyboardType="number-pad"
-                  placeholderTextColor={colors.textTertiary}
-                  placeholder="0"
-                />
-                <Text style={styles.unitText}>scoops</Text>
-              </View>
-
-              {/* Saved Powders */}
-              <Text style={[styles.sectionLabel, { marginTop: sw(16) }]}>Saved Powders</Text>
-              {powders.map((powder) => (
-                <View key={powder.id} style={styles.powderRow}>
-                  <View style={styles.powderIcon}>
-                    <Ionicons name="nutrition-outline" size={ms(13)} color={POWDER_COLOR} />
+          <Pressable style={styles.modalPressable}>
+            <ReAnimated.View style={[styles.modal, modalAnimStyle]}>
+              <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                <View style={styles.titleRow}>
+                  <View style={styles.titleIcon}>
+                    <Ionicons name="nutrition-outline" size={ms(16)} color={POWDER_COLOR} />
                   </View>
-                  <View style={styles.powderInfo}>
-                    <Text style={styles.powderName} numberOfLines={1}>{powder.name}</Text>
-                    <Text style={styles.powderMacros}>
-                      {powder.calories} cal · {powder.protein}g P · {powder.carbs}g C · {powder.fat}g F
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={() => handleEdit(powder)} hitSlop={8} style={styles.editBtn}>
-                    <Ionicons name="create-outline" size={ms(16)} color={colors.textTertiary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleDelete(powder.id)} hitSlop={8}>
-                    <Ionicons name="close-circle" size={ms(18)} color={colors.textTertiary} />
-                  </TouchableOpacity>
+                  <Text style={styles.title}>Protein Powder</Text>
                 </View>
-              ))}
 
-              {/* Add Powder */}
-              <TouchableOpacity
-                style={styles.addRow}
-                onPress={handleAddPress}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="add-circle-outline" size={ms(18)} color={colors.textSecondary} />
-                <Text style={styles.addText}>Add Powder</Text>
-              </TouchableOpacity>
+                {/* Daily Scoop Goal */}
+                <Text style={styles.sectionLabel}>Daily Scoop Goal</Text>
+                <View style={styles.goalRow}>
+                  <TextInput
+                    style={styles.goalInput}
+                    value={goalText}
+                    onChangeText={setGoalText}
+                    onBlur={handleGoalBlur}
+                    keyboardType="number-pad"
+                    placeholderTextColor={colors.textTertiary}
+                    placeholder="0"
+                  />
+                  <Text style={styles.unitText}>scoops</Text>
+                </View>
 
-              {/* Done button */}
-              <TouchableOpacity style={styles.doneBtn} onPress={onClose} activeOpacity={0.7}>
-                <Text style={styles.doneBtnText}>Done</Text>
-              </TouchableOpacity>
-            </ScrollView>
+                {/* Saved Powders */}
+                <Text style={[styles.sectionLabel, { marginTop: sw(16) }]}>Saved Powders</Text>
+                {powders.map((powder) => (
+                  <View key={powder.id} style={styles.powderRow}>
+                    <View style={styles.powderIcon}>
+                      <Ionicons name="nutrition-outline" size={ms(13)} color={POWDER_COLOR} />
+                    </View>
+                    <View style={styles.powderInfo}>
+                      <Text style={styles.powderName} numberOfLines={1}>{powder.name}</Text>
+                      <Text style={styles.powderMacros}>
+                        {powder.calories} cal · {powder.protein}g P · {powder.carbs}g C · {powder.fat}g F
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => handleEdit(powder)} hitSlop={8} style={styles.editBtn}>
+                      <Ionicons name="create-outline" size={ms(16)} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleDelete(powder.id)} hitSlop={8}>
+                      <Ionicons name="close-circle" size={ms(18)} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                {/* Add Powder */}
+                <TouchableOpacity
+                  style={styles.addRow}
+                  onPress={handleAddPress}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="add-circle-outline" size={ms(18)} color={colors.textSecondary} />
+                  <Text style={styles.addText}>Add Powder</Text>
+                </TouchableOpacity>
+
+                {/* Done button */}
+                <TouchableOpacity style={styles.doneBtn} onPress={onClose} activeOpacity={0.7}>
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </ReAnimated.View>
           </Pressable>
         </KeyboardAvoidingView>
       </Pressable>
@@ -147,8 +181,11 @@ export default function ProteinPowderSettingsModal({ visible, onClose }: Props) 
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  backdrop: {
+  backdropBase: {
     flex: 1,
+  },
+  backdropFill: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   centered: {
@@ -156,13 +193,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  modalPressable: {
+    width: '85%',
+    maxWidth: sw(340),
+    maxHeight: '80%',
+  },
   modal: {
     backgroundColor: colors.card,
     borderRadius: sw(16),
     padding: sw(24),
-    width: '85%',
-    maxWidth: sw(340),
-    maxHeight: '80%',
   },
   titleRow: {
     flexDirection: 'row',
