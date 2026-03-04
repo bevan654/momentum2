@@ -8,7 +8,6 @@ import { Fonts } from '../theme/typography';
 import { useFoodLogStore } from '../stores/useFoodLogStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSupplementStore, type SupplementEntry } from '../stores/useSupplementStore';
-import DateNavigator from '../components/food/DateNavigator';
 import MealSection from '../components/food/MealSection';
 import AddFoodModal from '../components/food/AddFoodModal';
 import FoodDetailModal from '../components/food/FoodDetailModal';
@@ -24,7 +23,6 @@ function FoodLoggerScreen() {
   const mealConfigs = useFoodLogStore((s) => s.mealConfigs);
   const goals = useFoodLogStore((s) => s.goals);
   const collapsedMeals = useFoodLogStore((s) => s.collapsedMeals);
-  const setDate = useFoodLogStore((s) => s.setDate);
   const loading = useFoodLogStore((s) => s.loading);
 
   const fetchDayEntries = useFoodLogStore((s) => s.fetchDayEntries);
@@ -215,7 +213,6 @@ function FoodLoggerScreen() {
 
   return (
     <View style={styles.screen}>
-      <DateNavigator selectedDate={selectedDate} onDateSelect={setDate} />
       <NutritionHero entries={entries} goals={goals} />
       <ScrollView
         ref={scrollRef}

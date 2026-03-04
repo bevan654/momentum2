@@ -1,105 +1,186 @@
-import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useMemo, useRef, useCallback } from 'react';
+import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import { getMuscleGroupColor } from '../../constants/muscleGroups';
+import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import type { Routine } from '../../stores/useRoutineStore';
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 interface Props {
   routine: Routine;
+  onPress: () => void;
   onPlay: () => void;
   onDelete: () => void;
 }
 
-export default function RoutineCard({ routine, onPlay, onDelete }: Props) {
+export default function RoutineCard({ routine, onPress, onPlay, onDelete }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const firstCategory = routine.exercises[0]?.exercise_type || 'Custom';
-  const barColor = getMuscleGroupColor(firstCategory === 'weighted' ? 'Custom' : firstCategory);
+  const catalogMap = useWorkoutStore((s) => s.catalogMap);
+  const swipeableRef = useRef<Swipeable>(null);
 
-  const handleDelete = () => {
-    Alert.alert('Delete Routine', `Delete "${routine.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: onDelete },
-    ]);
-  };
+  const handleDelete = useCallback(() => {
+    swipeableRef.current?.close();
+    onDelete();
+  }, [onDelete]);
+
+  const renderRightActions = useCallback(() => (
+    <TouchableOpacity
+      style={styles.deleteAction}
+      onPress={handleDelete}
+      activeOpacity={0.7}
+    >
+      <Ionicons name="trash" size={ms(22)} color="#fff" />
+      <Text style={styles.deleteText}>Delete</Text>
+    </TouchableOpacity>
+  ), [handleDelete, styles]);
+
+  // Collect unique primary muscles across all exercises
+  const muscleList = useMemo(() => {
+    const muscles = new Set<string>();
+    for (const ex of routine.exercises) {
+      const entry = catalogMap[ex.name];
+      if (entry?.primary_muscles) {
+        for (const m of entry.primary_muscles) muscles.add(m);
+      } else if (entry?.category) {
+        muscles.add(entry.category);
+      }
+    }
+    if (muscles.size === 0) return [];
+    return [...muscles].map((m) => m.toUpperCase());
+  }, [routine.exercises, catalogMap]);
 
   return (
-    <View style={styles.card}>
-      <View style={[styles.colorBar, { backgroundColor: colors.accent }]} />
-      <View style={styles.content}>
-        <View style={styles.topRow}>
-          <View style={styles.textArea}>
-            <Text style={styles.name} numberOfLines={1}>{routine.name}</Text>
-            <Text style={styles.subtitle}>
-              {routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}
-            </Text>
-          </View>
-          <View style={styles.actions}>
+    <View style={styles.swipeContainer}>
+      <Swipeable
+        ref={swipeableRef}
+        renderRightActions={renderRightActions}
+        overshootRight={false}
+        friction={2}
+      >
+        <View style={styles.card}>
+          <View style={styles.cardRow}>
+            <Pressable style={({ pressed }) => [styles.info, pressed && styles.cardPressed]} onPress={onPress}>
+              <Text style={styles.name} numberOfLines={1}>{routine.name}</Text>
+              <Text style={styles.sub}>
+                {routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}
+              </Text>
+              {routine.days.length > 0 && (
+                <View style={styles.chipRow}>
+                  {routine.days.map((d) => (
+                    <View key={d} style={styles.dayChip}>
+                      <Text style={styles.dayText}>{DAY_NAMES[d].toUpperCase()}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {muscleList.length > 0 && (
+                <View style={styles.chipRow}>
+                  {muscleList.map((m) => (
+                    <View key={m} style={styles.muscleChip}>
+                      <Text style={styles.muscleText}>{m}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </Pressable>
             <TouchableOpacity style={styles.playBtn} onPress={onPlay} activeOpacity={0.7}>
               <Ionicons name="play" size={ms(18)} color={colors.textOnAccent} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleDelete} activeOpacity={0.7}>
-              <Ionicons name="trash-outline" size={ms(18)} color={colors.accentRed} />
-            </TouchableOpacity>
           </View>
         </View>
-
-      </View>
+      </Swipeable>
     </View>
   );
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: sw(14),
+  swipeContainer: {
     overflow: 'hidden',
     marginBottom: sw(10),
+    borderWidth: sw(2),
+    borderColor: colors.cardBorder,
   },
-  colorBar: {
-    width: sw(4),
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: 0,
   },
-  content: {
-    flex: 1,
-    padding: sw(14),
-    gap: sw(10),
-  },
-  topRow: {
+  cardRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
-  textArea: {
+  cardPressed: {
+    opacity: 0.7,
+  },
+  info: {
     flex: 1,
     gap: sw(2),
+    padding: sw(14),
   },
   name: {
     color: colors.textPrimary,
-    fontSize: ms(15),
+    fontSize: ms(14),
     fontFamily: Fonts.bold,
-    lineHeight: ms(21),
+    lineHeight: ms(18),
   },
-  subtitle: {
+  sub: {
     color: colors.textTertiary,
-    fontSize: ms(12),
+    fontSize: ms(11),
     fontFamily: Fonts.medium,
-    lineHeight: ms(16),
+    lineHeight: ms(14),
   },
-  actions: {
+  chipRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(14),
+    flexWrap: 'wrap',
+    gap: sw(4),
+    marginTop: sw(2),
+  },
+  muscleChip: {
+    backgroundColor: colors.accent + '18',
+    paddingHorizontal: sw(6),
+    paddingVertical: sw(2),
+    borderRadius: 0,
+  },
+  muscleText: {
+    color: colors.accent,
+    fontSize: ms(9),
+    fontFamily: Fonts.bold,
+    lineHeight: ms(12),
+    letterSpacing: 0.5,
+  },
+  dayChip: {
+    backgroundColor: colors.accentOrange + '18',
+    paddingHorizontal: sw(6),
+    paddingVertical: sw(2),
+    borderRadius: 0,
+  },
+  dayText: {
+    color: colors.accentOrange,
+    fontSize: ms(9),
+    fontFamily: Fonts.bold,
+    lineHeight: ms(12),
+    letterSpacing: 0.5,
   },
   playBtn: {
-    width: sw(34),
-    height: sw(34),
-    borderRadius: sw(17),
+    width: sw(44),
+    borderRadius: 0,
     backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  deleteAction: {
+    backgroundColor: colors.accentRed,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: sw(80),
+    gap: sw(4),
+  },
+  deleteText: {
+    color: '#fff',
+    fontSize: ms(12),
+    fontFamily: Fonts.semiBold,
   },
 });

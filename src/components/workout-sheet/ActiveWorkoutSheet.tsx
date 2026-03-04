@@ -28,6 +28,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
+import type { ActiveExercise } from '../../stores/useActiveWorkoutStore';
 import WorkoutHeader from './WorkoutHeader';
 import RestTimerBar from './RestTimerBar';
 import ExerciseCard from './ExerciseCard';
@@ -47,6 +48,245 @@ const BACKDROP_MAX = 0.5;
 const OPEN_SPRING = { damping: 28, stiffness: 280, mass: 0.8 };
 const SNAP_SPRING = { damping: 24, stiffness: 350, mass: 0.7 };
 const CLOSE_CFG = { duration: 250, easing: Easing.in(Easing.cubic) };
+
+/* ─── ProgressiveOverloadCard ─────────────────────────────── */
+
+const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
+  exercises,
+}: {
+  exercises: ActiveExercise[];
+}) {
+  const colors = useColors();
+
+  const overload = useMemo(() => {
+    const ex = exercises[0];
+    if (!ex || ex.prevSets.length === 0) return null;
+
+    const prevSetVols = ex.prevSets.map((s) => s.kg * s.reps);
+    const prevTotal = prevSetVols.reduce((a, b) => a + b, 0);
+    if (prevTotal <= 0) return null;
+
+    const segments: number[] = [];
+    let cumul = 0;
+    for (const vol of prevSetVols) {
+      cumul += vol;
+      segments.push(cumul / prevTotal);
+    }
+
+    const completedSets = ex.sets.filter((s) => s.completed);
+    const completedCount = completedSets.length;
+    const currentVol = completedSets.reduce(
+      (sum, s) => sum + (parseFloat(s.kg) || 0) * (parseInt(s.reps, 10) || 0), 0,
+    );
+
+    const prevVolAtSamePoint = ex.prevSets
+      .slice(0, completedCount)
+      .reduce((sum, s) => sum + s.kg * s.reps, 0);
+    const behind = completedCount > 0 && currentVol < prevVolAtSamePoint;
+
+    const beaten = currentVol > prevTotal;
+    const barMax = prevTotal * 1.2;
+    const fillPct = Math.min(currentVol / barMax, 1);
+    const ghostPct = 1 / 1.2;
+
+    let suggestion: string | null = null;
+    let altSuggestion: string | null = null;
+    if (behind && !beaten) {
+      const remaining = prevTotal - currentVol + 1;
+      const incompleteSets = ex.sets.filter((s) => !s.completed).length;
+      if (incompleteSets > 0 && remaining > 0) {
+        const lastKg = completedCount > 0
+          ? parseFloat(completedSets[completedCount - 1].kg) || 0
+          : ex.prevSets[0]?.kg || 0;
+
+        if (lastKg > 0) {
+          const MIN_REPS = 8;
+          const MAX_REPS = 15;
+          const volPerSet = Math.ceil(remaining / incompleteSets);
+          const repsNeeded = Math.max(Math.min(Math.ceil(volPerSet / lastKg), MAX_REPS), MIN_REPS);
+          const suffix = incompleteSets === 1 ? 'to beat it' : `for ${incompleteSets} sets`;
+          suggestion = `${lastKg}kg × ${repsNeeded} ${suffix}`;
+
+          const lightKg = Math.round(lastKg * 0.8 / 2.5) * 2.5;
+          if (lightKg > 0 && lightKg < lastKg) {
+            const lightReps = Math.max(Math.min(Math.ceil(volPerSet / lightKg), MAX_REPS), MIN_REPS);
+            altSuggestion = `${lightKg}kg × ${lightReps} ${suffix}`;
+          }
+        }
+      }
+    }
+
+    const onTrack = completedCount > 0 && !behind && !beaten;
+
+    return { prevTotal, currentVol, segments, fillPct, ghostPct, beaten, behind, onTrack, suggestion, altSuggestion };
+  }, [exercises]);
+
+  if (exercises.length === 0) return null;
+
+  const currentColor = overload?.beaten ? '#34C759' : overload?.behind ? colors.accentRed : colors.textPrimary;
+
+  return (
+    <View style={{ marginBottom: sw(16), gap: sw(8) }}>
+      {overload ? (
+        <>
+          {/* Title row — exercise name + inline volume */}
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: sw(6) }}>
+            <Ionicons
+              name="flash"
+              size={ms(11)}
+              color={overload.beaten ? '#34C759' : overload.behind ? colors.accentRed : colors.accent}
+              style={{ marginBottom: -sw(1) }}
+            />
+            <Text style={{
+              fontSize: ms(13),
+              fontFamily: Fonts.bold,
+              color: colors.textPrimary,
+              flex: 1,
+            }} numberOfLines={1}>
+              {exercises[0].name}
+            </Text>
+            <Text style={{
+              fontSize: ms(12),
+              fontFamily: Fonts.semiBold,
+              color: currentColor,
+            }}>
+              {Math.round(overload.currentVol).toLocaleString()}
+            </Text>
+            <Text style={{
+              fontSize: ms(11),
+              fontFamily: Fonts.medium,
+              color: colors.textTertiary,
+            }}>
+              / {Math.round(overload.prevTotal).toLocaleString()} kg
+            </Text>
+          </View>
+
+          {/* Segmented ghost bar */}
+          <View style={{
+            height: sw(5),
+            borderRadius: sw(2.5),
+            backgroundColor: colors.cardBorder,
+            flexDirection: 'row',
+            overflow: 'hidden',
+          }}>
+            {overload.segments.map((_, i) => (
+              <View
+                key={i}
+                style={{
+                  flex: (overload.segments[i] - (overload.segments[i - 1] ?? 0)) * overload.ghostPct,
+                  borderRightWidth: i < overload.segments.length - 1 ? sw(1.5) : 0,
+                  borderRightColor: colors.background,
+                }}
+              />
+            ))}
+            <View style={{ flex: 1 - overload.ghostPct }} />
+            <View style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              borderRadius: sw(2.5),
+              width: `${Math.min(overload.fillPct, overload.ghostPct) * 100}%`,
+              backgroundColor: colors.accent,
+            }} />
+            {overload.beaten && (
+              <View style={{
+                position: 'absolute',
+                left: `${overload.ghostPct * 100}%`,
+                top: 0,
+                bottom: 0,
+                borderTopRightRadius: sw(2.5),
+                borderBottomRightRadius: sw(2.5),
+                width: `${(overload.fillPct - overload.ghostPct) * 100}%`,
+                backgroundColor: '#34C759',
+              }} />
+            )}
+            <View style={{
+              position: 'absolute',
+              left: `${overload.ghostPct * 100}%`,
+              top: 0,
+              bottom: 0,
+              width: sw(2),
+              backgroundColor: overload.beaten ? colors.accent : '#FFFFFF',
+              marginLeft: -sw(1),
+            }} />
+          </View>
+
+          {/* Set labels */}
+          <View style={{ flexDirection: 'row', marginTop: -sw(3) }}>
+            {overload.segments.map((_, i) => (
+              <Text
+                key={i}
+                style={{
+                  flex: (overload.segments[i] - (overload.segments[i - 1] ?? 0)) * overload.ghostPct,
+                  textAlign: 'center',
+                  color: colors.textTertiary,
+                  fontSize: ms(9),
+                  fontFamily: Fonts.medium,
+                }}
+              >
+                S{i + 1}
+              </Text>
+            ))}
+            <View style={{ flex: 1 - overload.ghostPct }} />
+          </View>
+
+          {/* Behind suggestion */}
+          {overload.suggestion && (
+            <View style={{
+              borderLeftWidth: sw(2),
+              borderLeftColor: colors.accentRed,
+              paddingLeft: sw(8),
+              gap: sw(2),
+            }}>
+              <Text style={{
+                color: colors.textSecondary,
+                fontSize: ms(10),
+                fontFamily: Fonts.medium,
+              }}>
+                Try <Text style={{ color: colors.accent, fontFamily: Fonts.bold }}>{overload.suggestion}</Text>
+              </Text>
+              {overload.altSuggestion && (
+                <Text style={{
+                  color: colors.textSecondary,
+                  fontSize: ms(10),
+                  fontFamily: Fonts.medium,
+                }}>
+                  Or <Text style={{ color: colors.accent, fontFamily: Fonts.bold }}>{overload.altSuggestion}</Text>
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Beaten / on track */}
+          {overload.beaten && (
+            <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: '#34C759' }}>
+              Progressive overload achieved
+            </Text>
+          )}
+          {overload.onTrack && (
+            <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: colors.accent }}>
+              On track to beat last session
+            </Text>
+          )}
+        </>
+      ) : (
+        /* First time — just text, no box */
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: sw(6) }}>
+          <Ionicons name="flash-outline" size={ms(13)} color={colors.textTertiary} />
+          <Text style={{
+            fontSize: ms(12),
+            fontFamily: Fonts.medium,
+            color: colors.textTertiary,
+          }}>
+            First time — set a benchmark for{' '}
+            <Text style={{ color: colors.textSecondary, fontFamily: Fonts.semiBold }}>{exercises[0].name}</Text>
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+});
 
 /* ═══════════════════════════════════════════════════════════
    ActiveWorkoutSheet
@@ -161,6 +401,28 @@ const SheetOverlay = React.memo(function SheetOverlay({
   const hideSheet = useActiveWorkoutStore((s) => s.hideSheet);
   const exercises = useActiveWorkoutStore((s) => s.exercises);
 
+  /* ─── Focused exercise tracking ────────────────────── */
+
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+
+  // Auto-default: first exercise with incomplete sets
+  const defaultIndex = useMemo(
+    () => {
+      const idx = exercises.findIndex((ex) => ex.sets.some((s) => !s.completed));
+      return idx >= 0 ? idx : exercises.length - 1;
+    },
+    [exercises],
+  );
+
+  const activeIndex = focusedIndex >= 0 && focusedIndex < exercises.length ? focusedIndex : defaultIndex;
+  const currentExercise = exercises[activeIndex] ?? null;
+
+  const exerciseYRef = useRef<Record<number, number>>({});
+
+  const handleExerciseFocus = useCallback((idx: number) => {
+    setFocusedIndex(idx);
+  }, []);
+
   /* ─── Refs ──────────────────────────────────────────── */
 
   const hideSheetRef = useRef(hideSheet);
@@ -168,6 +430,15 @@ const SheetOverlay = React.memo(function SheetOverlay({
   const openRef = useRef(false);
   const gestureClosingRef = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  // Auto-scroll selected exercise to top when user taps a different card
+  useEffect(() => {
+    if (focusedIndex < 0) return;
+    const y = exerciseYRef.current[focusedIndex];
+    if (y != null && scrollRef.current) {
+      scrollRef.current.scrollTo({ y: Math.max(0, y - sw(8)), animated: true });
+    }
+  }, [focusedIndex]);
   const scrollOffsetRef = useRef(0);
   const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -344,14 +615,21 @@ const SheetOverlay = React.memo(function SheetOverlay({
           scrollEventThrottle={16}
           removeClippedSubviews={Platform.OS === 'android'}
         >
+          {currentExercise && <ProgressiveOverloadCard exercises={[currentExercise]} />}
+
           {exercises.map((ex, i) => (
-            <React.Fragment key={`${ex.name}-${i}`}>
+            <View
+              key={`${ex.name}-${i}`}
+              onLayout={(e) => { exerciseYRef.current[i] = e.nativeEvent.layout.y; }}
+            >
               <ExerciseCard
                 exercise={ex}
                 exerciseIndex={i}
                 isLast={i === exercises.length - 1}
                 totalExercises={exercises.length}
+                isCurrent={i === activeIndex}
                 onReplace={onOpenReplace}
+                onExerciseFocus={handleExerciseFocus}
                 onInputFocus={handleInputFocus}
               />
               {ex.supersetWith === i + 1 && (
@@ -361,7 +639,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
                   <View style={styles.connectorLine} />
                 </View>
               )}
-            </React.Fragment>
+            </View>
           ))}
 
           {exercises.length === 0 && (
@@ -386,12 +664,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
               onPress={onOpenAdd}
               activeOpacity={0.7}
             >
-              <Ionicons
-                name="add"
-                size={ms(20)}
-                color={colors.textOnAccent}
-              />
-              <Text style={styles.addBtnText}>Add Exercise</Text>
+              <Ionicons name="add" size={ms(28)} color={colors.textOnAccent} />
             </TouchableOpacity>
           </View>
         )}
@@ -448,25 +721,18 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(20),
     },
     footer: {
-      paddingHorizontal: sw(16),
-      paddingVertical: sw(12),
+      alignItems: 'center',
+      paddingVertical: sw(10),
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.cardBorder,
     },
     addBtn: {
-      flexDirection: 'row',
+      width: sw(52),
+      height: sw(52),
+      borderRadius: sw(26),
+      backgroundColor: colors.accent,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.accent,
-      borderRadius: sw(12),
-      paddingVertical: sw(14),
-      gap: sw(6),
-    },
-    addBtnText: {
-      color: colors.textOnAccent,
-      fontSize: ms(16),
-      fontFamily: Fonts.bold,
-      lineHeight: ms(22),
     },
     supersetConnector: {
       flexDirection: 'row',

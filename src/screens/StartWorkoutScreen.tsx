@@ -17,7 +17,8 @@ import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal
 type WorkoutsStackParamList = {
   WorkoutHistory: undefined;
   StartWorkout: undefined;
-  CreateRoutine: undefined;
+  CreateRoutine: { routineId?: string } | undefined;
+  RoutineSummary: { routineId: string };
 };
 
 export default function StartWorkoutScreen() {
@@ -44,7 +45,7 @@ export default function StartWorkoutScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('WorkoutHistory')} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.title}>Start Workout</Text>
@@ -62,7 +63,6 @@ export default function StartWorkoutScreen() {
           activeOpacity={0.7}
           onPress={() => {
             startWorkout();
-            navigation.goBack();
           }}
         >
           <View style={styles.actionIcon}>
@@ -98,6 +98,7 @@ export default function StartWorkoutScreen() {
             <RoutineCard
               key={routine.id}
               routine={routine}
+              onPress={() => navigation.navigate('RoutineSummary', { routineId: routine.id })}
               onPlay={() => {
                 startFromRoutine(routine, catalogMap, prevMap);
                 navigation.goBack();
@@ -278,8 +279,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: sw(10),
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.cardBorder,
   },
   recentRowLeft: {
     flex: 1,
