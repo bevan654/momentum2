@@ -293,9 +293,36 @@ CREATE TABLE public.supplement_goals (
   user_id uuid NOT NULL UNIQUE,
   water_goal numeric NOT NULL DEFAULT 2500,
   creatine_goal numeric NOT NULL DEFAULT 5,
+  protein_powder_scoop_goal integer NOT NULL DEFAULT 0,
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT supplement_goals_pkey PRIMARY KEY (id),
   CONSTRAINT supplement_goals_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.protein_powders (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  calories numeric NOT NULL DEFAULT 0,
+  protein numeric NOT NULL DEFAULT 0,
+  carbs numeric NOT NULL DEFAULT 0,
+  fat numeric NOT NULL DEFAULT 0,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT protein_powders_pkey PRIMARY KEY (id),
+  CONSTRAINT protein_powders_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.protein_powder_log (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  powder_id uuid,
+  food_entry_id uuid,
+  amount numeric NOT NULL DEFAULT 1,
+  date date NOT NULL DEFAULT CURRENT_DATE,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT protein_powder_log_pkey PRIMARY KEY (id),
+  CONSTRAINT protein_powder_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT protein_powder_log_powder_id_fkey FOREIGN KEY (powder_id) REFERENCES public.protein_powders(id) ON DELETE SET NULL,
+  CONSTRAINT protein_powder_log_food_entry_id_fkey FOREIGN KEY (food_entry_id) REFERENCES public.food_entries(id) ON DELETE SET NULL
 );
 CREATE TABLE public.user_created_foods (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

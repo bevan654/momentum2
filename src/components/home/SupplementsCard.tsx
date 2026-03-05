@@ -11,8 +11,8 @@ import AddSupplementModal from './AddSupplementModal';
 
 const GRID_GAP = sw(10);
 const GRID_PADDING = sw(16);
-const CELL_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
 const FULL_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
+const CELL_WIDTH = Math.floor((FULL_WIDTH - GRID_GAP) / 2);
 const MAX_SUPPLEMENTS = 2;
 
 function formatIncrement(value: number): string {
@@ -101,6 +101,8 @@ export default function SupplementsCard() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [modalVisible, setModalVisible] = useState(false);
 
+  const totalCells = configs.length;
+
   const handleAdd = useCallback((key: string, amount: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (userId) addSupplement(userId, key, amount);
@@ -111,8 +113,8 @@ export default function SupplementsCard() {
     if (userId) resetSupplement(userId, key);
   }, [userId, resetSupplement]);
 
-  // 0 supplements → full-width empty state with add button
-  if (configs.length === 0) {
+  // 0 cells → full-width empty state with add button
+  if (totalCells === 0) {
     return (
       <>
         <TouchableOpacity
@@ -134,16 +136,15 @@ export default function SupplementsCard() {
     );
   }
 
-  // 1 supplement → full-width card split in half (supplement | add button)
-  if (configs.length === 1) {
-    const config = configs[0];
+  // 1 cell → full-width card split in half (cell | add button)
+  if (totalCells === 1) {
     return (
       <>
         <View style={styles.splitCard}>
           <View style={styles.splitLeft}>
             <SupplementCell
-              config={config}
-              total={totals[config.key] || 0}
+              config={configs[0]}
+              total={totals[configs[0].key] || 0}
               onAdd={handleAdd}
               onReset={handleReset}
               embedded
@@ -170,7 +171,7 @@ export default function SupplementsCard() {
     );
   }
 
-  // 2 supplements → normal grid, no add button
+  // 2+ cells → grid layout
   return (
     <>
       <View style={gridStyles.grid}>
@@ -197,9 +198,11 @@ export default function SupplementsCard() {
 
 const gridStyles = StyleSheet.create({
   grid: {
+    width: FULL_WIDTH,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: GRID_GAP,
+    columnGap: GRID_GAP,
+    rowGap: GRID_GAP,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, ScrollView, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,9 +11,16 @@ import { useSupplementStore } from '../stores/useSupplementStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWeightStore } from '../stores/useWeightStore';
+import { useProteinPowderStore } from '../stores/useProteinPowderStore';
+import type { ProteinPowder } from '../stores/useProteinPowderStore';
 import NutritionCard from '../components/home/NutritionCard';
 import WaterCard from '../components/home/WaterCard';
-import MotivationCard from '../components/home/MotivationCard';
+import ProteinPowderCell from '../components/home/ProteinPowderCell';
+import DailyFuelCard from '../components/home/DailyFuelCard';
+import PowderSelectSheet from '../components/home/PowderSelectSheet';
+import ProteinPowderSettingsModal from '../components/home/ProteinPowderSettingsModal';
+import WaterSettingsModal from '../components/home/WaterSettingsModal';
+import NutritionSettingsModal from '../components/home/NutritionSettingsModal';
 import SupplementsCard from '../components/home/SupplementsCard';
 import ActivityCard from '../components/home/ActivityCard';
 import { useNavigation } from '@react-navigation/native';
@@ -27,11 +34,34 @@ function HomeScreen() {
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
   const fetchExerciseCatalog = useWorkoutStore((s) => s.fetchExerciseCatalog);
   const fetchWeightData = useWeightStore((s) => s.fetchWeightData);
+  const fetchPowders = useProteinPowderStore((s) => s.fetchPowders);
+  const fetchScoopGoal = useProteinPowderStore((s) => s.fetchScoopGoal);
+  const fetchTodayScoops = useProteinPowderStore((s) => s.fetchTodayScoops);
+  const powders = useProteinPowderStore((s) => s.powders);
+  const logScoop = useProteinPowderStore((s) => s.logScoop);
+  const enabled = useProteinPowderStore((s) => s.enabled);
+  const fetchEnabled = useProteinPowderStore((s) => s.fetchEnabled);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
   const navigation = useNavigation<any>();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [powderSheetVisible, setPowderSheetVisible] = useState(false);
+  const [nutritionSettingsVisible, setNutritionSettingsVisible] = useState(false);
+  const [waterSettingsVisible, setWaterSettingsVisible] = useState(false);
+  const [powderSettingsVisible, setPowderSettingsVisible] = useState(false);
+  const [pendingScoopAmount, setPendingScoopAmount] = useState(1);
+
+  const handlePickPowder = useCallback((amount: number) => {
+    setPendingScoopAmount(amount);
+    setPowderSheetVisible(true);
+  }, []);
+
+  const handleSelectPowder = useCallback((powder: ProteinPowder) => {
+    if (user?.id) logScoop(user.id, powder, pendingScoopAmount);
+    setPowderSheetVisible(false);
+  }, [user?.id, logScoop, pendingScoopAmount]);
+
 
   useEffect(() => {
     if (user?.id) {
@@ -41,6 +71,10 @@ function HomeScreen() {
       fetchSupplementGoals(user.id);
       fetchExerciseCatalog(user.id).then(() => fetchWorkoutHistory(user.id));
       fetchWeightData(user.id);
+      fetchPowders(user.id);
+      fetchScoopGoal(user.id);
+      fetchTodayScoops(user.id);
+      fetchEnabled(user.id);
     }
   }, [user?.id]);
 
@@ -49,6 +83,7 @@ function HomeScreen() {
       if (state === 'active' && user?.id) {
         fetchTodayNutrition(user.id);
         fetchTodaySupplements(user.id);
+        fetchTodayScoops(user.id);
       }
     });
     return () => sub.remove();
@@ -104,14 +139,41 @@ function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Nutrition + Water + Streak */}
+      {/* Nutrition + Water + Protein Powder */}
       <View style={styles.nutritionRow}>
-        <NutritionCard />
+        <NutritionCard onOpenSettings={() => setNutritionSettingsVisible(true)} />
         <View style={styles.supplementCol}>
-          <WaterCard />
-          <MotivationCard />
+          <WaterCard onOpenSettings={() => setWaterSettingsVisible(true)} />
+          {enabled ? (
+            <ProteinPowderCell
+              embedded
+              onPickPowder={handlePickPowder}
+              onOpenSettings={() => setPowderSettingsVisible(true)}
+            />
+          ) : (
+            <DailyFuelCard />
+          )}
         </View>
       </View>
+
+      <PowderSelectSheet
+        visible={powderSheetVisible}
+        onClose={() => setPowderSheetVisible(false)}
+        powders={powders}
+        onSelect={handleSelectPowder}
+      />
+      <NutritionSettingsModal
+        visible={nutritionSettingsVisible}
+        onClose={() => setNutritionSettingsVisible(false)}
+      />
+      <WaterSettingsModal
+        visible={waterSettingsVisible}
+        onClose={() => setWaterSettingsVisible(false)}
+      />
+      <ProteinPowderSettingsModal
+        visible={powderSettingsVisible}
+        onClose={() => setPowderSettingsVisible(false)}
+      />
 
       {/* Supplements */}
       <SupplementsCard />
