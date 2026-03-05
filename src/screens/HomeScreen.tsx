@@ -16,6 +16,7 @@ import type { ProteinPowder } from '../stores/useProteinPowderStore';
 import NutritionCard from '../components/home/NutritionCard';
 import WaterCard from '../components/home/WaterCard';
 import ProteinPowderCell from '../components/home/ProteinPowderCell';
+import DailyFuelCard from '../components/home/DailyFuelCard';
 import PowderSelectSheet from '../components/home/PowderSelectSheet';
 import ProteinPowderSettingsModal from '../components/home/ProteinPowderSettingsModal';
 import WaterSettingsModal from '../components/home/WaterSettingsModal';
@@ -143,12 +144,14 @@ function HomeScreen() {
         <NutritionCard onOpenSettings={() => setNutritionSettingsVisible(true)} />
         <View style={styles.supplementCol}>
           <WaterCard onOpenSettings={() => setWaterSettingsVisible(true)} />
-          {enabled && (
+          {enabled ? (
             <ProteinPowderCell
               embedded
               onPickPowder={handlePickPowder}
               onOpenSettings={() => setPowderSettingsVisible(true)}
             />
+          ) : (
+            <DailyFuelCard />
           )}
         </View>
       </View>

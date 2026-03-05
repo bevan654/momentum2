@@ -85,7 +85,6 @@ export default function WaterCard({ onOpenSettings }: Props) {
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: colors.card,
     borderRadius: sw(14),
     padding: sw(14),
