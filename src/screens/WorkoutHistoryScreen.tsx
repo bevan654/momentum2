@@ -534,9 +534,8 @@ function WorkoutHistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      <View
+        style={styles.scrollContent}
       >
         {/* ── Body Map ─────────────────────────────── */}
         <Text style={styles.recoveryTitle}>Recovery Overview — {Math.round(overallRecovery)}%</Text>
@@ -653,7 +652,7 @@ function WorkoutHistoryScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* ── Training Calendar (last 100 days) ── */}
+        {/* ── Training Calendar (last 56 days) ── */}
         <TouchableOpacity style={styles.calendarSection} activeOpacity={0.7} onPress={() => setShowHistory(true)}>
           <View style={[styles.calendarHeatmap, { gap: calendarGrid.gap }]}>
             {calendarGrid.rows.map((row, ri) => (
@@ -663,7 +662,7 @@ function WorkoutHistoryScreen() {
                     styles.calDot,
                     { width: calendarGrid.dotSize, height: calendarGrid.dotSize },
                     trainedDays.has(dateStr) && styles.calDotTrained,
-                    dateStr === todayStr && styles.calDotToday,
+                    dateStr === todayStr && (trainedDays.has(dateStr) ? styles.calDotTodayTrained : styles.calDotToday),
                   ]} />
                 ))}
               </View>
@@ -689,7 +688,7 @@ function WorkoutHistoryScreen() {
           </View>
         )}
 
-      </ScrollView>
+      </View>
 
       {/* ── Start Workout Button (fixed above footer) ── */}
       <View style={styles.startWorkoutBar}>
@@ -802,6 +801,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       backgroundColor: colors.background,
     },
     scrollContent: {
+      flex: 1,
       paddingHorizontal: sw(16),
       paddingTop: sw(16),
       paddingBottom: sw(12),
@@ -1316,8 +1316,10 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       backgroundColor: colors.accent,
     },
     calDotToday: {
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.50)',
+      backgroundColor: '#3B82F6',
+    },
+    calDotTodayTrained: {
+      backgroundColor: '#3B82F6',
     },
 
     /* ── Recent Sessions ────────────────────────────────── */

@@ -38,6 +38,8 @@ interface Props {
   index: number;
   set: ActiveSet;
   prevSet: { kg: number; reps: number } | null;
+  suggestedKg?: string;
+  suggestedReps?: string;
   onUpdate: (field: 'kg' | 'reps', value: string) => void;
   onToggle: () => void;
   onCycleSetType: () => void;
@@ -54,7 +56,7 @@ function formatPrev(prevSet: { kg: number; reps: number } | null): string {
 
 /* ── Component ─────────────────────────────────────────── */
 
-function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDelete, onInputFocus }: Props) {
+function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, onUpdate, onToggle, onCycleSetType, onDelete, onInputFocus }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -154,10 +156,23 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
 
   /* ── JS-thread callbacks for gestures ─────────────── */
 
+  const suggestedKgRef = useRef(suggestedKg);
+  const suggestedRepsRef = useRef(suggestedReps);
+  useEffect(() => { suggestedKgRef.current = suggestedKg; }, [suggestedKg]);
+  useEffect(() => { suggestedRepsRef.current = suggestedReps; }, [suggestedReps]);
+
   const fireComplete = useCallback(() => {
+    if (!localKgRef.current && suggestedKgRef.current) {
+      setLocalKg(suggestedKgRef.current);
+      onUpdate('kg', suggestedKgRef.current);
+    }
+    if (!localRepsRef.current && suggestedRepsRef.current) {
+      setLocalReps(suggestedRepsRef.current);
+      onUpdate('reps', suggestedRepsRef.current);
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onToggleRef.current();
-  }, []);
+  }, [onUpdate]);
 
   const fireDelete = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -170,8 +185,8 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
 
   const panGesture = useMemo(() =>
     Gesture.Pan()
-      .activeOffsetX([-15, 15])
-      .failOffsetY([-10, 10])
+      .activeOffsetX([-10, 10])
+      .failOffsetY([-15, 15])
       .onUpdate((e) => {
         'worklet';
         const maxRight = SWIPE_THRESHOLD + 20;
@@ -287,7 +302,7 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
             ]}
           >
             <Text style={[styles.setNumText, { color: completed ? colors.accentGreen : typeConfig.color }]}>
-              {(index + 1).toString()}
+              {`S${index + 1}`}
             </Text>
           </Pressable>
 
@@ -302,7 +317,7 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
           </View>
 
           {/* KG input */}
-          <View style={[styles.inputContainer, completed && styles.inputContainerCompleted]}>
+          <View style={[styles.inputContainer, completed && styles.inputContainerCompleted, !localKg && suggestedKg && styles.inputContainerSuggested]}>
             <TextInput
               ref={kgRef}
               style={[styles.input, completed && styles.inputTextCompleted]}
@@ -310,31 +325,68 @@ function SetRow({ index, set, prevSet, onUpdate, onToggle, onCycleSetType, onDel
               onChangeText={(v) => { setLocalKg(v); onUpdate('kg', v); }}
               onFocus={() => handleFocus(kgRef, localKg)}
               onBlur={() => { if (localKg !== set.kg) onUpdate('kg', localKg); }}
-              placeholder="—"
-              placeholderTextColor={colors.textTertiary + '50'}
+              placeholder={suggestedKg || '—'}
+              placeholderTextColor={suggestedKg ? colors.accent + '60' : colors.textTertiary + '50'}
               keyboardType="decimal-pad"
               editable={!completed}
             />
           </View>
 
-          {/* REPS input */}
-          <View style={[styles.inputContainer, completed && styles.inputContainerCompleted]}>
+          {/* REPS input with +/- */}
+          <View style={[styles.repsRow, completed && styles.repsRowCompleted, !localReps && suggestedReps && styles.repsRowSuggested]}>
+            {!completed && (
+              <TouchableOpacity
+                style={styles.repStepBtn}
+                onPress={() => {
+                  const cur = parseInt(localReps, 10) || 0;
+                  if (cur > 0) {
+                    const v = String(cur - 1);
+                    setLocalReps(v);
+                    onUpdate('reps', v);
+                  }
+                }}
+                activeOpacity={0.5}
+              >
+                <Ionicons name="remove" size={ms(12)} color={colors.textTertiary} />
+              </TouchableOpacity>
+            )}
             <TextInput
               ref={repsRef}
-              style={[styles.input, completed && styles.inputTextCompleted]}
+              style={[styles.repsInput, completed && styles.inputTextCompleted]}
               value={localReps}
               onChangeText={(v) => { setLocalReps(v); onUpdate('reps', v); }}
               onFocus={() => handleFocus(repsRef, localReps)}
               onBlur={() => { if (localReps !== set.reps) onUpdate('reps', localReps); }}
-              placeholder="—"
-              placeholderTextColor={colors.textTertiary + '50'}
+              placeholder={suggestedReps || '—'}
+              placeholderTextColor={suggestedReps ? colors.accent + '60' : colors.textTertiary + '50'}
               keyboardType="number-pad"
               editable={!completed}
             />
+            {!completed && (
+              <TouchableOpacity
+                style={styles.repStepBtn}
+                onPress={() => {
+                  const cur = parseInt(localReps, 10) || 0;
+                  const v = String(cur + 1);
+                  setLocalReps(v);
+                  onUpdate('reps', v);
+                }}
+                activeOpacity={0.5}
+              >
+                <Ionicons name="add" size={ms(12)} color={colors.textTertiary} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Complete / uncomplete toggle */}
-          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onToggle(); }} style={styles.checkBtn} activeOpacity={0.6}>
+          <TouchableOpacity onPress={() => {
+            if (!completed) {
+              if (!localKg && suggestedKg) { setLocalKg(suggestedKg); onUpdate('kg', suggestedKg); }
+              if (!localReps && suggestedReps) { setLocalReps(suggestedReps); onUpdate('reps', suggestedReps); }
+            }
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onToggle();
+          }} style={styles.checkBtn} activeOpacity={0.6}>
             <Ionicons
               name={completed ? 'checkmark-circle' : 'ellipse-outline'}
               size={ms(22)}
@@ -416,9 +468,9 @@ const createStyles = (colors: ThemeColors) =>
       transform: [{ scale: 0.9 }],
     },
     setNumText: {
-      fontSize: ms(12),
-      fontFamily: Fonts.bold,
-      lineHeight: ms(16),
+      fontSize: ms(10),
+      fontFamily: Fonts.medium,
+      lineHeight: ms(14),
       textAlign: 'center',
     },
 
@@ -429,9 +481,9 @@ const createStyles = (colors: ThemeColors) =>
     },
     prevText: {
       color: colors.textTertiary,
-      fontSize: ms(11),
+      fontSize: ms(10),
       fontFamily: Fonts.medium,
-      lineHeight: ms(15),
+      lineHeight: ms(14),
       textAlign: 'center',
     },
     prevTextCompleted: {
@@ -454,13 +506,52 @@ const createStyles = (colors: ThemeColors) =>
       paddingVertical: sw(6),
       paddingHorizontal: sw(6),
       color: colors.textPrimary,
-      fontSize: ms(14),
+      fontSize: ms(11),
       fontFamily: Fonts.semiBold,
-      lineHeight: ms(18),
+      lineHeight: ms(15),
       textAlign: 'center',
     },
     inputTextCompleted: {
       color: colors.accentGreen,
+    },
+    inputContainerSuggested: {
+      borderColor: colors.accent + '30',
+      backgroundColor: colors.accent + '08',
+    },
+
+    /* ── Reps row with steppers ────────────────────── */
+    repsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: sw(8),
+      borderWidth: 1,
+      borderColor: colors.surface,
+      height: sw(32),
+    },
+    repsRowCompleted: {
+      backgroundColor: colors.accentGreen + '08',
+      borderColor: colors.accentGreen + '18',
+    },
+    repsRowSuggested: {
+      borderColor: colors.accent + '30',
+      backgroundColor: colors.accent + '08',
+    },
+    repsInput: {
+      flex: 1,
+      paddingVertical: 0,
+      paddingHorizontal: sw(2),
+      color: colors.textPrimary,
+      fontSize: ms(11),
+      fontFamily: Fonts.semiBold,
+      textAlign: 'center',
+    },
+    repStepBtn: {
+      paddingHorizontal: sw(5),
+      height: '100%',
+      justifyContent: 'center',
+      alignItems: 'center',
     },
 
     /* ── Check button ────────────────────────────────── */
