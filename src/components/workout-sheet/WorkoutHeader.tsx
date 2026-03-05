@@ -132,8 +132,8 @@ function WorkoutHeader() {
 
       {/* Right: Actions */}
       <View style={styles.rightGroup}>
-        <TouchableOpacity style={styles.iconBtn} onPress={handleDiscard}>
-          <Ionicons name="trash-outline" size={ms(18)} color={colors.accentRed} />
+        <TouchableOpacity style={styles.discardBtn} onPress={handleDiscard} activeOpacity={0.6}>
+          <Ionicons name="close" size={ms(20)} color={colors.textTertiary} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.finishBtn, finishing && styles.finishBtnSaving]}
@@ -177,8 +177,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: sw(16),
     paddingVertical: sw(10),
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.cardBorder,
   },
   leftGroup: {
     flexDirection: 'row',
@@ -200,6 +198,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   iconBtn: {
     padding: sw(6),
+  },
+  discardBtn: {
+    width: sw(36),
+    height: sw(36),
+    borderRadius: sw(18),
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   timer: {
     color: colors.textPrimary,
