@@ -9,8 +9,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
+import { useChatStore } from '../../stores/useChatStore';
+import type { CommunityStackParamList } from '../../navigation/CommunityNavigator';
 import type { FriendProfile } from '../../lib/friendsDatabase';
 import FriendAvatarBar from './FriendAvatarBar';
 import FriendSearch from './FriendSearch';
@@ -20,10 +24,14 @@ import ActivityFeed from './ActivityFeed';
 
 type OverlayMode = 'none' | 'search' | 'notifications';
 
+type Nav = NativeStackNavigationProp<CommunityStackParamList>;
+
 export default function FriendsTab() {
+  const navigation = useNavigation<Nav>();
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
   const [nudgeTarget, setNudgeTarget] = useState<FriendProfile | null>(null);
   const showProfileSheet = useFriendsStore((s) => s.showProfileSheet);
+  const totalUnreadMessages = useChatStore((s) => s.totalUnreadCount);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -80,6 +88,24 @@ export default function FriendsTab() {
       <View style={styles.header}>
         <Text style={styles.title}>Community</Text>
         <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => navigation.navigate('ChatList')}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="paper-plane-outline"
+              size={ms(19)}
+              color={colors.textPrimary}
+            />
+            {totalUnreadMessages > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {totalUnreadMessages > 99 ? '99+' : String(totalUnreadMessages)}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.headerBtn, isSearchActive && styles.headerBtnActive]}
             onPress={() => switchOverlay('search')}

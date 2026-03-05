@@ -322,38 +322,46 @@ function WorkoutHistoryScreen() {
     Chest: ['chest'],
     Back: ['back'],
     Shoulders: ['shoulders'],
-    Biceps: ['biceps'],
-    Triceps: ['triceps'],
-    Quads: ['quads'],
-    Hamstrings: ['hamstrings'],
-    Glutes: ['glutes'],
-    Calves: ['calves'],
+    Arms: ['biceps', 'triceps', 'forearms'],
+    Legs: ['quads', 'hamstrings', 'glutes', 'calves'],
   };
 
   // Selected body part filter
   const [debugPart, setDebugPart] = useState<string | null>(null);
+  const [subPart, setSubPart] = useState<string | null>(null);
+
+  // Sub-muscle labels for display
+  const SUB_LABELS: Record<string, string> = {
+    biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms',
+    quads: 'Quads', hamstrings: 'Hamstrings', glutes: 'Glutes', calves: 'Calves',
+  };
+
+  // The muscles currently active (respects sub-part drill-down)
+  const activeFilter = useMemo(() => {
+    if (subPart) return [subPart];
+    if (debugPart && PART_GROUPS[debugPart]) return PART_GROUPS[debugPart];
+    return null;
+  }, [debugPart, subPart]);
 
   // Build body data from recovery percentages
   const recoveryBodyData: ExtendedBodyPart[] = useMemo(() => {
     if (!analysis?.groups) return [];
-    const activeGroups = debugPart && PART_GROUPS[debugPart] ? PART_GROUPS[debugPart] : null;
     return Array.from(MUSCLE_SLUGS).map((slug) => {
       const group = SLUG_GROUP[slug];
-      if (activeGroups && (!group || !activeGroups.includes(group))) {
+      if (activeFilter && (!group || !activeFilter.includes(group))) {
         return { slug: slug as Slug, intensity: 1 };
       }
       const groupData = group ? analysis.groups[group as keyof typeof analysis.groups] : null;
       const pct = groupData?.recoveryPercent ?? 100;
       return { slug: slug as Slug, intensity: recoveryToIntensity(pct) };
     });
-  }, [analysis, debugPart]);
+  }, [analysis, activeFilter]);
 
   // Overall recovery % — use min (not average) so platform matches the most fatigued visible muscle
   const overallRecovery = useMemo(() => {
     if (!analysis?.groups) return 100;
-    if (debugPart && PART_GROUPS[debugPart]) {
-      const keys = PART_GROUPS[debugPart];
-      const vals = keys.map((k) => {
+    if (activeFilter) {
+      const vals = activeFilter.map((k) => {
         const g = analysis.groups[k as keyof typeof analysis.groups] as { recoveryPercent?: number } | undefined;
         return g?.recoveryPercent ?? 100;
       });
@@ -362,7 +370,7 @@ function WorkoutHistoryScreen() {
     const groups = Object.values(analysis.groups) as { recoveryPercent?: number }[];
     if (groups.length === 0) return 100;
     return Math.min(...groups.map((g) => g.recoveryPercent ?? 100));
-  }, [analysis, debugPart]);
+  }, [analysis, activeFilter]);
 
   // Platform glow — derive from the SAME intensity + color array as the body map
   const platformGlow = useMemo(() => {
@@ -414,13 +422,10 @@ function WorkoutHistoryScreen() {
     for (const w of workouts) {
       const dateKey = toDateKey(w.created_at);
 
-      if (!debugPart) {
+      if (!activeFilter) {
         days.add(dateKey);
         continue;
       }
-
-      const targetGroups = PART_GROUPS[debugPart];
-      if (!targetGroups) continue;
 
       let matched = false;
       for (const ex of w.exercises) {
@@ -437,7 +442,7 @@ function WorkoutHistoryScreen() {
           const slug = toSlug(raw);
           if (slug) {
             const group = SLUG_GROUP[slug];
-            if (group && targetGroups.includes(group)) {
+            if (group && activeFilter.includes(group)) {
               matched = true;
               break;
             }
@@ -449,7 +454,7 @@ function WorkoutHistoryScreen() {
     }
 
     return days;
-  }, [workouts, catalogMap, debugPart]);
+  }, [workouts, catalogMap, activeFilter]);
 
   // Last trained date per body part (from all workouts)
   const lastTrainedMap = useMemo(() => {
@@ -541,7 +546,7 @@ function WorkoutHistoryScreen() {
         <Text style={styles.recoveryTitle}>Recovery Overview — {Math.round(overallRecovery)}%</Text>
         {/* Body part filter */}
         <View style={styles.filterRow}>
-          {['Whole', 'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Quads', 'Hamstrings', 'Glutes', 'Calves'].map((label) => {
+          {['Whole', 'Chest', 'Back', 'Shoulders', 'Arms', 'Legs'].map((label) => {
             const isActive = label === 'Whole' ? debugPart === null : debugPart === label;
             const lastDate = label !== 'Whole' ? lastTrainedMap[label] : null;
             let lastLabel = '';
@@ -556,7 +561,7 @@ function WorkoutHistoryScreen() {
             return (
               <TouchableOpacity
                 key={label}
-                onPress={() => setDebugPart(label === 'Whole' ? null : label)}
+                onPress={() => { setDebugPart(label === 'Whole' ? null : label); setSubPart(null); }}
                 style={[styles.filterChip, isActive && styles.filterChipActive]}
               >
                 <Text style={styles.filterChipText}>{label}</Text>
@@ -567,6 +572,30 @@ function WorkoutHistoryScreen() {
             );
           })}
         </View>
+        {debugPart && PART_GROUPS[debugPart] && PART_GROUPS[debugPart].length > 1 && (
+          <View style={styles.subFilterRow}>
+            <TouchableOpacity
+              onPress={() => setSubPart(null)}
+              style={[styles.subFilterChip, !subPart && styles.subFilterChipActive]}
+            >
+              <Text style={[styles.subFilterChipText, !subPart && styles.subFilterChipTextActive]}>All</Text>
+            </TouchableOpacity>
+            {PART_GROUPS[debugPart].map((muscle) => {
+              const isActive = subPart === muscle;
+              return (
+                <TouchableOpacity
+                  key={muscle}
+                  onPress={() => setSubPart(isActive ? null : muscle)}
+                  style={[styles.subFilterChip, isActive && styles.subFilterChipActive]}
+                >
+                  <Text style={[styles.subFilterChipText, isActive && styles.subFilterChipTextActive]}>
+                    {SUB_LABELS[muscle] || muscle}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
         <TouchableOpacity style={styles.bodyMapSection} activeOpacity={0.7} onPress={() => setShowHistory(true)}>
           <View
             style={styles.bodyMapFigure}
@@ -901,14 +930,14 @@ const createStyles = (colors: ThemeColors, mode: string) => {
     filterRow: {
       flexDirection: 'row',
       justifyContent: 'center',
-      flexWrap: 'wrap',
-      gap: sw(6),
+      gap: sw(4),
       marginBottom: sw(8),
-      paddingHorizontal: sw(16),
+      paddingHorizontal: sw(8),
     },
     filterChip: {
-      paddingHorizontal: sw(10),
-      paddingVertical: sw(4),
+      flex: 1,
+      paddingHorizontal: sw(2),
+      paddingVertical: sw(5),
       borderRadius: sw(8),
       backgroundColor: 'rgba(255,255,255,0.06)',
       alignItems: 'center',
@@ -918,8 +947,8 @@ const createStyles = (colors: ThemeColors, mode: string) => {
     },
     filterChipText: {
       color: '#FFF',
-      fontSize: ms(11),
-      lineHeight: ms(15),
+      fontSize: ms(9.5),
+      lineHeight: ms(13),
       fontFamily: Fonts.semiBold,
     },
     filterChipSub: {
@@ -927,6 +956,36 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       fontSize: ms(8),
       lineHeight: ms(11),
       fontFamily: Fonts.medium,
+    },
+    /* ── Sub-filter chips (specific muscles within a group) ── */
+    subFilterRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: sw(6),
+      marginBottom: sw(8),
+      paddingHorizontal: sw(40),
+    },
+    subFilterChip: {
+      paddingHorizontal: sw(10),
+      paddingVertical: sw(3),
+      borderRadius: sw(6),
+      backgroundColor: 'rgba(255,255,255,0.04)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.08)',
+    },
+    subFilterChipActive: {
+      backgroundColor: `${colors.accent}20`,
+      borderColor: `${colors.accent}60`,
+    },
+    subFilterChipText: {
+      color: 'rgba(255,255,255,0.45)',
+      fontSize: ms(10),
+      lineHeight: ms(14),
+      fontFamily: Fonts.medium,
+    },
+    subFilterChipTextActive: {
+      color: colors.accent,
+      fontFamily: Fonts.semiBold,
     },
 
     bodyMapSection: {

@@ -41,17 +41,6 @@ export default function ProfileMainView({ onOpenSettings, onClose }: Props) {
         <Text style={styles.email}>{email}</Text>
       </View>
 
-      {/* Appearance — single card, no dividers */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Appearance</Text>
-        <View style={styles.card}>
-          <View style={styles.modeRow}>
-            <ModeChip label="Light" value="light" current={mode} onPress={setMode} colors={colors} />
-            <ModeChip label="Dark" value="dark" current={mode} onPress={setMode} colors={colors} />
-          </View>
-        </View>
-      </View>
-
       {/* Navigation rows */}
       <View style={styles.section}>
         <TouchableOpacity style={styles.row} onPress={onOpenSettings} activeOpacity={0.7}>

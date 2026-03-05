@@ -12,6 +12,7 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: string; color: strin
   reaction: { icon: 'heart-outline', color: '#EF4444' },
   nudge: { icon: 'flash-outline', color: '#F59E0B' },
   leaderboard_weekly: { icon: 'trophy-outline', color: '#F59E0B' },
+  chat_message: { icon: 'chatbubble-outline', color: '#8B5CF6' },
 };
 
 interface Props {

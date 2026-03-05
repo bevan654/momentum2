@@ -6,7 +6,9 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
+import { useChatStore } from '../../stores/useChatStore';
 import { getFriendStats, getFriendshipBetween } from '../../lib/friendsDatabase';
+import { globalNavigate } from '../../navigation/navigationRef';
 import BottomSheet from '../workout-sheet/BottomSheet';
 import AvatarCircle from './AvatarCircle';
 
@@ -36,6 +38,24 @@ export default function FriendProfileModal() {
   }, [friend?.id, visible]);
 
   if (!friend) return null;
+
+  const handleMessage = async () => {
+    if (!userId) return;
+    try {
+      const conversationId = await useChatStore.getState().getOrCreateConversation(userId, friend.id);
+      hideProfileSheet();
+      // Small delay to let sheet close animation start
+      setTimeout(() => {
+        globalNavigate('Chat', {
+          conversationId,
+          friendId: friend.id,
+          friendName: friend.username || friend.email,
+        });
+      }, 200);
+    } catch {
+      // Swallow
+    }
+  };
 
   const handleRemove = () => {
     Alert.alert(
@@ -101,6 +121,14 @@ export default function FriendProfileModal() {
 
       {/* Actions */}
       <View style={styles.actions}>
+        <TouchableOpacity
+          style={styles.messageBtn}
+          onPress={handleMessage}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chatbubble-outline" size={ms(16)} color={colors.accent} />
+          <Text style={styles.messageBtnText}>Message</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.removeBtn}
           onPress={handleRemove}
@@ -182,6 +210,24 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   actions: {
     marginTop: sw(12),
     alignItems: 'center',
+    gap: sw(10),
+  },
+  messageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(8),
+    backgroundColor: colors.accent + '15',
+    borderRadius: sw(12),
+    paddingHorizontal: sw(24),
+    paddingVertical: sw(12),
+    borderWidth: 1,
+    borderColor: colors.accent + '30',
+  },
+  messageBtnText: {
+    color: colors.accent,
+    fontSize: ms(14),
+    fontFamily: Fonts.semiBold,
+    lineHeight: ms(20),
   },
   removeBtn: {
     flexDirection: 'row',
