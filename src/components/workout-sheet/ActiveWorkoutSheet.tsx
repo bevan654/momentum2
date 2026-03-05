@@ -91,34 +91,60 @@ const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
 
     let suggestion: string | null = null;
     let altSuggestion: string | null = null;
-    if (behind && !beaten) {
+    // Show suggestion after at least one set is done and not yet beaten
+    if (!beaten && completedCount > 0) {
       const remaining = prevTotal - currentVol + 1;
-      const incompleteSets = ex.sets.filter((s) => !s.completed).length;
-      if (incompleteSets > 0 && remaining > 0) {
-        const lastKg = completedCount > 0
-          ? parseFloat(completedSets[completedCount - 1].kg) || 0
-          : ex.prevSets[0]?.kg || 0;
+      if (remaining > 0) {
+        // Always base on what the user just did — last completed set
+        const lastSet = completedSets[completedCount - 1];
+        const lastKg = parseFloat(lastSet.kg) || 0;
+        const lastReps = parseInt(lastSet.reps, 10) || 0;
 
-        if (lastKg > 0) {
-          const MIN_REPS = 8;
-          const MAX_REPS = 15;
-          const volPerSet = Math.ceil(remaining / incompleteSets);
-          const repsNeeded = Math.max(Math.min(Math.ceil(volPerSet / lastKg), MAX_REPS), MIN_REPS);
-          const suffix = incompleteSets === 1 ? 'to beat it' : `for ${incompleteSets} sets`;
-          suggestion = `${lastKg}kg × ${repsNeeded} ${suffix}`;
+        if (lastKg > 0 && lastReps > 0) {
+          const MIN_REPS = 5;
+          // Estimate 1RM using Epley: e1RM = weight × (1 + reps/30)
+          const e1rm = lastKg * (1 + lastReps / 30);
 
-          const lightKg = Math.round(lastKg * 0.8 / 2.5) * 2.5;
-          if (lightKg > 0 && lightKg < lastKg) {
-            const lightReps = Math.max(Math.min(Math.ceil(volPerSet / lightKg), MAX_REPS), MIN_REPS);
-            altSuggestion = `${lightKg}kg × ${lightReps} ${suffix}`;
+          // If last reps + 1 >= MIN_REPS, suggest same weight
+          // Otherwise, scale weight down to something doable for MIN_REPS
+          let suggestKg: number;
+          let maxReps: number;
+          if (lastReps + 1 >= MIN_REPS) {
+            suggestKg = lastKg;
+            maxReps = lastReps + 1;
+          } else {
+            // Weight they could realistically do for MIN_REPS
+            suggestKg = Math.round((e1rm / (1 + MIN_REPS / 30)) / 2.5) * 2.5;
+            maxReps = MIN_REPS + 1;
+          }
+
+          if (suggestKg > 0) {
+            const repsToClose = Math.max(Math.ceil(remaining / suggestKg), MIN_REPS);
+            const repsNeeded = Math.min(repsToClose, maxReps);
+            suggestion = `${suggestKg}kg × ${repsNeeded}`;
+
+            // Lighter option: 80% weight — only show if it results in MORE reps
+            const lightKg = Math.round(suggestKg * 0.8 / 2.5) * 2.5;
+            if (lightKg > 0 && lightKg < suggestKg) {
+              const lightMaxReps = Math.round(30 * (e1rm / lightKg - 1));
+              const lightRepsToClose = Math.max(Math.ceil(remaining / lightKg), MIN_REPS);
+              const lightReps = Math.min(lightRepsToClose, Math.max(lightMaxReps, MIN_REPS));
+              if (lightReps > repsNeeded) {
+                altSuggestion = `${lightKg}kg × ${lightReps}`;
+              }
+            }
           }
         }
       }
     }
 
     const onTrack = completedCount > 0 && !behind && !beaten;
+    const incompleteSets = ex.sets.filter((s) => !s.completed).length;
+    const needsMoreSets = completedCount > 0 && !beaten && incompleteSets === 0;
 
-    return { prevTotal, currentVol, segments, fillPct, ghostPct, beaten, behind, onTrack, suggestion, altSuggestion };
+    const remaining = Math.max(prevTotal - currentVol + 1, 0);
+
+    return { prevTotal, currentVol, remaining, segments, fillPct, ghostPct, beaten, behind, onTrack, needsMoreSets, suggestion, altSuggestion, completedCount };
   }, [exercises]);
 
   if (exercises.length === 0) return null;
@@ -126,38 +152,34 @@ const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
   const currentColor = overload?.beaten ? '#34C759' : overload?.behind ? colors.accentRed : colors.textPrimary;
 
   return (
-    <View style={{ marginBottom: sw(16), gap: sw(8) }}>
+    <View style={{ marginTop: sw(10) }}>
       {overload ? (
-        <>
-          {/* Title row — exercise name + inline volume */}
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: sw(6) }}>
-            <Ionicons
-              name="flash"
-              size={ms(11)}
-              color={overload.beaten ? '#34C759' : overload.behind ? colors.accentRed : colors.accent}
-              style={{ marginBottom: -sw(1) }}
-            />
+        <View style={{
+          backgroundColor: colors.surface,
+          borderRadius: sw(8),
+          padding: sw(10),
+          gap: sw(8),
+        }}>
+          {/* Label */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={{
-              fontSize: ms(13),
-              fontFamily: Fonts.bold,
-              color: colors.textPrimary,
-              flex: 1,
-            }} numberOfLines={1}>
-              {exercises[0].name}
-            </Text>
-            <Text style={{
-              fontSize: ms(12),
+              fontSize: ms(9),
               fontFamily: Fonts.semiBold,
-              color: currentColor,
+              color: colors.textTertiary,
+              textTransform: 'uppercase',
+              letterSpacing: 0.8,
             }}>
-              {Math.round(overload.currentVol).toLocaleString()}
+              Target To Beat
             </Text>
             <Text style={{
-              fontSize: ms(11),
+              fontSize: ms(10),
               fontFamily: Fonts.medium,
               color: colors.textTertiary,
             }}>
-              / {Math.round(overload.prevTotal).toLocaleString()} kg
+              <Text style={{ color: currentColor, fontFamily: Fonts.bold }}>
+                {Math.round(overload.currentVol).toLocaleString()}
+              </Text>
+              {' / '}{Math.round(overload.prevTotal).toLocaleString()} kg
             </Text>
           </View>
 
@@ -175,7 +197,7 @@ const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
                 style={{
                   flex: (overload.segments[i] - (overload.segments[i - 1] ?? 0)) * overload.ghostPct,
                   borderRightWidth: i < overload.segments.length - 1 ? sw(1.5) : 0,
-                  borderRightColor: colors.background,
+                  borderRightColor: colors.surface,
                 }}
               />
             ))}
@@ -207,7 +229,7 @@ const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
               top: 0,
               bottom: 0,
               width: sw(2),
-              backgroundColor: overload.beaten ? colors.accent : '#FFFFFF',
+              backgroundColor: overload.beaten ? colors.accent : colors.textTertiary,
               marginLeft: -sw(1),
             }} />
           </View>
@@ -221,7 +243,7 @@ const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
                   flex: (overload.segments[i] - (overload.segments[i - 1] ?? 0)) * overload.ghostPct,
                   textAlign: 'center',
                   color: colors.textTertiary,
-                  fontSize: ms(9),
+                  fontSize: ms(8),
                   fontFamily: Fonts.medium,
                 }}
               >
@@ -231,31 +253,40 @@ const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
             <View style={{ flex: 1 - overload.ghostPct }} />
           </View>
 
-          {/* Behind suggestion */}
-          {overload.suggestion && (
-            <View style={{
-              borderLeftWidth: sw(2),
-              borderLeftColor: colors.accentRed,
-              paddingLeft: sw(8),
-              gap: sw(2),
+          {/* Pre-first-set prompt */}
+          {overload.completedCount === 0 && (
+            <Text style={{
+              color: colors.textTertiary,
+              fontSize: ms(10),
+              fontFamily: Fonts.medium,
             }}>
-              <Text style={{
-                color: colors.textSecondary,
-                fontSize: ms(10),
-                fontFamily: Fonts.medium,
-              }}>
-                Try <Text style={{ color: colors.accent, fontFamily: Fonts.bold }}>{overload.suggestion}</Text>
-              </Text>
+              Complete your first set to start your Momentum
+            </Text>
+          )}
+
+          {/* Needs more sets — all done but not beaten */}
+          {overload.needsMoreSets && (
+            <Text style={{
+              color: colors.accent,
+              fontSize: ms(10),
+              fontFamily: Fonts.semiBold,
+            }}>
+              {overload.remaining.toLocaleString()}kg left — add a set
+            </Text>
+          )}
+
+          {/* Suggestion — behind with incomplete sets */}
+          {overload.suggestion && !overload.beaten && !overload.needsMoreSets && overload.behind && (
+            <Text style={{
+              color: colors.textSecondary,
+              fontSize: ms(10),
+              fontFamily: Fonts.medium,
+            }}>
+              Suggestion: Try <Text style={{ color: colors.accent, fontFamily: Fonts.bold }}>{overload.suggestion}</Text>
               {overload.altSuggestion && (
-                <Text style={{
-                  color: colors.textSecondary,
-                  fontSize: ms(10),
-                  fontFamily: Fonts.medium,
-                }}>
-                  Or <Text style={{ color: colors.accent, fontFamily: Fonts.bold }}>{overload.altSuggestion}</Text>
-                </Text>
+                <Text> or <Text style={{ color: colors.accent, fontFamily: Fonts.bold }}>{overload.altSuggestion}</Text></Text>
               )}
-            </View>
+            </Text>
           )}
 
           {/* Beaten / on track */}
@@ -264,23 +295,29 @@ const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
               Progressive overload achieved
             </Text>
           )}
-          {overload.onTrack && (
+          {overload.onTrack && !overload.needsMoreSets && (
             <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: colors.accent }}>
               On track to beat last session
             </Text>
           )}
-        </>
+        </View>
       ) : (
-        /* First time — just text, no box */
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: sw(6) }}>
-          <Ionicons name="flash-outline" size={ms(13)} color={colors.textTertiary} />
+        <View style={{
+          backgroundColor: colors.surface,
+          borderRadius: sw(8),
+          padding: sw(10),
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: sw(6),
+        }}>
+          <Ionicons name="flash-outline" size={ms(12)} color={colors.textTertiary} />
           <Text style={{
-            fontSize: ms(12),
+            fontSize: ms(11),
             fontFamily: Fonts.medium,
             color: colors.textTertiary,
+            flex: 1,
           }}>
-            First time — set a benchmark for{' '}
-            <Text style={{ color: colors.textSecondary, fontFamily: Fonts.semiBold }}>{exercises[0].name}</Text>
+            First session — set your benchmark
           </Text>
         </View>
       )}
@@ -615,8 +652,6 @@ const SheetOverlay = React.memo(function SheetOverlay({
           scrollEventThrottle={16}
           removeClippedSubviews={Platform.OS === 'android'}
         >
-          {currentExercise && <ProgressiveOverloadCard exercises={[currentExercise]} />}
-
           {exercises.map((ex, i) => (
             <View
               key={`${ex.name}-${i}`}
@@ -628,6 +663,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
                 isLast={i === exercises.length - 1}
                 totalExercises={exercises.length}
                 isCurrent={i === activeIndex}
+                overloadTracker={i === activeIndex ? <ProgressiveOverloadCard exercises={[ex]} /> : undefined}
                 onReplace={onOpenReplace}
                 onExerciseFocus={handleExerciseFocus}
                 onInputFocus={handleInputFocus}
