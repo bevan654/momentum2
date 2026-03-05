@@ -1,5 +1,6 @@
-import React, { useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useMemo, useEffect, useCallback, useState, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import {
   Canvas,
   Path as SkiaPath,
@@ -12,6 +13,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { useNutritionStore } from '../../stores/useNutritionStore';
 import { sw, ms } from '../../theme/responsive';
+import Confetti from '../workout-sheet/Confetti';
 
 /* ─── Hero ring ──────────────────────────────────────── */
 
@@ -30,7 +32,11 @@ function makeRing(cx: number, cy: number, r: number) {
 
 /* ─── Main component ─────────────────────────────────── */
 
-export default function NutritionCard() {
+interface Props {
+  onOpenSettings?: () => void;
+}
+
+export default function NutritionCard({ onOpenSettings }: Props) {
   const { calories, calorieGoal, protein, proteinGoal, carbs, carbsGoal, fat, fatGoal } =
     useNutritionStore();
   const colors = useColors();
@@ -57,6 +63,25 @@ export default function NutritionCard() {
 
   const heroPath = useMemo(() => makeRing(CANVAS_CENTER, CANVAS_CENTER, HERO_R), []);
 
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onOpenSettings?.();
+  }, [onOpenSettings]);
+
+  // Confetti on calorie goal completion
+  const [showConfetti, setShowConfetti] = useState(false);
+  const wasComplete = useRef(calories >= calorieGoal && calorieGoal > 0);
+
+  useEffect(() => {
+    const isComplete = calories >= calorieGoal && calorieGoal > 0;
+    if (isComplete && !wasComplete.current) {
+      setShowConfetti(true);
+      const timer = setTimeout(() => setShowConfetti(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    wasComplete.current = isComplete;
+  }, [calories, calorieGoal]);
+
   const pFill = proteinGoal > 0 ? Math.min(protein / proteinGoal, 1) : 0;
   const cFill = carbsGoal > 0 ? Math.min(carbs / carbsGoal, 1) : 0;
   const fFill = fatGoal > 0 ? Math.min(fat / fatGoal, 1) : 0;
@@ -65,7 +90,8 @@ export default function NutritionCard() {
   const fOver = fat > fatGoal && fatGoal > 0;
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity style={[styles.card, showConfetti && styles.overflowVisible]} onPress={handlePress} activeOpacity={0.8}>
+      {showConfetti && <Confetti />}
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.iconWrap}>
@@ -77,7 +103,7 @@ export default function NutritionCard() {
       {/* Hero ring */}
       <View style={styles.heroSection}>
         <View style={styles.heroWrap}>
-          <Canvas style={styles.heroCanvas}>
+          <Canvas style={styles.heroCanvas} pointerEvents="none">
             <SkiaPath path={heroPath} style="stroke" strokeWidth={HERO_STROKE} strokeCap="round" color={colors.ring.track} />
             <SkiaPath path={heroPath} style="stroke" strokeWidth={HERO_STROKE + sw(10)} strokeCap="round" end={calEnd} color={heroColor + '22'}>
               <BlurMask blur={sw(12)} style="normal" />
@@ -126,7 +152,7 @@ export default function NutritionCard() {
           <Text style={styles.macroValue}>{fat}<Text style={styles.macroGoal}>/{fatGoal}</Text></Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -143,6 +169,10 @@ const createStyles = (colors: ThemeColors) =>
       paddingHorizontal: sw(12),
       alignItems: 'center',
       ...colors.cardShadow,
+    },
+    overflowVisible: {
+      overflow: 'visible',
+      zIndex: 100,
     },
     header: {
       flexDirection: 'row',
