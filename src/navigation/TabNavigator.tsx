@@ -11,7 +11,7 @@ import { sw, ms, SCREEN_WIDTH } from '../theme/responsive';
 import Header from '../components/home/Header';
 import HomeScreen from '../screens/HomeScreen';
 import FoodLoggerScreen from '../screens/FoodLoggerScreen';
-import FriendsScreen from '../screens/FriendsScreen';
+import CommunityNavigator from './CommunityNavigator';
 import LaboratoryScreen from '../screens/LaboratoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { useFriendsStore } from '../stores/useFriendsStore';
@@ -26,6 +26,7 @@ import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useRankStore } from '../stores/useRankStore';
 import { initNotifications, cleanupNotifications } from '../services/notificationService';
+import { initChatService, cleanupChatService } from '../services/chatService';
 
 const Tab = createMaterialTopTabNavigator();
 
@@ -43,10 +44,9 @@ const TAB_ICONS: Record<string, string> = {
   Home: 'home',
   Nutrition: 'nutrition-outline',
   Community: 'people-outline',
-  Dev: 'construct-outline',
 };
 
-const TAB_COUNT = 6;
+const TAB_COUNT = 5;
 const HOME_INDEX = 2; // center slot
 const HOME_BTN = sw(46);
 const BADGE_SIZE = sw(16);
@@ -250,9 +250,11 @@ export default function TabNavigator() {
       useRankStore.getState().loadRank(userId);
       useRankStore.getState().computeRank(userId);
       initNotifications(userId);
+      initChatService(userId);
     }
     return () => {
       cleanupNotifications();
+      cleanupChatService();
     };
   }, [userId]);
 
@@ -288,8 +290,7 @@ export default function TabNavigator() {
         <Tab.Screen name="Workouts" component={WorkoutsNavigator} />
         <Tab.Screen name="Home" component={HomeScreen} />
         <Tab.Screen name="Nutrition" component={FoodLoggerScreen} />
-        <Tab.Screen name="Community" component={FriendsScreen} />
-        <Tab.Screen name="Dev" component={DevContentScreen} />
+        <Tab.Screen name="Community" component={CommunityNavigator} />
       </Tab.Navigator>
       <BottomSheet visible={profileVisible} onClose={closeProfile} height="92%" modal>
         <ProfileScreen onClose={closeProfile} />

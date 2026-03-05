@@ -251,7 +251,7 @@ export default function Header({ activeTab }: HeaderProps) {
 
   const isWorkouts = activeTab === 'Workouts';
   const showDateNav = activeTab === 'Nutrition';
-  const showStreak = !isWorkouts;
+  const showStreak = true;
 
   const greeting = useMemo(() => {
     const h = new Date().getHours();

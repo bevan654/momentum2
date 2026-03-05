@@ -27,8 +27,6 @@ export default function LaboratoryScreen() {
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const recompute = useMuscleAnalysisStore((s) => s.recompute);
   const analysis = useMuscleAnalysisStore((s) => s.analysis);
-  const showRecoveryPercent = useProfileSettingsStore((s) => s.showRecoveryPercent);
-  const setShowRecoveryPercent = useProfileSettingsStore((s) => s.setShowRecoveryPercent);
   const showRankLabels = useProfileSettingsStore((s) => s.showRankLabels);
   const setShowRankLabels = useProfileSettingsStore((s) => s.setShowRankLabels);
   const initialized = useProfileSettingsStore((s) => s.initialized);
@@ -110,16 +108,6 @@ export default function LaboratoryScreen() {
       <Animated.View style={[styles.settingsPanel, settingsAnimStyle]}>
         <View style={styles.settingsCard}>
           <View style={styles.settingsRow}>
-            <Text style={styles.settingsLabel}>Show recovery labels</Text>
-            <Switch
-              value={showRecoveryPercent}
-              onValueChange={setShowRecoveryPercent}
-              trackColor={{ false: colors.cardBorder, true: colors.accentGreen }}
-              thumbColor={colors.textOnAccent}
-            />
-          </View>
-          <View style={styles.settingsDivider} />
-          <View style={styles.settingsRow}>
             <Text style={styles.settingsLabel}>Show rank labels</Text>
             <Switch
               value={showRankLabels}
@@ -131,7 +119,7 @@ export default function LaboratoryScreen() {
         </View>
       </Animated.View>
 
-      <MuscleHeatmap exercises={thisWeekExercises} fillHeight={HEATMAP_HEIGHT} analysis={analysis} />
+      <MuscleHeatmap exercises={thisWeekExercises} fillHeight={HEATMAP_HEIGHT} />
 
       <View style={styles.cardsSection}>
         <SummaryStatsCard analysis={analysis} />
