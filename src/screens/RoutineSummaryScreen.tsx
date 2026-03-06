@@ -131,11 +131,8 @@ export default function RoutineSummaryScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
-          </TouchableOpacity>
           <Text style={styles.headerTitle}>Routine Summary</Text>
-          <View style={styles.backBtn} />
+          <View style={styles.editBtn} />
         </View>
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>Routine not found</Text>
@@ -164,12 +161,9 @@ export default function RoutineSummaryScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
-          </TouchableOpacity>
           <Text style={styles.headerTitle}>Routine Summary</Text>
           <TouchableOpacity
-            style={styles.backBtn}
+            style={styles.editBtn}
             onPress={() => navigation.navigate('CreateRoutine', { routineId })}
             activeOpacity={0.7}
           >
@@ -333,17 +327,19 @@ const createStyles = (colors: ThemeColors, topInset: number) => StyleSheet.creat
     paddingHorizontal: sw(16),
     paddingVertical: sw(12),
   },
-  backBtn: {
-    width: sw(36),
-    height: sw(36),
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   headerTitle: {
+    flex: 1,
     color: colors.textPrimary,
     fontSize: ms(18),
     lineHeight: ms(24),
     fontFamily: Fonts.bold,
+    textAlign: 'center',
+  },
+  editBtn: {
+    width: sw(36),
+    height: sw(36),
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scroll: {
     flex: 1,
@@ -360,9 +356,9 @@ const createStyles = (colors: ThemeColors, topInset: number) => StyleSheet.creat
   },
   routineName: {
     color: colors.textPrimary,
-    fontSize: ms(22),
+    fontSize: ms(16),
     fontFamily: Fonts.bold,
-    lineHeight: ms(28),
+    lineHeight: ms(22),
   },
   routineSub: {
     color: colors.textTertiary,

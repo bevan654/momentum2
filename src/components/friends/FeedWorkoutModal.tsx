@@ -120,6 +120,18 @@ export default function FeedWorkoutModal({ item, onDismiss }: Props) {
   }, [userId, exercises, displayName, createRoutine]);
 
   const handleTryWorkout = useCallback(() => {
+    // Build ghost prevMap from the poster's exercise data
+    const ghostPrevMap: Record<string, { kg: number; reps: number }[]> = {};
+    for (const ex of exercises) {
+      if (ex.sets && ex.sets.length > 0) {
+        ghostPrevMap[ex.name] = ex.sets.map((s) => ({ kg: s.kg, reps: s.reps }));
+      } else if (ex.best_kg > 0 || ex.best_reps > 0) {
+        ghostPrevMap[ex.name] = Array.from({ length: ex.sets_count || 3 }, () => ({
+          kg: ex.best_kg,
+          reps: ex.best_reps,
+        }));
+      }
+    }
     const routine = {
       id: `feed-${item.id}`,
       exercises: exercises.map((ex) => ({
@@ -128,9 +140,9 @@ export default function FeedWorkoutModal({ item, onDismiss }: Props) {
         exercise_type: 'weighted',
       })),
     };
-    startFromRoutine(routine, catalogMap, prevMap);
+    startFromRoutine(routine, catalogMap, ghostPrevMap, displayName);
     onDismiss();
-  }, [item.id, exercises, startFromRoutine, catalogMap, prevMap, onDismiss]);
+  }, [item.id, exercises, startFromRoutine, catalogMap, onDismiss]);
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onDismiss}>
@@ -177,8 +189,8 @@ export default function FeedWorkoutModal({ item, onDismiss }: Props) {
               <Text style={styles.saveBtnText}>Save</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.tryBtn} onPress={handleTryWorkout} activeOpacity={0.8}>
-              <Ionicons name="play" size={ms(13)} color={colors.textOnAccent} />
-              <Text style={styles.tryBtnText}>Try</Text>
+              <Ionicons name="flash" size={ms(13)} color={colors.textOnAccent} />
+              <Text style={styles.tryBtnText}>Beat This</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.closeBtn} onPress={onDismiss} activeOpacity={0.7}>
               <Text style={styles.closeBtnText}>Close</Text>

@@ -127,18 +127,6 @@ function FeedActionRow({
         </TouchableOpacity>
       </View>
 
-      {/* Bookmark */}
-      <TouchableOpacity
-        onPress={onToggleBookmark}
-        activeOpacity={0.6}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Ionicons
-          name={bookmarked ? 'bookmark' : 'bookmark-outline'}
-          size={ms(20)}
-          color={bookmarked ? colors.accent : colors.textPrimary}
-        />
-      </TouchableOpacity>
     </View>
   );
 }

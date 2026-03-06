@@ -39,6 +39,7 @@ export interface WorkoutWithDetails {
   totalVolume: number;
   prCount: number;
   muscleGroups: string[];
+  ghostUsername: string | null;
 }
 
 export interface CatalogEntry {
@@ -212,7 +213,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     try {
       const { data: workoutsData } = await supabase
         .from('workouts')
-        .select('id, created_at, duration, total_exercises, total_sets')
+        .select('id, created_at, duration, total_exercises, total_sets, ghost_username')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(30);
@@ -348,6 +349,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
           totalVolume: Math.round(totalVolume),
           prCount,
           muscleGroups: Array.from(muscleGroupSet).slice(0, 4),
+          ghostUsername: (w as any).ghost_username || null,
         };
       });
 
@@ -362,7 +364,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       // Fetch the workout
       const { data: workoutData, error: workoutError } = await supabase
         .from('workouts')
-        .select('id, created_at, duration, total_exercises, total_sets')
+        .select('id, created_at, duration, total_exercises, total_sets, ghost_username')
         .eq('id', workoutId)
         .single();
 
@@ -509,6 +511,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         totalVolume: Math.round(totalVolume),
         prCount,
         muscleGroups: Array.from(muscleGroupSet).slice(0, 4),
+        ghostUsername: (workoutData as any).ghost_username || null,
       };
     } catch {
       return null;

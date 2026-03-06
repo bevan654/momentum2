@@ -18,7 +18,7 @@ import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { useWeightStore } from '../../stores/useWeightStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { supabase } from '../../lib/supabase';
-import type { WorkoutSummary, SummaryExercise } from '../../stores/useActiveWorkoutStore';
+import type { WorkoutSummary, SummaryExercise, GhostExerciseData } from '../../stores/useActiveWorkoutStore';
 import type { WorkoutWithDetails, ExerciseWithSets } from '../../stores/useWorkoutStore';
 import ShareWorkoutModal from './ShareWorkoutModal';
 import type { WorkoutOverlayData } from '../dev/WorkoutOverlay';
@@ -219,6 +219,216 @@ function EditableExerciseSection({
         <Ionicons name="add" size={ms(12)} color={colors.accent} />
         <Text style={styles.addSetBtnText}>Add Set</Text>
       </TouchableOpacity>
+    </View>
+  );
+}
+
+/* ── Ghost set comparison logic ────────────────────── */
+
+function compareGhostSet(
+  userKg: number, userReps: number,
+  ghostKg: number, ghostReps: number,
+): 'win' | 'loss' | 'tie' {
+  if (userKg < ghostKg) return 'loss';
+  if (userKg === ghostKg) {
+    if (userReps > ghostReps) return 'win';
+    if (userReps < ghostReps) return 'loss';
+    return 'tie';
+  }
+  const userVol = userKg * userReps;
+  const ghostVol = ghostKg * ghostReps;
+  if (userVol > ghostVol) return 'win';
+  if (userVol < ghostVol) return 'loss';
+  return 'tie';
+}
+
+/* ── Ghost Comparison Section ──────────────────────── */
+
+function GhostComparisonSection({
+  exercises,
+  ghostExercises,
+  ghostUserName,
+  colors,
+  styles,
+}: {
+  exercises: SummaryExercise[];
+  ghostExercises: GhostExerciseData[];
+  ghostUserName: string;
+  colors: ThemeColors;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const ghostMap = useMemo(() => {
+    const map: Record<string, { sets: { kg: number; reps: number }[] }> = {};
+    for (const gex of ghostExercises) {
+      map[gex.name] = { sets: gex.sets };
+    }
+    return map;
+  }, [ghostExercises]);
+
+  const results = useMemo(() => {
+    let userTotalVol = 0;
+    let ghostTotalVol = 0;
+    let setWins = 0;
+    let setLosses = 0;
+    let setTies = 0;
+
+    const perExercise = exercises.map((ex) => {
+      const completedSets = ex.sets.filter((s) => s.completed);
+      const ghost = ghostMap[ex.name];
+      const ghostSets = ghost?.sets ?? [];
+
+      const userVol = completedSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
+      const ghostVol = ghostSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
+      userTotalVol += userVol;
+      ghostTotalVol += ghostVol;
+
+      let exWins = 0;
+      let exLosses = 0;
+      let exTies = 0;
+      const count = Math.min(completedSets.length, ghostSets.length);
+      for (let i = 0; i < count; i++) {
+        const r = compareGhostSet(completedSets[i].kg, completedSets[i].reps, ghostSets[i].kg, ghostSets[i].reps);
+        if (r === 'win') { exWins++; setWins++; }
+        else if (r === 'loss') { exLosses++; setLosses++; }
+        else { exTies++; setTies++; }
+      }
+
+      return { name: ex.name, userVol, ghostVol, exWins, exLosses, exTies };
+    });
+
+    const victory = setWins > setLosses;
+    return { perExercise, userTotalVol, ghostTotalVol, setWins, setLosses, setTies, victory };
+  }, [exercises, ghostMap]);
+
+  const verdictColor = results.victory ? '#34C759' : colors.accentRed;
+
+  return (
+    <View style={{
+      backgroundColor: colors.surface,
+      borderRadius: sw(12),
+      padding: sw(14),
+      marginTop: sw(12),
+      gap: sw(10),
+    }}>
+      {/* Verdict */}
+      <View style={{ alignItems: 'center', gap: sw(4) }}>
+        <Ionicons
+          name={results.victory ? 'trophy' : 'close-circle'}
+          size={ms(28)}
+          color={verdictColor}
+        />
+        <Text style={{
+          fontSize: ms(16),
+          fontFamily: Fonts.bold,
+          color: verdictColor,
+        }}>
+          {results.victory ? 'Victory!' : 'Defeated'}
+        </Text>
+        <Text style={{
+          fontSize: ms(11),
+          fontFamily: Fonts.medium,
+          color: colors.textTertiary,
+        }}>
+          vs {ghostUserName}
+        </Text>
+      </View>
+
+      {/* Set score */}
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: sw(8),
+        paddingVertical: sw(6),
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: colors.cardBorder,
+      }}>
+        <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: colors.textTertiary }}>
+          SET SCORE
+        </Text>
+        <Text style={{ fontSize: ms(18), fontFamily: Fonts.bold, color: '#34C759' }}>
+          {results.setWins}
+        </Text>
+        <Text style={{ fontSize: ms(12), fontFamily: Fonts.medium, color: colors.textPrimary }}>
+          —
+        </Text>
+        <Text style={{ fontSize: ms(18), fontFamily: Fonts.bold, color: colors.textPrimary }}>
+          {results.setTies}
+        </Text>
+        <Text style={{ fontSize: ms(12), fontFamily: Fonts.medium, color: colors.textPrimary }}>
+          —
+        </Text>
+        <Text style={{ fontSize: ms(18), fontFamily: Fonts.bold, color: colors.accentRed }}>
+          {results.setLosses}
+        </Text>
+      </View>
+
+      {/* Volume comparison */}
+      <View style={{
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        paddingVertical: sw(8),
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: colors.cardBorder,
+      }}>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: ms(16), fontFamily: Fonts.bold, color: colors.textPrimary }}>
+            {results.userTotalVol.toLocaleString()}
+          </Text>
+          <Text style={{ fontSize: ms(10), fontFamily: Fonts.medium, color: colors.textTertiary }}>
+            Your Volume
+          </Text>
+        </View>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: ms(16), fontFamily: Fonts.bold, color: colors.accentRed }}>
+            {results.ghostTotalVol.toLocaleString()}
+          </Text>
+          <Text style={{ fontSize: ms(10), fontFamily: Fonts.medium, color: colors.textTertiary }}>
+            {ghostUserName}'s Volume
+          </Text>
+        </View>
+      </View>
+
+      {/* Per-exercise breakdown */}
+      <View style={{
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: colors.cardBorder,
+        paddingTop: sw(8),
+        gap: sw(6),
+      }}>
+        {results.perExercise.map((ex, i) => {
+          const exWon = ex.exWins > ex.exLosses;
+          const exLost = ex.exLosses > ex.exWins;
+          return (
+            <View key={i} style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: sw(8),
+            }}>
+              <Ionicons
+                name={exWon ? 'checkmark-circle' : exLost ? 'close-circle' : 'remove-circle'}
+                size={ms(14)}
+                color={exWon ? '#34C759' : exLost ? colors.accentRed : colors.textTertiary}
+              />
+              <Text style={{
+                flex: 1,
+                fontSize: ms(11),
+                fontFamily: Fonts.medium,
+                color: colors.textPrimary,
+              }} numberOfLines={1}>
+                {ex.name}
+              </Text>
+              <Text style={{
+                fontSize: ms(10),
+                fontFamily: Fonts.semiBold,
+                color: exWon ? '#34C759' : exLost ? colors.accentRed : colors.textTertiary,
+              }}>
+                {ex.exWins}W {ex.exLosses}L
+              </Text>
+            </View>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -731,7 +941,9 @@ export default function WorkoutSummaryModal(props: Props) {
             ) : (
               <View style={styles.header}>
                 <AnimatedCheckmark colors={colors} styles={styles} />
-                <Text style={styles.title}>Workout Complete!</Text>
+                <Text style={styles.title}>
+                  {(data as WorkoutSummary).ghostUserName ? 'Challenge Complete!' : 'Workout Complete!'}
+                </Text>
                 <TextInput
                   style={styles.workoutNameInput}
                   value={workoutName}
@@ -763,6 +975,17 @@ export default function WorkoutSummaryModal(props: Props) {
             )}
 
             {exerciseContent}
+
+            {/* Ghost mode comparison */}
+            {isJustCompleted && (data as WorkoutSummary).ghostUserName && (data as WorkoutSummary).ghostExercises && (
+              <GhostComparisonSection
+                exercises={displayExercises ?? (data as WorkoutSummary).exercises}
+                ghostExercises={(data as WorkoutSummary).ghostExercises!}
+                ghostUserName={(data as WorkoutSummary).ghostUserName!}
+                colors={colors}
+                styles={styles}
+              />
+            )}
           </ScrollView>
 
           {editing ? editFooter : (
