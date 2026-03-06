@@ -20,6 +20,25 @@ import Body, { type ExtendedBodyPart } from '../BodyHighlighter';
 import { toSlug, ALL_SLUGS } from '../../utils/muscleVolume';
 import SetRow from './SetRow';
 
+/* ─── Ghost set comparison ─────────────────────────────── */
+
+function compareGhostSet(
+  userKg: number, userReps: number,
+  ghostKg: number, ghostReps: number,
+): 'win' | 'loss' | 'tie' {
+  if (userKg < ghostKg) return 'loss';
+  if (userKg === ghostKg) {
+    if (userReps > ghostReps) return 'win';
+    if (userReps < ghostReps) return 'loss';
+    return 'tie';
+  }
+  const userVol = userKg * userReps;
+  const ghostVol = ghostKg * ghostReps;
+  if (userVol > ghostVol) return 'win';
+  if (userVol < ghostVol) return 'loss';
+  return 'tie';
+}
+
 /* ─── Focused body map helpers ─────────────────────────── */
 
 const CATEGORY_SLUGS: Record<string, string[]> = {
@@ -428,7 +447,8 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
     >
     <Swipeable
       ref={swipeableRef}
-      renderRightActions={renderRightActions}
+      renderRightActions={useActiveWorkoutStore.getState().ghostUserName ? undefined : renderRightActions}
+      enabled={!useActiveWorkoutStore.getState().ghostUserName}
       overshootRight={false}
       friction={2}
     >
@@ -439,7 +459,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
             {exercise.name.replace(/\b\w/g, (c) => c.toUpperCase())}
           </Text>
           <View style={{ flex: 1 }} />
-          {exerciseHistory.length > 0 && (
+          {exerciseHistory.length > 0 && !useActiveWorkoutStore.getState().ghostUserName && (
             <View style={styles.tabRow}>
               <TouchableOpacity
                 style={[styles.tab, !showHistory && styles.tabActive]}
@@ -492,36 +512,54 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
             {/* Column headers */}
             <View style={styles.colHeaders}>
               <Text style={[styles.colHeader, { width: sw(28) }]}>SET</Text>
-              <Text style={[styles.colHeader, { width: sw(46) }]}>PREV</Text>
+              {!useActiveWorkoutStore.getState().ghostUserName && (
+                <Text style={[styles.colHeader, { width: sw(46) }]}>PREV</Text>
+              )}
               <Text style={[styles.colHeader, { flex: 1 }]}>KG</Text>
               <Text style={[styles.colHeader, { flex: 1 }]}>REPS</Text>
               <View style={{ width: sw(24) }} />
             </View>
 
             {/* Sets */}
-            {exercise.sets.map((set, setIdx) => (
+            {exercise.sets.map((set, setIdx) => {
+              const isGhost = !!useActiveWorkoutStore.getState().ghostUserName;
+              const ghostPrev = isGhost ? (exercise.prevSets?.[setIdx] || null) : null;
+              const ghostResult = (isGhost && set.completed && ghostPrev)
+                ? compareGhostSet(
+                    parseFloat(set.kg) || 0, parseInt(set.reps) || 0,
+                    ghostPrev.kg, ghostPrev.reps,
+                  )
+                : null;
+              return (
               <SetRow
                 key={`${set.id}-${setIdx}`}
                 index={setIdx}
                 set={set}
                 prevSet={exercise.prevSets?.[setIdx] || null}
+                suggestedKg={ghostPrev ? String(ghostPrev.kg) : undefined}
+                suggestedReps={ghostPrev ? String(ghostPrev.reps) : undefined}
                 onUpdate={(field, value) => { onExerciseFocus?.(exerciseIndex); updateSet(exerciseIndex, setIdx, field, value); }}
                 onToggle={() => { onExerciseFocus?.(exerciseIndex); toggleSetComplete(exerciseIndex, setIdx); }}
                 onCycleSetType={() => cycleSetType(exerciseIndex, setIdx)}
-                onDelete={exercise.sets.length > 1 ? () => removeSet(exerciseIndex, setIdx) : null}
+                onDelete={exercise.sets.length > 1 && !isGhost ? () => removeSet(exerciseIndex, setIdx) : null}
                 onInputFocus={(y) => { onExerciseFocus?.(exerciseIndex); onInputFocus?.(y); }}
+                isGhost={isGhost}
+                ghostResult={ghostResult}
               />
-            ))}
+            );
+            })}
 
-            {/* Add Set button */}
-            <TouchableOpacity
-              style={styles.addSetBtn}
-              onPress={() => addSet(exerciseIndex)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="add" size={ms(14)} color={colors.accent} />
-              <Text style={styles.addSetText}>Add Set</Text>
-            </TouchableOpacity>
+            {/* Add Set button — hidden in ghost mode */}
+            {!useActiveWorkoutStore.getState().ghostUserName && (
+              <TouchableOpacity
+                style={styles.addSetBtn}
+                onPress={() => addSet(exerciseIndex)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={ms(14)} color={colors.accent} />
+                <Text style={styles.addSetText}>Add Set</Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
       </View>

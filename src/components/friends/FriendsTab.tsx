@@ -74,49 +74,38 @@ export default function FriendsTab() {
   const isSearchActive = overlayMode === 'search';
   const isNotifActive = overlayMode === 'notifications';
 
+  const feedMode = useFriendsStore((s) => s.feedMode);
+  const setFeedMode = useFriendsStore((s) => s.setFeedMode);
+
   return (
     <View style={styles.container}>
-      {/* ── Header ──────────────────────────────────────── */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Community</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={[styles.headerBtn, isSearchActive && styles.headerBtnActive]}
-            onPress={() => switchOverlay('search')}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="search-outline"
-              size={ms(20)}
-              color={isSearchActive ? colors.textOnAccent : colors.textPrimary}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.headerBtn, isNotifActive && styles.headerBtnActive]}
-            onPress={() => switchOverlay('notifications')}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="notifications-outline"
-              size={ms(20)}
-              color={isNotifActive ? colors.textOnAccent : colors.textPrimary}
-            />
-            {unreadCount > 0 && !isNotifActive && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{badgeText}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
 
       {/* ── Body ────────────────────────────────────────── */}
       <View style={styles.body}>
-        {/* Avatar bar + Feed (default view) */}
+        {/* Avatar bar */}
         <FriendAvatarBar
           onOpenProfile={handleOpenProfile}
           onOpenSearch={handleOpenSearch}
         />
+
+        {/* ── Feed Mode Tabs ─────────────────────────────── */}
+        <View style={styles.feedTabs}>
+          {(['global', 'friends', 'messages'] as const).map((tab) => {
+            const label = tab === 'global' ? 'Feed' : tab === 'friends' ? 'Friends' : 'Messages';
+            const isActive = feedMode === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.feedTab, isActive && styles.feedTabActive]}
+                onPress={() => tab !== 'messages' && setFeedMode(tab)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.feedTabText, isActive && styles.feedTabTextActive]}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         <View style={styles.feedArea}>
           <ActivityFeed />
         </View>
@@ -153,6 +142,32 @@ const createStyles = (colors: ThemeColors) =>
     container: {
       flex: 1,
       backgroundColor: colors.background,
+    },
+
+    /* Feed Mode Tabs */
+    feedTabs: {
+      flexDirection: 'row',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+      marginTop: sw(18),
+    },
+    feedTab: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: sw(10),
+      borderBottomWidth: sw(2.5),
+      borderBottomColor: 'transparent',
+    },
+    feedTabActive: {
+      borderBottomColor: colors.accent,
+    },
+    feedTabText: {
+      fontSize: ms(13),
+      fontFamily: Fonts.semiBold,
+      color: colors.textTertiary,
+    },
+    feedTabTextActive: {
+      color: colors.textPrimary,
     },
 
     /* Header */

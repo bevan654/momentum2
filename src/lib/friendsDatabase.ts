@@ -483,11 +483,13 @@ async function attachProfilesAndReactions(
         : 0;
       details = names.map((name: string) => {
         const cat = catalogMap.get(name);
+        // Estimate per-set kg assuming ~10 reps per set
+        const estKg = perExSets > 0 ? Math.round(perExVol / (perExSets * 10)) : 0;
         return {
           name,
           sets_count: perExSets,
-          best_kg: 0,
-          best_reps: 0,
+          best_kg: estKg,
+          best_reps: 10,
           total_volume: perExVol,
           category: cat?.category || null,
           primary_muscles: cat?.primary_muscles || [],

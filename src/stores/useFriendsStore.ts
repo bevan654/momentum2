@@ -8,6 +8,7 @@ import {
   getFriendsList,
   getFriendIds,
   getGlobalFeed,
+  getFriendsFeed,
   getLeaderboard as dbGetLeaderboard,
   getNotifications as dbGetNotifications,
   getUnreadCount as dbGetUnreadCount,
@@ -51,6 +52,8 @@ interface FriendsState {
   feedCursor: string | null;
   feedHasMore: boolean;
   feedFetchedAt: number | null;
+  feedMode: 'global' | 'friends';
+  setFeedMode: (mode: 'global' | 'friends') => void;
   pendingFeedItems: ActivityFeedItem[];
   addPendingFeedItem: (item: ActivityFeedItem) => void;
   flushPendingFeed: () => void;
@@ -126,6 +129,10 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   feedCursor: null,
   feedHasMore: true,
   feedFetchedAt: null,
+  feedMode: 'global',
+  setFeedMode: (mode) => {
+    set({ feedMode: mode, feedCursor: null, feedHasMore: true, feedFetchedAt: null });
+  },
   pendingFeedItems: [],
 
   addPendingFeedItem: (item) => {
@@ -204,7 +211,7 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   },
 
   fetchFeed: async (userId, reset = false, force = false) => {
-    const { feedCursor, feedHasMore, feedFetchedAt, feed: cached } = get();
+    const { feedCursor, feedHasMore, feedFetchedAt, feed: cached, feedMode, friendIds } = get();
 
     if (
       reset &&
@@ -222,7 +229,9 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
 
     set({ feedLoading: true });
     try {
-      const items = await getGlobalFeed(userId, FEED_PAGE_SIZE, cursor);
+      const items = feedMode === 'friends'
+        ? await getFriendsFeed(friendIds, userId, FEED_PAGE_SIZE, reset ? 0 : cached.length)
+        : await getGlobalFeed(userId, FEED_PAGE_SIZE, cursor);
 
       const merged = reset ? items : [...get().feed, ...items];
       const seen = new Set<string>();

@@ -33,6 +33,7 @@ export default function ActivityFeed() {
   const fetchCommentCounts = useFriendsStore((s) => s.fetchCommentCounts);
   const pendingFeedItems = useFriendsStore((s) => s.pendingFeedItems);
   const flushPendingFeed = useFriendsStore((s) => s.flushPendingFeed);
+  const feedMode = useFriendsStore((s) => s.feedMode);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFeedItem, setSelectedFeedItem] = useState<ActivityFeedItem | null>(null);
   const [commentsActivityId, setCommentsActivityId] = useState<string | null>(null);
@@ -43,10 +44,10 @@ export default function ActivityFeed() {
 
   useEffect(() => {
     if (userId) {
-      fetchFeed(userId, true);
+      fetchFeed(userId, true, true);
       fetchBookmarks(userId);
     }
-  }, [userId]);
+  }, [userId, feedMode]);
 
   // Fetch comment counts whenever feed items change
   useEffect(() => {

@@ -48,6 +48,11 @@ export interface SummaryExercise {
   sets: { kg: number; reps: number; completed: boolean; set_type: string }[];
 }
 
+export interface GhostExerciseData {
+  name: string;
+  sets: { kg: number; reps: number }[];
+}
+
 export interface WorkoutSummary {
   workoutId?: string;
   duration: number;
@@ -57,6 +62,8 @@ export interface WorkoutSummary {
   exerciseNames: string[];
   exercises: SummaryExercise[];
   prCount: number;
+  ghostUserName?: string | null;
+  ghostExercises?: GhostExerciseData[];
 }
 
 // ── Constants ──────────────────────────────────────────
@@ -112,6 +119,7 @@ interface ActiveWorkoutState {
   summaryData: WorkoutSummary | null;
 
   startedFromRoutine: string | null;
+  ghostUserName: string | null;
 
   // Stubs: HealthKit
   heartRate: number | null;
@@ -123,6 +131,7 @@ interface ActiveWorkoutState {
     routine: { id: string; exercises: { name: string; default_sets: number; exercise_type: string }[] },
     catalogMap: Record<string, { category: string; exercise_type: string }>,
     prevMap: Record<string, { kg: number; reps: number }[]>,
+    ghostUserName?: string,
   ) => void;
   discardWorkout: () => void;
   finishWorkout: (userId: string, durationOverride?: number) => Promise<{ error: string | null; incompleteCount?: number }>;
@@ -209,6 +218,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   summaryData: null,
 
   startedFromRoutine: null,
+  ghostUserName: null,
   heartRate: null,
   activeCalories: null,
 
@@ -227,6 +237,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       exercises: [],
       restDuration: _preferredRestDuration,
       startedFromRoutine: null,
+      ghostUserName: null,
       isResting: false,
       restRemaining: 0,
       restStartedAt: null,
@@ -242,7 +253,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     }, 0);
   },
 
-  startFromRoutine: (routine, catalogMap, prevMap) => {
+  startFromRoutine: (routine, catalogMap, prevMap, ghostUserName) => {
     if (_timerInterval) clearInterval(_timerInterval);
 
     const exercises: ActiveExercise[] = routine.exercises.map((ex) => {
@@ -268,6 +279,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       exercises,
       restDuration: _preferredRestDuration,
       startedFromRoutine: routine.id,
+      ghostUserName: ghostUserName || null,
       isResting: false,
       restRemaining: 0,
       restStartedAt: null,
@@ -295,6 +307,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       elapsedSeconds: 0,
       exercises: [],
       startedFromRoutine: null,
+      ghostUserName: null,
       isResting: false,
       restRemaining: 0,
       showSummary: false,
@@ -315,7 +328,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       console.error('[finishWorkout] getSession failed:', e);
     }
 
-    const { exercises, elapsedSeconds } = get();
+    const { exercises, elapsedSeconds, ghostUserName } = get();
     if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
 
     // Validate: at least 1 exercise — resurrect timer and bail
@@ -390,6 +403,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
             duration,
             total_exercises: filteredExercises.length,
             total_sets: totalSets,
+            ...(ghostUserName ? { ghost_username: ghostUserName } : {}),
           })
           .select('id')
           .single()
@@ -534,6 +548,11 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       exerciseNames,
       exercises: summaryExercises,
       prCount: 0,
+      ghostUserName: ghostUserName || null,
+      ghostExercises: ghostUserName ? filteredExercises.map((ex) => ({
+        name: ex.name,
+        sets: ex.prevSets.map((s) => ({ kg: s.kg, reps: s.reps })),
+      })) : undefined,
     };
 
     stopWorkoutActivity();
@@ -544,6 +563,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       sheetVisible: false,
       exercises: [],
       startedFromRoutine: null,
+      ghostUserName: null,
       isResting: false,
       restRemaining: 0,
       restStartedAt: null,
