@@ -44,7 +44,7 @@ import {
 
 const PALETTES = {
   dark: [
-    '#141414', '#2A2A2E', '#4A4A4E', '#6E6E72', '#9A9A9E', '#CDCDD0', '#FFFFFF',
+    '#1A1A1E', '#3A3A42', '#5E5E66', '#8A8A92', '#B8B8C0', '#E0E0E6', '#FFFFFF',
   ],
   light: [
     '#E0E0E2', '#B8B8BC', '#909096', '#6E6E72', '#4A4A4E', '#2A2A2E', '#1A1A1A',

@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring, withTiming, runOnJS, Easing } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
-import { sw, ms } from '../../theme/responsive';
+import { sw, ms, SCREEN_HEIGHT } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { getMuscleGroupColor } from '../../constants/muscleGroups';
 import MuscleHeatmap from '../body/MuscleHeatmap';
@@ -251,6 +253,7 @@ export default function WorkoutSummaryModal(props: Props) {
   const isJustCompleted = mode === 'just-completed';
   const [deleting, setDeleting] = useState(false);
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   // ── Edit state ───────────────────────────────────
@@ -267,6 +270,49 @@ export default function WorkoutSummaryModal(props: Props) {
   // Local overrides after save so display updates without re-fetch
   const [savedDuration, setSavedDuration] = useState<number | null>(null);
   const [savedExercises, setSavedExercises] = useState<SummaryExercise[] | null>(null);
+
+  // ── Swipe-to-dismiss (just-completed mode) ─────
+  const dragY = useSharedValue(0);
+  const dragOpacity = useSharedValue(1);
+  const [scrollAtTop, setScrollAtTop] = useState(true);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const dismissWithSlide = useCallback(() => {
+    onDismiss();
+  }, [onDismiss]);
+
+  const panGesture = useMemo(() =>
+    Gesture.Pan()
+      .activeOffsetY([0, 15])
+      .failOffsetX([-20, 20])
+      .enabled(!editing && scrollAtTop)
+      .onUpdate((e) => {
+        'worklet';
+        const dy = Math.max(0, e.translationY);
+        dragY.value = dy;
+        dragOpacity.value = Math.max(0.4, 1 - dy / 600);
+      })
+      .onEnd((e) => {
+        'worklet';
+        if (e.translationY > 120 || e.velocityY > 800) {
+          dragY.value = withTiming(1200, { duration: 250, easing: Easing.in(Easing.cubic) });
+          dragOpacity.value = withTiming(0, { duration: 250 }, () => {
+            runOnJS(dismissWithSlide)();
+          });
+        } else {
+          dragY.value = withSpring(0, { damping: 20, stiffness: 300 });
+          dragOpacity.value = withTiming(1, { duration: 150 });
+        }
+      }),
+  [editing, scrollAtTop, dismissWithSlide]);
+
+  const dragCardStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: dragY.value }],
+  }));
+
+  const dragOverlayStyle = useAnimatedStyle(() => ({
+    opacity: dragOpacity.value,
+  }));
 
   const handleDelete = () => {
     Alert.alert(
@@ -706,23 +752,27 @@ export default function WorkoutSummaryModal(props: Props) {
 
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent>
-      <View style={styles.overlay}>
-        <TouchableWithoutFeedback onPress={editing ? undefined : onDismiss}>
-          <View style={StyleSheet.absoluteFill} />
-        </TouchableWithoutFeedback>
-        <View style={styles.modal}>
+      <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill}>
+        <Animated.View style={[styles.overlay, dragOverlayStyle]}>
+          <TouchableWithoutFeedback onPress={editing ? undefined : onDismiss}>
+            <View style={StyleSheet.absoluteFill} />
+          </TouchableWithoutFeedback>
+        <GestureDetector gesture={panGesture}>
+        <Animated.View style={[styles.modal, dragCardStyle, { maxHeight: SCREEN_HEIGHT - insets.top - sw(50) }]}>
           {!editing && <Confetti />}
 
+          {/* Drag handle */}
           {!editing && (
-            <TouchableOpacity style={styles.closeBtn} onPress={onDismiss} activeOpacity={0.6}>
-              <Ionicons name="close" size={ms(18)} color={colors.textTertiary} />
-            </TouchableOpacity>
+            <View style={styles.dragHandle} />
           )}
 
           <ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
+            onScroll={(e) => setScrollAtTop(e.nativeEvent.contentOffset.y <= 0)}
+            scrollEventThrottle={16}
           >
             {editing ? (
               <View style={styles.header}>
@@ -766,7 +816,7 @@ export default function WorkoutSummaryModal(props: Props) {
           </ScrollView>
 
           {editing ? editFooter : (
-            <View style={styles.footerRow}>
+            <View style={[styles.footerRow, { paddingBottom: Math.max(insets.bottom, sw(12)) }]}>
               {workoutId && (
                 <TouchableOpacity style={styles.smallIconBtn} onPress={startEditing} activeOpacity={0.7}>
                   <Ionicons name="pencil" size={ms(16)} color={colors.accent} />
@@ -781,8 +831,10 @@ export default function WorkoutSummaryModal(props: Props) {
               </TouchableOpacity>
             </View>
           )}
-        </View>
-      </View>
+        </Animated.View>
+        </GestureDetector>
+        </Animated.View>
+      </BlurView>
       {subModals}
     </Modal>
   );
@@ -819,12 +871,14 @@ function HistoricalPage({
   const ps = useMemo(() => pageStyles(colors), [colors]);
 
   return (
-    <View style={[ps.container, { paddingTop: insets.top }]}>
+    <View style={ps.container}>
+      {/* Drag handle */}
+      <View style={ps.handleRow}>
+        <View style={ps.dragHandle} />
+      </View>
+
       {/* Page header */}
       <View style={ps.pageHeader}>
-        <TouchableOpacity onPress={onDismiss} style={ps.backBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
-        </TouchableOpacity>
         <View style={ps.pageHeaderCenter}>
           <Text style={ps.pageTitle} numberOfLines={1}>
             {editing ? 'Edit Workout' : 'Workout Summary'}
@@ -833,7 +887,6 @@ function HistoricalPage({
             <Text style={ps.pageDate}>{formatWorkoutDate(data.created_at)}</Text>
           )}
         </View>
-        <View style={ps.backBtn} />
       </View>
 
       {/* Scrollable content */}
@@ -894,18 +947,26 @@ function HistoricalPage({
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'flex-end',
   },
   modal: {
     backgroundColor: colors.card,
-    borderRadius: sw(18),
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     padding: sw(16),
-    width: '90%',
-    maxHeight: '82%',
+    width: '100%',
     borderWidth: 1,
+    borderTopWidth: 1,
     borderColor: colors.cardBorder,
+  },
+  dragHandle: {
+    width: sw(36),
+    height: sw(4),
+    borderRadius: sw(2),
+    backgroundColor: colors.textTertiary + '50',
+    alignSelf: 'center',
+    marginBottom: sw(8),
   },
   closeBtn: {
     position: 'absolute',
@@ -958,7 +1019,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(18),
     textAlign: 'center',
     backgroundColor: colors.surface,
-    borderRadius: sw(10),
+    borderRadius: 0,
     paddingVertical: sw(8),
     paddingHorizontal: sw(16),
     alignSelf: 'stretch',
@@ -980,7 +1041,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.accentOrange + '18',
     paddingHorizontal: sw(8),
     paddingVertical: sw(3),
-    borderRadius: sw(10),
+    borderRadius: 0,
     gap: sw(4),
   },
   prBadgeText: {
@@ -994,7 +1055,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: sw(8),
     paddingVertical: sw(3),
-    borderRadius: sw(10),
+    borderRadius: 0,
     gap: sw(4),
   },
   muscleDot: {
@@ -1013,7 +1074,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: sw(12),
+    borderRadius: 0,
     paddingVertical: sw(10),
     marginBottom: sw(14),
   },
@@ -1069,7 +1130,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   exerciseDetail: {
     backgroundColor: colors.surface,
-    borderRadius: sw(10),
+    borderRadius: 0,
     paddingVertical: sw(8),
     paddingHorizontal: sw(10),
     overflow: 'hidden',
@@ -1211,7 +1272,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   deleteBtn: {
     width: sw(44),
     height: sw(44),
-    borderRadius: sw(10),
+    borderRadius: 0,
     backgroundColor: colors.accentRed + '15',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1219,7 +1280,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   editBtn: {
     width: sw(44),
     height: sw(44),
-    borderRadius: sw(10),
+    borderRadius: 0,
     backgroundColor: colors.accent + '15',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1227,7 +1288,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   shareBtn: {
     width: sw(44),
     height: sw(44),
-    borderRadius: sw(10),
+    borderRadius: 0,
     backgroundColor: colors.accentGreen + '15',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1235,7 +1296,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   smallIconBtn: {
     width: sw(40),
     height: sw(40),
-    borderRadius: sw(10),
+    borderRadius: 0,
     backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1247,7 +1308,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     gap: sw(6),
     backgroundColor: colors.accentGreen,
-    borderRadius: sw(10),
+    borderRadius: 0,
     paddingVertical: sw(12),
   },
   shareBtnMainText: {
@@ -1259,7 +1320,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   doneBtn: {
     flex: 1,
     backgroundColor: colors.accent,
-    borderRadius: sw(10),
+    borderRadius: 0,
     paddingVertical: sw(12),
     alignItems: 'center',
   },
@@ -1275,7 +1336,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   cancelEditBtn: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: sw(10),
+    borderRadius: 0,
     paddingVertical: sw(12),
     alignItems: 'center',
   },
@@ -1288,7 +1349,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   saveEditBtn: {
     flex: 1,
     backgroundColor: colors.accentGreen,
-    borderRadius: sw(10),
+    borderRadius: 0,
     paddingVertical: sw(12),
     alignItems: 'center',
   },
@@ -1307,21 +1368,23 @@ const pageStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  pageHeader: {
-    flexDirection: 'row',
+  handleRow: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: sw(16),
-    paddingVertical: sw(12),
+    paddingTop: sw(10),
+    paddingBottom: sw(4),
   },
-  backBtn: {
+  dragHandle: {
     width: sw(36),
-    height: sw(36),
-    justifyContent: 'center',
+    height: sw(4),
+    borderRadius: sw(2),
+    backgroundColor: colors.textTertiary + '50',
+  },
+  pageHeader: {
     alignItems: 'center',
+    paddingHorizontal: sw(16),
+    paddingVertical: sw(8),
   },
   pageHeaderCenter: {
-    flex: 1,
     alignItems: 'center',
     gap: sw(2),
   },

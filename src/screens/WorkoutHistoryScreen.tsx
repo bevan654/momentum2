@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, Modal, Sty
 import { BlurView } from 'expo-blur';
 import { Canvas, Path as SkiaPath, Rect as SkiaRect, Oval as SkiaOval, Skia, BlurMask, RadialGradient, vec } from '@shopify/react-native-skia';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useColors, type ThemeColors } from '../theme/useColors';
@@ -11,6 +12,7 @@ import { Fonts } from '../theme/typography';
 import { sw, ms, SCREEN_WIDTH } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
+import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWeightStore } from '../stores/useWeightStore';
 import { useFoodLogStore } from '../stores/useFoodLogStore';
 import type { WorkoutWithDetails, ExerciseWithSets } from '../stores/useWorkoutStore';
@@ -147,11 +149,255 @@ const RestDayGlow = React.memo(({ width, height, radius }: {
 });
 
 
+/* ─── Muscle group constants ─────────────────────────── */
+
+const SLUG_GROUP: Record<string, string> = {
+  chest: 'chest', 'upper-back': 'back', 'lower-back': 'back', trapezius: 'back',
+  deltoids: 'shoulders', 'rear-deltoids': 'shoulders', biceps: 'biceps', triceps: 'triceps',
+  forearm: 'forearms', abs: 'abs', obliques: 'abs', quadriceps: 'quads',
+  tibialis: 'quads', adductors: 'quads', hamstring: 'hamstrings', gluteal: 'glutes', calves: 'calves',
+};
+
+const PART_GROUPS: Record<string, string[]> = {
+  Chest: ['chest'],
+  Back: ['back'],
+  Shoulders: ['shoulders'],
+  Biceps: ['biceps'],
+  Triceps: ['triceps'],
+  Quads: ['quads'],
+  Hamstrings: ['hamstrings'],
+  Glutes: ['glutes'],
+  Calves: ['calves'],
+};
+
+/* ─── Date filter options ────────────────────────────── */
+
+const DATE_FILTERS = [
+  { label: 'All', days: 0 },
+  { label: '7d', days: 7 },
+  { label: '30d', days: 30 },
+  { label: '90d', days: 90 },
+] as const;
+
+const BODY_FILTERS = ['All', 'Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core'] as const;
+
+const BODY_FILTER_MUSCLES: Record<string, string[]> = {
+  Chest: ['chest'],
+  Back: ['upper-back', 'lower-back', 'trapezius', 'lats'],
+  Shoulders: ['deltoids', 'rear-deltoids', 'anterior deltoid', 'lateral deltoid'],
+  Arms: ['biceps', 'triceps', 'forearm', 'brachialis'],
+  Legs: ['quadriceps', 'hamstring', 'gluteal', 'calves', 'adductors', 'hip flexors'],
+  Core: ['abs', 'obliques'],
+};
+
+/* ─── History Overlay ────────────────────────────────── */
+
+function getRelativeLabel(iso: string): string {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const d = new Date(iso);
+  d.setHours(0, 0, 0, 0);
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 14) return '1w ago';
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  if (diffDays < 60) return '1mo ago';
+  return `${Math.floor(diffDays / 30)}mo ago`;
+}
+
+const HistoryOverlay = React.memo(function HistoryOverlay({
+  workouts, catalogMap, debugPart, colors, styles, onClose, onSelectWorkout,
+}: {
+  workouts: WorkoutWithDetails[];
+  catalogMap: Record<string, any>;
+  debugPart: string | null;
+  colors: ThemeColors;
+  styles: ReturnType<typeof createStyles>;
+  onClose: () => void;
+  onSelectWorkout: (w: WorkoutWithDetails) => void;
+}) {
+  const [dateFilter, setDateFilter] = useState(0); // 0 = all
+  // Map debugPart to BODY_FILTERS entry: Biceps/Triceps → Arms, Quads/Hamstrings/Glutes/Calves → Legs, Abs → Core
+  const initialBody = useMemo(() => {
+    if (!debugPart) return 'All';
+    if (['Biceps', 'Triceps'].includes(debugPart)) return 'Arms';
+    if (['Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(debugPart)) return 'Legs';
+    if (BODY_FILTERS.includes(debugPart as any)) return debugPart;
+    return 'All';
+  }, [debugPart]);
+  const [bodyFilter, setBodyFilter] = useState(initialBody);
+  const [showDateDropdown, setShowDateDropdown] = useState(false);
+  const [showBodyDropdown, setShowBodyDropdown] = useState(false);
+
+  const activeDateLabel = DATE_FILTERS.find((f) => f.days === dateFilter)?.label ?? 'All';
+
+  const filtered = useMemo(() => {
+    const now = Date.now();
+    return workouts.filter((w) => {
+      // Date filter
+      if (dateFilter > 0) {
+        const age = now - new Date(w.created_at).getTime();
+        if (age > dateFilter * 24 * 60 * 60 * 1000) return false;
+      }
+
+      // Body part filter from main screen
+      if (debugPart) {
+        const targetGroups = PART_GROUPS[debugPart];
+        if (targetGroups) {
+          let found = false;
+          for (const ex of w.exercises) {
+            let primary = ex.primary_muscles || [];
+            let secondary = ex.secondary_muscles || [];
+            if (primary.length === 0 && secondary.length === 0) {
+              const cat = catalogMap[ex.name];
+              if (cat) { primary = cat.primary_muscles || []; secondary = cat.secondary_muscles || []; }
+            }
+            for (const raw of [...primary, ...secondary]) {
+              const slug = toSlug(raw);
+              if (slug) {
+                const group = SLUG_GROUP[slug];
+                if (group && targetGroups.includes(group)) { found = true; break; }
+              }
+            }
+            if (found) break;
+          }
+          if (!found) return false;
+        }
+      }
+
+      // Body filter from overlay dropdown
+      if (bodyFilter !== 'All') {
+        const targetSlugs = BODY_FILTER_MUSCLES[bodyFilter] || [];
+        let found = false;
+        for (const ex of w.exercises) {
+          for (const m of ex.primary_muscles) {
+            const slug = toSlug(m);
+            if (slug && targetSlugs.some((t) => slug.includes(t) || t.includes(slug))) {
+              found = true; break;
+            }
+          }
+          if (found) break;
+        }
+        if (!found) return false;
+      }
+
+      return true;
+    });
+  }, [workouts, dateFilter, bodyFilter, debugPart, catalogMap]);
+
+  return (
+    <View style={styles.historyOverlay}>
+      <View style={styles.historyHeader}>
+        <Text style={styles.historyTitle}>{debugPart ? `${debugPart} History` : 'Workout History'}</Text>
+        <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
+          <Ionicons name="close" size={ms(22)} color={colors.textPrimary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Filters */}
+      <View style={styles.dropdownRow}>
+        {/* Date */}
+        <View style={{ position: 'relative', zIndex: showDateDropdown ? 20 : 1, flex: 1 }}>
+          <TouchableOpacity
+            style={[styles.dropdownBtn, dateFilter !== 0 && styles.dropdownBtnActive]}
+            onPress={() => { setShowDateDropdown(!showDateDropdown); setShowBodyDropdown(false); }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="calendar-outline" size={ms(12)} color={dateFilter !== 0 ? colors.accent : colors.textTertiary} />
+            <Text style={[styles.dropdownBtnText, dateFilter !== 0 && styles.dropdownBtnTextActive]}>{activeDateLabel === 'All' ? 'All Time' : activeDateLabel}</Text>
+            <View style={{ flex: 1 }} />
+            <Ionicons name="chevron-down" size={ms(12)} color={dateFilter !== 0 ? colors.accent : colors.textTertiary} />
+          </TouchableOpacity>
+          {showDateDropdown && (
+            <View style={styles.dropdownMenu}>
+              {DATE_FILTERS.map((f) => (
+                <TouchableOpacity
+                  key={f.label}
+                  style={[styles.dropdownItem, dateFilter === f.days && styles.dropdownItemActive]}
+                  onPress={() => { setDateFilter(f.days); setShowDateDropdown(false); }}
+                >
+                  <Text style={[styles.dropdownItemText, dateFilter === f.days && styles.dropdownItemTextActive]}>
+                    {f.label === 'All' ? 'All Time' : `Last ${f.label}`}
+                  </Text>
+                  {dateFilter === f.days && <Ionicons name="checkmark" size={ms(14)} color={colors.accent} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Body Part — only show when not already filtered by debugPart */}
+        {!debugPart && (
+          <View style={{ position: 'relative', zIndex: showBodyDropdown ? 20 : 1, flex: 1 }}>
+            <TouchableOpacity
+              style={[styles.dropdownBtn, bodyFilter !== 'All' && styles.dropdownBtnActive]}
+              onPress={() => { setShowBodyDropdown(!showBodyDropdown); setShowDateDropdown(false); }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="body-outline" size={ms(12)} color={bodyFilter !== 'All' ? colors.accent : colors.textTertiary} />
+              <Text style={[styles.dropdownBtnText, bodyFilter !== 'All' && styles.dropdownBtnTextActive]}>{bodyFilter === 'All' ? 'All Muscles' : bodyFilter}</Text>
+              <View style={{ flex: 1 }} />
+              <Ionicons name="chevron-down" size={ms(12)} color={bodyFilter !== 'All' ? colors.accent : colors.textTertiary} />
+            </TouchableOpacity>
+            {showBodyDropdown && (
+              <View style={styles.dropdownMenu}>
+                {BODY_FILTERS.map((f) => (
+                  <TouchableOpacity
+                    key={f}
+                    style={[styles.dropdownItem, bodyFilter === f && styles.dropdownItemActive]}
+                    onPress={() => { setBodyFilter(f); setShowBodyDropdown(false); }}
+                  >
+                    <Text style={[styles.dropdownItemText, bodyFilter === f && styles.dropdownItemTextActive]}>
+                      {f === 'All' ? 'All Muscles' : f}
+                    </Text>
+                    {bodyFilter === f && <Ionicons name="checkmark" size={ms(14)} color={colors.accent} />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.historyList}>
+        {filtered.length === 0 ? (
+          <Text style={styles.historyEmpty}>No workouts found</Text>
+        ) : (
+          filtered.map((w) => {
+            const d = new Date(w.created_at);
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            const dateStr = `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+            const relLabel = getRelativeLabel(w.created_at);
+            const durationMin = Math.round(w.duration / 60);
+            return (
+              <HistoryRow
+                key={w.id}
+                workout={w}
+                dateStr={dateStr}
+                relativeLabel={relLabel}
+                durationMin={durationMin}
+                styles={styles}
+                colors={colors}
+                onPress={() => onSelectWorkout(w)}
+              />
+            );
+          })
+        )}
+      </ScrollView>
+    </View>
+  );
+});
+
 /* ─── History row with glass glow ────────────────────── */
 
-const HistoryRow = React.memo(({ workout, dateStr, durationMin, styles, colors, onPress }: {
+const HistoryRow = React.memo(({ workout, dateStr, relativeLabel, durationMin, styles, colors, onPress }: {
   workout: WorkoutWithDetails;
   dateStr: string;
+  relativeLabel: string;
   durationMin: number;
   styles: ReturnType<typeof createStyles>;
   colors: ThemeColors;
@@ -164,7 +410,10 @@ const HistoryRow = React.memo(({ workout, dateStr, durationMin, styles, colors, 
   >
     <View style={styles.historyRowContent}>
       <View style={styles.historyRowLeft}>
-        <Text style={styles.historyDate}>{dateStr}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: sw(6) }}>
+          <Text style={styles.historyDate}>{dateStr}</Text>
+          <Text style={styles.historyRelLabel}>{relativeLabel}</Text>
+        </View>
         <Text style={styles.historyMeta}>
           {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
           {'  ·  '}{durationMin} min
@@ -176,6 +425,25 @@ const HistoryRow = React.memo(({ workout, dateStr, durationMin, styles, colors, 
       </View>
       <Ionicons name="chevron-forward" size={ms(14)} color={colors.textTertiary} />
     </View>
+    {(() => {
+      const parts = new Set<string>();
+      for (const ex of workout.exercises) {
+        for (const m of ex.primary_muscles) {
+          parts.add(m);
+        }
+      }
+      const partsList = [...parts];
+      if (partsList.length === 0) return null;
+      return (
+        <View style={styles.muscleChipRow}>
+          {partsList.map((part) => (
+            <View key={part} style={styles.muscleChip}>
+              <Text style={styles.muscleChipText}>{part}</Text>
+            </View>
+          ))}
+        </View>
+      );
+    })()}
   </TouchableOpacity>
 ));
 
@@ -184,6 +452,7 @@ const HistoryRow = React.memo(({ workout, dateStr, durationMin, styles, colors, 
 function WorkoutHistoryScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<WorkoutsStackParamList>>();
   const userId = useAuthStore((s) => s.user?.id);
+  const isWorkoutActive = useActiveWorkoutStore((s) => s.isActive);
   const workouts = useWorkoutStore((s) => s.workouts);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const loading = useWorkoutStore((s) => s.loading);
@@ -193,6 +462,7 @@ function WorkoutHistoryScreen() {
   const bodyweight = useWeightStore((s) => s.current) ?? 70;
   const selectedDate = useFoodLogStore((s) => s.selectedDate);
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const themeMode = useThemeStore((s) => s.mode);
   const analysis = useMuscleAnalysisStore((s) => s.analysis);
   const recompute = useMuscleAnalysisStore((s) => s.recompute);
@@ -200,6 +470,7 @@ function WorkoutHistoryScreen() {
 
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutWithDetails | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [historyBodyLock, setHistoryBodyLock] = useState<string | null>(null);
   const [heroSize, setHeroSize] = useState({ w: 0, h: 0 });
   const [calorieSize, setCalorieSize] = useState({ w: 0, h: 0 });
   const [bodyMapSize, setBodyMapSize] = useState({ w: 0, h: 0 });
@@ -299,13 +570,7 @@ function WorkoutHistoryScreen() {
   const activeMin = dayStats ? Math.round(dayStats.duration / 60) : 0;
   const caloriesBurnt = calorieAnalysis?.caloriesBurnt ?? 0;
 
-  // Slug → muscle group mapping for recovery lookup
-  const SLUG_GROUP: Record<string, string> = {
-    chest: 'chest', 'upper-back': 'back', 'lower-back': 'back', trapezius: 'back',
-    deltoids: 'shoulders', 'rear-deltoids': 'shoulders', biceps: 'biceps', triceps: 'triceps',
-    forearm: 'forearms', abs: 'abs', obliques: 'abs', quadriceps: 'quads',
-    tibialis: 'quads', adductors: 'quads', hamstring: 'hamstrings', gluteal: 'glutes', calves: 'calves',
-  };
+  // (SLUG_GROUP and PART_GROUPS moved to module scope)
 
   // Recovery % → intensity: 3 colours only (red / orange / green)
   const recoveryToIntensity = (pct: number) => {
@@ -318,17 +583,7 @@ function WorkoutHistoryScreen() {
   // intensity 1 → [0] bg, 2 → [1] red, 3 → [2] orange, 4 → [3] green
   const RECOVERY_COLORS = ['#1A1A1E', '#EF4444', '#F97316', '#34D399'];
 
-  const PART_GROUPS: Record<string, string[]> = {
-    Chest: ['chest'],
-    Back: ['back'],
-    Shoulders: ['shoulders'],
-    Biceps: ['biceps'],
-    Triceps: ['triceps'],
-    Quads: ['quads'],
-    Hamstrings: ['hamstrings'],
-    Glutes: ['glutes'],
-    Calves: ['calves'],
-  };
+  // (PART_GROUPS moved to module scope)
 
   // Selected body part filter
   const [debugPart, setDebugPart] = useState<string | null>(null);
@@ -533,7 +788,7 @@ function WorkoutHistoryScreen() {
   }, [workouts, catalogMap, calendarGrid.startKey, todayStr]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isWorkoutActive && { opacity: 0 }]}>
       <View
         style={styles.scrollContent}
       >
@@ -567,7 +822,7 @@ function WorkoutHistoryScreen() {
             );
           })}
         </View>
-        <TouchableOpacity style={styles.bodyMapSection} activeOpacity={0.7} onPress={() => setShowHistory(true)}>
+        <TouchableOpacity style={styles.bodyMapSection} activeOpacity={0.7} onPress={() => { setHistoryBodyLock(debugPart); setShowHistory(true); }}>
           <View
             style={styles.bodyMapFigure}
             onLayout={(e) => {
@@ -653,7 +908,7 @@ function WorkoutHistoryScreen() {
         </TouchableOpacity>
 
         {/* ── Training Calendar (last 56 days) ── */}
-        <TouchableOpacity style={styles.calendarSection} activeOpacity={0.7} onPress={() => setShowHistory(true)}>
+        <TouchableOpacity style={styles.calendarSection} activeOpacity={0.7} onPress={() => { setHistoryBodyLock(debugPart); setShowHistory(true); }}>
           <View style={[styles.calendarHeatmap, { gap: calendarGrid.gap }]}>
             {calendarGrid.rows.map((row, ri) => (
               <View key={ri} style={[styles.calendarRow, { gap: calendarGrid.gap }]}>
@@ -690,81 +945,46 @@ function WorkoutHistoryScreen() {
 
       </View>
 
-      {/* ── Start Workout Button (fixed above footer) ── */}
+      {/* ── Bottom buttons ── */}
       <View style={styles.startWorkoutBar}>
-        <TouchableOpacity
-          style={[styles.startWorkoutOuter, { width: calendarGrid.dotSize * COLS_PER_ROW + calendarGrid.gap * (COLS_PER_ROW - 1), alignSelf: 'center' }]}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('StartWorkout')}
-        >
-          <View style={styles.startWorkoutLeft}>
-            <Text style={styles.startWorkoutText}>Start Workout</Text>
-          </View>
-          <View style={styles.startWorkoutRight}>
-            <Ionicons name="arrow-forward" size={ms(18)} color={colors.textOnAccent} />
-          </View>
-        </TouchableOpacity>
+        <View style={[styles.bottomRow, { width: calendarGrid.dotSize * COLS_PER_ROW + calendarGrid.gap * (COLS_PER_ROW - 1), alignSelf: 'center' }]}>
+          <TouchableOpacity
+            style={styles.historyBtn}
+            activeOpacity={0.7}
+            onPress={() => { setHistoryBodyLock(null); setShowHistory(true); }}
+          >
+            <Ionicons name="time-outline" size={ms(18)} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.startWorkoutOuter, { flex: 1 }]}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('StartWorkout')}
+          >
+            <View style={styles.startWorkoutLeft}>
+              <Text style={styles.startWorkoutText}>Start Workout</Text>
+            </View>
+            <View style={styles.startWorkoutRight}>
+              <Ionicons name="arrow-forward" size={ms(18)} color={colors.textOnAccent} />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* ── History Modal ──────────────────────── */}
-      <Modal visible={showHistory} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.historyModal}>
-          <View style={styles.historyHeader}>
-            <Text style={styles.historyTitle}>{debugPart ? `${debugPart} History` : 'Workout History'}</Text>
-            <TouchableOpacity onPress={() => setShowHistory(false)} activeOpacity={0.7}>
-              <Ionicons name="close" size={ms(22)} color={colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.historyList}>
-            {workouts.length === 0 ? (
-              <Text style={styles.historyEmpty}>No workouts yet</Text>
-            ) : (
-              workouts.filter((w) => {
-                if (!debugPart) return true;
-                const targetGroups = PART_GROUPS[debugPart];
-                if (!targetGroups) return true;
-                for (const ex of w.exercises) {
-                  let primary = ex.primary_muscles || [];
-                  let secondary = ex.secondary_muscles || [];
-                  if (primary.length === 0 && secondary.length === 0) {
-                    const cat = catalogMap[ex.name];
-                    if (cat) { primary = cat.primary_muscles || []; secondary = cat.secondary_muscles || []; }
-                  }
-                  for (const raw of [...primary, ...secondary]) {
-                    const slug = toSlug(raw);
-                    if (slug) {
-                      const group = SLUG_GROUP[slug];
-                      if (group && targetGroups.includes(group)) return true;
-                    }
-                  }
-                }
-                return false;
-              }).map((w) => {
-                const d = new Date(w.created_at);
-                const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-                const dateStr = `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
-                const durationMin = Math.round(w.duration / 60);
-                return (
-                  <HistoryRow
-                    key={w.id}
-                    workout={w}
-                    dateStr={dateStr}
-                    durationMin={durationMin}
-                    styles={styles}
-                    colors={colors}
-                    onPress={() => {
-                      setShowHistory(false);
-                      setTimeout(() => setSelectedWorkout(w), 300);
-                    }}
-                  />
-                );
-              })
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
+      {/* ── History Overlay ──────────────────────── */}
+      {showHistory && (
+        <HistoryOverlay
+          workouts={workouts}
+          catalogMap={catalogMap}
+          debugPart={historyBodyLock}
+          colors={colors}
+          styles={styles}
+          onClose={() => setShowHistory(false)}
+          onSelectWorkout={(w) => {
+            setShowHistory(false);
+            setTimeout(() => setSelectedWorkout(w), 300);
+          }}
+        />
+      )}
 
       {selectedWorkout && (
         <WorkoutSummaryModal
@@ -1138,9 +1358,10 @@ const createStyles = (colors: ThemeColors, mode: string) => {
     },
 
     /* ── History Modal ──────────────────────────────────── */
-    historyModal: {
-      flex: 1,
+    historyOverlay: {
+      ...StyleSheet.absoluteFillObject,
       backgroundColor: colors.background,
+      zIndex: 10,
     },
     historyHeader: {
       flexDirection: 'row',
@@ -1148,15 +1369,79 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       justifyContent: 'space-between',
       paddingHorizontal: sw(20),
       paddingTop: sw(20),
-      paddingBottom: sw(12),
-      borderBottomWidth: 1,
-      borderBottomColor: colors.cardBorder,
+      paddingBottom: sw(8),
     },
     historyTitle: {
       color: colors.textPrimary,
       fontSize: ms(20),
       lineHeight: ms(25),
       fontFamily: Fonts.bold,
+    },
+    dropdownRow: {
+      flexDirection: 'row',
+      paddingHorizontal: sw(16),
+      paddingBottom: sw(6),
+      gap: sw(8),
+      zIndex: 10,
+    },
+    dropdownBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(5),
+      paddingHorizontal: sw(10),
+      paddingVertical: sw(7),
+      borderRadius: sw(10),
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: 'transparent',
+    },
+    dropdownBtnActive: {
+      backgroundColor: colors.accent + '12',
+      borderColor: colors.accent + '25',
+    },
+    dropdownBtnText: {
+      fontSize: ms(11),
+      fontFamily: Fonts.medium,
+      color: colors.textSecondary,
+    },
+    dropdownBtnTextActive: {
+      color: colors.accent,
+      fontFamily: Fonts.semiBold,
+    },
+    dropdownMenu: {
+      position: 'absolute',
+      top: sw(36),
+      left: 0,
+      right: 0,
+      backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+      borderRadius: sw(12),
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingVertical: sw(4),
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.3,
+      shadowRadius: 16,
+      elevation: 10,
+    },
+    dropdownItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: sw(14),
+      paddingVertical: sw(10),
+    },
+    dropdownItemActive: {
+      backgroundColor: colors.accent + '10',
+    },
+    dropdownItemText: {
+      fontSize: ms(12),
+      fontFamily: Fonts.medium,
+      color: colors.textPrimary,
+    },
+    dropdownItemTextActive: {
+      color: colors.accent,
+      fontFamily: Fonts.semiBold,
     },
     historyList: {
       padding: sw(16),
@@ -1173,6 +1458,27 @@ const createStyles = (colors: ThemeColors, mode: string) => {
     historyRowCard: {
       marginBottom: sw(8),
     },
+    muscleChipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: sw(14),
+      paddingBottom: sw(8),
+      marginTop: -sw(6),
+      gap: sw(4),
+    },
+    muscleChip: {
+      backgroundColor: colors.accent + '15',
+      paddingHorizontal: sw(8),
+      paddingVertical: sw(2),
+      borderRadius: sw(4),
+    },
+    muscleChipText: {
+      color: colors.accent,
+      fontSize: ms(9),
+      fontFamily: Fonts.semiBold,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
     historyRowContent: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1187,6 +1493,20 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       fontSize: ms(14),
       lineHeight: ms(20),
       fontFamily: Fonts.semiBold,
+    },
+    historyRelLabel: {
+      color: colors.accent,
+      fontSize: ms(9),
+      lineHeight: ms(13),
+      fontFamily: Fonts.semiBold,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+      borderWidth: 1,
+      borderColor: colors.accent + '30',
+      borderRadius: sw(4),
+      paddingHorizontal: sw(5),
+      paddingVertical: sw(1),
+      overflow: 'hidden',
     },
     historyMeta: {
       color: glassTextSub,
@@ -1258,10 +1578,25 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       paddingBottom: sw(16),
       backgroundColor: colors.background,
     },
+    bottomRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(8),
+    },
+    historyBtn: {
+      width: sw(48),
+      height: sw(48),
+      borderRadius: sw(12),
+      backgroundColor: colors.surface,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
     startWorkoutOuter: {
       flexDirection: 'row',
       borderRadius: sw(12),
       overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
     },
     startWorkoutLeft: {
       flex: 1,

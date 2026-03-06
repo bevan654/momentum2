@@ -25,7 +25,11 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number = SUPABASE_TIMEOUT):
 
 // ── Types ──────────────────────────────────────────────
 
+let _setIdCounter = 0;
+export function generateSetId() { return `set-${++_setIdCounter}`; }
+
 export interface ActiveSet {
+  id: string;
   kg: string;
   reps: string;
   completed: boolean;
@@ -61,13 +65,17 @@ export interface WorkoutSummary {
 
 // ── Constants ──────────────────────────────────────────
 
-const EMPTY_SET: ActiveSet = {
-  kg: '',
-  reps: '',
-  completed: false,
-  set_type: 'working',
-  parent_set_number: null,
-};
+function createSet(overrides?: Partial<ActiveSet>): ActiveSet {
+  return {
+    id: generateSetId(),
+    kg: '',
+    reps: '',
+    completed: false,
+    set_type: 'working',
+    parent_set_number: null,
+    ...overrides,
+  };
+}
 
 const EXERCISE_TYPE_CYCLE: Record<string, string> = {
   weighted: 'bodyweight',
@@ -112,6 +120,7 @@ interface ActiveWorkoutState {
   summaryData: WorkoutSummary | null;
 
   startedFromRoutine: string | null;
+  skipSheetAnimation: boolean;
 
   // Stubs: HealthKit
   heartRate: number | null;
@@ -209,6 +218,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   summaryData: null,
 
   startedFromRoutine: null,
+  skipSheetAnimation: false,
   heartRate: null,
   activeCalories: null,
 
@@ -227,6 +237,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       exercises: [],
       restDuration: _preferredRestDuration,
       startedFromRoutine: null,
+      skipSheetAnimation: false,
       isResting: false,
       restRemaining: 0,
       restStartedAt: null,
@@ -247,7 +258,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
     const exercises: ActiveExercise[] = routine.exercises.map((ex) => {
       const catalog = catalogMap[ex.name];
-      const sets: ActiveSet[] = Array.from({ length: Math.max(ex.default_sets, 1) }, () => ({ ...EMPTY_SET }));
+      const sets: ActiveSet[] = Array.from({ length: Math.max(ex.default_sets, 1) }, () => (createSet()));
       return {
         name: ex.name,
         exercise_type: (ex.exercise_type || catalog?.exercise_type || 'weighted') as ActiveExercise['exercise_type'],
@@ -268,6 +279,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       exercises,
       restDuration: _preferredRestDuration,
       startedFromRoutine: routine.id,
+      skipSheetAnimation: true,
       isResting: false,
       restRemaining: 0,
       restStartedAt: null,
@@ -569,6 +581,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     const exercises = saved.exercises.map((ex) => ({
       ...ex,
       category: ex.category || catalogMap[ex.name]?.category || null,
+      sets: ex.sets.map((s: any) => ({ ...s, id: s.id || generateSetId() })),
     }));
 
     // Recover rest timer if it was active and hasn't expired
@@ -626,7 +639,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
           name,
           exercise_type: exerciseType as ActiveExercise['exercise_type'],
           category,
-          sets: [{ ...EMPTY_SET }],
+          sets: [createSet()],
           prevSets,
           supersetWith: null,
         },
@@ -710,7 +723,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
-      ex.sets = [...ex.sets, { ...EMPTY_SET }];
+      ex.sets = [...ex.sets, createSet()];
       exercises[exerciseIndex] = ex;
       return { exercises };
     });
@@ -747,6 +760,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     const ex = { ...exercises[exerciseIndex] };
     const sets = [...ex.sets];
     const wasCompleted = sets[setIndex].completed;
+
+    // Prevent completing a set with 0 or empty reps
+    if (!wasCompleted) {
+      const reps = parseInt(sets[setIndex].reps, 10);
+      if (!reps || reps <= 0) return;
+    }
+
     sets[setIndex] = { ...sets[setIndex], completed: !wasCompleted };
     ex.sets = sets;
     exercises[exerciseIndex] = ex;

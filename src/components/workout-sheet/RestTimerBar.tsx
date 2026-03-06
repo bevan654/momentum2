@@ -36,7 +36,7 @@ function RestTimerBar() {
   return (
     <View style={styles.container}>
       <View style={styles.labelRow}>
-        <Text style={styles.label}>Rest</Text>
+        <Text style={styles.label}>Rest Timer</Text>
         <Text style={styles.time}>{formatTime(remaining)}</Text>
       </View>
       <View style={styles.track}>
@@ -54,10 +54,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     paddingHorizontal: sw(16),
     paddingVertical: sw(8),
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.cardBorder,
   },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: sw(6),
   },
   label: {
@@ -65,16 +69,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(12),
     fontFamily: Fonts.semiBold,
     lineHeight: ms(16),
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   time: {
     color: colors.textPrimary,
-    fontSize: ms(12),
+    fontSize: ms(14),
     fontFamily: Fonts.bold,
-    lineHeight: ms(16),
+    lineHeight: ms(18),
+    fontVariant: ['tabular-nums'],
   },
   track: {
     height: sw(4),
-    backgroundColor: colors.surface,
+    backgroundColor: colors.cardBorder,
     borderRadius: sw(2),
     overflow: 'hidden',
   },

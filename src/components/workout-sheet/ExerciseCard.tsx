@@ -15,7 +15,7 @@ import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore, type WorkoutWithDetails } from '../../stores/useWorkoutStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 import type { ActiveExercise } from '../../stores/useActiveWorkoutStore';
-import { Canvas, Path, Skia, LinearGradient, vec, Circle as SkiaCircle, Line as SkiaLine, SkPath } from '@shopify/react-native-skia';
+import { Canvas, Path, Skia, LinearGradient, vec, Circle as SkiaCircle, Line as SkiaLine, DashPathEffect, SkPath } from '@shopify/react-native-skia';
 import Body, { type ExtendedBodyPart } from '../BodyHighlighter';
 import { toSlug, ALL_SLUGS } from '../../utils/muscleVolume';
 import SetRow from './SetRow';
@@ -77,6 +77,8 @@ interface HistorySession {
 }
 
 function ExerciseHistoryGraph({ history, colors }: { history: HistorySession[]; colors: ThemeColors }) {
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+
   const data = useMemo(() => {
     // Reverse so oldest first (left → right)
     const reversed = [...history].reverse();
@@ -89,18 +91,24 @@ function ExerciseHistoryGraph({ history, colors }: { history: HistorySession[]; 
     });
   }, [history]);
 
-  const maxVol = Math.max(...data.map((d) => d.vol), 1);
-  const maxWeight = Math.max(...data.map((d) => d.maxKg), 1);
   const chartW = sw(340);
   const drawW = chartW - GRAPH_PAD_X * 2;
   const drawH = GRAPH_H - GRAPH_PAD_TOP - GRAPH_PAD_BOTTOM;
 
-  const buildCurve = useCallback((values: number[], maxVal: number) => {
-    if (data.length < 2) return { linePath: null, fillPath: null, points: [] as { x: number; y: number }[] };
+  const buildCurve = useCallback((values: number[]) => {
+    const rawMin = Math.min(...values);
+    const rawMax = Math.max(...values);
+
+    if (data.length < 2) return { linePath: null, fillPath: null, points: [] as { x: number; y: number }[], rawMin, rawMax };
+
+    const range = rawMax - rawMin;
+    const minVal = range > 0 ? rawMin - range * 0.15 : rawMax * 0.8;
+    const maxVal = range > 0 ? rawMax + range * 0.15 : rawMax * 1.2;
+    const span = maxVal - minVal || 1;
 
     const pts = values.map((v, i) => ({
       x: GRAPH_PAD_X + (i / (data.length - 1)) * drawW,
-      y: GRAPH_PAD_TOP + drawH - (v / maxVal) * drawH,
+      y: GRAPH_PAD_TOP + drawH - ((v - minVal) / span) * drawH,
     }));
 
     const lp = Skia.Path.Make();
@@ -118,11 +126,11 @@ function ExerciseHistoryGraph({ history, colors }: { history: HistorySession[]; 
     fp.lineTo(pts[0].x, GRAPH_PAD_TOP + drawH);
     fp.close();
 
-    return { linePath: lp, fillPath: fp, points: pts };
+    return { linePath: lp, fillPath: fp, points: pts, rawMin, rawMax };
   }, [data.length, drawW, drawH]);
 
-  const volCurve = useMemo(() => buildCurve(data.map((d) => d.vol), maxVol), [data, maxVol, buildCurve]);
-  const kgCurve = useMemo(() => buildCurve(data.map((d) => d.maxKg), maxWeight), [data, maxWeight, buildCurve]);
+  const volCurve = useMemo(() => buildCurve(data.map((d) => d.vol)), [data, buildCurve]);
+  const kgCurve = useMemo(() => buildCurve(data.map((d) => d.maxKg)), [data, buildCurve]);
 
   const KG_COLOR = '#F59E0B';
 
@@ -136,34 +144,12 @@ function ExerciseHistoryGraph({ history, colors }: { history: HistorySession[]; 
     );
   }
 
-  // Single session — show summary instead of graph
-  if (data.length === 1) {
-    const d = data[0];
-    return (
-      <View style={{ paddingVertical: sw(12), gap: sw(6) }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: colors.textSecondary }}>
-            {history[0].date ? new Date(history[0].date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
-          </Text>
-          <Text style={{ fontSize: ms(10), fontFamily: Fonts.medium, color: colors.textTertiary }}>
-            {d.sets} sets · {d.vol.toLocaleString()} kg
-          </Text>
-        </View>
-        {history[0].sets.map((s, i) => (
-          <Text key={i} style={{ fontSize: ms(10), fontFamily: Fonts.medium, color: colors.textPrimary, paddingLeft: sw(6) }}>
-            S{i + 1}  {s.kg}kg × {s.reps}
-          </Text>
-        ))}
-      </View>
-    );
-  }
-
   const latest = data[data.length - 1];
-  const prev = data[data.length - 2];
-  const volDiff = latest.vol - prev.vol;
-  const volPct = prev.vol > 0 ? Math.round((volDiff / prev.vol) * 100) : 0;
-  const kgDiff = latest.maxKg - prev.maxKg;
-  const kgPctDiff = prev.maxKg > 0 ? Math.round((kgDiff / prev.maxKg) * 100) : 0;
+  const prev = data.length >= 2 ? data[data.length - 2] : null;
+  const volDiff = prev ? latest.vol - prev.vol : 0;
+  const volPct = prev && prev.vol > 0 ? Math.round((volDiff / prev.vol) * 100) : 0;
+  const kgDiff = prev ? latest.maxKg - prev.maxKg : 0;
+  const kgPctDiff = prev && prev.maxKg > 0 ? Math.round((kgDiff / prev.maxKg) * 100) : 0;
 
   return (
     <View style={{ marginTop: sw(6) }}>
@@ -179,98 +165,164 @@ function ExerciseHistoryGraph({ history, colors }: { history: HistorySession[]; 
             <Text style={{ fontSize: ms(9), fontFamily: Fonts.medium, color: colors.textTertiary }}>Top Weight</Text>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: sw(8) }}>
-          <Text style={{ fontSize: ms(9), fontFamily: Fonts.bold, color: volDiff >= 0 ? '#34C759' : colors.accentRed }}>
-            {volDiff >= 0 ? '+' : ''}{volPct}%
-          </Text>
-          <Text style={{ fontSize: ms(9), fontFamily: Fonts.bold, color: kgDiff >= 0 ? '#34C759' : colors.accentRed }}>
-            {kgDiff >= 0 ? '+' : ''}{kgPctDiff}%
-          </Text>
-        </View>
+        {prev ? (
+          <View style={{ flexDirection: 'row', gap: sw(8) }}>
+            <Text style={{ fontSize: ms(9), fontFamily: Fonts.bold, color: volDiff >= 0 ? '#34C759' : colors.accentRed }}>
+              {volDiff >= 0 ? '+' : ''}{volPct}%
+            </Text>
+            <Text style={{ fontSize: ms(9), fontFamily: Fonts.bold, color: kgDiff >= 0 ? '#34C759' : colors.accentRed }}>
+              {kgDiff >= 0 ? '+' : ''}{kgPctDiff}%
+            </Text>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', gap: sw(8) }}>
+            <Text style={{ fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.accent }}>{latest.vol.toLocaleString()} kg</Text>
+            <Text style={{ fontSize: ms(9), fontFamily: Fonts.semiBold, color: KG_COLOR }}>{latest.maxKg} kg</Text>
+          </View>
+        )}
       </View>
 
-      {/* Skia graph */}
-      <Canvas style={{ width: chartW, height: GRAPH_H }}>
-        {/* Grid lines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((pct) => (
-          <SkiaLine
-            key={pct}
-            p1={vec(GRAPH_PAD_X, GRAPH_PAD_TOP + drawH * (1 - pct))}
-            p2={vec(GRAPH_PAD_X + drawW, GRAPH_PAD_TOP + drawH * (1 - pct))}
-            color={colors.cardBorder}
-            strokeWidth={StyleSheet.hairlineWidth}
-          />
-        ))}
+      {/* Skia graph with Y-axis labels */}
+      <View style={{ position: 'relative' }}>
+        {/* Left Y-axis: Volume */}
+        <Text style={{ position: 'absolute', left: 0, top: GRAPH_PAD_TOP - sw(4), fontSize: ms(7), fontFamily: Fonts.medium, color: colors.accent + '80' }}>
+          {volCurve.rawMax >= 1000 ? `${(volCurve.rawMax / 1000).toFixed(1)}k` : volCurve.rawMax}
+        </Text>
+        <Text style={{ position: 'absolute', left: 0, top: GRAPH_PAD_TOP + drawH - sw(4), fontSize: ms(7), fontFamily: Fonts.medium, color: colors.accent + '80' }}>
+          {volCurve.rawMin >= 1000 ? `${(volCurve.rawMin / 1000).toFixed(1)}k` : volCurve.rawMin}
+        </Text>
+        {/* Right Y-axis: Weight */}
+        <Text style={{ position: 'absolute', right: 0, top: GRAPH_PAD_TOP - sw(4), fontSize: ms(7), fontFamily: Fonts.medium, color: KG_COLOR + '80', textAlign: 'right' }}>
+          {kgCurve.rawMax}
+        </Text>
+        <Text style={{ position: 'absolute', right: 0, top: GRAPH_PAD_TOP + drawH - sw(4), fontSize: ms(7), fontFamily: Fonts.medium, color: KG_COLOR + '80', textAlign: 'right' }}>
+          {kgCurve.rawMin}
+        </Text>
 
-        {/* Volume fill gradient */}
-        {volCurve.fillPath && (
-          <Path path={volCurve.fillPath}>
-            <LinearGradient
-              start={vec(0, GRAPH_PAD_TOP)}
-              end={vec(0, GRAPH_PAD_TOP + drawH)}
-              colors={[colors.accent + '25', colors.accent + '03']}
+        <Canvas style={{ width: chartW, height: GRAPH_H }}>
+          {/* Grid lines */}
+          {[0, 0.5, 1].map((pct) => (
+            <SkiaLine
+              key={pct}
+              p1={vec(GRAPH_PAD_X, GRAPH_PAD_TOP + drawH * (1 - pct))}
+              p2={vec(GRAPH_PAD_X + drawW, GRAPH_PAD_TOP + drawH * (1 - pct))}
+              color={colors.cardBorder}
+              strokeWidth={StyleSheet.hairlineWidth}
             />
-          </Path>
-        )}
+          ))}
 
-        {/* Volume line */}
-        {volCurve.linePath && (
-          <Path
-            path={volCurve.linePath}
-            style="stroke"
-            strokeWidth={sw(2)}
-            color={colors.accent}
-            strokeCap="round"
-            strokeJoin="round"
-          />
-        )}
+          {/* Volume fill gradient */}
+          {volCurve.fillPath && (
+            <Path path={volCurve.fillPath}>
+              <LinearGradient
+                start={vec(0, GRAPH_PAD_TOP)}
+                end={vec(0, GRAPH_PAD_TOP + drawH)}
+                colors={[colors.accent + '25', colors.accent + '03']}
+              />
+            </Path>
+          )}
 
-        {/* Volume dots */}
-        {volCurve.points.map((pt, i) => (
-          <SkiaCircle key={`v${i}`} cx={pt.x} cy={pt.y} r={sw(3)} color={colors.accent} />
-        ))}
+          {/* Volume line */}
+          {volCurve.linePath && (
+            <Path
+              path={volCurve.linePath}
+              style="stroke"
+              strokeWidth={sw(1)}
+              color={colors.accent}
+              strokeCap="round"
+              strokeJoin="round"
+            />
+          )}
 
-        {/* Weight line */}
-        {kgCurve.linePath && (
-          <Path
-            path={kgCurve.linePath}
-            style="stroke"
-            strokeWidth={sw(1.5)}
-            color={KG_COLOR}
-            strokeCap="round"
-            strokeJoin="round"
-          />
-        )}
+          {/* Volume dots */}
+          {volCurve.points.map((pt, i) => (
+            <SkiaCircle key={`v${i}`} cx={pt.x} cy={pt.y} r={sw(3)} color={colors.accent} />
+          ))}
 
-        {/* Weight dots */}
-        {kgCurve.points.map((pt, i) => (
-          <SkiaCircle key={`k${i}`} cx={pt.x} cy={pt.y} r={sw(2.5)} color={KG_COLOR} />
-        ))}
-      </Canvas>
+          {/* Weight line */}
+          {kgCurve.linePath && (
+            <Path
+              path={kgCurve.linePath}
+              style="stroke"
+              strokeWidth={sw(1)}
+              color={KG_COLOR}
+              strokeCap="round"
+              strokeJoin="round"
+            />
+          )}
 
-      {/* X-axis labels */}
-      <View style={{ position: 'relative', height: sw(14), marginTop: -GRAPH_PAD_BOTTOM + sw(4) }}>
-        {data.map((d, i) => {
-          const x = GRAPH_PAD_X + (data.length > 1 ? (i / (data.length - 1)) * drawW : drawW / 2);
+          {/* Weight dots */}
+          {kgCurve.points.map((pt, i) => (
+            <SkiaCircle key={`k${i}`} cx={pt.x} cy={pt.y} r={sw(3)} color={KG_COLOR} />
+          ))}
+
+          {/* Selected indicator line */}
+          {selectedIdx !== null && volCurve.points[selectedIdx] && (
+            <SkiaLine
+              p1={vec(volCurve.points[selectedIdx].x, GRAPH_PAD_TOP)}
+              p2={vec(volCurve.points[selectedIdx].x, GRAPH_PAD_TOP + drawH)}
+              color="#FFFFFF"
+              strokeWidth={1}
+            >
+              <DashPathEffect intervals={[sw(4), sw(3)]} />
+            </SkiaLine>
+          )}
+
+          {/* Highlighted dots for selected point */}
+          {selectedIdx !== null && volCurve.points[selectedIdx] && (
+            <>
+              <SkiaCircle cx={volCurve.points[selectedIdx].x} cy={volCurve.points[selectedIdx].y} r={sw(5)} color={colors.accent + '30'} />
+              <SkiaCircle cx={volCurve.points[selectedIdx].x} cy={volCurve.points[selectedIdx].y} r={sw(3.5)} color={colors.accent} />
+            </>
+          )}
+          {selectedIdx !== null && kgCurve.points[selectedIdx] && (
+            <>
+              <SkiaCircle cx={kgCurve.points[selectedIdx].x} cy={kgCurve.points[selectedIdx].y} r={sw(4.5)} color={KG_COLOR + '30'} />
+              <SkiaCircle cx={kgCurve.points[selectedIdx].x} cy={kgCurve.points[selectedIdx].y} r={sw(3)} color={KG_COLOR} />
+            </>
+          )}
+        </Canvas>
+
+        {/* Touch targets */}
+        {data.length >= 2 && data.map((_, i) => {
+          const x = GRAPH_PAD_X + (i / (data.length - 1)) * drawW;
+          const sliceW = data.length > 1 ? drawW / (data.length - 1) : drawW;
           return (
-            <Text
-              key={i}
+            <Pressable
+              key={`hit${i}`}
+              onPress={() => setSelectedIdx(selectedIdx === i ? null : i)}
               style={{
                 position: 'absolute',
-                left: x,
-                transform: [{ translateX: -sw(18) }],
-                width: sw(36),
-                fontSize: ms(8),
-                fontFamily: Fonts.medium,
-                color: colors.textTertiary,
-                textAlign: 'center',
+                left: x - sliceW / 2,
+                top: 0,
+                width: sliceW,
+                height: GRAPH_H,
               }}
-            >
-              {d.label}
-            </Text>
+            />
           );
         })}
       </View>
+
+
+      {/* Selected details */}
+      {selectedIdx !== null && data[selectedIdx] && (
+        <View style={{
+          flexDirection: 'row',
+          justifyContent: 'center',
+          gap: sw(12),
+          paddingTop: sw(6),
+        }}>
+          <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: colors.textSecondary }}>
+            {data[selectedIdx].label}
+          </Text>
+          <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: colors.accent }}>
+            Vol: {data[selectedIdx].vol.toLocaleString()} kg
+          </Text>
+          <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: KG_COLOR }}>
+            Top: {data[selectedIdx].maxKg} kg
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -317,22 +369,27 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
       if (canon.toLowerCase() === canonical) matchNames.add(alias.toLowerCase());
     }
 
-    const sessions: { date: string; sets: { kg: number; reps: number; set_type: string | null }[] }[] = [];
+    // Group all sets by date (merge multiple workouts on the same day)
+    const sessionMap = new Map<string, { date: string; sets: { kg: number; reps: number; set_type: string | null }[] }>();
     for (const w of workouts) {
       for (const ex of w.exercises) {
         if (matchNames.has(ex.name.toLowerCase())) {
-          // Only include completed sets
           const completedSets = ex.sets.filter((s) => s.completed);
           if (completedSets.length > 0) {
-            sessions.push({
-              date: w.created_at,
-              sets: completedSets.map((s) => ({ kg: s.kg, reps: s.reps, set_type: s.set_type })),
-            });
+            const d = new Date(w.created_at);
+            const dateKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+            const existing = sessionMap.get(dateKey);
+            const mapped = completedSets.map((s) => ({ kg: s.kg, reps: s.reps, set_type: s.set_type }));
+            if (existing) {
+              existing.sets.push(...mapped);
+            } else {
+              sessionMap.set(dateKey, { date: w.created_at, sets: mapped });
+            }
           }
         }
       }
     }
-    return sessions.slice(0, 10); // last 10 sessions
+    return [...sessionMap.values()].slice(0, 20);
   }, [workouts, exercise.name, aliasMap]);
 
   // Build body highlight data + focus region
@@ -457,8 +514,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
               </TouchableOpacity>
             </View>
           )}
-          {!showHistory && (
-            <View style={styles.reorderBtns}>
+          <View style={styles.reorderBtns}>
               <TouchableOpacity
                 onPress={() => moveExercise(exerciseIndex, 'up')}
                 disabled={exerciseIndex === 0}
@@ -475,8 +531,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
               >
                 <Ionicons name="chevron-down" size={ms(14)} color={isLast ? colors.textTertiary + '30' : colors.textSecondary} />
               </TouchableOpacity>
-            </View>
-          )}
+          </View>
         </View>
 
         {showHistory ? (

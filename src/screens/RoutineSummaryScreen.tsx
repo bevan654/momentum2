@@ -80,7 +80,8 @@ export default function RoutineSummaryScreen() {
   const handleStart = useCallback(() => {
     if (!routine) return;
     startFromRoutine(routine, catalogMap, prevMap);
-    navigation.popToTop();
+    // Wait for sheet animation to finish before popping nav stack
+    setTimeout(() => navigation.popToTop(), 300);
   }, [routine, catalogMap, prevMap, startFromRoutine, navigation]);
 
   const MAP_W = sw(44);

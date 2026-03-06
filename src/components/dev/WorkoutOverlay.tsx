@@ -183,7 +183,7 @@ const createStyles = (colors: ThemeColors, hasImage: boolean) =>
   StyleSheet.create({
     card: {
       width: CARD_WIDTH,
-      borderRadius: sw(20),
+      borderRadius: 0,
       overflow: 'hidden',
       borderWidth: 1,
       borderColor: '#2A2A2E',

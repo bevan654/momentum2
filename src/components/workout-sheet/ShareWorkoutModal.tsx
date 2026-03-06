@@ -1,5 +1,12 @@
-import React, { useMemo, useCallback, useState, useRef } from 'react';
+import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Platform, Alert } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  runOnJS,
+  Easing,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
@@ -18,6 +25,10 @@ interface Props {
   onClose: () => void;
 }
 
+const ANIM_DURATION = 300;
+const EASE_OUT = Easing.out(Easing.cubic);
+const EASE_IN = Easing.in(Easing.cubic);
+
 export default function ShareWorkoutModal({ visible, data, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -27,16 +38,80 @@ export default function ShareWorkoutModal({ visible, data, onClose }: Props) {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [cropUri, setCropUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
 
-  const handlePicked = useCallback((uri: string) => {
-    if (Platform.OS === 'ios') {
-      setCropUri(uri);
-    } else {
-      setImageUri(uri);
-    }
+  /* ─── Picker animation (Reanimated, no Modal) ─── */
+  const [pickerMounted, setPickerMounted] = useState(false);
+  const backdropOpacity = useSharedValue(0);
+  const sheetTranslateY = useSharedValue(300);
+
+  const showPicker = useCallback(() => {
+    setPickerMounted(true);
+    backdropOpacity.value = withTiming(1, { duration: ANIM_DURATION, easing: EASE_OUT });
+    sheetTranslateY.value = withTiming(0, { duration: ANIM_DURATION, easing: EASE_OUT });
   }, []);
 
-  const pickFromLibrary = useCallback(async () => {
+  const hidePicker = useCallback((onDone?: () => void) => {
+    backdropOpacity.value = withTiming(0, { duration: 220, easing: EASE_IN });
+    sheetTranslateY.value = withTiming(300, { duration: 220, easing: EASE_IN }, () => {
+      runOnJS(setPickerMounted)(false);
+      if (onDone) runOnJS(onDone)();
+    });
+  }, []);
+
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: sheetTranslateY.value }],
+  }));
+
+  /* ─── Close / lifecycle ─── */
+
+  const handleClose = useCallback(() => {
+    setImageUri(null);
+    setCropUri(null);
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!visible) {
+      setCameraReady(false);
+      setPickerMounted(false);
+      backdropOpacity.value = 0;
+      sheetTranslateY.value = 300;
+      return;
+    }
+    // Small delay so the component mounts before animating
+    const t = setTimeout(() => showPicker(), 50);
+    return () => clearTimeout(t);
+  }, [visible]);
+
+  /* ─── Camera / Gallery launchers ─── */
+
+  const launchCamera = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') { setCameraReady(true); return; }
+    const isAndroid = Platform.OS === 'android';
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: isAndroid,
+      ...(isAndroid && { aspect: [9, 16] as [number, number] }),
+      quality: 0.9,
+    });
+    if (!result.canceled && result.assets[0]) {
+      if (Platform.OS === 'ios') {
+        setCropUri(result.assets[0].uri);
+      } else {
+        setImageUri(result.assets[0].uri);
+        setCameraReady(true);
+      }
+    } else {
+      handleClose();
+    }
+  }, [handleClose]);
+
+  const launchGallery = useCallback(async () => {
     const isAndroid = Platform.OS === 'android';
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -45,32 +120,45 @@ export default function ShareWorkoutModal({ visible, data, onClose }: Props) {
       quality: 0.9,
     });
     if (!result.canceled && result.assets[0]) {
-      handlePicked(result.assets[0].uri);
+      if (Platform.OS === 'ios') {
+        setCropUri(result.assets[0].uri);
+      } else {
+        setImageUri(result.assets[0].uri);
+        setCameraReady(true);
+      }
+    } else {
+      handleClose();
     }
-  }, [handlePicked]);
+  }, [handleClose]);
 
-  const takePhoto = useCallback(async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') return;
-    const isAndroid = Platform.OS === 'android';
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: isAndroid,
-      ...(isAndroid && { aspect: [9, 16] as [number, number] }),
-      quality: 0.9,
-    });
-    if (!result.canceled && result.assets[0]) {
-      handlePicked(result.assets[0].uri);
-    }
-  }, [handlePicked]);
+  /* ─── Picker option handlers ─── */
 
-  const clearImage = useCallback(() => setImageUri(null), []);
+  const onPickCamera = useCallback(() => {
+    hidePicker(launchCamera);
+  }, [hidePicker, launchCamera]);
+
+  const onPickGallery = useCallback(() => {
+    hidePicker(launchGallery);
+  }, [hidePicker, launchGallery]);
+
+  const onPickerBackdropPress = useCallback(() => {
+    hidePicker(handleClose);
+  }, [hidePicker, handleClose]);
+
+  /* ─── Crop handlers ─── */
 
   const handleCropConfirm = useCallback((croppedUri: string) => {
     setCropUri(null);
     setImageUri(croppedUri);
+    setCameraReady(true);
   }, []);
 
-  const handleCropCancel = useCallback(() => setCropUri(null), []);
+  const handleCropCancel = useCallback(() => {
+    setCropUri(null);
+    setCameraReady(true);
+  }, []);
+
+  /* ─── Capture / Share ─── */
 
   const captureCard = useCallback(async (): Promise<string | null> => {
     try {
@@ -80,20 +168,6 @@ export default function ShareWorkoutModal({ visible, data, onClose }: Props) {
       return null;
     }
   }, []);
-
-  const saveToGallery = useCallback(async () => {
-    setSaving(true);
-    try {
-      const uri = await captureCard();
-      if (!uri) { Alert.alert('Error', 'Failed to capture image.'); return; }
-      // Use share sheet — user can tap "Save Image" from there
-      await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png' });
-    } catch {
-      // User cancelled
-    } finally {
-      setSaving(false);
-    }
-  }, [captureCard]);
 
   const shareCard = useCallback(async () => {
     setSaving(true);
@@ -108,81 +182,99 @@ export default function ShareWorkoutModal({ visible, data, onClose }: Props) {
     }
   }, [captureCard]);
 
-  const handleClose = useCallback(() => {
-    setImageUri(null);
-    setCropUri(null);
-    onClose();
-  }, [onClose]);
-
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <View style={styles.container}>
-        <Header />
+    <>
+      {/* Preview modal */}
+      <Modal visible={visible && cameraReady} animationType="slide" presentationStyle="fullScreen">
+        <View style={styles.container}>
+          <Header />
 
-        {/* Card preview */}
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
-            <WorkoutOverlay backgroundUri={imageUri} data={data} />
-          </ViewShot>
-        </ScrollView>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
+              <WorkoutOverlay backgroundUri={imageUri} data={data} />
+            </ViewShot>
+          </ScrollView>
 
-        {/* Bottom actions */}
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, sw(16)) }]}>
-          <View style={styles.footerRow}>
-            <TouchableOpacity style={styles.actionBtn} onPress={pickFromLibrary} activeOpacity={0.7}>
-              <Ionicons name="images-outline" size={ms(16)} color={colors.accent} />
-              <Text style={[styles.actionText, { color: colors.accent }]}>Gallery</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionBtn} onPress={takePhoto} activeOpacity={0.7}>
-              <Ionicons name="camera-outline" size={ms(16)} color={colors.accent} />
-              <Text style={[styles.actionText, { color: colors.accent }]}>Camera</Text>
-            </TouchableOpacity>
-
-            {imageUri && (
-              <TouchableOpacity style={styles.actionBtn} onPress={clearImage} activeOpacity={0.7}>
-                <Ionicons name="close-circle-outline" size={ms(16)} color={colors.accentRed} />
-                <Text style={[styles.actionText, { color: colors.accentRed }]}>Remove</Text>
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, sw(16)) }]}>
+            <View style={styles.footerRow}>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={handleClose}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={ms(18)} color={colors.textSecondary} />
               </TouchableOpacity>
-            )}
-          </View>
 
-          <View style={styles.footerRow}>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={handleClose}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="close" size={ms(18)} color={colors.textSecondary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.saveBtn}
-              onPress={saveToGallery}
-              activeOpacity={0.7}
-              disabled={saving}
-            >
-              <Ionicons name="download-outline" size={ms(18)} color={colors.textOnAccent} />
-              <Text style={styles.saveBtnText}>Save</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.shareBtn}
-              onPress={shareCard}
-              activeOpacity={0.7}
-              disabled={saving}
-            >
-              <Ionicons name="share-outline" size={ms(18)} color={colors.textOnAccent} />
-              <Text style={styles.shareBtnText}>Share</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.shareBtn}
+                onPress={shareCard}
+                activeOpacity={0.7}
+                disabled={saving}
+              >
+                <Ionicons name="share-outline" size={ms(18)} color={colors.textOnAccent} />
+                <Text style={styles.shareBtnText}>Share</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
+      </Modal>
 
+      {/* Source picker — Reanimated overlay, no Modal */}
+      {pickerMounted && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <Animated.View style={[styles.pickerBackdrop, backdropStyle]}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              onPress={onPickerBackdropPress}
+              activeOpacity={1}
+            />
+          </Animated.View>
+
+          <View style={styles.pickerBottom} pointerEvents="box-none">
+            <Animated.View
+              style={[
+                styles.pickerSheet,
+                { paddingBottom: Math.max(insets.bottom, sw(16)) },
+                sheetStyle,
+              ]}
+            >
+              <View style={styles.pickerHandle} />
+              <Text style={styles.pickerTitle}>Share Workout</Text>
+              <Text style={styles.pickerSubtitle}>Add a photo to your workout card</Text>
+
+              <View style={styles.pickerOptions}>
+                <TouchableOpacity
+                  style={styles.pickerOption}
+                  onPress={onPickCamera}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.pickerIconCircle, { backgroundColor: colors.accent + '15' }]}>
+                    <Ionicons name="camera" size={ms(24)} color={colors.accent} />
+                  </View>
+                  <Text style={styles.pickerOptionText}>Camera</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.pickerOption}
+                  onPress={onPickGallery}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.pickerIconCircle, { backgroundColor: colors.accentGreen + '15' }]}>
+                    <Ionicons name="images" size={ms(24)} color={colors.accentGreen} />
+                  </View>
+                  <Text style={styles.pickerOptionText}>Gallery</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
+        </View>
+      )}
+
+      {/* Crop modal */}
       {!!cropUri && (
         <StoryCropModal
           visible={!!cropUri}
@@ -191,7 +283,7 @@ export default function ShareWorkoutModal({ visible, data, onClose }: Props) {
           onCancel={handleCropCancel}
         />
       )}
-    </Modal>
+    </>
   );
 }
 
@@ -217,21 +309,6 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       gap: sw(8),
     },
-    actionBtn: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: sw(6),
-      backgroundColor: colors.surface,
-      paddingVertical: sw(12),
-      borderRadius: sw(12),
-    },
-    actionText: {
-      fontSize: ms(13),
-      lineHeight: ms(17),
-      fontFamily: Fonts.semiBold,
-    },
     closeBtn: {
       width: sw(48),
       flexDirection: 'row',
@@ -240,21 +317,6 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.surface,
       paddingVertical: sw(12),
       borderRadius: sw(12),
-    },
-    saveBtn: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: sw(6),
-      backgroundColor: colors.accent,
-      borderRadius: sw(12),
-      paddingVertical: sw(12),
-    },
-    saveBtnText: {
-      color: colors.textOnAccent,
-      fontSize: ms(14),
-      fontFamily: Fonts.bold,
     },
     shareBtn: {
       flex: 1,
@@ -270,5 +332,69 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textOnAccent,
       fontSize: ms(14),
       fontFamily: Fonts.bold,
+    },
+
+    /* Picker overlay */
+    pickerBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+    },
+    pickerBottom: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'flex-end',
+    },
+    pickerSheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: sw(16),
+      borderTopRightRadius: sw(16),
+      paddingTop: sw(12),
+      paddingHorizontal: sw(24),
+    },
+    pickerHandle: {
+      width: sw(36),
+      height: sw(4),
+      borderRadius: sw(2),
+      backgroundColor: colors.textTertiary + '40',
+      alignSelf: 'center',
+      marginBottom: sw(14),
+    },
+    pickerTitle: {
+      color: colors.textPrimary,
+      fontSize: ms(18),
+      fontFamily: Fonts.bold,
+      lineHeight: ms(24),
+      textAlign: 'center',
+    },
+    pickerSubtitle: {
+      color: colors.textTertiary,
+      fontSize: ms(13),
+      fontFamily: Fonts.medium,
+      lineHeight: ms(18),
+      textAlign: 'center',
+      marginTop: sw(4),
+    },
+    pickerOptions: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: sw(24),
+      marginTop: sw(24),
+      marginBottom: sw(20),
+    },
+    pickerOption: {
+      alignItems: 'center',
+      gap: sw(8),
+    },
+    pickerIconCircle: {
+      width: sw(60),
+      height: sw(60),
+      borderRadius: sw(30),
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    pickerOptionText: {
+      color: colors.textSecondary,
+      fontSize: ms(12),
+      fontFamily: Fonts.semiBold,
+      lineHeight: ms(16),
     },
   });

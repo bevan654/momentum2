@@ -435,11 +435,13 @@ const SheetOverlay = React.memo(function SheetOverlay({
   /* ─── Store slices (minimal — no rest-timer state) ──── */
 
   const sheetVisible = useActiveWorkoutStore((s) => s.sheetVisible);
+  const skipSheetAnimation = useActiveWorkoutStore((s) => s.skipSheetAnimation);
   const hideSheet = useActiveWorkoutStore((s) => s.hideSheet);
   const exercises = useActiveWorkoutStore((s) => s.exercises);
 
   /* ─── Focused exercise tracking ────────────────────── */
 
+  const [contentReady, setContentReady] = useState(!skipSheetAnimation);
   const [focusedIndex, setFocusedIndex] = useState(-1);
 
   // Auto-default: first exercise with incomplete sets
@@ -489,8 +491,16 @@ const SheetOverlay = React.memo(function SheetOverlay({
       openRef.current = true;
       gestureClosingRef.current = false;
       cancelAnimation(translateY);
-      translateY.value = SHEET_H;
-      translateY.value = withSpring(0, OPEN_SPRING);
+      if (skipSheetAnimation) {
+        translateY.value = 0;
+        useActiveWorkoutStore.setState({ skipSheetAnimation: false });
+        // Defer heavy content mount to next frame so sheet appears instantly
+        requestAnimationFrame(() => setContentReady(true));
+      } else {
+        setContentReady(true);
+        translateY.value = SHEET_H;
+        translateY.value = withSpring(0, OPEN_SPRING);
+      }
     } else if (openRef.current) {
       openRef.current = false;
       if (!gestureClosingRef.current) {
@@ -634,12 +644,12 @@ const SheetOverlay = React.memo(function SheetOverlay({
           </Animated.View>
         </GestureDetector>
 
-        <WorkoutHeader />
+        {contentReady && <WorkoutHeader />}
 
         {/* Self-contained: reads from store, never causes SheetOverlay re-render */}
-        <RestTimerBar />
+        {contentReady && <RestTimerBar />}
 
-        <ScrollView
+        {contentReady ? <ScrollView
           ref={scrollRef}
           style={styles.scroll}
           contentContainerStyle={[
@@ -690,7 +700,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
               </Text>
             </View>
           )}
-        </ScrollView>
+        </ScrollView> : <View style={{ flex: 1 }} />}
 
         {/* Add Exercise button — hidden when keyboard is open */}
         {!kbOpen && (

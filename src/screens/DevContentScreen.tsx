@@ -12,7 +12,7 @@ export default function DevContentScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handleStartMockWorkout = () => {
-    const { startWorkout, addExercise, updateSet, addSet, toggleSetComplete } = useActiveWorkoutStore.getState();
+    const { startWorkout, addExercise, updateSet, addSet, toggleSetComplete, stopRest } = useActiveWorkoutStore.getState();
     startWorkout();
 
     // Bench Press — previous session: 4×80kg×8 = 2560kg vol
@@ -40,6 +40,9 @@ export default function DevContentScreen() {
 
     // Pull Up — no previous data (first time)
     addExercise('Pull Up', 'bodyweight', 'Back');
+
+    // Stop the rest timer that auto-started from toggleSetComplete
+    stopRest();
   };
 
   return (
