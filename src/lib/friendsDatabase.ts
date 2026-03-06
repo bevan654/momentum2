@@ -432,7 +432,7 @@ async function attachProfilesAndReactions(
     const wid = (ex as any).workout_id;
     if (!exercisesByWorkout[wid]) exercisesByWorkout[wid] = [];
 
-    const completed = ((ex as any).sets || []).filter((s: any) => s.completed);
+    const completed = ((ex as any).sets || []).filter((s: any) => s.completed || (Number(s.kg) > 0 || Number(s.reps) > 0));
     let bestKg = 0;
     let bestReps = 0;
     let totalVol = 0;
@@ -474,14 +474,18 @@ async function attachProfilesAndReactions(
     let details = exercisesByWorkout[r.workout_id] || [];
     if (details.length === 0 && (r.exercise_names || []).length > 0) {
       const names: string[] = r.exercise_names;
+      const totalSets = r.total_sets || 0;
       const perExVol = names.length > 0
         ? Math.round((r.total_volume || 0) / names.length)
+        : 0;
+      const perExSets = names.length > 0
+        ? Math.round(totalSets / names.length)
         : 0;
       details = names.map((name: string) => {
         const cat = catalogMap.get(name);
         return {
           name,
-          sets_count: 0,
+          sets_count: perExSets,
           best_kg: 0,
           best_reps: 0,
           total_volume: perExVol,

@@ -26,7 +26,15 @@ export default function WorkoutsNavigator() {
       <Stack.Screen name="WorkoutHistory" component={WorkoutHistoryScreen} />
       <Stack.Screen name="StartWorkout" component={StartWorkoutScreen} />
       <Stack.Screen name="CreateRoutine" component={CreateRoutineScreen} />
-      <Stack.Screen name="RoutineSummary" component={RoutineSummaryScreen} />
+      <Stack.Screen
+        name="RoutineSummary"
+        component={RoutineSummaryScreen}
+        options={{
+          presentation: 'transparentModal',
+          animation: 'slide_from_bottom',
+          gestureEnabled: true,
+        }}
+      />
     </Stack.Navigator>
   );
 }
