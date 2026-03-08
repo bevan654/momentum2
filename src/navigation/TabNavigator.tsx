@@ -18,6 +18,8 @@ import { useFriendsStore } from '../stores/useFriendsStore';
 import DevContentScreen from '../screens/DevContentScreen';
 import WorkoutsNavigator from './WorkoutsNavigator';
 import ActiveWorkoutSheet from '../components/workout-sheet/ActiveWorkoutSheet';
+import GhostFinishScreen from '../components/workout-sheet/GhostFinishScreen';
+import WorkoutFinishScreen from '../components/workout-sheet/WorkoutFinishScreen';
 import FriendProfileModal from '../components/friends/FriendProfileModal';
 import FloatingWorkoutBanner from '../components/workout-sheet/FloatingWorkoutBanner';
 import BottomSheet from '../components/workout-sheet/BottomSheet';
@@ -272,25 +274,29 @@ export default function TabNavigator() {
   return (
     <View style={styles.root}>
       <Header activeTab={activeTab} />
-      <Tab.Navigator
-        tabBar={renderTabBar}
-        tabBarPosition="bottom"
-        initialRouteName="Home"
-        initialLayout={{ width: SCREEN_WIDTH }}
-        screenOptions={{
-          swipeEnabled: true,
-          animationEnabled: true,
-          lazy: true,
-          freezeOnBlur: true,
-        }}
-      >
-        <Tab.Screen name="Recovery" component={LaboratoryScreen} />
-        <Tab.Screen name="Workouts" component={WorkoutsNavigator} />
-        <Tab.Screen name="Home" component={HomeScreen} />
-        <Tab.Screen name="Nutrition" component={FoodLoggerScreen} />
-        <Tab.Screen name="Community" component={FriendsScreen} />
-        <Tab.Screen name="Dev" component={DevContentScreen} />
-      </Tab.Navigator>
+      <View style={{ flex: 1 }}>
+        <Tab.Navigator
+          tabBar={renderTabBar}
+          tabBarPosition="bottom"
+          initialRouteName="Home"
+          initialLayout={{ width: SCREEN_WIDTH }}
+          screenOptions={{
+            swipeEnabled: true,
+            animationEnabled: true,
+            lazy: true,
+            freezeOnBlur: true,
+          }}
+        >
+          <Tab.Screen name="Recovery" component={LaboratoryScreen} />
+          <Tab.Screen name="Workouts" component={WorkoutsNavigator} />
+          <Tab.Screen name="Home" component={HomeScreen} />
+          <Tab.Screen name="Nutrition" component={FoodLoggerScreen} />
+          <Tab.Screen name="Community" component={FriendsScreen} />
+          <Tab.Screen name="Dev" component={DevContentScreen} />
+        </Tab.Navigator>
+        <WorkoutFinishScreen />
+        <GhostFinishScreen />
+      </View>
       <BottomSheet visible={profileVisible} onClose={closeProfile} height="92%" modal>
         <ProfileScreen onClose={closeProfile} />
       </BottomSheet>

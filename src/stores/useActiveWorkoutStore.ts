@@ -497,15 +497,50 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     console.log('[finishWorkout] done, showing summary');
 
     // Non-critical operations — fire and forget, never block summary
-    supabase.from('activity_feed').insert({
-      user_id: userId,
-      workout_id: workout!.id,
-      duration,
-      total_volume: Math.round(totalVolume),
-      exercise_names: exerciseNames,
-      total_exercises: filteredExercises.length,
-      total_sets: totalSets,
-    }).then(() => {}, () => {});
+    try {
+      let ghostResult: string | null = null;
+      if (ghostUserName) {
+        let w = 0, l = 0;
+        for (const ex of filteredExercises) {
+          const completed = ex.sets.filter((s: any) => s.completed);
+          for (let i = 0; i < Math.min(completed.length, ex.prevSets.length); i++) {
+            const uk = parseFloat(completed[i].kg) || 0, ur = parseInt(completed[i].reps) || 0;
+            const gk = ex.prevSets[i].kg, gr = ex.prevSets[i].reps;
+            if (uk < gk) l++;
+            else if (uk === gk) { if (ur > gr) w++; else if (ur < gr) l++; }
+            else { if (uk * ur > gk * gr) w++; else if (uk * ur < gk * gr) l++; }
+          }
+        }
+        ghostResult = w > l ? 'victory' : l > w ? 'defeated' : 'draw';
+      }
+      console.log('[finishWorkout] feed insert starting, ghost:', ghostUserName, ghostResult);
+
+      const feedPayload = {
+        user_id: userId,
+        workout_id: workout!.id,
+        duration,
+        total_volume: Math.round(totalVolume),
+        exercise_names: exerciseNames,
+        total_exercises: filteredExercises.length,
+        total_sets: totalSets,
+        ...(ghostUserName ? {
+          ghost_username: ghostUserName,
+          ghost_result: ghostResult,
+          ghost_exercises: filteredExercises.map((ex) => ({
+            name: ex.name,
+            sets: ex.prevSets.map((ps: any) => ({ kg: ps.kg, reps: ps.reps })),
+          })),
+        } : {}),
+      };
+      console.log('[finishWorkout] feed payload:', JSON.stringify(feedPayload));
+
+      supabase.from('activity_feed').insert(feedPayload).then(({ error: feedErr }) => {
+        if (feedErr) console.error('[finishWorkout] feed insert error:', JSON.stringify(feedErr));
+        else console.log('[finishWorkout] feed insert ok');
+      }, (e) => console.error('[finishWorkout] feed insert threw:', e));
+    } catch (feedCrash) {
+      console.error('[finishWorkout] feed block crashed:', feedCrash);
+    }
 
     try {
       const { refreshStreak } = useStreakStore.getState();
