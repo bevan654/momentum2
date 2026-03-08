@@ -145,7 +145,20 @@ function FeedCard({
                     </>
                   )}
                 </View>
+                {item.ghost_username && item.ghost_result && (
+                  <Text style={[styles.challengeText, {
+                    color: item.ghost_result === 'victory' ? '#34C759' : item.ghost_result === 'defeated' ? colors.accentRed : colors.textTertiary,
+                    marginTop: sw(3),
+                  }]}>
+                    {isSelf ? 'You' : displayName} challenged {item.ghost_username} — {item.ghost_result === 'victory' ? 'Won' : item.ghost_result === 'defeated' ? 'Lost' : 'Draw'}
+                  </Text>
+                )}
               </View>
+              {isSelf && (
+                <View style={styles.youBadge}>
+                  <Text style={styles.youBadgeText}>You</Text>
+                </View>
+              )}
               {!isSelf && (
                 isFriend ? (
                   <View style={styles.friendBadge}>
@@ -323,6 +336,18 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(18),
       flexShrink: 1,
     },
+    youBadge: {
+      paddingHorizontal: sw(8),
+      paddingVertical: sw(4),
+      borderRadius: sw(6),
+      backgroundColor: colors.accent + '15',
+    },
+    youBadgeText: {
+      color: colors.accent,
+      fontSize: ms(10),
+      fontFamily: Fonts.semiBold,
+      lineHeight: ms(13),
+    },
     friendBadge: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -371,6 +396,11 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.cardBorder,
       marginBottom: sw(12),
       marginHorizontal: -sw(14),
+    },
+    challengeText: {
+      fontSize: ms(10),
+      fontFamily: Fonts.medium,
+      lineHeight: ms(13),
     },
 
     /* Stats chips */

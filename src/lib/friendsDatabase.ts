@@ -62,6 +62,9 @@ export interface ActivityFeedItem {
   reactions: ReactionSummary[];
   exercise_details: FeedExerciseDetail[];
   streak: number;
+  ghost_username: string | null;
+  ghost_result: 'victory' | 'defeated' | 'draw' | null;
+  ghost_exercises: { name: string; sets: { kg: number; reps: number }[] }[] | null;
 }
 
 export interface ReactionSummary {
@@ -513,6 +516,9 @@ async function attachProfilesAndReactions(
       reactions: reactionMap.get(r.id) || [],
       exercise_details: details,
       streak: streakMap.get(r.user_id) ?? 0,
+      ghost_username: r.ghost_username || null,
+      ghost_result: r.ghost_result || null,
+      ghost_exercises: r.ghost_exercises || null,
     };
   });
 }

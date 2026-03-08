@@ -35,7 +35,6 @@ import WorkoutHeader from './WorkoutHeader';
 import RestTimerBar from './RestTimerBar';
 import ExerciseCard from './ExerciseCard';
 import ExercisePicker from './ExercisePicker';
-import WorkoutSummaryModal from './WorkoutSummaryModal';
 
 /* ─── Constants (computed once) ────────────────────────── */
 
@@ -649,13 +648,7 @@ export default function ActiveWorkoutSheet() {
         mode={pickerMode}
       />
 
-      {showSummary && summaryData && (
-        <WorkoutSummaryModal
-          mode="just-completed"
-          data={summaryData}
-          onDismiss={dismissSummary}
-        />
-      )}
+      {/* Normal workout finish is handled by WorkoutFinishScreen in TabNavigator */}
     </>
   );
 }
@@ -742,8 +735,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
       openRef.current = true;
       gestureClosingRef.current = false;
       cancelAnimation(translateY);
-      translateY.value = SHEET_H;
-      translateY.value = withSpring(0, OPEN_SPRING);
+      translateY.value = 0; // instant open, no animation
     } else if (openRef.current) {
       openRef.current = false;
       if (!gestureClosingRef.current) {
@@ -756,11 +748,12 @@ const SheetOverlay = React.memo(function SheetOverlay({
 
   useEffect(() => () => cancelAnimation(translateY), []);
 
-  /* Backdrop: opacity derived from translateY on UI thread */
+  /* Backdrop: instant on open, follows drag on close */
   const backdropStyle = useAnimatedStyle(() => {
     'worklet';
     const progress = 1 - translateY.value / SHEET_H;
-    return { opacity: Math.max(0, Math.min(BACKDROP_MAX, progress * BACKDROP_MAX)) };
+    // Clamp higher so backdrop is fully opaque even when sheet is still animating in
+    return { opacity: progress > 0.05 ? BACKDROP_MAX : 0 };
   });
 
   /* Sheet: transform derived from translateY on UI thread */

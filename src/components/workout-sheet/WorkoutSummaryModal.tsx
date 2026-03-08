@@ -31,6 +31,7 @@ type EditExercise = { name: string; category: string | null; sets: EditSet[] };
 type Props = {
   onDismiss: () => void;
   onDelete?: () => void;
+  inline?: boolean;
 } & (
   | { mode: 'just-completed'; data: WorkoutSummary }
   | { mode: 'historical'; data: WorkoutWithDetails }
@@ -249,13 +250,11 @@ function GhostComparisonSection({
   ghostExercises,
   ghostUserName,
   colors,
-  styles,
 }: {
   exercises: SummaryExercise[];
   ghostExercises: GhostExerciseData[];
   ghostUserName: string;
   colors: ThemeColors;
-  styles: ReturnType<typeof createStyles>;
 }) {
   const ghostMap = useMemo(() => {
     const map: Record<string, { sets: { kg: number; reps: number }[] }> = {};
@@ -285,146 +284,214 @@ function GhostComparisonSection({
       let exWins = 0;
       let exLosses = 0;
       let exTies = 0;
+      const setResults: ('win' | 'loss' | 'tie')[] = [];
       const count = Math.min(completedSets.length, ghostSets.length);
       for (let i = 0; i < count; i++) {
         const r = compareGhostSet(completedSets[i].kg, completedSets[i].reps, ghostSets[i].kg, ghostSets[i].reps);
+        setResults.push(r);
         if (r === 'win') { exWins++; setWins++; }
         else if (r === 'loss') { exLosses++; setLosses++; }
         else { exTies++; setTies++; }
       }
 
-      return { name: ex.name, userVol, ghostVol, exWins, exLosses, exTies };
+      return { name: ex.name, userVol, ghostVol, exWins, exLosses, exTies, setResults, completedSets, ghostSets };
     });
 
     const victory = setWins > setLosses;
-    return { perExercise, userTotalVol, ghostTotalVol, setWins, setLosses, setTies, victory };
+    const tied = setWins === setLosses;
+    return { perExercise, userTotalVol, ghostTotalVol, setWins, setLosses, setTies, victory, tied };
   }, [exercises, ghostMap]);
 
-  const verdictColor = results.victory ? '#34C759' : colors.accentRed;
+  const verdictColor = results.tied ? colors.textPrimary : results.victory ? '#34C759' : colors.accentRed;
+  const verdictText = results.tied ? 'DRAW' : results.victory ? 'VICTORY' : 'DEFEATED';
+  const userName = useAuthStore((s) => s.user?.user_metadata?.username || 'You');
+
+  // Volume bar
+  const totalVol = results.userTotalVol + results.ghostTotalVol;
+  const userVolPct = totalVol > 0 ? (results.userTotalVol / totalVol) * 100 : 50;
 
   return (
-    <View style={{
-      backgroundColor: colors.surface,
-      borderRadius: sw(12),
-      padding: sw(14),
-      marginTop: sw(12),
-      gap: sw(10),
-    }}>
-      {/* Verdict */}
-      <View style={{ alignItems: 'center', gap: sw(4) }}>
-        <Ionicons
-          name={results.victory ? 'trophy' : 'close-circle'}
-          size={ms(28)}
-          color={verdictColor}
-        />
+    <View style={{ gap: sw(16) }}>
+      {/* ── Verdict Banner ──────────────────────── */}
+      <View style={{
+        alignItems: 'center',
+        paddingVertical: sw(20),
+        gap: sw(6),
+      }}>
         <Text style={{
-          fontSize: ms(16),
-          fontFamily: Fonts.bold,
+          fontSize: ms(32),
+          fontFamily: Fonts.extraBold,
           color: verdictColor,
+          letterSpacing: 2,
         }}>
-          {results.victory ? 'Victory!' : 'Defeated'}
+          {verdictText}
         </Text>
         <Text style={{
-          fontSize: ms(11),
+          fontSize: ms(12),
           fontFamily: Fonts.medium,
           color: colors.textTertiary,
         }}>
-          vs {ghostUserName}
+          {userName} vs {ghostUserName}
         </Text>
       </View>
 
-      {/* Set score */}
+      {/* ── Set Score ───────────────────────────── */}
       <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: sw(8),
-        paddingVertical: sw(6),
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: colors.cardBorder,
+        backgroundColor: colors.surface,
+        borderRadius: sw(12),
+        padding: sw(16),
       }}>
-        <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: colors.textTertiary }}>
+        <Text style={{
+          fontSize: ms(10),
+          fontFamily: Fonts.semiBold,
+          color: colors.textTertiary,
+          textAlign: 'center',
+          letterSpacing: 1,
+          marginBottom: sw(10),
+        }}>
           SET SCORE
         </Text>
-        <Text style={{ fontSize: ms(18), fontFamily: Fonts.bold, color: '#34C759' }}>
-          {results.setWins}
-        </Text>
-        <Text style={{ fontSize: ms(12), fontFamily: Fonts.medium, color: colors.textPrimary }}>
-          —
-        </Text>
-        <Text style={{ fontSize: ms(18), fontFamily: Fonts.bold, color: colors.textPrimary }}>
-          {results.setTies}
-        </Text>
-        <Text style={{ fontSize: ms(12), fontFamily: Fonts.medium, color: colors.textPrimary }}>
-          —
-        </Text>
-        <Text style={{ fontSize: ms(18), fontFamily: Fonts.bold, color: colors.accentRed }}>
-          {results.setLosses}
-        </Text>
-      </View>
-
-      {/* Volume comparison */}
-      <View style={{
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        paddingVertical: sw(8),
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: colors.cardBorder,
-      }}>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: ms(16), fontFamily: Fonts.bold, color: colors.textPrimary }}>
-            {results.userTotalVol.toLocaleString()}
-          </Text>
-          <Text style={{ fontSize: ms(10), fontFamily: Fonts.medium, color: colors.textTertiary }}>
-            Your Volume
-          </Text>
-        </View>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: ms(16), fontFamily: Fonts.bold, color: colors.accentRed }}>
-            {results.ghostTotalVol.toLocaleString()}
-          </Text>
-          <Text style={{ fontSize: ms(10), fontFamily: Fonts.medium, color: colors.textTertiary }}>
-            {ghostUserName}'s Volume
-          </Text>
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary, marginBottom: sw(2) }}>
+              {userName}
+            </Text>
+            <Text style={{ fontSize: ms(28), fontFamily: Fonts.extraBold, color: '#34C759' }}>
+              {results.setWins}
+            </Text>
+          </View>
+          <View style={{ alignItems: 'center', paddingHorizontal: sw(12) }}>
+            <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary, marginBottom: sw(2) }}>
+              Ties
+            </Text>
+            <Text style={{ fontSize: ms(22), fontFamily: Fonts.bold, color: colors.textPrimary }}>
+              {results.setTies}
+            </Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary, marginBottom: sw(2) }}>
+              {ghostUserName}
+            </Text>
+            <Text style={{ fontSize: ms(28), fontFamily: Fonts.extraBold, color: colors.accentRed }}>
+              {results.setLosses}
+            </Text>
+          </View>
         </View>
       </View>
 
-      {/* Per-exercise breakdown */}
+      {/* ── Volume Bar ──────────────────────────── */}
       <View style={{
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: colors.cardBorder,
-        paddingTop: sw(8),
-        gap: sw(6),
+        backgroundColor: colors.surface,
+        borderRadius: sw(12),
+        padding: sw(14),
+        gap: sw(8),
       }}>
+        <Text style={{
+          fontSize: ms(10),
+          fontFamily: Fonts.semiBold,
+          color: colors.textTertiary,
+          letterSpacing: 1,
+          textAlign: 'center',
+        }}>
+          TOTAL VOLUME
+        </Text>
+        <View style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          marginBottom: sw(4),
+        }}>
+          <Text style={{ fontSize: ms(14), fontFamily: Fonts.bold, color: colors.textPrimary }}>
+            {results.userTotalVol.toLocaleString()} kg
+          </Text>
+          <Text style={{ fontSize: ms(14), fontFamily: Fonts.bold, color: colors.accentRed }}>
+            {results.ghostTotalVol.toLocaleString()} kg
+          </Text>
+        </View>
+        <View style={{
+          flexDirection: 'row',
+          height: sw(8),
+          borderRadius: sw(4),
+          overflow: 'hidden',
+        }}>
+          <View style={{
+            width: `${userVolPct}%` as any,
+            backgroundColor: '#34C759',
+            borderTopLeftRadius: sw(4),
+            borderBottomLeftRadius: sw(4),
+          }} />
+          <View style={{
+            flex: 1,
+            backgroundColor: colors.accentRed,
+            borderTopRightRadius: sw(4),
+            borderBottomRightRadius: sw(4),
+          }} />
+        </View>
+      </View>
+
+      {/* ── Per-Exercise Breakdown ──────────────── */}
+      <View style={{
+        backgroundColor: colors.surface,
+        borderRadius: sw(12),
+        padding: sw(14),
+        gap: sw(12),
+      }}>
+        <Text style={{
+          fontSize: ms(10),
+          fontFamily: Fonts.semiBold,
+          color: colors.textTertiary,
+          letterSpacing: 1,
+          textAlign: 'center',
+        }}>
+          EXERCISE BREAKDOWN
+        </Text>
         {results.perExercise.map((ex, i) => {
           const exWon = ex.exWins > ex.exLosses;
           const exLost = ex.exLosses > ex.exWins;
+          const exColor = exWon ? '#34C759' : exLost ? colors.accentRed : colors.textTertiary;
           return (
-            <View key={i} style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: sw(8),
-            }}>
-              <Ionicons
-                name={exWon ? 'checkmark-circle' : exLost ? 'close-circle' : 'remove-circle'}
-                size={ms(14)}
-                color={exWon ? '#34C759' : exLost ? colors.accentRed : colors.textTertiary}
-              />
-              <Text style={{
-                flex: 1,
-                fontSize: ms(11),
-                fontFamily: Fonts.medium,
-                color: colors.textPrimary,
-              }} numberOfLines={1}>
-                {ex.name}
-              </Text>
-              <Text style={{
-                fontSize: ms(10),
-                fontFamily: Fonts.semiBold,
-                color: exWon ? '#34C759' : exLost ? colors.accentRed : colors.textTertiary,
-              }}>
-                {ex.exWins}W {ex.exLosses}L
-              </Text>
+            <View key={i} style={{ gap: sw(6) }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{
+                  flex: 1,
+                  fontSize: ms(12),
+                  fontFamily: Fonts.semiBold,
+                  color: colors.textPrimary,
+                }} numberOfLines={1}>
+                  {ex.name}
+                </Text>
+                <Text style={{
+                  fontSize: ms(11),
+                  fontFamily: Fonts.bold,
+                  color: exColor,
+                }}>
+                  {ex.exWins}W — {ex.exTies}T — {ex.exLosses}L
+                </Text>
+              </View>
+              {/* Set-by-set dots */}
+              <View style={{ flexDirection: 'row', gap: sw(4) }}>
+                {ex.setResults.map((r, si) => (
+                  <View key={si} style={{
+                    width: sw(22),
+                    height: sw(22),
+                    borderRadius: sw(4),
+                    backgroundColor: r === 'win' ? '#34C759' + '20' : r === 'loss' ? colors.accentRed + '20' : colors.textPrimary + '15',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}>
+                    <Text style={{
+                      fontSize: ms(9),
+                      fontFamily: Fonts.bold,
+                      color: r === 'win' ? '#34C759' : r === 'loss' ? colors.accentRed : colors.textPrimary,
+                    }}>
+                      S{si + 1}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </View>
           );
         })}
@@ -457,10 +524,11 @@ function AnimatedCheckmark({ colors, styles }: { colors: ThemeColors; styles: Re
 }
 
 export default function WorkoutSummaryModal(props: Props) {
-  const { mode, data, onDismiss, onDelete } = props;
+  const { mode, data, onDismiss, onDelete, inline } = props;
   const isJustCompleted = mode === 'just-completed';
   const [deleting, setDeleting] = useState(false);
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   // ── Edit state ───────────────────────────────────
@@ -912,49 +980,36 @@ export default function WorkoutSummaryModal(props: Props) {
     );
   }
 
-  /* ── Just-completed mode: centered card overlay ──── */
+  /* ── Just-completed mode ──────────────────────────── */
 
-  return (
-    <Modal visible transparent animationType="fade" statusBarTranslucent>
-      <View style={styles.overlay}>
-        <TouchableWithoutFeedback onPress={editing ? undefined : onDismiss}>
-          <View style={StyleSheet.absoluteFill} />
-        </TouchableWithoutFeedback>
-        <View style={styles.modal}>
-          {!editing && <Confetti />}
+  const justCompletedContent = (
+    <View style={inline ? styles.inlinePage : styles.modal}>
+      {!editing && <Confetti />}
 
-          {!editing && (
-            <TouchableOpacity style={styles.closeBtn} onPress={onDismiss} activeOpacity={0.6}>
-              <Ionicons name="close" size={ms(18)} color={colors.textTertiary} />
-            </TouchableOpacity>
-          )}
-
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            {editing ? (
-              <View style={styles.header}>
-                <Text style={styles.title}>Edit Workout</Text>
-              </View>
-            ) : (
-              <View style={styles.header}>
-                <AnimatedCheckmark colors={colors} styles={styles} />
-                <Text style={styles.title}>
-                  {(data as WorkoutSummary).ghostUserName ? 'Challenge Complete!' : 'Workout Complete!'}
-                </Text>
-                <TextInput
-                  style={styles.workoutNameInput}
-                  value={workoutName}
-                  onChangeText={setWorkoutName}
-                  placeholder="Name this workout..."
-                  placeholderTextColor={colors.textTertiary}
-                  maxLength={40}
-                  returnKeyType="done"
-                />
-              </View>
-            )}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {editing ? (
+          <View style={styles.header}>
+            <Text style={styles.title}>Edit Workout</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.header}>
+              <AnimatedCheckmark colors={colors} styles={styles} />
+              <Text style={styles.title}>Workout Complete!</Text>
+              <TextInput
+                style={styles.workoutNameInput}
+                value={workoutName}
+                onChangeText={setWorkoutName}
+                placeholder="Name this workout..."
+                placeholderTextColor={colors.textTertiary}
+                maxLength={40}
+                returnKeyType="done"
+              />
+            </View>
 
             {!editing && (rankResult || prCount > 0) && (
               <View style={styles.tagRow}>
@@ -975,38 +1030,40 @@ export default function WorkoutSummaryModal(props: Props) {
             )}
 
             {exerciseContent}
+          </>
+        )}
+      </ScrollView>
 
-            {/* Ghost mode comparison */}
-            {isJustCompleted && (data as WorkoutSummary).ghostUserName && (data as WorkoutSummary).ghostExercises && (
-              <GhostComparisonSection
-                exercises={displayExercises ?? (data as WorkoutSummary).exercises}
-                ghostExercises={(data as WorkoutSummary).ghostExercises!}
-                ghostUserName={(data as WorkoutSummary).ghostUserName!}
-                colors={colors}
-                styles={styles}
-              />
-            )}
-          </ScrollView>
-
-          {editing ? editFooter : (
-            <View style={styles.footerRow}>
-              {workoutId && (
-                <TouchableOpacity style={styles.smallIconBtn} onPress={startEditing} activeOpacity={0.7}>
-                  <Ionicons name="pencil" size={ms(16)} color={colors.accent} />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity style={styles.shareBtnMain} onPress={() => setShowShare(true)} activeOpacity={0.7}>
-                <Ionicons name="share-outline" size={ms(18)} color={colors.textOnAccent} />
-                <Text style={styles.shareBtnMainText}>Share</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.smallIconBtn} onPress={onDismiss} activeOpacity={0.7}>
-                <Ionicons name="checkmark" size={ms(18)} color={colors.accentGreen} />
-              </TouchableOpacity>
-            </View>
+      {editing ? editFooter : (
+        <View style={styles.footerRow}>
+          {workoutId && (
+            <TouchableOpacity style={styles.smallIconBtn} onPress={startEditing} activeOpacity={0.7}>
+              <Ionicons name="pencil" size={ms(16)} color={colors.accent} />
+            </TouchableOpacity>
           )}
+          <TouchableOpacity style={styles.shareBtnMain} onPress={() => setShowShare(true)} activeOpacity={0.7}>
+            <Ionicons name="share-outline" size={ms(18)} color={colors.textOnAccent} />
+            <Text style={styles.shareBtnMainText}>Share</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.smallIconBtn} onPress={onDismiss} activeOpacity={0.7}>
+            <Ionicons name="checkmark" size={ms(18)} color={colors.accentGreen} />
+          </TouchableOpacity>
         </View>
-      </View>
+      )}
       {subModals}
+    </View>
+  );
+
+  if (inline) return justCompletedContent;
+
+  return (
+    <Modal visible transparent animationType="fade" statusBarTranslucent>
+      <View style={styles.overlay}>
+        <TouchableWithoutFeedback onPress={editing ? undefined : onDismiss}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
+        {justCompletedContent}
+      </View>
     </Modal>
   );
 }
@@ -1129,6 +1186,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     maxHeight: '82%',
     borderWidth: 1,
     borderColor: colors.cardBorder,
+  },
+  inlinePage: {
+    flex: 1,
+    backgroundColor: colors.background,
+    padding: sw(16),
   },
   closeBtn: {
     position: 'absolute',
