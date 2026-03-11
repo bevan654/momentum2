@@ -69,6 +69,11 @@ function WorkoutHistoryCard({ workout, onPress }: Props) {
               <Text style={styles.dateText}>{formatWorkoutDate(workout.created_at)}</Text>
               <Ionicons name="chevron-forward" size={ms(14)} color={colors.textTertiary} />
             </View>
+            {workout.programName && (
+              <View style={styles.programBadge}>
+                <Text style={styles.programBadgeText}>{workout.programName}</Text>
+              </View>
+            )}
             {workout.ghostUsername && (
               <View style={styles.ghostBadge}>
                 <Ionicons name="people" size={ms(10)} color={colors.accentRed} />
@@ -175,6 +180,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(14),
     fontFamily: Fonts.semiBold,
     lineHeight: ms(20),
+  },
+  programBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accent + '20',
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(3),
+    gap: sw(4),
+  },
+  programBadgeText: {
+    color: colors.accent,
+    fontSize: ms(9),
+    fontFamily: Fonts.bold,
+    letterSpacing: 0.5,
   },
   ghostBadge: {
     flexDirection: 'row',

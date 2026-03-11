@@ -7,6 +7,9 @@ import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRe
 import { useWorkoutStore } from './useWorkoutStore';
 import { useStreakStore } from './useStreakStore';
 import { useRankStore } from './useRankStore';
+import { useProgramStore } from './useProgramStore';
+import { useRoutineStore } from './useRoutineStore';
+import { useAuthStore } from './useAuthStore';
 import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity } from '../services/liveActivityManager';
 import { playBeep } from '../utils/beepSound';
 import type { WorkoutActivitySnapshot } from '../services/liveActivityManager';
@@ -119,6 +122,8 @@ interface ActiveWorkoutState {
   summaryData: WorkoutSummary | null;
 
   startedFromRoutine: string | null;
+  startedFromProgram: string | null;
+  programWeek: number | null;
   ghostUserName: string | null;
 
   // Stubs: HealthKit
@@ -133,12 +138,20 @@ interface ActiveWorkoutState {
     prevMap: Record<string, { kg: number; reps: number }[]>,
     ghostUserName?: string,
   ) => void;
+  startFromProgram: (
+    routine: { id: string; exercises: { name: string; default_sets: number; exercise_type: string }[] },
+    catalogMap: Record<string, { category: string; exercise_type: string }>,
+    prevMap: Record<string, { kg: number; reps: number }[]>,
+    programId: string,
+    programWeek: number,
+  ) => void;
   discardWorkout: () => void;
   finishWorkout: (userId: string, durationOverride?: number) => Promise<{ error: string | null; incompleteCount?: number }>;
   restoreWorkout: () => Promise<void>;
   showSheet: () => void;
   hideSheet: () => void;
   dismissSummary: () => void;
+  undoFinish: () => void;
 
   // Exercise management
   addExercise: (name: string, exerciseType: string, category: string | null, prevSets?: { kg: number; reps: number }[]) => void;
@@ -218,6 +231,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   summaryData: null,
 
   startedFromRoutine: null,
+  startedFromProgram: null,
+  programWeek: null,
   ghostUserName: null,
   heartRate: null,
   activeCalories: null,
@@ -237,6 +252,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       exercises: [],
       restDuration: _preferredRestDuration,
       startedFromRoutine: null,
+      startedFromProgram: null,
+      programWeek: null,
       ghostUserName: null,
       isResting: false,
       restRemaining: 0,
@@ -295,6 +312,12 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     }, 0);
   },
 
+  startFromProgram: (routine, catalogMap, prevMap, programId, programWeek) => {
+    // Reuse startFromRoutine logic, then tag with program context
+    get().startFromRoutine(routine, catalogMap, prevMap);
+    set({ startedFromProgram: programId, programWeek });
+  },
+
   discardWorkout: () => {
     stopWorkoutActivity();
     if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
@@ -307,6 +330,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       elapsedSeconds: 0,
       exercises: [],
       startedFromRoutine: null,
+      startedFromProgram: null,
+      programWeek: null,
       ghostUserName: null,
       isResting: false,
       restRemaining: 0,
@@ -404,6 +429,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
             total_exercises: filteredExercises.length,
             total_sets: totalSets,
             ...(ghostUserName ? { ghost_username: ghostUserName } : {}),
+            ...(get().startedFromProgram ? { program_id: get().startedFromProgram, program_week: get().programWeek } : {}),
           })
           .select('id')
           .single()
@@ -515,6 +541,38 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       }
       console.log('[finishWorkout] feed insert starting, ghost:', ghostUserName, ghostResult);
 
+      // Resolve routine context for feed
+      let routineFeedData: Record<string, any> = {};
+      if (get().startedFromRoutine) {
+        const routines = useRoutineStore.getState().routines;
+        const routine = routines.find((r) => r.id === get().startedFromRoutine);
+        if (routine) {
+          routineFeedData = { routine_name: routine.name };
+        }
+      }
+
+      // Resolve program context for feed
+      let programFeedData: Record<string, any> = {};
+      console.log('[finishWorkout] program context:', get().startedFromProgram, get().programWeek);
+      if (get().startedFromProgram) {
+        const { programs, getDurationWeeks } = useProgramStore.getState();
+        console.log('[finishWorkout] programs in store:', programs.length);
+        const prog = programs.find((p) => p.id === get().startedFromProgram);
+        console.log('[finishWorkout] matched program:', prog?.name ?? 'NOT FOUND');
+        if (prog) {
+          const jsDay = new Date().getDay();
+          const dow = jsDay === 0 ? 6 : jsDay - 1;
+          const dayEntry = prog.days.find((d) => d.day_of_week === dow);
+          programFeedData = {
+            program_id: prog.id,
+            program_name: prog.name,
+            program_week: get().programWeek,
+            program_total_weeks: getDurationWeeks(prog) || null,
+            program_day_label: dayEntry?.label || null,
+          };
+        }
+      }
+
       const feedPayload = {
         user_id: userId,
         workout_id: workout!.id,
@@ -523,6 +581,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         exercise_names: exerciseNames,
         total_exercises: filteredExercises.length,
         total_sets: totalSets,
+        ...routineFeedData,
+        ...programFeedData,
         ...(ghostUserName ? {
           ghost_username: ghostUserName,
           ghost_result: ghostResult,
@@ -598,6 +658,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       sheetVisible: false,
       exercises: [],
       startedFromRoutine: null,
+      startedFromProgram: null,
+      programWeek: null,
       ghostUserName: null,
       isResting: false,
       restRemaining: 0,
@@ -650,6 +712,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       exercises,
       restDuration: saved.restDuration,
       startedFromRoutine: saved.startedFromRoutine,
+      startedFromProgram: saved.startedFromProgram || null,
+      programWeek: saved.programWeek || null,
       isResting,
       restRemaining,
       restStartedAt,
@@ -670,6 +734,51 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     startTime: null,
     elapsedSeconds: 0,
   }),
+
+  undoFinish: () => {
+    const { summaryData } = get();
+    if (!summaryData) return;
+
+    // Delete the already-saved workout from DB so re-finish is a clean insert
+    if (summaryData.workoutId) {
+      supabase.from('workouts').delete().eq('id', summaryData.workoutId).then(() => {
+        // Also refresh workout history so it doesn't show the deleted entry
+        const userId = useAuthStore.getState().user?.id;
+        if (userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
+      });
+    }
+
+    const catalogMap = useWorkoutStore.getState().catalogMap;
+    const prevMap = useWorkoutStore.getState().prevMap;
+
+    const exercises: ActiveExercise[] = summaryData.exercises.map((ex) => {
+      const catalogEntry = catalogMap[ex.name];
+      return {
+        name: ex.name,
+        exercise_type: (catalogEntry?.exercise_type as ActiveExercise['exercise_type']) || 'weighted',
+        category: ex.category,
+        sets: ex.sets.map((s) => ({
+          kg: String(s.kg),
+          reps: String(s.reps),
+          completed: s.completed,
+          set_type: (s.set_type as ActiveSet['set_type']) || 'working',
+          parent_set_number: null,
+        })),
+        prevSets: prevMap[ex.name] || [],
+        supersetWith: null,
+      };
+    });
+
+    set({
+      isActive: true,
+      sheetVisible: true,
+      exercises,
+      startTime: Date.now() - summaryData.duration * 1000,
+      elapsedSeconds: summaryData.duration,
+      showSummary: false,
+      summaryData: null,
+    });
+  },
 
   // ── Exercise management ───────────────────────────
 
@@ -974,9 +1083,9 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     if (!_workoutRestored) return; // Don't persist before restore has run
     if (_persistTimeout) clearTimeout(_persistTimeout);
     _persistTimeout = setTimeout(() => {
-      const { isActive, startTime, exercises, restDuration, restStartedAt, startedFromRoutine } = get();
+      const { isActive, startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek } = get();
       if (!isActive || !startTime) return;
-      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine });
+      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek });
     }, 500);
   },
 }));

@@ -210,7 +210,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   emptyCard: {
     width: FULL_WIDTH,
     backgroundColor: colors.card,
-    borderRadius: sw(14),
+    borderRadius: 0,
     paddingVertical: sw(20),
     alignItems: 'center',
     justifyContent: 'center',
@@ -229,7 +229,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: FULL_WIDTH,
     flexDirection: 'row',
     backgroundColor: colors.card,
-    borderRadius: sw(14),
+    borderRadius: 0,
     overflow: 'hidden',
     ...colors.cardShadow,
   },
@@ -250,7 +250,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   addIconWrap: {
     width: sw(36),
     height: sw(36),
-    borderRadius: sw(10),
+    borderRadius: 0,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -266,7 +266,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   cell: {
     width: CELL_WIDTH,
     backgroundColor: colors.card,
-    borderRadius: sw(14),
+    borderRadius: 0,
     padding: sw(12),
     gap: sw(6),
     ...colors.cardShadow,
@@ -285,7 +285,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   iconWrap: {
     width: sw(20),
     height: sw(20),
-    borderRadius: sw(6),
+    borderRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -330,7 +330,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   cellAddBtn: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: sw(8),
+    borderRadius: 0,
     paddingVertical: sw(6),
     alignItems: 'center',
     justifyContent: 'center',

@@ -65,6 +65,11 @@ export interface ActivityFeedItem {
   ghost_username: string | null;
   ghost_result: 'victory' | 'defeated' | 'draw' | null;
   ghost_exercises: { name: string; sets: { kg: number; reps: number }[] }[] | null;
+  routine_name: string | null;
+  program_name: string | null;
+  program_week: number | null;
+  program_total_weeks: number | null;
+  program_day_label: string | null;
 }
 
 export interface ReactionSummary {
@@ -519,6 +524,11 @@ async function attachProfilesAndReactions(
       ghost_username: r.ghost_username || null,
       ghost_result: r.ghost_result || null,
       ghost_exercises: r.ghost_exercises || null,
+      routine_name: r.routine_name || null,
+      program_name: r.program_name || null,
+      program_week: r.program_week || null,
+      program_total_weeks: r.program_total_weeks || null,
+      program_day_label: r.program_day_label || null,
     };
   });
 }
