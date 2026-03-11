@@ -145,6 +145,28 @@ function FeedCard({
                     </>
                   )}
                 </View>
+                {item.routine_name && !item.program_name && (
+                  <View style={styles.programRow}>
+                    <View style={[styles.programTag, styles.routineTag]}>
+                      <Text style={[styles.programTagText, styles.routineTagText]}>ROUTINE</Text>
+                    </View>
+                    <Text style={styles.programName} numberOfLines={1}>{item.routine_name}</Text>
+                  </View>
+                )}
+                {item.program_name && (
+                  <View style={styles.programRow}>
+                    <View style={styles.programTag}>
+                      <Text style={styles.programTagText}>PROGRAM</Text>
+                    </View>
+                    <Text style={styles.programName} numberOfLines={1}>{item.program_name}</Text>
+                    {item.program_week && (
+                      <Text style={styles.programMeta}>
+                        Week {item.program_week}{item.program_total_weeks ? `/${item.program_total_weeks}` : ''}
+                        {item.program_day_label ? ` · ${item.program_day_label}` : ''}
+                      </Text>
+                    )}
+                  </View>
+                )}
                 {item.ghost_username && item.ghost_result && (
                   <Text style={[styles.challengeText, {
                     color: item.ghost_result === 'victory' ? '#34C759' : item.ghost_result === 'defeated' ? colors.accentRed : colors.textTertiary,
@@ -396,6 +418,41 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.cardBorder,
       marginBottom: sw(12),
       marginHorizontal: -sw(14),
+    },
+    programRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: sw(5),
+      marginTop: sw(4),
+    },
+    programTag: {
+      backgroundColor: colors.accent + '20',
+      paddingHorizontal: sw(5),
+      paddingVertical: sw(1),
+    },
+    programTagText: {
+      color: colors.accent,
+      fontSize: ms(8),
+      fontFamily: Fonts.bold,
+      letterSpacing: 0.5,
+    },
+    programName: {
+      color: colors.textPrimary,
+      fontSize: ms(11),
+      fontFamily: Fonts.bold,
+      flexShrink: 1,
+    },
+    routineTag: {
+      backgroundColor: colors.accentOrange + '20',
+    },
+    routineTagText: {
+      color: colors.accentOrange,
+    },
+    programMeta: {
+      color: colors.textTertiary,
+      fontSize: ms(10),
+      fontFamily: Fonts.medium,
     },
     challengeText: {
       fontSize: ms(10),

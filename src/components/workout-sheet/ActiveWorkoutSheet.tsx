@@ -25,6 +25,7 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -39,12 +40,12 @@ import ExercisePicker from './ExercisePicker';
 /* ─── Constants (computed once) ────────────────────────── */
 
 const SCREEN_H = Dimensions.get('window').height;
-const SHEET_H = Math.round(SCREEN_H * 0.9);
+const SHEET_H = SCREEN_H;
 const RADIUS = sw(20);
 const HANDLE_W = sw(40);
 const DISMISS_THRESHOLD = 80;
 const VELOCITY_THRESHOLD = 800;
-const BACKDROP_MAX = 0.5;
+const BACKDROP_MAX = 1;
 
 const OPEN_SPRING = { damping: 28, stiffness: 280, mass: 0.8 };
 const SNAP_SPRING = { damping: 24, stiffness: 350, mass: 0.7 };
@@ -676,6 +677,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
   onOpenReplace,
 }: OverlayProps) {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   /* ─── Store slices (minimal — no rest-timer state) ──── */
@@ -875,7 +877,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
       >
         {/* Drag handle — large touch target for reliable iOS gestures */}
         <GestureDetector gesture={panGesture}>
-          <Animated.View style={styles.handleRow} hitSlop={{ top: 10, bottom: 10 }}>
+          <Animated.View style={[styles.handleRow, { paddingTop: insets.top + sw(18) }]} hitSlop={{ top: 10, bottom: 10 }}>
             <View style={styles.handle} />
           </Animated.View>
         </GestureDetector>
@@ -943,7 +945,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
 
         {/* Add Exercise button — hidden when keyboard is open */}
         {!kbOpen && (
-          <View style={styles.footer}>
+          <View style={[styles.footer, { paddingBottom: insets.bottom + sw(10) }]}>
             <TouchableOpacity
               style={styles.addBtn}
               onPress={onOpenAdd}
@@ -973,8 +975,6 @@ const createStyles = (colors: ThemeColors) =>
       right: 0,
       height: SHEET_H,
       backgroundColor: colors.background,
-      borderTopLeftRadius: RADIUS,
-      borderTopRightRadius: RADIUS,
       overflow: 'hidden',
     },
     handleRow: {
@@ -985,7 +985,7 @@ const createStyles = (colors: ThemeColors) =>
       width: HANDLE_W,
       height: sw(5),
       borderRadius: sw(3),
-      backgroundColor: colors.cardBorder,
+      backgroundColor: colors.textTertiary,
     },
     scroll: {
       flex: 1,

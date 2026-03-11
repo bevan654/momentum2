@@ -15,8 +15,8 @@ import FriendsScreen from '../screens/FriendsScreen';
 import LaboratoryScreen from '../screens/LaboratoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { useFriendsStore } from '../stores/useFriendsStore';
-import DevContentScreen from '../screens/DevContentScreen';
 import WorkoutsNavigator from './WorkoutsNavigator';
+import { showRecoveryOverlay } from './WorkoutsNavigator';
 import ActiveWorkoutSheet from '../components/workout-sheet/ActiveWorkoutSheet';
 import GhostFinishScreen from '../components/workout-sheet/GhostFinishScreen';
 import WorkoutFinishScreen from '../components/workout-sheet/WorkoutFinishScreen';
@@ -25,8 +25,10 @@ import FloatingWorkoutBanner from '../components/workout-sheet/FloatingWorkoutBa
 import BottomSheet from '../components/workout-sheet/BottomSheet';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
+
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useRankStore } from '../stores/useRankStore';
+import { useProgramStore } from '../stores/useProgramStore';
 import { initNotifications, cleanupNotifications } from '../services/notificationService';
 
 const Tab = createMaterialTopTabNavigator();
@@ -37,6 +39,10 @@ export function openProfileSheet() {
   _openProfileSheet?.();
 }
 
+/* Re-export from WorkoutsNavigator for backward compat */
+export { showRecoveryOverlay } from './WorkoutsNavigator';
+export { hideRecoveryOverlay } from './WorkoutsNavigator';
+
 /* ─── Tab config ────────────────────────────────────────── */
 
 const TAB_ICONS: Record<string, string> = {
@@ -45,10 +51,9 @@ const TAB_ICONS: Record<string, string> = {
   Home: 'home',
   Nutrition: 'nutrition-outline',
   Community: 'people-outline',
-  Dev: 'construct-outline',
 };
 
-const TAB_COUNT = 6;
+const TAB_COUNT = 5;
 const HOME_INDEX = 2; // center slot
 const HOME_BTN = sw(46);
 const BADGE_SIZE = sw(16);
@@ -163,7 +168,8 @@ function BottomTabBar({
   position,
   onOpenProfile,
   onTabChange,
-}: MaterialTopTabBarProps & { onOpenProfile: () => void; onTabChange: (name: string) => void }) {
+  onTabRepress,
+}: MaterialTopTabBarProps & { onOpenProfile: () => void; onTabChange: (name: string) => void; onTabRepress: (name: string) => void }) {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const unreadCount = useFriendsStore((s) => s.unreadCount);
@@ -201,6 +207,8 @@ function BottomTabBar({
             });
             if (state.index !== index && !event.defaultPrevented) {
               navigation.navigate(route.name);
+            } else if (state.index === index) {
+              onTabRepress(route.name);
             }
           };
 
@@ -242,6 +250,7 @@ export default function TabNavigator() {
   const [profileVisible, setProfileVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('Home');
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
@@ -251,6 +260,7 @@ export default function TabNavigator() {
       useWorkoutStore.getState().fetchPrevData(userId);
       useRankStore.getState().loadRank(userId);
       useRankStore.getState().computeRank(userId);
+      useProgramStore.getState().fetchPrograms(userId);
       initNotifications(userId);
     }
     return () => {
@@ -266,15 +276,21 @@ export default function TabNavigator() {
     _openProfileSheet = openProfile;
     return () => { _openProfileSheet = null; };
   }, [openProfile]);
+
+  const handleTabRepress = useCallback((name: string) => {
+    if (name === 'Workouts') {
+      showRecoveryOverlay();
+    }
+  }, []);
   const renderTabBar = useCallback(
-    (props: MaterialTopTabBarProps) => <BottomTabBar {...props} onOpenProfile={openProfile} onTabChange={setActiveTab} />,
-    [openProfile]
+    (props: MaterialTopTabBarProps) => <BottomTabBar {...props} onOpenProfile={openProfile} onTabChange={setActiveTab} onTabRepress={handleTabRepress} />,
+    [openProfile, handleTabRepress]
   );
 
   return (
     <View style={styles.root}>
       <Header activeTab={activeTab} />
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, overflow: 'hidden' }}>
         <Tab.Navigator
           tabBar={renderTabBar}
           tabBarPosition="bottom"
@@ -292,7 +308,6 @@ export default function TabNavigator() {
           <Tab.Screen name="Home" component={HomeScreen} />
           <Tab.Screen name="Nutrition" component={FoodLoggerScreen} />
           <Tab.Screen name="Community" component={FriendsScreen} />
-          <Tab.Screen name="Dev" component={DevContentScreen} />
         </Tab.Navigator>
         <WorkoutFinishScreen />
         <GhostFinishScreen />
@@ -318,7 +333,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.background,
     borderTopColor: colors.cardBorder,
     borderTopWidth: 0.5,
-    paddingTop: sw(8),
+    paddingTop: sw(16),
     shadowColor: colors.cardShadow.shadowColor,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: colors.cardShadow.shadowOpacity,

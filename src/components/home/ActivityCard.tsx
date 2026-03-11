@@ -435,7 +435,7 @@ const yearStyles = (colors: ThemeColors) => StyleSheet.create({
   closeButton: {
     width: sw(32),
     height: sw(32),
-    borderRadius: sw(16),
+    borderRadius: 0,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -446,7 +446,7 @@ const yearStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   monthBlock: {
     backgroundColor: colors.card,
-    borderRadius: sw(14),
+    borderRadius: 0,
     padding: sw(12),
     marginBottom: sw(10),
   },
@@ -544,7 +544,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.card,
-    borderRadius: sw(16),
+    borderRadius: 0,
     padding: sw(14),
     ...colors.cardShadow,
   },
@@ -564,7 +564,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   iconWrap: {
     width: sw(22),
     height: sw(22),
-    borderRadius: sw(6),
+    borderRadius: 0,
     backgroundColor: colors.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',

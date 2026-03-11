@@ -102,8 +102,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   swipeContainer: {
     overflow: 'hidden',
     marginBottom: sw(10),
-    borderWidth: sw(2),
-    borderColor: colors.cardBorder,
   },
   card: {
     backgroundColor: colors.card,

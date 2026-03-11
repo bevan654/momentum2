@@ -40,6 +40,7 @@ export interface WorkoutWithDetails {
   prCount: number;
   muscleGroups: string[];
   ghostUsername: string | null;
+  programName: string | null;
 }
 
 export interface CatalogEntry {
@@ -213,7 +214,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     try {
       const { data: workoutsData } = await supabase
         .from('workouts')
-        .select('id, created_at, duration, total_exercises, total_sets, ghost_username')
+        .select('id, created_at, duration, total_exercises, total_sets, ghost_username, program_id, programs(name)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(30);
@@ -350,6 +351,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
           prCount,
           muscleGroups: Array.from(muscleGroupSet).slice(0, 4),
           ghostUsername: (w as any).ghost_username || null,
+          programName: (w as any).programs?.name || null,
         };
       });
 
