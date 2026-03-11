@@ -45,6 +45,8 @@ interface Props {
   onCycleSetType: () => void;
   onDelete: (() => void) | null;
   onInputFocus?: (y: number) => void;
+  isGhost?: boolean;
+  ghostResult?: 'win' | 'loss' | 'tie' | null;
 }
 
 /* ── Helpers ───────────────────────────────────────────── */
@@ -56,7 +58,7 @@ function formatPrev(prevSet: { kg: number; reps: number } | null): string {
 
 /* ── Component ─────────────────────────────────────────── */
 
-function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, onUpdate, onToggle, onCycleSetType, onDelete, onInputFocus }: Props) {
+function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, onUpdate, onToggle, onCycleSetType, onDelete, onInputFocus, isGhost, ghostResult }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -127,8 +129,9 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, onUpdate, onT
     transform: [{ translateX: translateX.value }],
   }));
 
+  const ghostFlashColor = ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : ghostResult === 'tie' ? colors.textPrimary : colors.accentGreen;
   const flashOverlayStyle = useAnimatedStyle(() => ({
-    backgroundColor: colors.accentGreen,
+    backgroundColor: isGhost ? ghostFlashColor : colors.accentGreen,
     opacity: interpolate(flashAnim.value, [0, 1], [0, 0.15]),
   }));
 
@@ -282,7 +285,9 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, onUpdate, onT
         <Animated.View
           style={[
             styles.row,
-            completed && styles.rowCompleted,
+            completed && (isGhost && ghostResult
+              ? { backgroundColor: (ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) + '08', borderColor: (ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) + '15' }
+              : styles.rowCompleted),
             rowSwipeStyle,
           ]}
         >
@@ -301,26 +306,28 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, onUpdate, onT
               pressed && styles.setNumBadgePressed,
             ]}
           >
-            <Text style={[styles.setNumText, { color: completed ? colors.accentGreen : typeConfig.color }]}>
+            <Text style={[styles.setNumText, { color: completed ? (isGhost && ghostResult ? (ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) : colors.accentGreen) : typeConfig.color }]}>
               {`S${index + 1}`}
             </Text>
           </Pressable>
 
-          {/* Previous performance */}
-          <View style={styles.prevContainer}>
-            <Text
-              style={[styles.prevText, completed && styles.prevTextCompleted]}
-              numberOfLines={1}
-            >
-              {formatPrev(prevSet)}
-            </Text>
-          </View>
+          {/* Previous performance — hidden in ghost mode */}
+          {!isGhost && (
+            <View style={styles.prevContainer}>
+              <Text
+                style={[styles.prevText, completed && styles.prevTextCompleted]}
+                numberOfLines={1}
+              >
+                {formatPrev(prevSet)}
+              </Text>
+            </View>
+          )}
 
           {/* KG input */}
           <View style={[styles.inputContainer, completed && styles.inputContainerCompleted, !localKg && suggestedKg && styles.inputContainerSuggested]}>
             <TextInput
               ref={kgRef}
-              style={[styles.input, completed && styles.inputTextCompleted]}
+              style={[styles.input, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
               value={localKg}
               onChangeText={(v) => { setLocalKg(v); onUpdate('kg', v); }}
               onFocus={() => handleFocus(kgRef, localKg)}
@@ -352,7 +359,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, onUpdate, onT
             )}
             <TextInput
               ref={repsRef}
-              style={[styles.repsInput, completed && styles.inputTextCompleted]}
+              style={[styles.repsInput, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
               value={localReps}
               onChangeText={(v) => { setLocalReps(v); onUpdate('reps', v); }}
               onFocus={() => handleFocus(repsRef, localReps)}
@@ -390,7 +397,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, onUpdate, onT
             <Ionicons
               name={completed ? 'checkmark-circle' : 'ellipse-outline'}
               size={ms(22)}
-              color={completed ? colors.accentGreen : colors.textTertiary + '60'}
+              color={completed ? (isGhost && ghostResult ? (ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) : colors.accentGreen) : colors.textTertiary + '60'}
             />
           </TouchableOpacity>
         </Animated.View>

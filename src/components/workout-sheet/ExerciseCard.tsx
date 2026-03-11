@@ -20,6 +20,25 @@ import Body, { type ExtendedBodyPart } from '../BodyHighlighter';
 import { toSlug, ALL_SLUGS } from '../../utils/muscleVolume';
 import SetRow from './SetRow';
 
+/* ─── Ghost set comparison ─────────────────────────────── */
+
+function compareGhostSet(
+  userKg: number, userReps: number,
+  ghostKg: number, ghostReps: number,
+): 'win' | 'loss' | 'tie' {
+  if (userKg < ghostKg) return 'loss';
+  if (userKg === ghostKg) {
+    if (userReps > ghostReps) return 'win';
+    if (userReps < ghostReps) return 'loss';
+    return 'tie';
+  }
+  const userVol = userKg * userReps;
+  const ghostVol = ghostKg * ghostReps;
+  if (userVol > ghostVol) return 'win';
+  if (userVol < ghostVol) return 'loss';
+  return 'tie';
+}
+
 /* ─── Focused body map helpers ─────────────────────────── */
 
 const CATEGORY_SLUGS: Record<string, string[]> = {
@@ -76,30 +95,35 @@ interface HistorySession {
   sets: { kg: number; reps: number; set_type: string | null }[];
 }
 
+function formatAxisVal(v: number): string {
+  if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
+  return `${Math.round(v)}`;
+}
+
 function ExerciseHistoryGraph({ history, colors }: { history: HistorySession[]; colors: ThemeColors }) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
   const data = useMemo(() => {
-    // Reverse so oldest first (left → right)
     const reversed = [...history].reverse();
     return reversed.map((s) => {
       const vol = s.sets.reduce((sum, set) => sum + set.kg * set.reps, 0);
       const maxKg = Math.max(...s.sets.map((set) => set.kg), 0);
-      const d = new Date(s.date);
-      const label = `${d.getDate()}/${d.getMonth() + 1}`;
-      return { vol, maxKg, label, sets: s.sets.length };
+      return { vol, maxKg, date: s.date, sets: s.sets, setCount: s.sets.length };
     });
   }, [history]);
 
-  const maxVol = Math.max(...data.map((d) => d.vol), 1);
-  const maxWeight = Math.max(...data.map((d) => d.maxKg), 1);
+  const maxVol = Math.max(...data.map((d) => d.vol), 1) * 1.25;
+  const maxWeight = Math.max(...data.map((d) => d.maxKg), 1) * 1.25;
+  const AXIS_W = sw(32);
   const chartW = sw(340);
-  const drawW = chartW - GRAPH_PAD_X * 2;
+  const drawW = chartW - AXIS_W * 2;
   const drawH = GRAPH_H - GRAPH_PAD_TOP - GRAPH_PAD_BOTTOM;
 
   const buildCurve = useCallback((values: number[], maxVal: number) => {
     if (data.length < 2) return { linePath: null, fillPath: null, points: [] as { x: number; y: number }[] };
 
     const pts = values.map((v, i) => ({
-      x: GRAPH_PAD_X + (i / (data.length - 1)) * drawW,
+      x: AXIS_W + (i / (data.length - 1)) * drawW,
       y: GRAPH_PAD_TOP + drawH - (v / maxVal) * drawH,
     }));
 
@@ -143,13 +167,13 @@ function ExerciseHistoryGraph({ history, colors }: { history: HistorySession[]; 
       <View style={{ paddingVertical: sw(12), gap: sw(6) }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: colors.textSecondary }}>
-            {history[0].date ? new Date(history[0].date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+            {d.date ? new Date(d.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
           </Text>
           <Text style={{ fontSize: ms(10), fontFamily: Fonts.medium, color: colors.textTertiary }}>
-            {d.sets} sets · {d.vol.toLocaleString()} kg
+            {d.setCount} sets · {d.vol.toLocaleString()} kg
           </Text>
         </View>
-        {history[0].sets.map((s, i) => (
+        {d.sets.map((s, i) => (
           <Text key={i} style={{ fontSize: ms(10), fontFamily: Fonts.medium, color: colors.textPrimary, paddingLeft: sw(6) }}>
             S{i + 1}  {s.kg}kg × {s.reps}
           </Text>
@@ -165,9 +189,26 @@ function ExerciseHistoryGraph({ history, colors }: { history: HistorySession[]; 
   const kgDiff = latest.maxKg - prev.maxKg;
   const kgPctDiff = prev.maxKg > 0 ? Math.round((kgDiff / prev.maxKg) * 100) : 0;
 
+  const sel = selectedIndex !== null ? data[selectedIndex] : null;
+  const selDate = sel ? (() => {
+    const d = new Date(sel.date);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${d.getDate()} ${months[d.getMonth()]}`;
+  })() : null;
+
+  const handleTouch = (e: any) => {
+    const x = e.nativeEvent.locationX;
+    if (data.length < 2) return;
+    const ratio = (x - AXIS_W) / drawW;
+    const idx = Math.round(ratio * (data.length - 1));
+    if (idx >= 0 && idx < data.length) {
+      setSelectedIndex(idx === selectedIndex ? null : idx);
+    }
+  };
+
   return (
     <View style={{ marginTop: sw(6) }}>
-      {/* Legend row */}
+      {/* Legend row — always visible */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: sw(4), paddingHorizontal: sw(4) }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: sw(10) }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: sw(4) }}>
@@ -189,88 +230,109 @@ function ExerciseHistoryGraph({ history, colors }: { history: HistorySession[]; 
         </View>
       </View>
 
-      {/* Skia graph */}
-      <Canvas style={{ width: chartW, height: GRAPH_H }}>
-        {/* Grid lines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((pct) => (
-          <SkiaLine
-            key={pct}
-            p1={vec(GRAPH_PAD_X, GRAPH_PAD_TOP + drawH * (1 - pct))}
-            p2={vec(GRAPH_PAD_X + drawW, GRAPH_PAD_TOP + drawH * (1 - pct))}
-            color={colors.cardBorder}
-            strokeWidth={StyleSheet.hairlineWidth}
-          />
-        ))}
-
-        {/* Volume fill gradient */}
-        {volCurve.fillPath && (
-          <Path path={volCurve.fillPath}>
-            <LinearGradient
-              start={vec(0, GRAPH_PAD_TOP)}
-              end={vec(0, GRAPH_PAD_TOP + drawH)}
-              colors={[colors.accent + '25', colors.accent + '03']}
+      {/* Graph with touch overlay */}
+      <View style={{ position: 'relative' }}>
+        <Canvas style={{ width: chartW, height: GRAPH_H }} pointerEvents="none">
+          {/* Grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((pct) => (
+            <SkiaLine
+              key={pct}
+              p1={vec(AXIS_W, GRAPH_PAD_TOP + drawH * (1 - pct))}
+              p2={vec(AXIS_W + drawW, GRAPH_PAD_TOP + drawH * (1 - pct))}
+              color={colors.cardBorder}
+              strokeWidth={StyleSheet.hairlineWidth}
             />
-          </Path>
-        )}
+          ))}
 
-        {/* Volume line */}
-        {volCurve.linePath && (
-          <Path
-            path={volCurve.linePath}
-            style="stroke"
-            strokeWidth={sw(2)}
-            color={colors.accent}
-            strokeCap="round"
-            strokeJoin="round"
-          />
-        )}
+          {/* Selection guide line */}
+          {selectedIndex !== null && volCurve.points[selectedIndex] && (
+            <SkiaLine
+              p1={vec(volCurve.points[selectedIndex].x, GRAPH_PAD_TOP)}
+              p2={vec(volCurve.points[selectedIndex].x, GRAPH_PAD_TOP + drawH)}
+              color={colors.textTertiary + '40'}
+              strokeWidth={sw(1)}
+            />
+          )}
 
-        {/* Volume dots */}
-        {volCurve.points.map((pt, i) => (
-          <SkiaCircle key={`v${i}`} cx={pt.x} cy={pt.y} r={sw(3)} color={colors.accent} />
-        ))}
+          {/* Volume fill gradient */}
+          {volCurve.fillPath && (
+            <Path path={volCurve.fillPath}>
+              <LinearGradient
+                start={vec(0, GRAPH_PAD_TOP)}
+                end={vec(0, GRAPH_PAD_TOP + drawH)}
+                colors={[colors.accent + '25', colors.accent + '03']}
+              />
+            </Path>
+          )}
 
-        {/* Weight line */}
-        {kgCurve.linePath && (
-          <Path
-            path={kgCurve.linePath}
-            style="stroke"
-            strokeWidth={sw(1.5)}
-            color={KG_COLOR}
-            strokeCap="round"
-            strokeJoin="round"
-          />
-        )}
+          {/* Volume line */}
+          {volCurve.linePath && (
+            <Path
+              path={volCurve.linePath}
+              style="stroke"
+              strokeWidth={sw(1)}
+              color={colors.accent}
+              strokeCap="round"
+              strokeJoin="round"
+            />
+          )}
 
-        {/* Weight dots */}
-        {kgCurve.points.map((pt, i) => (
-          <SkiaCircle key={`k${i}`} cx={pt.x} cy={pt.y} r={sw(2.5)} color={KG_COLOR} />
-        ))}
-      </Canvas>
+          {/* Volume dots */}
+          {volCurve.points.map((pt, i) => (
+            <SkiaCircle key={`v${i}`} cx={pt.x} cy={pt.y} r={selectedIndex === i ? sw(4) : sw(2.5)} color={colors.accent} />
+          ))}
 
-      {/* X-axis labels */}
-      <View style={{ position: 'relative', height: sw(14), marginTop: -GRAPH_PAD_BOTTOM + sw(4) }}>
-        {data.map((d, i) => {
-          const x = GRAPH_PAD_X + (data.length > 1 ? (i / (data.length - 1)) * drawW : drawW / 2);
-          return (
-            <Text
-              key={i}
-              style={{
-                position: 'absolute',
-                left: x,
-                transform: [{ translateX: -sw(18) }],
-                width: sw(36),
-                fontSize: ms(8),
-                fontFamily: Fonts.medium,
-                color: colors.textTertiary,
-                textAlign: 'center',
-              }}
-            >
-              {d.label}
-            </Text>
-          );
-        })}
+          {/* Weight line */}
+          {kgCurve.linePath && (
+            <Path
+              path={kgCurve.linePath}
+              style="stroke"
+              strokeWidth={sw(1)}
+              color={KG_COLOR}
+              strokeCap="round"
+              strokeJoin="round"
+            />
+          )}
+
+          {/* Weight dots */}
+          {kgCurve.points.map((pt, i) => (
+            <SkiaCircle key={`k${i}`} cx={pt.x} cy={pt.y} r={selectedIndex === i ? sw(3.5) : sw(2)} color={KG_COLOR} />
+          ))}
+        </Canvas>
+
+        {/* Touch overlay */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleTouch} />
+
+        {/* Y-axis labels — Volume (left) */}
+        <Text style={{ position: 'absolute', left: 0, top: GRAPH_PAD_TOP - sw(5), fontSize: ms(7), fontFamily: Fonts.medium, color: colors.accent, opacity: 0.8 }}>
+          {formatAxisVal(maxVol)}
+        </Text>
+        <Text style={{ position: 'absolute', left: 0, top: GRAPH_PAD_TOP + drawH - sw(5), fontSize: ms(7), fontFamily: Fonts.medium, color: colors.accent, opacity: 0.8 }}>
+          0
+        </Text>
+
+        {/* Y-axis labels — Weight (right) */}
+        <Text style={{ position: 'absolute', right: 0, top: GRAPH_PAD_TOP - sw(5), fontSize: ms(7), fontFamily: Fonts.medium, color: KG_COLOR, opacity: 0.8, textAlign: 'right' }}>
+          {formatAxisVal(maxWeight)}
+        </Text>
+        <Text style={{ position: 'absolute', right: 0, top: GRAPH_PAD_TOP + drawH - sw(5), fontSize: ms(7), fontFamily: Fonts.medium, color: KG_COLOR, opacity: 0.8, textAlign: 'right' }}>
+          0
+        </Text>
       </View>
+
+      {/* Selected session details */}
+      {sel && selDate && (
+        <Pressable onPress={() => setSelectedIndex(null)} style={{ marginTop: sw(1), gap: sw(2), alignItems: 'center' }}>
+          <Text style={{ fontSize: ms(11), fontFamily: Fonts.semiBold, color: colors.textSecondary }}>{selDate} · {sel.setCount} sets</Text>
+          <Text style={{ fontSize: ms(10), fontFamily: Fonts.medium, color: colors.textTertiary, textAlign: 'center' }}>
+            {sel.sets.map((s) => `${s.kg}×${s.reps}`).join(' · ')}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: sw(10) }}>
+            <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.accent }}>{sel.vol.toLocaleString()} vol</Text>
+            <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: KG_COLOR }}>{sel.maxKg}kg top</Text>
+          </View>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -332,7 +394,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
         }
       }
     }
-    return sessions.slice(0, 10); // last 10 sessions
+    return sessions.slice(0, 20); // last 20 sessions
   }, [workouts, exercise.name, aliasMap]);
 
   // Build body highlight data + focus region
@@ -428,7 +490,8 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
     >
     <Swipeable
       ref={swipeableRef}
-      renderRightActions={renderRightActions}
+      renderRightActions={useActiveWorkoutStore.getState().ghostUserName ? undefined : renderRightActions}
+      enabled={!useActiveWorkoutStore.getState().ghostUserName}
       overshootRight={false}
       friction={2}
     >
@@ -439,7 +502,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
             {exercise.name.replace(/\b\w/g, (c) => c.toUpperCase())}
           </Text>
           <View style={{ flex: 1 }} />
-          {exerciseHistory.length > 0 && (
+          {exerciseHistory.length > 0 && !useActiveWorkoutStore.getState().ghostUserName && (
             <View style={styles.tabRow}>
               <TouchableOpacity
                 style={[styles.tab, !showHistory && styles.tabActive]}
@@ -457,26 +520,24 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
               </TouchableOpacity>
             </View>
           )}
-          {!showHistory && (
-            <View style={styles.reorderBtns}>
-              <TouchableOpacity
-                onPress={() => moveExercise(exerciseIndex, 'up')}
-                disabled={exerciseIndex === 0}
-                style={styles.reorderBtn}
-                activeOpacity={0.5}
-              >
-                <Ionicons name="chevron-up" size={ms(14)} color={exerciseIndex === 0 ? colors.textTertiary + '30' : colors.textSecondary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => moveExercise(exerciseIndex, 'down')}
-                disabled={isLast}
-                style={styles.reorderBtn}
-                activeOpacity={0.5}
-              >
-                <Ionicons name="chevron-down" size={ms(14)} color={isLast ? colors.textTertiary + '30' : colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          )}
+          <View style={[styles.reorderBtns, showHistory && { opacity: 0 }]} pointerEvents={showHistory ? 'none' : 'auto'}>
+            <TouchableOpacity
+              onPress={() => moveExercise(exerciseIndex, 'up')}
+              disabled={exerciseIndex === 0}
+              style={styles.reorderBtn}
+              activeOpacity={0.5}
+            >
+              <Ionicons name="chevron-up" size={ms(14)} color={exerciseIndex === 0 ? colors.textTertiary + '30' : colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => moveExercise(exerciseIndex, 'down')}
+              disabled={isLast}
+              style={styles.reorderBtn}
+              activeOpacity={0.5}
+            >
+              <Ionicons name="chevron-down" size={ms(14)} color={isLast ? colors.textTertiary + '30' : colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {showHistory ? (
@@ -492,36 +553,54 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
             {/* Column headers */}
             <View style={styles.colHeaders}>
               <Text style={[styles.colHeader, { width: sw(28) }]}>SET</Text>
-              <Text style={[styles.colHeader, { width: sw(46) }]}>PREV</Text>
+              {!useActiveWorkoutStore.getState().ghostUserName && (
+                <Text style={[styles.colHeader, { width: sw(46) }]}>PREV</Text>
+              )}
               <Text style={[styles.colHeader, { flex: 1 }]}>KG</Text>
               <Text style={[styles.colHeader, { flex: 1 }]}>REPS</Text>
               <View style={{ width: sw(24) }} />
             </View>
 
             {/* Sets */}
-            {exercise.sets.map((set, setIdx) => (
+            {exercise.sets.map((set, setIdx) => {
+              const isGhost = !!useActiveWorkoutStore.getState().ghostUserName;
+              const ghostPrev = isGhost ? (exercise.prevSets?.[setIdx] || null) : null;
+              const ghostResult = (isGhost && set.completed && ghostPrev)
+                ? compareGhostSet(
+                    parseFloat(set.kg) || 0, parseInt(set.reps) || 0,
+                    ghostPrev.kg, ghostPrev.reps,
+                  )
+                : null;
+              return (
               <SetRow
                 key={`${set.id}-${setIdx}`}
                 index={setIdx}
                 set={set}
                 prevSet={exercise.prevSets?.[setIdx] || null}
+                suggestedKg={ghostPrev ? String(ghostPrev.kg) : undefined}
+                suggestedReps={ghostPrev ? String(ghostPrev.reps) : undefined}
                 onUpdate={(field, value) => { onExerciseFocus?.(exerciseIndex); updateSet(exerciseIndex, setIdx, field, value); }}
                 onToggle={() => { onExerciseFocus?.(exerciseIndex); toggleSetComplete(exerciseIndex, setIdx); }}
                 onCycleSetType={() => cycleSetType(exerciseIndex, setIdx)}
-                onDelete={exercise.sets.length > 1 ? () => removeSet(exerciseIndex, setIdx) : null}
+                onDelete={exercise.sets.length > 1 && !isGhost ? () => removeSet(exerciseIndex, setIdx) : null}
                 onInputFocus={(y) => { onExerciseFocus?.(exerciseIndex); onInputFocus?.(y); }}
+                isGhost={isGhost}
+                ghostResult={ghostResult}
               />
-            ))}
+            );
+            })}
 
-            {/* Add Set button */}
-            <TouchableOpacity
-              style={styles.addSetBtn}
-              onPress={() => addSet(exerciseIndex)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="add" size={ms(14)} color={colors.accent} />
-              <Text style={styles.addSetText}>Add Set</Text>
-            </TouchableOpacity>
+            {/* Add Set button — hidden in ghost mode */}
+            {!useActiveWorkoutStore.getState().ghostUserName && (
+              <TouchableOpacity
+                style={styles.addSetBtn}
+                onPress={() => addSet(exerciseIndex)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={ms(14)} color={colors.accent} />
+                <Text style={styles.addSetText}>Add Set</Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
       </View>

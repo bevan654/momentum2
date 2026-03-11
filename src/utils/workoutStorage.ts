@@ -10,6 +10,8 @@ export interface PersistedWorkout {
   restDuration: number;
   restStartedAt: number | null;
   startedFromRoutine: string | null;
+  startedFromProgram?: string | null;
+  programWeek?: number | null;
 }
 
 export function saveWorkout(state: PersistedWorkout): void {
@@ -31,6 +33,8 @@ export async function loadWorkoutAsync(): Promise<PersistedWorkout | null> {
       restDuration: parsed.restDuration ?? 90,
       restStartedAt: parsed.restStartedAt ?? null,
       startedFromRoutine: parsed.startedFromRoutine ?? null,
+      startedFromProgram: parsed.startedFromProgram ?? null,
+      programWeek: parsed.programWeek ?? null,
     };
   } catch {
     return null;

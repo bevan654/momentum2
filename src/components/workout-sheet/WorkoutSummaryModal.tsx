@@ -9,16 +9,11 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { getMuscleGroupColor } from '../../constants/muscleGroups';
 import MuscleHeatmap from '../body/MuscleHeatmap';
-import RankBadge from '../workouts/RankBadge';
-import { AnimatedRankBar, AnimatedCardWrapper, OverallRankReveal } from './ExerciseRankReveal';
-import Confetti from './Confetti';
 import DurationPickerModal from './DurationPickerModal';
-import { computeWorkoutRank, type WorkoutRankResult } from '../../utils/strengthScore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
-import { useWeightStore } from '../../stores/useWeightStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { supabase } from '../../lib/supabase';
-import type { WorkoutSummary, SummaryExercise } from '../../stores/useActiveWorkoutStore';
+import { useActiveWorkoutStore, type WorkoutSummary, type SummaryExercise, type GhostExerciseData } from '../../stores/useActiveWorkoutStore';
 import type { WorkoutWithDetails, ExerciseWithSets } from '../../stores/useWorkoutStore';
 import ShareWorkoutModal from './ShareWorkoutModal';
 import type { WorkoutOverlayData } from '../dev/WorkoutOverlay';
@@ -31,6 +26,7 @@ type EditExercise = { name: string; category: string | null; sets: EditSet[] };
 type Props = {
   onDismiss: () => void;
   onDelete?: () => void;
+  inline?: boolean;
 } & (
   | { mode: 'just-completed'; data: WorkoutSummary }
   | { mode: 'historical'; data: WorkoutWithDetails }
@@ -58,61 +54,158 @@ function formatWorkoutDate(isoString: string): string {
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} \u00b7 ${h}:${min} ${ampm}`;
 }
 
-function ExerciseDetailSection({ exercise, colors, styles, rankResult }: { exercise: ExerciseWithSets; colors: ThemeColors; styles: ReturnType<typeof createStyles>; rankResult: WorkoutRankResult | null }) {
+function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercise: ExerciseWithSets; colors: ThemeColors; styles: ReturnType<typeof createStyles>; prevSets?: { kg: number; reps: number }[] }) {
   const catColor = exercise.category ? getMuscleGroupColor(exercise.category) : colors.textTertiary;
-  const completedCount = exercise.sets.filter((s) => s.completed).length;
+  const completedSets = exercise.sets.filter((s) => s.completed);
+  const totalReps = completedSets.reduce((sum, s) => sum + s.reps, 0);
+
+  // Volume progression
+  const volume = completedSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
+  const prevVolume = prevSets ? prevSets.reduce((sum, s) => sum + s.kg * s.reps, 0) : 0;
+  const volDiff = prevSets && prevVolume > 0 ? Math.round(((volume - prevVolume) / prevVolume) * 100) : null;
+
+  // Top weight comparison
+  const topWeight = completedSets.reduce((max, s) => Math.max(max, s.kg), 0);
+  const prevTopWeight = prevSets ? prevSets.reduce((max, s) => Math.max(max, s.kg), 0) : 0;
+  const weightDiff = prevSets && prevTopWeight > 0 ? topWeight - prevTopWeight : null;
 
   return (
-    <View style={styles.exerciseDetail}>
+    <View style={styles.summaryCard}>
       <View style={styles.exerciseHeader}>
         <View style={[styles.catStrip, { backgroundColor: catColor }]} />
-        <Text style={styles.exerciseDetailName} numberOfLines={1}>{exercise.name}</Text>
-        {rankResult?.exerciseScores[exercise.name] && (
-          <View style={{ marginLeft: sw(4) }}>
-            <RankBadge rank={rankResult.exerciseScores[exercise.name].rank} />
-          </View>
-        )}
-        {exercise.hasPR && (
-          <Ionicons name="trophy" size={ms(10)} color={colors.accentOrange} style={{ marginLeft: sw(4) }} />
-        )}
-        <View style={{ flex: 1 }} />
-        <Text style={styles.completedCount}>{completedCount} sets</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.exerciseDetailName} numberOfLines={1}>{exercise.name}</Text>
+          <Text style={styles.summaryExSummary}>{completedSets.length} sets · {totalReps} reps</Text>
+        </View>
       </View>
+
+      {/* Progression stats */}
+      <View style={styles.progressionRow}>
+        <View style={styles.progressionItem}>
+          <Text style={styles.progressionLabel}>Vol</Text>
+          <Text style={styles.progressionValue}>{volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : volume} kg</Text>
+          {volDiff !== null && (
+            <Text style={[styles.progressionDelta, volDiff >= 0 ? styles.deltaUp : styles.deltaDown]}>
+              {volDiff >= 0 ? '+' : ''}{volDiff}%
+            </Text>
+          )}
+        </View>
+        <View style={styles.progressionDivider} />
+        <View style={styles.progressionItem}>
+          <Text style={styles.progressionLabel}>Top</Text>
+          <Text style={styles.progressionValue}>{topWeight} kg</Text>
+          {weightDiff !== null && weightDiff !== 0 && (
+            <Text style={[styles.progressionDelta, weightDiff > 0 ? styles.deltaUp : styles.deltaDown]}>
+              {weightDiff > 0 ? '+' : ''}{weightDiff} kg
+            </Text>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.summaryDivider} />
+
+      {/* Column headers */}
+      <View style={styles.summaryColHeaders}>
+        <Text style={[styles.summaryColHeader, styles.colSet]}>SET</Text>
+        <Text style={[styles.summaryColHeader, styles.colPrev]}>PREV</Text>
+        <Text style={[styles.summaryColHeader, styles.colVal]}>KG</Text>
+        <Text style={[styles.summaryColHeader, styles.colVal]}>REPS</Text>
+      </View>
+
+      {/* Set rows */}
+      {completedSets.map((s, i) => {
+        const prev = prevSets?.[i];
+        return (
+          <View key={s.id} style={styles.summarySetRow}>
+            <Text style={[styles.summarySetNum, styles.colSet]}>{i + 1}</Text>
+            <Text style={[styles.summaryPrevText, styles.colPrev]}>
+              {prev ? `${prev.kg}×${prev.reps}` : '—'}
+            </Text>
+            <Text style={[styles.summaryCellVal, styles.colVal]}>{s.kg}</Text>
+            <Text style={[styles.summaryCellVal, styles.colVal]}>{s.reps}</Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
 
-function SummaryExerciseSection({ exercise, colors, styles, rankResult, animateIndex }: { exercise: SummaryExercise; colors: ThemeColors; styles: ReturnType<typeof createStyles>; rankResult: WorkoutRankResult | null; animateIndex?: number }) {
+function SummaryExerciseSection({ exercise, colors, styles, prevSets }: { exercise: SummaryExercise; colors: ThemeColors; styles: ReturnType<typeof createStyles>; prevSets?: { kg: number; reps: number }[] }) {
   const catColor = exercise.category ? getMuscleGroupColor(exercise.category) : colors.textTertiary;
-  const completedCount = exercise.sets.filter((s) => s.completed).length;
-  const scoreEntry = rankResult?.exerciseScores[exercise.name];
-  const shouldAnimate = animateIndex != null && scoreEntry && scoreEntry.score > 0;
+  const completedSets = exercise.sets.filter((s) => s.completed);
+  const totalReps = completedSets.reduce((sum, s) => sum + s.reps, 0);
 
-  const card = (
-    <View style={styles.exerciseDetail}>
+  // Volume progression
+  const volume = completedSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
+  const prevVolume = prevSets ? prevSets.reduce((sum, s) => sum + s.kg * s.reps, 0) : 0;
+  const volDiff = prevSets && prevVolume > 0 ? Math.round(((volume - prevVolume) / prevVolume) * 100) : null;
+
+  // Top weight comparison
+  const topWeight = completedSets.reduce((max, s) => Math.max(max, s.kg), 0);
+  const prevTopWeight = prevSets ? prevSets.reduce((max, s) => Math.max(max, s.kg), 0) : 0;
+  const weightDiff = prevSets && prevTopWeight > 0 ? topWeight - prevTopWeight : null;
+
+  return (
+    <View style={styles.summaryCard}>
+      {/* Exercise name + summary */}
       <View style={styles.exerciseHeader}>
         <View style={[styles.catStrip, { backgroundColor: catColor }]} />
-        <Text style={styles.exerciseDetailName} numberOfLines={1}>{exercise.name}</Text>
-        {!shouldAnimate && scoreEntry && (
-          <View style={{ marginLeft: sw(4) }}>
-            <RankBadge rank={scoreEntry.rank} />
-          </View>
-        )}
-        <View style={{ flex: 1 }} />
-        <Text style={styles.completedCount}>{completedCount} sets</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.exerciseDetailName} numberOfLines={1}>{exercise.name}</Text>
+          <Text style={styles.summaryExSummary}>{completedSets.length} sets · {totalReps} reps</Text>
+        </View>
       </View>
 
-      {shouldAnimate && (
-        <AnimatedRankBar entry={scoreEntry} animateIndex={animateIndex} colors={colors} />
-      )}
+      {/* Progression stats */}
+      <View style={styles.progressionRow}>
+        <View style={styles.progressionItem}>
+          <Text style={styles.progressionLabel}>Vol</Text>
+          <Text style={styles.progressionValue}>{volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : volume} kg</Text>
+          {volDiff !== null && (
+            <Text style={[styles.progressionDelta, volDiff >= 0 ? styles.deltaUp : styles.deltaDown]}>
+              {volDiff >= 0 ? '+' : ''}{volDiff}%
+            </Text>
+          )}
+        </View>
+        <View style={styles.progressionDivider} />
+        <View style={styles.progressionItem}>
+          <Text style={styles.progressionLabel}>Top</Text>
+          <Text style={styles.progressionValue}>{topWeight} kg</Text>
+          {weightDiff !== null && weightDiff !== 0 && (
+            <Text style={[styles.progressionDelta, weightDiff > 0 ? styles.deltaUp : styles.deltaDown]}>
+              {weightDiff > 0 ? '+' : ''}{weightDiff} kg
+            </Text>
+          )}
+        </View>
+      </View>
+
+      {/* Divider */}
+      <View style={styles.summaryDivider} />
+
+      {/* Column headers */}
+      <View style={styles.summaryColHeaders}>
+        <Text style={[styles.summaryColHeader, styles.colSet]}>SET</Text>
+        <Text style={[styles.summaryColHeader, styles.colPrev]}>PREV</Text>
+        <Text style={[styles.summaryColHeader, styles.colVal]}>KG</Text>
+        <Text style={[styles.summaryColHeader, styles.colVal]}>REPS</Text>
+      </View>
+
+      {/* Set rows */}
+      {completedSets.map((s, i) => {
+        const prev = prevSets?.[i];
+        return (
+          <View key={i} style={styles.summarySetRow}>
+            <Text style={[styles.summarySetNum, styles.colSet]}>{i + 1}</Text>
+            <Text style={[styles.summaryPrevText, styles.colPrev]}>
+              {prev ? `${prev.kg}×${prev.reps}` : '—'}
+            </Text>
+            <Text style={[styles.summaryCellVal, styles.colVal]}>{s.kg}</Text>
+            <Text style={[styles.summaryCellVal, styles.colVal]}>{s.reps}</Text>
+          </View>
+        );
+      })}
     </View>
   );
-
-  if (shouldAnimate) {
-    return <AnimatedCardWrapper animateIndex={animateIndex}>{card}</AnimatedCardWrapper>;
-  }
-
-  return card;
 }
 
 // ── Editable exercise section ────────────────────────
@@ -223,6 +316,282 @@ function EditableExerciseSection({
   );
 }
 
+/* ── Ghost set comparison logic ────────────────────── */
+
+function compareGhostSet(
+  userKg: number, userReps: number,
+  ghostKg: number, ghostReps: number,
+): 'win' | 'loss' | 'tie' {
+  if (userKg < ghostKg) return 'loss';
+  if (userKg === ghostKg) {
+    if (userReps > ghostReps) return 'win';
+    if (userReps < ghostReps) return 'loss';
+    return 'tie';
+  }
+  const userVol = userKg * userReps;
+  const ghostVol = ghostKg * ghostReps;
+  if (userVol > ghostVol) return 'win';
+  if (userVol < ghostVol) return 'loss';
+  return 'tie';
+}
+
+/* ── Ghost Comparison Section ──────────────────────── */
+
+function GhostComparisonSection({
+  exercises,
+  ghostExercises,
+  ghostUserName,
+  colors,
+}: {
+  exercises: SummaryExercise[];
+  ghostExercises: GhostExerciseData[];
+  ghostUserName: string;
+  colors: ThemeColors;
+}) {
+  const ghostMap = useMemo(() => {
+    const map: Record<string, { sets: { kg: number; reps: number }[] }> = {};
+    for (const gex of ghostExercises) {
+      map[gex.name] = { sets: gex.sets };
+    }
+    return map;
+  }, [ghostExercises]);
+
+  const results = useMemo(() => {
+    let userTotalVol = 0;
+    let ghostTotalVol = 0;
+    let setWins = 0;
+    let setLosses = 0;
+    let setTies = 0;
+
+    const perExercise = exercises.map((ex) => {
+      const completedSets = ex.sets.filter((s) => s.completed);
+      const ghost = ghostMap[ex.name];
+      const ghostSets = ghost?.sets ?? [];
+
+      const userVol = completedSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
+      const ghostVol = ghostSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
+      userTotalVol += userVol;
+      ghostTotalVol += ghostVol;
+
+      let exWins = 0;
+      let exLosses = 0;
+      let exTies = 0;
+      const setResults: ('win' | 'loss' | 'tie')[] = [];
+      const count = Math.min(completedSets.length, ghostSets.length);
+      for (let i = 0; i < count; i++) {
+        const r = compareGhostSet(completedSets[i].kg, completedSets[i].reps, ghostSets[i].kg, ghostSets[i].reps);
+        setResults.push(r);
+        if (r === 'win') { exWins++; setWins++; }
+        else if (r === 'loss') { exLosses++; setLosses++; }
+        else { exTies++; setTies++; }
+      }
+
+      return { name: ex.name, userVol, ghostVol, exWins, exLosses, exTies, setResults, completedSets, ghostSets };
+    });
+
+    const victory = setWins > setLosses;
+    const tied = setWins === setLosses;
+    return { perExercise, userTotalVol, ghostTotalVol, setWins, setLosses, setTies, victory, tied };
+  }, [exercises, ghostMap]);
+
+  const verdictColor = results.tied ? colors.textPrimary : results.victory ? '#34C759' : colors.accentRed;
+  const verdictText = results.tied ? 'DRAW' : results.victory ? 'VICTORY' : 'DEFEATED';
+  const userName = useAuthStore((s) => s.user?.user_metadata?.username || 'You');
+
+  // Volume bar
+  const totalVol = results.userTotalVol + results.ghostTotalVol;
+  const userVolPct = totalVol > 0 ? (results.userTotalVol / totalVol) * 100 : 50;
+
+  return (
+    <View style={{ gap: sw(16) }}>
+      {/* ── Verdict Banner ──────────────────────── */}
+      <View style={{
+        alignItems: 'center',
+        paddingVertical: sw(20),
+        gap: sw(6),
+      }}>
+        <Text style={{
+          fontSize: ms(32),
+          fontFamily: Fonts.extraBold,
+          color: verdictColor,
+          letterSpacing: 2,
+        }}>
+          {verdictText}
+        </Text>
+        <Text style={{
+          fontSize: ms(12),
+          fontFamily: Fonts.medium,
+          color: colors.textTertiary,
+        }}>
+          {userName} vs {ghostUserName}
+        </Text>
+      </View>
+
+      {/* ── Set Score ───────────────────────────── */}
+      <View style={{
+        backgroundColor: colors.surface,
+        borderRadius: sw(12),
+        padding: sw(16),
+      }}>
+        <Text style={{
+          fontSize: ms(10),
+          fontFamily: Fonts.semiBold,
+          color: colors.textTertiary,
+          textAlign: 'center',
+          letterSpacing: 1,
+          marginBottom: sw(10),
+        }}>
+          SET SCORE
+        </Text>
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary, marginBottom: sw(2) }}>
+              {userName}
+            </Text>
+            <Text style={{ fontSize: ms(28), fontFamily: Fonts.extraBold, color: '#34C759' }}>
+              {results.setWins}
+            </Text>
+          </View>
+          <View style={{ alignItems: 'center', paddingHorizontal: sw(12) }}>
+            <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary, marginBottom: sw(2) }}>
+              Ties
+            </Text>
+            <Text style={{ fontSize: ms(22), fontFamily: Fonts.bold, color: colors.textPrimary }}>
+              {results.setTies}
+            </Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary, marginBottom: sw(2) }}>
+              {ghostUserName}
+            </Text>
+            <Text style={{ fontSize: ms(28), fontFamily: Fonts.extraBold, color: colors.accentRed }}>
+              {results.setLosses}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* ── Volume Bar ──────────────────────────── */}
+      <View style={{
+        backgroundColor: colors.surface,
+        borderRadius: sw(12),
+        padding: sw(14),
+        gap: sw(8),
+      }}>
+        <Text style={{
+          fontSize: ms(10),
+          fontFamily: Fonts.semiBold,
+          color: colors.textTertiary,
+          letterSpacing: 1,
+          textAlign: 'center',
+        }}>
+          TOTAL VOLUME
+        </Text>
+        <View style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          marginBottom: sw(4),
+        }}>
+          <Text style={{ fontSize: ms(14), fontFamily: Fonts.bold, color: colors.textPrimary }}>
+            {results.userTotalVol.toLocaleString()} kg
+          </Text>
+          <Text style={{ fontSize: ms(14), fontFamily: Fonts.bold, color: colors.accentRed }}>
+            {results.ghostTotalVol.toLocaleString()} kg
+          </Text>
+        </View>
+        <View style={{
+          flexDirection: 'row',
+          height: sw(8),
+          borderRadius: sw(4),
+          overflow: 'hidden',
+        }}>
+          <View style={{
+            width: `${userVolPct}%` as any,
+            backgroundColor: '#34C759',
+            borderTopLeftRadius: sw(4),
+            borderBottomLeftRadius: sw(4),
+          }} />
+          <View style={{
+            flex: 1,
+            backgroundColor: colors.accentRed,
+            borderTopRightRadius: sw(4),
+            borderBottomRightRadius: sw(4),
+          }} />
+        </View>
+      </View>
+
+      {/* ── Per-Exercise Breakdown ──────────────── */}
+      <View style={{
+        backgroundColor: colors.surface,
+        borderRadius: sw(12),
+        padding: sw(14),
+        gap: sw(12),
+      }}>
+        <Text style={{
+          fontSize: ms(10),
+          fontFamily: Fonts.semiBold,
+          color: colors.textTertiary,
+          letterSpacing: 1,
+          textAlign: 'center',
+        }}>
+          EXERCISE BREAKDOWN
+        </Text>
+        {results.perExercise.map((ex, i) => {
+          const exWon = ex.exWins > ex.exLosses;
+          const exLost = ex.exLosses > ex.exWins;
+          const exColor = exWon ? '#34C759' : exLost ? colors.accentRed : colors.textTertiary;
+          return (
+            <View key={i} style={{ gap: sw(6) }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{
+                  flex: 1,
+                  fontSize: ms(12),
+                  fontFamily: Fonts.semiBold,
+                  color: colors.textPrimary,
+                }} numberOfLines={1}>
+                  {ex.name}
+                </Text>
+                <Text style={{
+                  fontSize: ms(11),
+                  fontFamily: Fonts.bold,
+                  color: exColor,
+                }}>
+                  {ex.exWins}W — {ex.exTies}T — {ex.exLosses}L
+                </Text>
+              </View>
+              {/* Set-by-set dots */}
+              <View style={{ flexDirection: 'row', gap: sw(4) }}>
+                {ex.setResults.map((r, si) => (
+                  <View key={si} style={{
+                    width: sw(22),
+                    height: sw(22),
+                    borderRadius: sw(4),
+                    backgroundColor: r === 'win' ? '#34C759' + '20' : r === 'loss' ? colors.accentRed + '20' : colors.textPrimary + '15',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}>
+                    <Text style={{
+                      fontSize: ms(9),
+                      fontFamily: Fonts.bold,
+                      color: r === 'win' ? '#34C759' : r === 'loss' ? colors.accentRed : colors.textPrimary,
+                    }}>
+                      S{si + 1}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 function AnimatedCheckmark({ colors, styles }: { colors: ThemeColors; styles: ReturnType<typeof createStyles> }) {
   const scale = useSharedValue(0);
 
@@ -247,10 +616,11 @@ function AnimatedCheckmark({ colors, styles }: { colors: ThemeColors; styles: Re
 }
 
 export default function WorkoutSummaryModal(props: Props) {
-  const { mode, data, onDismiss, onDelete } = props;
+  const { mode, data, onDismiss, onDelete, inline } = props;
   const isJustCompleted = mode === 'just-completed';
   const [deleting, setDeleting] = useState(false);
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   // ── Edit state ───────────────────────────────────
@@ -287,8 +657,8 @@ export default function WorkoutSummaryModal(props: Props) {
   };
 
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
+  const prevMap = useWorkoutStore((s) => s.prevMap);
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
-  const bodyweight = useWeightStore((s) => s.current) ?? 70;
   const userId = useAuthStore((s) => s.user?.id);
 
   // Resolve workout ID
@@ -314,33 +684,6 @@ export default function WorkoutSummaryModal(props: Props) {
   const displayVolume = savedExercises
     ? Math.round(savedExercises.reduce((v, ex) => v + ex.sets.reduce((sv, s) => sv + s.kg * s.reps, 0), 0))
     : totalVolume;
-
-  const prCount = data.prCount;
-
-  // Defer rank computation so it doesn't block the first render frame
-  const [rankResult, setRankResult] = useState<WorkoutRankResult | null>(null);
-  const rankDepsRef = useRef({ data, bodyweight, catalogMap, isJustCompleted, displayExercises });
-  rankDepsRef.current = { data, bodyweight, catalogMap, isJustCompleted, displayExercises };
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      const { data: d, bodyweight: bw, catalogMap: cm, isJustCompleted: jc, displayExercises: de } = rankDepsRef.current;
-      const exercises = jc
-        ? (de ?? (d as WorkoutSummary).exercises).map((ex) => ({
-            name: ex.name,
-            exercise_type: cm[ex.name]?.exercise_type || 'weighted',
-            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed })),
-          }))
-        : (d as WorkoutWithDetails).exercises.map((ex) => ({
-            name: ex.name,
-            exercise_type: ex.exercise_type,
-            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed })),
-          }));
-      if (exercises.length === 0) { setRankResult(null); return; }
-      setRankResult(computeWorkoutRank({ exercises, bodyweight: bw, catalog: cm }));
-    });
-    return () => cancelAnimationFrame(id);
-  }, [data, bodyweight, catalogMap, isJustCompleted, displayExercises]);
 
   // ── Edit handlers ────────────────────────────────
 
@@ -600,19 +943,13 @@ export default function WorkoutSummaryModal(props: Props) {
   ) : isJustCompleted ? (
     <View style={styles.exerciseDetailList}>
       {(displayExercises ?? (data as WorkoutSummary).exercises).map((ex, i) => (
-        <SummaryExerciseSection key={i} exercise={ex} colors={colors} styles={styles} rankResult={rankResult} animateIndex={rankResult ? i : undefined} />
+        <SummaryExerciseSection key={i} exercise={ex} colors={colors} styles={styles} prevSets={prevMap[ex.name]} />
       ))}
-      {rankResult && Object.keys(rankResult.exerciseScores).length > 0 && (
-        <OverallRankReveal
-          exerciseCount={(displayExercises ?? (data as WorkoutSummary).exercises).filter((ex) => rankResult.exerciseScores[ex.name]?.score > 0).length}
-          colors={colors}
-        />
-      )}
     </View>
   ) : (
     <View style={styles.exerciseDetailList}>
       {(data as WorkoutWithDetails).exercises.map((ex) => (
-        <ExerciseDetailSection key={ex.id} exercise={ex} colors={colors} styles={styles} rankResult={rankResult} />
+        <ExerciseDetailSection key={ex.id} exercise={ex} colors={colors} styles={styles} prevSets={prevMap[ex.name]} />
       ))}
     </View>
   );
@@ -670,14 +1007,8 @@ export default function WorkoutSummaryModal(props: Props) {
   /* ── Historical mode: full-screen slide page ─────── */
 
   if (!isJustCompleted) {
-    return (
-      <Modal
-        visible
-        animationType="slide"
-        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
-        statusBarTranslucent
-        onRequestClose={onDismiss}
-      >
+    const historicalContent = (
+      <>
         <HistoricalPage
           data={data as WorkoutWithDetails}
           colors={colors}
@@ -689,20 +1020,85 @@ export default function WorkoutSummaryModal(props: Props) {
           deleting={deleting}
           startEditing={startEditing}
           workoutId={workoutId}
-          rankResult={rankResult}
-          prCount={prCount}
           statsContent={statsContent}
           exerciseContent={exerciseContent}
           editFooter={editFooter}
           saving={saving}
           setShowShare={setShowShare}
+          inline={inline}
         />
         {subModals}
+      </>
+    );
+
+    if (inline) return historicalContent;
+
+    return (
+      <Modal
+        visible
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        statusBarTranslucent
+        onRequestClose={onDismiss}
+        onDismiss={onDismiss}
+      >
+        {historicalContent}
       </Modal>
     );
   }
 
-  /* ── Just-completed mode: centered card overlay ──── */
+  /* ── Just-completed mode ──────────────────────────── */
+
+  const justCompletedContent = (
+    <View style={inline ? styles.inlinePage : styles.modal}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {editing ? (
+          <View style={styles.header}>
+            <Text style={styles.title}>Edit Workout</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.header}>
+              <AnimatedCheckmark colors={colors} styles={styles} />
+              <Text style={styles.title}>Workout Complete!</Text>
+            </View>
+
+            {statsContent}
+
+            {!editing && (displayExercises ?? (data as WorkoutSummary).exercises).length > 0 && (
+              <View style={styles.heatmapSmall}>
+                <MuscleHeatmap exercises={(displayExercises ?? (data as WorkoutSummary).exercises) as any} embedded compact />
+              </View>
+            )}
+
+            {exerciseContent}
+          </>
+        )}
+      </ScrollView>
+
+      {editing ? editFooter : (
+        <View style={styles.footerRow}>
+          <TouchableOpacity style={styles.smallIconBtn} onPress={() => useActiveWorkoutStore.getState().undoFinish()} activeOpacity={0.7}>
+            <Ionicons name="pencil" size={ms(18)} color={colors.accent} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.shareBtnMain} onPress={() => setShowShare(true)} activeOpacity={0.7}>
+            <Ionicons name="share-outline" size={ms(18)} color={colors.textOnAccent} />
+            <Text style={styles.shareBtnMainText}>Share</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.smallIconBtn} onPress={onDismiss} activeOpacity={0.7}>
+            <Ionicons name="checkmark" size={ms(18)} color={colors.accentGreen} />
+          </TouchableOpacity>
+        </View>
+      )}
+      {subModals}
+    </View>
+  );
+
+  if (inline) return justCompletedContent;
 
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent>
@@ -710,80 +1106,8 @@ export default function WorkoutSummaryModal(props: Props) {
         <TouchableWithoutFeedback onPress={editing ? undefined : onDismiss}>
           <View style={StyleSheet.absoluteFill} />
         </TouchableWithoutFeedback>
-        <View style={styles.modal}>
-          {!editing && <Confetti />}
-
-          {!editing && (
-            <TouchableOpacity style={styles.closeBtn} onPress={onDismiss} activeOpacity={0.6}>
-              <Ionicons name="close" size={ms(18)} color={colors.textTertiary} />
-            </TouchableOpacity>
-          )}
-
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            {editing ? (
-              <View style={styles.header}>
-                <Text style={styles.title}>Edit Workout</Text>
-              </View>
-            ) : (
-              <View style={styles.header}>
-                <AnimatedCheckmark colors={colors} styles={styles} />
-                <Text style={styles.title}>Workout Complete!</Text>
-                <TextInput
-                  style={styles.workoutNameInput}
-                  value={workoutName}
-                  onChangeText={setWorkoutName}
-                  placeholder="Name this workout..."
-                  placeholderTextColor={colors.textTertiary}
-                  maxLength={40}
-                  returnKeyType="done"
-                />
-              </View>
-            )}
-
-            {!editing && (rankResult || prCount > 0) && (
-              <View style={styles.tagRow}>
-                {rankResult && <RankBadge rank={rankResult.rank} size="normal" />}
-                {prCount > 0 && (
-                  <View style={styles.prBadge}>
-                    <Ionicons name="trophy" size={ms(11)} color={colors.accentOrange} />
-                    <Text style={styles.prBadgeText}>{prCount} PR{prCount > 1 ? 's' : ''}</Text>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {statsContent}
-
-            {!editing && (displayExercises ?? (data as WorkoutSummary).exercises).length > 0 && (
-              <MuscleHeatmap exercises={(displayExercises ?? (data as WorkoutSummary).exercises) as any} embedded />
-            )}
-
-            {exerciseContent}
-          </ScrollView>
-
-          {editing ? editFooter : (
-            <View style={styles.footerRow}>
-              {workoutId && (
-                <TouchableOpacity style={styles.smallIconBtn} onPress={startEditing} activeOpacity={0.7}>
-                  <Ionicons name="pencil" size={ms(16)} color={colors.accent} />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity style={styles.shareBtnMain} onPress={() => setShowShare(true)} activeOpacity={0.7}>
-                <Ionicons name="share-outline" size={ms(18)} color={colors.textOnAccent} />
-                <Text style={styles.shareBtnMainText}>Share</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.smallIconBtn} onPress={onDismiss} activeOpacity={0.7}>
-                <Ionicons name="checkmark" size={ms(18)} color={colors.accentGreen} />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        {justCompletedContent}
       </View>
-      {subModals}
     </Modal>
   );
 }
@@ -794,8 +1118,8 @@ export default function WorkoutSummaryModal(props: Props) {
 
 function HistoricalPage({
   data, colors, styles, editing, onDismiss, onDelete, handleDelete, deleting,
-  startEditing, workoutId, rankResult, prCount, statsContent, exerciseContent,
-  editFooter, saving, setShowShare,
+  startEditing, workoutId, statsContent, exerciseContent,
+  editFooter, saving, setShowShare, inline,
 }: {
   data: WorkoutWithDetails;
   colors: ThemeColors;
@@ -807,24 +1131,25 @@ function HistoricalPage({
   deleting: boolean;
   startEditing: () => void;
   workoutId: string | undefined;
-  rankResult: WorkoutRankResult | null;
-  prCount: number;
   statsContent: React.ReactNode;
   exerciseContent: React.ReactNode;
   editFooter: React.ReactNode;
   saving: boolean;
   setShowShare: (v: boolean) => void;
+  inline?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const ps = useMemo(() => pageStyles(colors), [colors]);
 
   return (
-    <View style={[ps.container, { paddingTop: insets.top }]}>
+    <View style={[ps.container, !inline && { paddingTop: insets.top }]}>
       {/* Page header */}
-      <View style={ps.pageHeader}>
-        <TouchableOpacity onPress={onDismiss} style={ps.backBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
-        </TouchableOpacity>
+      <View style={[ps.pageHeader, inline && { paddingVertical: 0 }]}>
+        {!inline && (
+          <TouchableOpacity onPress={onDismiss} style={ps.backBtn} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
+          </TouchableOpacity>
+        )}
         <View style={ps.pageHeaderCenter}>
           <Text style={ps.pageTitle} numberOfLines={1}>
             {editing ? 'Edit Workout' : 'Workout Summary'}
@@ -833,7 +1158,7 @@ function HistoricalPage({
             <Text style={ps.pageDate}>{formatWorkoutDate(data.created_at)}</Text>
           )}
         </View>
-        <View style={ps.backBtn} />
+        {!inline && <View style={ps.backBtn} />}
       </View>
 
       {/* Scrollable content */}
@@ -842,48 +1167,42 @@ function HistoricalPage({
         contentContainerStyle={ps.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Rank + PR row */}
-        {!editing && (rankResult || prCount > 0) && (
-          <View style={styles.tagRow}>
-            {rankResult && <RankBadge rank={rankResult.rank} size="normal" />}
-            {prCount > 0 && (
-              <View style={styles.prBadge}>
-                <Ionicons name="trophy" size={ms(11)} color={colors.accentOrange} />
-                <Text style={styles.prBadgeText}>{prCount} PR{prCount > 1 ? 's' : ''}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
         {statsContent}
 
         {!editing && data.exercises.length > 0 && (
-          <MuscleHeatmap exercises={data.exercises} embedded />
+          <View style={styles.heatmapSmall}>
+            <MuscleHeatmap exercises={data.exercises} embedded compact />
+          </View>
         )}
 
         {exerciseContent}
       </ScrollView>
 
       {/* Footer */}
-      <View style={[ps.footer, { paddingBottom: Math.max(insets.bottom, sw(12)) }]}>
+      <View style={[ps.footer, !inline && { paddingBottom: Math.max(insets.bottom, sw(12)) }, inline && ps.footerInline]}>
         {editing ? editFooter : (
           <View style={styles.footerRow}>
             {onDelete && (
-              <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7} disabled={deleting}>
+              <TouchableOpacity style={inline ? styles.inlineBtn : styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7} disabled={deleting}>
                 <Ionicons name="trash-outline" size={ms(16)} color={colors.accentRed} />
+                {inline && <Text style={[styles.inlineBtnText, { color: colors.accentRed }]}>Delete</Text>}
               </TouchableOpacity>
             )}
             {workoutId && (
-              <TouchableOpacity style={styles.editBtn} onPress={startEditing} activeOpacity={0.7}>
+              <TouchableOpacity style={inline ? styles.inlineBtn : styles.editBtn} onPress={startEditing} activeOpacity={0.7}>
                 <Ionicons name="pencil" size={ms(16)} color={colors.accent} />
+                {inline && <Text style={[styles.inlineBtnText, { color: colors.accent }]}>Edit</Text>}
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.shareBtn} onPress={() => setShowShare(true)} activeOpacity={0.7}>
+            <TouchableOpacity style={inline ? styles.inlineBtn : styles.shareBtn} onPress={() => setShowShare(true)} activeOpacity={0.7}>
               <Ionicons name="share-outline" size={ms(16)} color={colors.accentGreen} />
+              {inline && <Text style={[styles.inlineBtnText, { color: colors.accentGreen }]}>Share</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.doneBtn} onPress={onDismiss} activeOpacity={0.8}>
-              <Text style={styles.doneBtnText}>Close</Text>
-            </TouchableOpacity>
+            {!inline && (
+              <TouchableOpacity style={styles.doneBtn} onPress={onDismiss} activeOpacity={0.8}>
+                <Text style={styles.doneBtnText}>Close</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
@@ -906,6 +1225,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     maxHeight: '82%',
     borderWidth: 1,
     borderColor: colors.cardBorder,
+  },
+  inlinePage: {
+    flex: 1,
+    backgroundColor: colors.background,
+    padding: sw(16),
   },
   closeBtn: {
     position: 'absolute',
@@ -931,18 +1255,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: sw(6),
   },
   checkCircle: {
-    width: sw(46),
-    height: sw(46),
-    borderRadius: sw(23),
+    width: sw(40),
+    height: sw(40),
+    borderRadius: sw(20),
     backgroundColor: colors.accentGreen,
     justifyContent: 'center',
     alignItems: 'center',
   },
   title: {
     color: colors.textPrimary,
-    fontSize: ms(18),
-    fontFamily: Fonts.extraBold,
-    lineHeight: ms(24),
+    fontSize: ms(16),
+    fontFamily: Fonts.bold,
+    lineHeight: ms(22),
   },
   dateSubtitle: {
     color: colors.textSecondary,
@@ -980,21 +1304,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.accentOrange + '18',
     paddingHorizontal: sw(8),
     paddingVertical: sw(3),
-    borderRadius: sw(10),
     gap: sw(4),
   },
   prBadgeText: {
     color: colors.accentOrange,
-    fontSize: ms(11),
+    fontSize: ms(10),
     fontFamily: Fonts.bold,
-    lineHeight: ms(15),
+    lineHeight: ms(14),
+    letterSpacing: 0.3,
   },
   musclePill: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: sw(8),
     paddingVertical: sw(3),
-    borderRadius: sw(10),
     gap: sw(4),
   },
   muscleDot: {
@@ -1012,32 +1335,31 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: sw(12),
-    paddingVertical: sw(10),
+    paddingVertical: sw(6),
     marginBottom: sw(14),
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
-    gap: sw(2),
+    gap: sw(1),
   },
   statDivider: {
     width: StyleSheet.hairlineWidth,
-    height: sw(24),
+    height: sw(20),
     backgroundColor: colors.cardBorder,
   },
   statValue: {
     color: colors.textPrimary,
-    fontSize: ms(15),
+    fontSize: ms(16),
     fontFamily: Fonts.extraBold,
-    lineHeight: ms(21),
+    lineHeight: ms(22),
   },
   statLabel: {
     color: colors.textTertiary,
-    fontSize: ms(10),
-    fontFamily: Fonts.semiBold,
-    lineHeight: ms(14),
+    fontSize: ms(9),
+    fontFamily: Fonts.medium,
+    lineHeight: ms(13),
+    letterSpacing: 0.3,
   },
 
   /* -- Exercise pills (just-completed) ------- */
@@ -1067,9 +1389,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: sw(8),
     marginBottom: sw(8),
   },
+  heatmapSmall: {
+    alignSelf: 'center',
+    marginBottom: sw(8),
+    transform: [{ scale: 0.75 }],
+    marginTop: sw(-20),
+    marginHorizontal: sw(-20),
+  },
   exerciseDetail: {
     backgroundColor: colors.surface,
-    borderRadius: sw(10),
     paddingVertical: sw(8),
     paddingHorizontal: sw(10),
     overflow: 'hidden',
@@ -1077,12 +1405,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   exerciseHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: sw(6),
+    marginBottom: sw(4),
   },
   catStrip: {
     width: sw(3),
     height: sw(14),
-    borderRadius: sw(2),
     marginRight: sw(8),
   },
   exerciseDetailName: {
@@ -1091,6 +1418,113 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.bold,
     lineHeight: ms(18),
     flexShrink: 1,
+  },
+  summaryCard: {
+    backgroundColor: colors.surface,
+    borderWidth: sw(2),
+    borderColor: colors.cardBorder,
+    padding: sw(12),
+    marginBottom: sw(10),
+  },
+  summaryExSummary: {
+    color: colors.textTertiary,
+    fontSize: ms(11),
+    fontFamily: Fonts.medium,
+    marginTop: sw(2),
+  },
+  progressionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: sw(8),
+    paddingVertical: sw(6),
+    paddingHorizontal: sw(4),
+    backgroundColor: colors.card,
+  },
+  progressionItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(4),
+  },
+  progressionDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: sw(14),
+    backgroundColor: colors.cardBorder,
+  },
+  progressionLabel: {
+    color: colors.textTertiary,
+    fontSize: ms(9),
+    fontFamily: Fonts.semiBold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  progressionValue: {
+    color: colors.textPrimary,
+    fontSize: ms(11),
+    fontFamily: Fonts.bold,
+  },
+  progressionDelta: {
+    fontSize: ms(9),
+    fontFamily: Fonts.bold,
+  },
+  deltaUp: {
+    color: '#34C759',
+  },
+  deltaDown: {
+    color: colors.accentRed,
+  },
+  summaryDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.cardBorder,
+    marginVertical: sw(8),
+  },
+  summaryColHeaders: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: sw(2),
+  },
+  summaryColHeader: {
+    color: colors.textTertiary,
+    fontSize: ms(9),
+    fontFamily: Fonts.semiBold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  colSet: {
+    width: sw(30),
+  },
+  colPrev: {
+    width: sw(60),
+  },
+  colVal: {
+    flex: 1,
+  },
+  summarySetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: sw(4),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.cardBorder,
+  },
+  summarySetNum: {
+    color: colors.textSecondary,
+    fontSize: ms(10),
+    fontFamily: Fonts.semiBold,
+    textAlign: 'center',
+  },
+  summaryPrevText: {
+    color: colors.textTertiary,
+    fontSize: ms(10),
+    fontFamily: Fonts.medium,
+    textAlign: 'center',
+  },
+  summaryCellVal: {
+    color: colors.textPrimary,
+    fontSize: ms(12),
+    fontFamily: Fonts.bold,
+    textAlign: 'center',
   },
   completedCount: {
     color: colors.textTertiary,
@@ -1211,7 +1645,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   deleteBtn: {
     width: sw(44),
     height: sw(44),
-    borderRadius: sw(10),
     backgroundColor: colors.accentRed + '15',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1219,7 +1652,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   editBtn: {
     width: sw(44),
     height: sw(44),
-    borderRadius: sw(10),
     backgroundColor: colors.accent + '15',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1227,15 +1659,26 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   shareBtn: {
     width: sw(44),
     height: sw(44),
-    borderRadius: sw(10),
     backgroundColor: colors.accentGreen + '15',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  inlineBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(6),
+    paddingVertical: sw(12),
+    backgroundColor: colors.surface,
+  },
+  inlineBtnText: {
+    fontSize: ms(12),
+    fontFamily: Fonts.semiBold,
+  },
   smallIconBtn: {
     width: sw(40),
     height: sw(40),
-    borderRadius: sw(10),
     backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1246,15 +1689,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: sw(6),
-    backgroundColor: colors.accentGreen,
-    borderRadius: sw(10),
+    backgroundColor: colors.accent,
     paddingVertical: sw(12),
   },
   shareBtnMainText: {
     color: colors.textOnAccent,
-    fontSize: ms(15),
+    fontSize: ms(13),
     fontFamily: Fonts.bold,
-    lineHeight: ms(21),
+    lineHeight: ms(18),
+    letterSpacing: 0.3,
   },
   doneBtn: {
     flex: 1,
@@ -1344,7 +1787,13 @@ const pageStyles = (colors: ThemeColors) => StyleSheet.create({
   footer: {
     paddingHorizontal: sw(16),
     paddingTop: sw(12),
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.cardBorder,
+  },
+  footerInline: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingBottom: sw(12),
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
 });

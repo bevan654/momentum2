@@ -281,13 +281,22 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
     [exercises],
   );
 
+  // Compact mode: flatten all worked muscles to same intensity (simple highlight)
+  const compactData = useMemo(() => {
+    if (!compact) return bodyData;
+    return bodyData.map((d) =>
+      d.intensity > INACTIVE ? { ...d, intensity: HEAT_MAX } : d,
+    );
+  }, [compact, bodyData]);
+
   // Override selected muscle with highlight color
   const displayData = useMemo(() => {
-    if (!selected) return bodyData;
-    return bodyData.map((d) =>
+    const base = compact ? compactData : bodyData;
+    if (!selected) return base;
+    return base.map((d) =>
       d.slug === selected ? { ...d, intensity: SELECTED } : d,
     );
-  }, [bodyData, selected]);
+  }, [compact, compactData, bodyData, selected]);
 
   const handlePress = useCallback((part: ExtendedBodyPart) => {
     if (!part.slug || !MUSCLE_SLUGS.has(part.slug)) return;
@@ -506,8 +515,8 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
 
       {/* Bodies with vertical legend on left */}
       <View style={styles.bodyWithLegend}>
-        {/* Vertical legend bar */}
-        {isRank ? (
+        {/* Vertical legend bar — hidden in compact mode */}
+        {compact ? null : isRank ? (
           <View style={styles.rankLegend}>
             {[...RANK_NAMES].reverse().map((name) => (
               <View key={name} style={styles.rankLegendItem}>
@@ -619,7 +628,7 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
       )}
 
       {/* Toggle: Recovery / Intensity / Rank */}
-      <View style={styles.toggleContainer}>
+      {compact ? null : <View style={styles.toggleContainer}>
         <Animated.View style={[styles.togglePill, { backgroundColor: colors.accent, width: pillW }, pillStyle]} />
         {hasRecovery && (
           <Pressable style={[styles.toggleHalf, { width: pillW }]} onPress={() => handleToggle('recovery')}>
@@ -635,7 +644,7 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
           <Ionicons name="trophy-outline" size={ms(14)} color={viewMode === 'rank' ? colors.textOnAccent : colors.textTertiary} />
           <Text style={[styles.toggleLabel, viewMode === 'rank' && { color: colors.textOnAccent }]}>Rank</Text>
         </Pressable>
-      </View>
+      </View>}
 
     </View>
   );

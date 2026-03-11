@@ -63,6 +63,14 @@ export interface ActivityFeedItem {
   reactions: ReactionSummary[];
   exercise_details: FeedExerciseDetail[];
   streak: number;
+  ghost_username: string | null;
+  ghost_result: 'victory' | 'defeated' | 'draw' | null;
+  ghost_exercises: { name: string; sets: { kg: number; reps: number }[] }[] | null;
+  routine_name: string | null;
+  program_name: string | null;
+  program_week: number | null;
+  program_total_weeks: number | null;
+  program_day_label: string | null;
 }
 
 export interface ReactionSummary {
@@ -433,7 +441,7 @@ async function attachProfilesAndReactions(
     const wid = (ex as any).workout_id;
     if (!exercisesByWorkout[wid]) exercisesByWorkout[wid] = [];
 
-    const completed = ((ex as any).sets || []).filter((s: any) => s.completed);
+    const completed = ((ex as any).sets || []).filter((s: any) => s.completed || (Number(s.kg) > 0 || Number(s.reps) > 0));
     let bestKg = 0;
     let bestReps = 0;
     let totalVol = 0;
@@ -475,16 +483,22 @@ async function attachProfilesAndReactions(
     let details = exercisesByWorkout[r.workout_id] || [];
     if (details.length === 0 && (r.exercise_names || []).length > 0) {
       const names: string[] = r.exercise_names;
+      const totalSets = r.total_sets || 0;
       const perExVol = names.length > 0
         ? Math.round((r.total_volume || 0) / names.length)
         : 0;
+      const perExSets = names.length > 0
+        ? Math.round(totalSets / names.length)
+        : 0;
       details = names.map((name: string) => {
         const cat = catalogMap.get(name);
+        // Estimate per-set kg assuming ~10 reps per set
+        const estKg = perExSets > 0 ? Math.round(perExVol / (perExSets * 10)) : 0;
         return {
           name,
-          sets_count: 0,
-          best_kg: 0,
-          best_reps: 0,
+          sets_count: perExSets,
+          best_kg: estKg,
+          best_reps: 10,
           total_volume: perExVol,
           category: cat?.category || null,
           primary_muscles: cat?.primary_muscles || [],
@@ -508,6 +522,14 @@ async function attachProfilesAndReactions(
       reactions: reactionMap.get(r.id) || [],
       exercise_details: details,
       streak: streakMap.get(r.user_id) ?? 0,
+      ghost_username: r.ghost_username || null,
+      ghost_result: r.ghost_result || null,
+      ghost_exercises: r.ghost_exercises || null,
+      routine_name: r.routine_name || null,
+      program_name: r.program_name || null,
+      program_week: r.program_week || null,
+      program_total_weeks: r.program_total_weeks || null,
+      program_day_label: r.program_day_label || null,
     };
   });
 }

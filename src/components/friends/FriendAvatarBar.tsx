@@ -74,8 +74,6 @@ export default React.memo(FriendAvatarBar);
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: {
-      borderBottomWidth: 0.5,
-      borderBottomColor: colors.cardBorder,
     },
     scrollContent: {
       paddingHorizontal: sw(12),
