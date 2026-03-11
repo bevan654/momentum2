@@ -9,12 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
-import { useChatStore } from '../../stores/useChatStore';
-import type { CommunityStackParamList } from '../../navigation/CommunityNavigator';
 import type { FriendProfile } from '../../lib/friendsDatabase';
 import FriendAvatarBar from './FriendAvatarBar';
 import FriendSearch from './FriendSearch';
@@ -24,14 +20,10 @@ import ActivityFeed from './ActivityFeed';
 
 type OverlayMode = 'none' | 'search' | 'notifications';
 
-type Nav = NativeStackNavigationProp<CommunityStackParamList>;
-
 export default function FriendsTab() {
-  const navigation = useNavigation<Nav>();
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
   const [nudgeTarget, setNudgeTarget] = useState<FriendProfile | null>(null);
   const showProfileSheet = useFriendsStore((s) => s.showProfileSheet);
-  const totalUnreadMessages = useChatStore((s) => s.totalUnreadCount);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -82,67 +74,38 @@ export default function FriendsTab() {
   const isSearchActive = overlayMode === 'search';
   const isNotifActive = overlayMode === 'notifications';
 
+  const feedMode = useFriendsStore((s) => s.feedMode);
+  const setFeedMode = useFriendsStore((s) => s.setFeedMode);
+
   return (
     <View style={styles.container}>
-      {/* ── Header ──────────────────────────────────────── */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Community</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => navigation.navigate('ChatList')}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="paper-plane-outline"
-              size={ms(19)}
-              color={colors.textPrimary}
-            />
-            {totalUnreadMessages > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  {totalUnreadMessages > 99 ? '99+' : String(totalUnreadMessages)}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.headerBtn, isSearchActive && styles.headerBtnActive]}
-            onPress={() => switchOverlay('search')}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="search-outline"
-              size={ms(20)}
-              color={isSearchActive ? colors.textOnAccent : colors.textPrimary}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.headerBtn, isNotifActive && styles.headerBtnActive]}
-            onPress={() => switchOverlay('notifications')}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="notifications-outline"
-              size={ms(20)}
-              color={isNotifActive ? colors.textOnAccent : colors.textPrimary}
-            />
-            {unreadCount > 0 && !isNotifActive && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{badgeText}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
 
       {/* ── Body ────────────────────────────────────────── */}
       <View style={styles.body}>
-        {/* Avatar bar + Feed (default view) */}
+        {/* Avatar bar */}
         <FriendAvatarBar
           onOpenProfile={handleOpenProfile}
           onOpenSearch={handleOpenSearch}
         />
+
+        {/* ── Feed Mode Tabs ─────────────────────────────── */}
+        <View style={styles.feedTabs}>
+          {(['global', 'friends', 'messages'] as const).map((tab) => {
+            const label = tab === 'global' ? 'Feed' : tab === 'friends' ? 'Friends' : 'Messages';
+            const isActive = feedMode === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.feedTab, isActive && styles.feedTabActive]}
+                onPress={() => tab !== 'messages' && setFeedMode(tab)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.feedTabText, isActive && styles.feedTabTextActive]}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         <View style={styles.feedArea}>
           <ActivityFeed />
         </View>
@@ -179,6 +142,32 @@ const createStyles = (colors: ThemeColors) =>
     container: {
       flex: 1,
       backgroundColor: colors.background,
+    },
+
+    /* Feed Mode Tabs */
+    feedTabs: {
+      flexDirection: 'row',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+      marginTop: sw(18),
+    },
+    feedTab: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: sw(10),
+      borderBottomWidth: sw(2.5),
+      borderBottomColor: 'transparent',
+    },
+    feedTabActive: {
+      borderBottomColor: colors.accent,
+    },
+    feedTabText: {
+      fontSize: ms(13),
+      fontFamily: Fonts.semiBold,
+      color: colors.textTertiary,
+    },
+    feedTabTextActive: {
+      color: colors.textPrimary,
     },
 
     /* Header */

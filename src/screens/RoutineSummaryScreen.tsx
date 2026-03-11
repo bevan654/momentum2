@@ -1,12 +1,15 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
-import { useRoutineStore } from '../stores/useRoutineStore';
+import { useRoutineStore, consumePreviewRoutine } from '../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useThemeStore } from '../stores/useThemeStore';
@@ -52,13 +55,17 @@ export default function RoutineSummaryScreen() {
   const route = useRoute<ScreenProps['route']>();
   const { routineId } = route.params;
 
-  const routine = useRoutineStore((s) => s.routines.find((r) => r.id === routineId));
+  const storeRoutine = useRoutineStore((s) => s.routines.find((r) => r.id === routineId));
+  const previewRoutine = useMemo(() => consumePreviewRoutine(), []);
+  const routine = storeRoutine || previewRoutine;
+  const isPreview = !storeRoutine && !!previewRoutine;
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const prevMap = useWorkoutStore((s) => s.prevMap);
   const startFromRoutine = useActiveWorkoutStore((s) => s.startFromRoutine);
   const themeMode = useThemeStore((s) => s.mode);
   const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
 
   const bodyPalette = useMemo(() => {
     const a = colors.accent;
@@ -80,21 +87,55 @@ export default function RoutineSummaryScreen() {
   const handleStart = useCallback(() => {
     if (!routine) return;
     startFromRoutine(routine, catalogMap, prevMap);
-    navigation.popToTop();
+    setTimeout(() => navigation.popToTop(), 300);
   }, [routine, catalogMap, prevMap, startFromRoutine, navigation]);
 
   const MAP_W = sw(44);
   const MAP_H = sw(52);
 
+  const SCREEN_H = Dimensions.get('window').height;
+  const translateY = useSharedValue(0);
+  const ctx = useSharedValue(0);
+
+  const dismiss = useCallback(() => navigation.goBack(), [navigation]);
+
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY(8)
+        .onStart(() => {
+          ctx.value = translateY.value;
+        })
+        .onUpdate((e) => {
+          translateY.value = Math.max(0, ctx.value + e.translationY);
+        })
+        .onEnd((e) => {
+          if (e.translationY > 120 || e.velocityY > 800) {
+            translateY.value = withSpring(SCREEN_H, {
+              velocity: e.velocityY,
+              damping: 50,
+              stiffness: 300,
+              mass: 0.8,
+              overshootClamping: true,
+            });
+            runOnJS(dismiss)();
+          } else {
+            translateY.value = withSpring(0, { damping: 20, stiffness: 200 });
+          }
+        }),
+    [dismiss],
+  );
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: Math.max(0, translateY.value) }],
+  }));
+
   if (!routine) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
-          </TouchableOpacity>
           <Text style={styles.headerTitle}>Routine Summary</Text>
-          <View style={styles.backBtn} />
+          <View style={styles.editBtn} />
         </View>
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>Routine not found</Text>
@@ -108,27 +149,32 @@ export default function RoutineSummaryScreen() {
     : null;
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Routine Summary</Text>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => navigation.navigate('CreateRoutine', { routineId })}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="create-outline" size={ms(20)} color={colors.accent} />
-        </TouchableOpacity>
-      </View>
+    <Animated.View style={[styles.container, sheetStyle]}>
+      {/* Drag handle */}
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={styles.handleRow} hitSlop={{ top: 10, bottom: 10 }}>
+          <View style={styles.handle} />
+        </Animated.View>
+      </GestureDetector>
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>{isPreview ? 'Workout Summary' : 'Routine Summary'}</Text>
+          {!isPreview ? (
+            <TouchableOpacity
+              style={styles.editBtn}
+              onPress={() => navigation.navigate('CreateRoutine', { routineId })}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="create-outline" size={ms(20)} color={colors.accent} />
+            </TouchableOpacity>
+          ) : <View style={styles.editBtn} />}
+        </View>
         {/* Routine info */}
         <View style={styles.routineInfo}>
           <Text style={styles.routineName}>{routine.name}</Text>
@@ -253,18 +299,29 @@ export default function RoutineSummaryScreen() {
       {/* Pinned footer */}
       <View style={styles.footer}>
         <TouchableOpacity style={styles.startBtn} onPress={handleStart} activeOpacity={0.8}>
-          <Ionicons name="play" size={ms(18)} color={colors.textOnAccent} />
-          <Text style={styles.startBtnText}>Start Workout</Text>
+          <Ionicons name="play" size={ms(22)} color={colors.textOnAccent} />
         </TouchableOpacity>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
+const createStyles = (colors: ThemeColors, topInset: number) => StyleSheet.create({
   container: {
     flex: 1,
+    marginTop: topInset + sw(44),
     backgroundColor: colors.background,
+    overflow: 'hidden',
+  },
+  handleRow: {
+    alignItems: 'center',
+    paddingVertical: sw(10),
+  },
+  handle: {
+    width: sw(36),
+    height: sw(4),
+    borderRadius: sw(2),
+    backgroundColor: colors.textTertiary + '60',
   },
   header: {
     flexDirection: 'row',
@@ -273,24 +330,26 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: sw(16),
     paddingVertical: sw(12),
   },
-  backBtn: {
-    width: sw(36),
-    height: sw(36),
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   headerTitle: {
+    flex: 1,
     color: colors.textPrimary,
     fontSize: ms(18),
     lineHeight: ms(24),
     fontFamily: Fonts.bold,
+    textAlign: 'center',
+  },
+  editBtn: {
+    width: sw(36),
+    height: sw(36),
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: sw(16),
-    paddingBottom: sw(100),
+    paddingBottom: sw(80),
   },
 
   /* Routine info */
@@ -300,9 +359,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   routineName: {
     color: colors.textPrimary,
-    fontSize: ms(22),
+    fontSize: ms(16),
     fontFamily: Fonts.bold,
-    lineHeight: ms(28),
+    lineHeight: ms(22),
   },
   routineSub: {
     color: colors.textTertiary,
@@ -405,27 +464,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 
   /* Footer */
   footer: {
-    paddingHorizontal: sw(16),
-    paddingVertical: sw(12),
-    paddingBottom: sw(32),
-    backgroundColor: colors.background,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.cardBorder,
+    position: 'absolute',
+    bottom: sw(32),
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   startBtn: {
-    flexDirection: 'row',
+    width: sw(52),
+    height: sw(52),
+    borderRadius: sw(26),
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.accent,
-    paddingVertical: sw(14),
-    borderRadius: sw(12),
-    gap: sw(8),
-  },
-  startBtnText: {
-    color: colors.textOnAccent,
-    fontSize: ms(16),
-    fontFamily: Fonts.bold,
-    lineHeight: ms(22),
   },
 
   /* Empty state */

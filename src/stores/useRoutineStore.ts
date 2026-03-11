@@ -22,6 +22,22 @@ export interface Routine {
   updated_at: string;
 }
 
+/* ─── Preview bridge (module-level, avoids route-param serialisation) ── */
+
+let _previewRoutine: Routine | null = null;
+
+export function setPreviewRoutine(routine: Routine | null) {
+  _previewRoutine = routine;
+}
+export function getPreviewRoutine() {
+  return _previewRoutine;
+}
+export function consumePreviewRoutine() {
+  const r = _previewRoutine;
+  _previewRoutine = null;
+  return r;
+}
+
 interface RoutineState {
   routines: Routine[];
   loading: boolean;
