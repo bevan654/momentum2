@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Linking, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
@@ -63,14 +63,6 @@ export default function ProfileSettingsView({ onBack }: Props) {
         <SectionHeader title="Protein Powder" />
         <View style={styles.card}>
           <ProteinPowderToggle />
-        </View>
-
-        {/* 6. Support */}
-        <SectionHeader title="Support" />
-        <View style={styles.card}>
-          <LinkRow label="Privacy Policy" url="https://momentum.app/privacy" />
-          <LinkRow label="Terms of Service" url="https://momentum.app/terms" />
-          <LinkRow label="Contact Us" url="mailto:support@momentum.app" last />
         </View>
 
         <View style={{ height: sw(40) }} />
@@ -217,21 +209,6 @@ function ProteinPowderToggle() {
 
 /* ─── Shared Components ──────────────────────────────────── */
 
-function LinkRow({ label, url, last }: { label: string; url: string; last?: boolean }) {
-  const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  return (
-    <TouchableOpacity
-      style={[styles.linkRow, !last && styles.linkRowBorder]}
-      onPress={() => Linking.openURL(url)}
-      activeOpacity={0.7}
-    >
-      <Text style={styles.linkText}>{label}</Text>
-      <Ionicons name="open-outline" size={ms(16)} color={colors.textTertiary} />
-    </TouchableOpacity>
-  );
-}
-
 /* ─── Styles ─────────────────────────────────────────────── */
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
@@ -337,21 +314,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: sw(8),
-  },
-  linkRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: sw(12),
-  },
-  linkRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
-  },
-  linkText: {
-    color: colors.textPrimary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
-    fontFamily: Fonts.medium,
   },
 });
