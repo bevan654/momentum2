@@ -9,6 +9,8 @@ import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useSupplementStore } from '../../stores/useSupplementStore';
 import { useProteinPowderStore } from '../../stores/useProteinPowderStore';
 import SupplementConfigEditor from './SupplementConfigEditor';
+import MacroGoalEditor from './MacroGoalEditor';
+import MicroGoalEditor from './MicroGoalEditor';
 
 interface Props {
   onBack: () => void;
@@ -47,25 +49,37 @@ export default function ProfileSettingsView({ onBack }: Props) {
           <NutritionGoalsEditor />
         </View>
 
-        {/* 3. Body Stats */}
+        {/* 3. Macronutrient Goals */}
+        <SectionHeader title="Macronutrient Goals" />
+        <View style={styles.card}>
+          <MacroGoalEditor />
+        </View>
+
+        {/* 4. Micronutrient Goals */}
+        <SectionHeader title="Micronutrient Goals" />
+        <View style={styles.card}>
+          <MicroGoalEditor />
+        </View>
+
+        {/* 5. Body Stats */}
         <SectionHeader title="Body Stats" />
         <View style={styles.card}>
           <BodyStatsEditor />
         </View>
 
-        {/* 4. Supplements */}
+        {/* 6. Supplements */}
         <SectionHeader title="Supplements" />
         <View style={styles.card}>
           <SupplementConfigEditor />
         </View>
 
-        {/* 5. Protein Powder */}
+        {/* 7. Protein Powder */}
         <SectionHeader title="Protein Powder" />
         <View style={styles.card}>
           <ProteinPowderToggle />
         </View>
 
-        {/* 6. Support */}
+        {/* 8. Support */}
         <SectionHeader title="Support" />
         <View style={styles.card}>
           <LinkRow label="Privacy Policy" url="https://momentum.app/privacy" />
@@ -97,20 +111,17 @@ function NutritionGoalsEditor() {
   const updateSupplementGoals = useSupplementStore((s) => s.updateSupplementGoals);
 
   const [cal, setCal] = useState(String(goals.calorie_goal));
-  const [pro, setPro] = useState(String(goals.protein_goal));
-  const [carbs, setCarbs] = useState(String(goals.carbs_goal));
-  const [fat, setFat] = useState(String(goals.fat_goal));
   const [waterText, setWaterText] = useState(String(waterGoal));
 
-  const save = useCallback((field: string, value: string, setter: (v: string) => void, original: number) => {
+  const handleCalBlur = useCallback(() => {
     if (!userId) return;
-    const num = parseInt(value, 10);
+    const num = parseInt(cal, 10);
     if (!isNaN(num) && num > 0) {
-      updateGoals(userId, { [field]: num });
+      updateGoals(userId, { calorie_goal: num });
     } else {
-      setter(String(original));
+      setCal(String(goals.calorie_goal));
     }
-  }, [userId, updateGoals]);
+  }, [userId, cal, goals.calorie_goal, updateGoals]);
 
   const handleWaterBlur = useCallback(() => {
     if (!userId) return;
@@ -124,10 +135,7 @@ function NutritionGoalsEditor() {
 
   return (
     <View>
-      <GoalRow label="Calories" value={cal} onChange={setCal} onBlur={() => save('calorie_goal', cal, setCal, goals.calorie_goal)} unit="kcal" />
-      <GoalRow label="Protein" value={pro} onChange={setPro} onBlur={() => save('protein_goal', pro, setPro, goals.protein_goal)} unit="g" />
-      <GoalRow label="Carbs" value={carbs} onChange={setCarbs} onBlur={() => save('carbs_goal', carbs, setCarbs, goals.carbs_goal)} unit="g" />
-      <GoalRow label="Fat" value={fat} onChange={setFat} onBlur={() => save('fat_goal', fat, setFat, goals.fat_goal)} unit="g" />
+      <GoalRow label="Calories" value={cal} onChange={setCal} onBlur={handleCalBlur} unit="kcal" />
       <GoalRow label="Water" value={waterText} onChange={setWaterText} onBlur={handleWaterBlur} unit="ml" />
     </View>
   );
