@@ -334,6 +334,21 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       fiber: entry.fiber != null ? Number(entry.fiber) : null,
       sugar: entry.sugar != null ? Number(entry.sugar) : null,
       is_planned: Boolean(entry.is_planned),
+      // Micronutrients — pass through if present
+      vitamin_a: entry.vitamin_a != null ? Number(entry.vitamin_a) : null,
+      vitamin_c: entry.vitamin_c != null ? Number(entry.vitamin_c) : null,
+      vitamin_d: entry.vitamin_d != null ? Number(entry.vitamin_d) : null,
+      vitamin_e: entry.vitamin_e != null ? Number(entry.vitamin_e) : null,
+      vitamin_k: entry.vitamin_k != null ? Number(entry.vitamin_k) : null,
+      vitamin_b6: entry.vitamin_b6 != null ? Number(entry.vitamin_b6) : null,
+      vitamin_b12: entry.vitamin_b12 != null ? Number(entry.vitamin_b12) : null,
+      folate: entry.folate != null ? Number(entry.folate) : null,
+      calcium: entry.calcium != null ? Number(entry.calcium) : null,
+      iron: entry.iron != null ? Number(entry.iron) : null,
+      magnesium: entry.magnesium != null ? Number(entry.magnesium) : null,
+      potassium: entry.potassium != null ? Number(entry.potassium) : null,
+      zinc: entry.zinc != null ? Number(entry.zinc) : null,
+      sodium: entry.sodium != null ? Number(entry.sodium) : null,
     };
     if (targetDate) {
       insertData.created_at = createdAt;
