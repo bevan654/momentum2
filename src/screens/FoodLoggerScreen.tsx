@@ -267,9 +267,11 @@ function FoodLoggerScreen() {
         editMealGroupId={editGroupId}
         editMealGroupEntries={editGroupEntries}
       />
-      <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.8}>
-        <Ionicons name="add" size={ms(26)} color={colors.textOnAccent} />
-      </TouchableOpacity>
+      {!addModalVisible && !editDetailVisible && !editGroupModalVisible && (
+        <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.8}>
+          <Ionicons name="add" size={ms(26)} color={colors.textOnAccent} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

@@ -159,6 +159,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
               placeholder="e.g. Snack, Protein shake..."
               placeholderTextColor={colors.textTertiary + '50'}
               returnKeyType="next"
+              blurOnSubmit={false}
               onSubmitEditing={() => calRef.current?.focus()}
             />
 
@@ -173,7 +174,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
               placeholderTextColor={colors.textTertiary + '30'}
               keyboardType="numeric"
               returnKeyType="next"
-
+              blurOnSubmit={false}
               onSubmitEditing={() => proRef.current?.focus()}
             />
             {!calories && (Number(protein) > 0 || Number(carbs) > 0 || Number(fat) > 0) && (
@@ -195,7 +196,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
                   placeholderTextColor={colors.textTertiary + '30'}
                   keyboardType="numeric"
                   returnKeyType="next"
-    
+                  blurOnSubmit={false}
                   onSubmitEditing={() => carbRef.current?.focus()}
                 />
               </View>
@@ -211,7 +212,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
                   placeholderTextColor={colors.textTertiary + '30'}
                   keyboardType="numeric"
                   returnKeyType="next"
-    
+                  blurOnSubmit={false}
                   onSubmitEditing={() => fatRef.current?.focus()}
                 />
               </View>
