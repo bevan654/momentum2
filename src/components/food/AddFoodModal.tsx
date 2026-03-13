@@ -114,7 +114,6 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const [createMealVisible, setCreateMealVisible] = useState(false);
   const [selectedSavedMeal, setSelectedSavedMeal] = useState<SavedMeal | null>(null);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
-  const [showFavourites, setShowFavourites] = useState(false);
 
   // Saved meals
   const savedMeals = useSavedMealsStore((st) => st.meals);
@@ -124,6 +123,9 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   // Favourites
   const favourites = useFavouritesStore((st) => st.favourites);
   const loadFavourites = useFavouritesStore((st) => st.loadFavourites);
+
+  // Default tab (popular / recent / favourites)
+  const [defaultTab, setDefaultTab] = useState<'popular' | 'recent' | 'favourites'>('popular');
 
   /* ── Load defaults + saved meals + favourites on open ──── */
   useEffect(() => {
@@ -143,7 +145,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
       setCreateMealVisible(false);
       setSelectedSavedMeal(null);
       setQuickAddVisible(false);
-      setShowFavourites(false);
+      setDefaultTab('popular');
     }
   }, [visible]);
 
@@ -219,9 +221,6 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
     onDismiss();
   }, [onDismiss]);
 
-  /* ── Favourites toggle ──────────────────────────────── */
-  const handleToggleFavourites = useCallback(() => setShowFavourites((v) => !v), []);
-
   /* ── Search results list data ────────────────────────── */
   const showResults = query.length > 0 && catalogResults.length > 0;
   const showEmpty = query.length > 0 && catalogResults.length === 0 && !catalogLoading;
@@ -229,7 +228,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const hasPopular = popularFoods.length > 0;
   const hasSavedMeals = savedMeals.length > 0;
   const hasFavourites = favourites.length > 0;
-  const showDefaults = query.length === 0 && !showFavourites && (hasRecent || hasPopular || hasSavedMeals);
+  const showDefaults = query.length === 0 && (hasRecent || hasPopular || hasSavedMeals || hasFavourites);
 
   /* ── Render ────────────────────────────────────────── */
   return (
@@ -268,25 +267,10 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
               <Text style={s.actionBtnText}>Quick Add</Text>
               <Ionicons name="chevron-forward" size={ms(14)} color={colors.textTertiary} />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.actionBtn, showFavourites && s.actionBtnActive]}
-              onPress={handleToggleFavourites}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={showFavourites ? 'heart' : 'heart-outline'}
-                size={ms(20)}
-                color={showFavourites ? colors.accentRed : colors.accent}
-              />
-              <Text style={[s.actionBtnText, showFavourites && { color: colors.accentRed }]}>
-                Favourites{hasFavourites ? ` (${favourites.length})` : ''}
-              </Text>
-              <Ionicons
-                name={showFavourites ? 'close' : 'chevron-forward'}
-                size={ms(14)}
-                color={showFavourites ? colors.accentRed : colors.textTertiary}
-              />
-            </TouchableOpacity>
+            <View style={[s.actionBtn, s.actionBtnDisabled]}>
+              <Ionicons name="sparkles-outline" size={ms(20)} color={colors.textTertiary} />
+              <Text style={[s.actionBtnText, { color: colors.textTertiary }]}>Coming Soon</Text>
+            </View>
           </View>
 
           {/* Search bar */}
@@ -308,6 +292,33 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
             )}
           </View>
 
+          {/* Default tab pills */}
+          {query.length === 0 && (
+            <View style={s.tabRow}>
+              <TouchableOpacity
+                style={[s.tabPill, defaultTab === 'popular' && s.tabPillActive]}
+                onPress={() => setDefaultTab('popular')}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.tabPillText, defaultTab === 'popular' && s.tabPillTextActive]}>Popular</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.tabPill, defaultTab === 'recent' && s.tabPillActive]}
+                onPress={() => setDefaultTab('recent')}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.tabPillText, defaultTab === 'recent' && s.tabPillTextActive]}>Recent</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.tabPill, defaultTab === 'favourites' && s.tabPillActive]}
+                onPress={() => setDefaultTab('favourites')}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.tabPillText, defaultTab === 'favourites' && s.tabPillTextActive]}>Favourites{hasFavourites ? ` (${favourites.length})` : ''}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Not-found banner */}
           {scanNotFound && (
             <View style={s.notFoundBanner}>
@@ -320,27 +331,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
           )}
 
           {/* Content */}
-          {showFavourites && query.length === 0 ? (
-            hasFavourites ? (
-              <ScrollView
-                style={s.flex}
-                contentContainerStyle={s.listContent}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={s.sectionLabel}>Favourites</Text>
-                {favourites.map((item, i) => (
-                  <CatalogRow key={`fav-${item.id}-${i}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
-                ))}
-              </ScrollView>
-            ) : (
-              <View style={s.centerState}>
-                <Ionicons name="heart-outline" size={ms(32)} color={colors.textTertiary} />
-                <Text style={s.emptyText}>No favourites yet</Text>
-                <Text style={s.emptySubtext}>Tap the heart on any food to save it here</Text>
-              </View>
-            )
-          ) : catalogLoading ? (
+          {catalogLoading ? (
             <View style={s.centerState}>
               <Text style={s.emptyText}>Searching...</Text>
             </View>
@@ -402,21 +393,26 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
                       })}
                     </>
                   )}
-                  {hasRecent && (
-                    <>
-                      <Text style={s.sectionLabel}>Recent</Text>
-                      {recentFoods.map((item, i) => (
-                        <CatalogRow key={`r-${item.id}-${i}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
-                      ))}
-                    </>
+                  {defaultTab === 'recent' && hasRecent && recentFoods.map((item, i) => (
+                    <CatalogRow key={`r-${item.id}-${i}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
+                  ))}
+                  {defaultTab === 'recent' && !hasRecent && (
+                    <View style={s.tabEmptyState}>
+                      <Text style={s.emptyText}>No recent foods yet</Text>
+                    </View>
                   )}
-                  {hasPopular && (
-                    <>
-                      <Text style={s.sectionLabel}>Popular</Text>
-                      {popularFoods.map((item) => (
-                        <CatalogRow key={`p-${item.id}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
-                      ))}
-                    </>
+                  {defaultTab === 'popular' && hasPopular && popularFoods.map((item) => (
+                    <CatalogRow key={`p-${item.id}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
+                  ))}
+                  {defaultTab === 'favourites' && hasFavourites && favourites.map((item, i) => (
+                    <CatalogRow key={`fav-${item.id}-${i}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
+                  ))}
+                  {defaultTab === 'favourites' && !hasFavourites && (
+                    <View style={s.tabEmptyState}>
+                      <Ionicons name="heart-outline" size={ms(28)} color={colors.textTertiary} />
+                      <Text style={s.emptyText}>No favourites yet</Text>
+                      <Text style={s.emptySubtext}>Tap the heart on any food to save it here</Text>
+                    </View>
                   )}
                 </>
               )}
@@ -520,6 +516,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: colors.accentRed + '40',
     backgroundColor: colors.accentRed + '08',
   },
+  actionBtnDisabled: {
+    opacity: 0.5,
+  },
   actionBtnText: {
     flex: 1,
     color: colors.textPrimary,
@@ -555,6 +554,35 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.textTertiary + '20',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /* Tab pills */
+  tabRow: {
+    flexDirection: 'row',
+    paddingHorizontal: sw(16),
+    gap: sw(8),
+    marginBottom: sw(12),
+  },
+  tabPill: {
+    paddingVertical: sw(7),
+    paddingHorizontal: sw(16),
+    borderRadius: sw(20),
+    backgroundColor: colors.surface,
+  },
+  tabPillActive: {
+    backgroundColor: colors.accent,
+  },
+  tabPillText: {
+    color: colors.textSecondary,
+    fontSize: ms(13),
+    lineHeight: ms(18),
+    fontFamily: Fonts.semiBold,
+  },
+  tabPillTextActive: {
+    color: colors.textOnAccent,
+  },
+  tabEmptyState: {
+    alignItems: 'center',
+    paddingVertical: sw(32),
   },
   /* Not-found banner */
   notFoundBanner: {
