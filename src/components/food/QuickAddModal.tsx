@@ -64,12 +64,14 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
 
   /* ── Form state ─── */
   const [name, setName] = useState('');
+  const [brand, setBrand] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
 
   /* ── Refs for field focus chain ─── */
+  const brandRef = useRef<TextInput>(null);
   const calRef = useRef<TextInput>(null);
   const proRef = useRef<TextInput>(null);
   const carbRef = useRef<TextInput>(null);
@@ -79,6 +81,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
   useEffect(() => {
     if (!visible) {
       setName('');
+      setBrand('');
       setCalories('');
       setProtein('');
       setCarbs('');
@@ -100,6 +103,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
 
     addEntry(userId, {
       name: name.trim() || 'Quick Add',
+      brand: brand.trim() || null,
       calories: cal,
       protein: pro,
       carbs: c,
@@ -112,7 +116,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
     }, targetHour != null ? selectedDate : undefined, targetHour);
 
     onAdded();
-  }, [userId, canSubmit, name, calories, protein, carbs, fat, mealSlot, targetHour, selectedDate, addEntry, onAdded]);
+  }, [userId, canSubmit, name, brand, calories, protein, carbs, fat, mealSlot, targetHour, selectedDate, addEntry, onAdded]);
 
   /* ── Computed cal preview ─── */
   const previewCal = useMemo(() => {
@@ -160,6 +164,22 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
               placeholderTextColor={colors.textTertiary + '50'}
               returnKeyType="next"
               blurOnSubmit={false}
+              keyboardAppearance="dark"
+              onSubmitEditing={() => brandRef.current?.focus()}
+            />
+
+            {/* Brand field */}
+            <Text style={s.fieldLabel}>Brand (optional)</Text>
+            <TextInput
+              ref={brandRef}
+              style={s.textField}
+              value={brand}
+              onChangeText={setBrand}
+              placeholder="e.g. Optimum Nutrition, MyProtein..."
+              placeholderTextColor={colors.textTertiary + '50'}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              keyboardAppearance="dark"
               onSubmitEditing={() => calRef.current?.focus()}
             />
 
@@ -175,6 +195,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
               keyboardType="numeric"
               returnKeyType="next"
               blurOnSubmit={false}
+              keyboardAppearance="dark"
               onSubmitEditing={() => proRef.current?.focus()}
             />
             {!calories && (Number(protein) > 0 || Number(carbs) > 0 || Number(fat) > 0) && (
@@ -197,6 +218,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
                   keyboardType="numeric"
                   returnKeyType="next"
                   blurOnSubmit={false}
+                  keyboardAppearance="dark"
                   onSubmitEditing={() => carbRef.current?.focus()}
                 />
               </View>
@@ -213,6 +235,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
                   keyboardType="numeric"
                   returnKeyType="next"
                   blurOnSubmit={false}
+                  keyboardAppearance="dark"
                   onSubmitEditing={() => fatRef.current?.focus()}
                 />
               </View>
@@ -228,7 +251,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
                   placeholderTextColor={colors.textTertiary + '30'}
                   keyboardType="numeric"
                   returnKeyType="done"
-    
+                  keyboardAppearance="dark"
                 />
               </View>
             </View>
@@ -427,4 +450,5 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     lineHeight: ms(18),
     fontFamily: Fonts.semiBold,
   },
+
 });

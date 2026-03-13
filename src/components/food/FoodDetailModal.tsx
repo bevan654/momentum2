@@ -488,6 +488,10 @@ export default function FoodDetailModal({
   const [altLoading, setAltLoading] = useState(false);
   const [altSource, setAltSource] = useState<'off' | 'usda'>('off');
 
+  /* ── Editable name / brand ─────────────────────── */
+  const [customName, setCustomName] = useState('');
+  const [customBrand, setCustomBrand] = useState('');
+
   /* ── Editable macro overrides ────────────────────── */
   const [customCal, setCustomCal] = useState('');
   const [customPro, setCustomPro] = useState('');
@@ -496,6 +500,7 @@ export default function FoodDetailModal({
   const macroManualRef = useRef(false);
 
   /* ── Focus pop animations ───────────────────────── */
+  const nameScale = useSharedValue(1);
   const calScale = useSharedValue(1);
   const proScale = useSharedValue(1);
   const carbScale = useSharedValue(1);
@@ -508,6 +513,7 @@ export default function FoodDetailModal({
     sv.value = withSpring(1, { damping: 14, stiffness: 300, mass: 0.4 });
   }, []);
 
+  const namePopStyle = useAnimatedStyle(() => ({ transform: [{ scale: nameScale.value }] }));
   const calPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: calScale.value }] }));
   const proPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: proScale.value }] }));
   const carbPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: carbScale.value }] }));
@@ -523,6 +529,8 @@ export default function FoodDetailModal({
       setTargetDate(selectedDate);
       setAltSource('off');
       setAltLoading(false);
+      setCustomName(food.name);
+      setCustomBrand(food.brand || '');
       setCustomCal(String(Math.round(food.calories)));
       setCustomPro(String(Math.round(food.protein * 10) / 10));
       setCustomCarb(String(Math.round(food.carbs * 10) / 10));
@@ -600,8 +608,8 @@ export default function FoodDetailModal({
     // Meal mode — return per-serving data instead of logging
     if (onAddToMeal) {
       onAddToMeal({
-        name: food.name,
-        brand: food.brand,
+        name: customName.trim() || food.name,
+        brand: customBrand.trim() || food.brand,
         food_catalog_id: food.food_catalog_id,
         calories: Math.round(scaled.cal / qty * 10) / 10,
         protein: Math.round(scaled.pro / qty * 10) / 10,
@@ -618,9 +626,9 @@ export default function FoodDetailModal({
 
     if (!userId) return;
     const data = {
-      name: food.name, calories: scaled.cal, protein: scaled.pro,
+      name: customName.trim() || food.name, calories: scaled.cal, protein: scaled.pro,
       carbs: scaled.carb, fat: scaled.fat, meal_type: mealSlot,
-      brand: food.brand, food_catalog_id: food.food_catalog_id,
+      brand: customBrand.trim() || null, food_catalog_id: food.food_catalog_id,
       serving_size: ss, serving_unit: food.serving_unit, quantity: qty,
       fiber: food.fiber != null ? Math.round(food.fiber * scale * 10) / 10 : null,
       sugar: food.sugar != null ? Math.round(food.sugar * scale * 10) / 10 : null,
@@ -634,7 +642,7 @@ export default function FoodDetailModal({
       addEntry(userId, data, dateArg, targetHour);
     }
     onAdded();
-  }, [userId, food, quantity, servingSize, mealSlot, isPlanned, targetDate, targetHour, selectedDate, scaled, scale, addEntry, updateEntry, editEntryId, onAdded, onAddToMeal]);
+  }, [userId, food, quantity, servingSize, mealSlot, isPlanned, targetDate, targetHour, selectedDate, scaled, scale, customName, customBrand, addEntry, updateEntry, editEntryId, onAdded, onAddToMeal]);
 
   const handleDelete = useCallback(() => {
     if (!editEntryId || !onDelete) return;
@@ -677,10 +685,40 @@ export default function FoodDetailModal({
           overScrollMode="never"
         >
           {/* Name */}
-          <NameBadge
-            name={displayFood.name} brand={displayFood.brand}
-            confidence={displayFood.confidence} s={s} colors={colors}
-          />
+          <Animated.View style={[s.nameSection, namePopStyle]}>
+            <TextInput
+              style={s.foodNameInput}
+              value={customName}
+              onChangeText={setCustomName}
+              placeholder="Food name"
+              placeholderTextColor={colors.textTertiary + '50'}
+              onFocus={popIn(nameScale)}
+              onBlur={popOut(nameScale)}
+              returnKeyType="next"
+            />
+            <TextInput
+              style={s.foodBrandInput}
+              value={customBrand}
+              onChangeText={setCustomBrand}
+              placeholder="Brand (optional)"
+              placeholderTextColor={colors.textTertiary + '40'}
+              onFocus={popIn(nameScale)}
+              onBlur={popOut(nameScale)}
+              returnKeyType="done"
+            />
+            {displayFood.confidence === 'verified' && (
+              <View style={s.badge}>
+                <Ionicons name="checkmark-circle" size={ms(11)} color={colors.accentGreen} />
+                <Text style={[s.badgeText, { color: colors.accentGreen }]}>Verified</Text>
+              </View>
+            )}
+            {displayFood.confidence === 'user_submitted' && (
+              <View style={[s.badge, { backgroundColor: colors.textTertiary + '18' }]}>
+                <Ionicons name="person-outline" size={ms(11)} color={colors.textTertiary} />
+                <Text style={[s.badgeText, { color: colors.textTertiary }]}>Unverified</Text>
+              </View>
+            )}
+          </Animated.View>
 
           {/* Alt source */}
           {displayFood.barcode && onFoodSwap && (
@@ -871,7 +909,16 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     color: c.textPrimary, fontSize: ms(20), lineHeight: ms(26),
     fontFamily: Fonts.extraBold, textAlign: 'center', letterSpacing: -0.3,
   },
+  foodNameInput: {
+    color: c.textPrimary, fontSize: ms(20), lineHeight: ms(26),
+    fontFamily: Fonts.extraBold, textAlign: 'center', letterSpacing: -0.3,
+    padding: 0, width: '100%',
+  },
   foodBrand: { color: c.textSecondary, fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.medium },
+  foodBrandInput: {
+    color: c.textSecondary, fontSize: ms(13), lineHeight: ms(18),
+    fontFamily: Fonts.medium, textAlign: 'center', padding: 0, width: '100%',
+  },
   badge: {
     flexDirection: 'row', alignItems: 'center', gap: sw(4),
     backgroundColor: c.accentGreen + '15', borderRadius: sw(8),
