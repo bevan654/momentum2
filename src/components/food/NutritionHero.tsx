@@ -10,7 +10,7 @@ import { useNutrientGoalStore, type MicroGoalConfig } from '../../stores/useNutr
 /* ─── Micro keys that exist on FoodEntry ─────────────── */
 
 const ENTRY_MICRO_KEYS = new Set([
-  'sodium', 'fiber', 'sugar', 'calcium', 'iron', 'potassium', 'magnesium', 'zinc',
+  'caffeine', 'sodium', 'fiber', 'sugar', 'calcium', 'iron', 'potassium', 'magnesium', 'zinc',
   'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k',
   'vitamin_b6', 'vitamin_b12', 'folate',
 ]);

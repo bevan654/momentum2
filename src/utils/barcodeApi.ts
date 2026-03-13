@@ -82,6 +82,7 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeResult> {
     magnesium: optNum(n['magnesium_100g'], microScale),        // mg
     potassium: optNum(n['potassium_100g'], microScale),        // mg
     zinc: optNum(n['zinc_100g'], microScale),                  // mg
+    caffeine: optNum(n['caffeine_100g'], microScale),            // mg
     barcode,
     serving_size_estimated: servingSizeEstimated,
   };
@@ -128,6 +129,7 @@ export async function saveBarcodeFoodToDb(
         potassium: food.potassium ?? null,
         zinc: food.zinc ?? null,
         sodium: food.sodium ?? null,
+        caffeine: food.caffeine ?? null,
         scanned_by: userId,
       });
 
@@ -190,12 +192,20 @@ export async function lookupBarcodeUSDA(barcode: string): Promise<BarcodeResult>
     const fiber = optNum(nutrients[1079], scale);           // Fiber
     const sugar = optNum(nutrients[2000], scale);           // Total Sugars
     const sodium = optNum(nutrients[1093], scale);          // Sodium (mg)
-    const calcium = optNum(nutrients[1087], scale);
-    const iron = optNum(nutrients[1089], scale);
-    const potassium = optNum(nutrients[1092], scale);
+    const calcium = optNum(nutrients[1087], scale);         // Calcium (mg)
+    const iron = optNum(nutrients[1089], scale);            // Iron (mg)
+    const potassium = optNum(nutrients[1092], scale);       // Potassium (mg)
+    const magnesium = optNum(nutrients[1090], scale);       // Magnesium (mg)
+    const zinc = optNum(nutrients[1095], scale);            // Zinc (mg)
     const vitA = optNum(nutrients[1106], scale);            // Vitamin A (mcg RAE)
-    const vitC = optNum(nutrients[1162], scale);
-    const vitD = optNum(nutrients[1114], scale);
+    const vitC = optNum(nutrients[1162], scale);            // Vitamin C (mg)
+    const vitD = optNum(nutrients[1114], scale);            // Vitamin D (mcg)
+    const vitE = optNum(nutrients[1109], scale);            // Vitamin E (mg)
+    const vitK = optNum(nutrients[1185], scale);            // Vitamin K (mcg)
+    const vitB6 = optNum(nutrients[1175], scale);           // Vitamin B6 (mg)
+    const vitB12 = optNum(nutrients[1178], scale);          // Vitamin B12 (mcg)
+    const folateVal = optNum(nutrients[1177], scale);       // Folate (mcg DFE)
+    const caffeineVal = optNum(nutrients[1057], scale);    // Caffeine (mg)
 
     const food: FoodDetailData = {
       name: item.description || item.brandName || 'Unknown Product',
@@ -213,9 +223,17 @@ export async function lookupBarcodeUSDA(barcode: string): Promise<BarcodeResult>
       calcium,
       iron,
       potassium,
+      magnesium,
+      zinc,
       vitamin_a: vitA,
       vitamin_c: vitC,
       vitamin_d: vitD,
+      vitamin_e: vitE,
+      vitamin_k: vitK,
+      vitamin_b6: vitB6,
+      vitamin_b12: vitB12,
+      folate: folateVal,
+      caffeine: caffeineVal,
       barcode,
       serving_size_estimated: servingSizeEstimated,
     };
