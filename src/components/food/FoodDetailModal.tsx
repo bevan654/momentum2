@@ -1042,7 +1042,7 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   dateChipLabel: { color: c.textPrimary, fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.bold },
   dateChipLabelActive: { color: c.textOnAccent },
   dateChipSub: { color: c.textTertiary, fontSize: ms(10), lineHeight: ms(14), fontFamily: Fonts.medium, marginTop: sw(2) },
-  dateChipSubActive: { color: 'rgba(255,255,255,0.7)' },
+  dateChipSubActive: { color: c.textOnAccent + 'B3' },
 
   /* Micros */
   microCard: { backgroundColor: c.card, borderRadius: sw(14), paddingVertical: sw(4), paddingHorizontal: sw(14) },
@@ -1073,5 +1073,5 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   },
   addBtnPlanned: { backgroundColor: c.accentGreen },
   addBtnText: { color: c.textOnAccent, fontSize: ms(16), lineHeight: ms(22), fontFamily: Fonts.bold },
-  addBtnCal: { color: 'rgba(255,255,255,0.7)', fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.semiBold },
+  addBtnCal: { color: c.textOnAccent + 'B3', fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.semiBold },
 });
