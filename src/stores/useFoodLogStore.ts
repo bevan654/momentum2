@@ -688,7 +688,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .limit(25),
+        .limit(100),
       supabase
         .from('food_catalog')
         .select('*')
@@ -735,7 +735,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
           zinc: d.zinc != null ? Number(d.zinc) / qty : null,
           sodium: d.sodium != null ? Number(d.sodium) / qty : null,
         });
-        if (recentFoods.length >= 5) break;
+        if (recentFoods.length >= 25) break;
       }
     }
 
