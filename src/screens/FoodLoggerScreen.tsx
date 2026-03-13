@@ -160,6 +160,7 @@ function FoodLoggerScreen() {
       potassium: editEntry.potassium != null ? editEntry.potassium / qty : null,
       zinc: editEntry.zinc != null ? editEntry.zinc / qty : null,
       sodium: editEntry.sodium != null ? editEntry.sodium / qty : null,
+      caffeine: editEntry.caffeine != null ? editEntry.caffeine / qty : null,
     };
   }, [editEntry]);
 

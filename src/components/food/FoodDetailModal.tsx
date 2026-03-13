@@ -27,6 +27,7 @@ import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { lookupBarcodeUSDA } from '../../utils/barcodeApi';
 import type { MealConfig } from '../../stores/useFoodLogStore';
+import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
 
 /* ─── Types ────────────────────────────────────────────── */
 
@@ -59,6 +60,7 @@ export interface FoodDetailData {
   potassium?: number | null;
   zinc?: number | null;
   sodium?: number | null;
+  caffeine?: number | null;
 }
 
 /** Data returned by onAddToMeal — per-serving macros + quantity */
@@ -102,6 +104,7 @@ const FADE_OUT = { duration: 150, easing: Easing.in(Easing.cubic) };
 const STATUS_H = StatusBar.currentHeight ?? 0;
 
 const MICROS: { key: string; label: string; unit: string }[] = [
+  { key: 'caffeine', label: 'Caffeine', unit: 'mg' },
   { key: 'fiber', label: 'Fiber', unit: 'g' },
   { key: 'sugar', label: 'Sugar', unit: 'g' },
   { key: 'sodium', label: 'Sodium', unit: 'mg' },
@@ -203,12 +206,24 @@ const DateChipItem = React.memo(function DateChipItem({
 });
 
 const MicroRow = React.memo(function MicroRow({
-  label, value, unit, last, s,
-}: { label: string; value: number; unit: string; last: boolean; s: ReturnType<typeof createStyles> }) {
+  label, value, unit, last, s, editable, onChangeText,
+}: { label: string; value: string; unit: string; last: boolean; s: ReturnType<typeof createStyles>; editable?: boolean; onChangeText?: (v: string) => void }) {
   return (
     <View style={[s.microRow, last && s.microRowLast]}>
       <Text style={s.microLabel}>{label}</Text>
-      <Text style={s.microVal}>{value} {unit}</Text>
+      {editable && onChangeText ? (
+        <View style={s.microInputWrap}>
+          <TextInput
+            style={s.microInput}
+            value={value}
+            onChangeText={onChangeText}
+            keyboardType="numeric"
+          />
+          <Text style={s.microUnit}>{unit}</Text>
+        </View>
+      ) : (
+        <Text style={s.microVal}>{value} {unit}</Text>
+      )}
     </View>
   );
 });
@@ -478,6 +493,7 @@ export default function FoodDetailModal({
   const updateEntry = useFoodLogStore((st) => st.updateEntry);
   const userId = useAuthStore((st) => st.user?.id);
   const selectedDate = useFoodLogStore((st) => st.selectedDate);
+  const microGoals = useNutrientGoalStore((st) => st.microGoals);
 
   /* ── State ─────────────────────────────────────────── */
   const [mealSlot, setMealSlot] = useState(initialMealSlot);
@@ -498,6 +514,10 @@ export default function FoodDetailModal({
   const [customCarb, setCustomCarb] = useState('');
   const [customFat, setCustomFat] = useState('');
   const macroManualRef = useRef(false);
+
+  /* ── Editable micro overrides ────────────────────── */
+  const [customMicros, setCustomMicros] = useState<Record<string, string>>({});
+  const microManualRef = useRef(false);
 
   /* ── Focus pop animations ───────────────────────── */
   const nameScale = useSharedValue(1);
@@ -536,6 +556,15 @@ export default function FoodDetailModal({
       setCustomCarb(String(Math.round(food.carbs * 10) / 10));
       setCustomFat(String(Math.round(food.fat * 10) / 10));
       macroManualRef.current = false;
+      // Initialize micro overrides
+      const initMicros: Record<string, string> = {};
+      for (const m of MICROS) {
+        const v = (food as any)[m.key];
+        if (v != null) initMicros[m.key] = String(Math.round(Number(v) * 10) / 10);
+      }
+      setCustomMicros(initMicros);
+      microManualRef.current = false;
+
     }
   }, [food, initialMealSlot, initialIsPlanned]);
 
@@ -572,6 +601,17 @@ export default function FoodDetailModal({
     setCustomFat(String(Math.round(food.fat * scale * 10) / 10));
   }, [food, scale]);
 
+  // Update micro fields when scale changes (unless user manually edited)
+  useEffect(() => {
+    if (!food || microManualRef.current) return;
+    const updated: Record<string, string> = {};
+    for (const m of MICROS) {
+      const v = (food as any)[m.key];
+      if (v != null) updated[m.key] = String(Math.round(Number(v) * scale * 10) / 10);
+    }
+    setCustomMicros(updated);
+  }, [food, scale]);
+
   const scaled = useMemo(() => ({
     cal: Number(customCal) || 0,
     pro: Number(customPro) || 0,
@@ -584,17 +624,32 @@ export default function FoodDetailModal({
     setter(val);
   }, []);
 
+  const handleMicroEdit = useCallback((key: string) => (val: string) => {
+    microManualRef.current = true;
+    setCustomMicros((prev) => ({ ...prev, [key]: val }));
+  }, []);
+
   const microData = useMemo(() => {
     if (!food) return [];
+    // When editing, show all tracked micros (from settings) so the user can add values
+    // For new entries, only show micros that already have values on the food
+    const trackedKeys = new Set(microGoals.map((g) => g.key));
     return MICROS
-      .filter((m) => { const v = (food as any)[m.key]; return v != null && v > 0; })
+      .filter((m) => {
+        const v = (food as any)[m.key];
+        const hasValue = v != null && v > 0;
+        const hasCustomValue = customMicros[m.key] != null && customMicros[m.key] !== '' && Number(customMicros[m.key]) > 0;
+        return hasValue || hasCustomValue || trackedKeys.has(m.key);
+      })
       .map((m) => ({
         key: m.key,
         label: m.label,
         unit: m.unit,
-        value: Math.round(((food as any)[m.key] as number) * scale * 10) / 10,
+        value: customMicros[m.key] ?? ((food as any)[m.key] != null
+          ? String(Math.round(((food as any)[m.key] as number) * scale * 10) / 10)
+          : ''),
       }));
-  }, [food, scale]);
+  }, [food, scale, customMicros, editEntryId, microGoals]);
 
   /* ── Stable callbacks ──────────────────────────────── */
   const handleTypeSelect = useCallback((planned: boolean) => setIsPlanned(planned), []);
@@ -625,14 +680,26 @@ export default function FoodDetailModal({
     }
 
     if (!userId) return;
+    // Build micro fields from customMicros
+    const microFields: Record<string, number | null> = {};
+    for (const m of MICROS) {
+      const v = customMicros[m.key];
+      if (v != null && v !== '') {
+        const n = Number(v);
+        microFields[m.key] = Number.isFinite(n) ? n : null;
+      } else {
+        microFields[m.key] = (food as any)[m.key] != null ? Math.round(((food as any)[m.key] as number) * scale * 10) / 10 : null;
+      }
+    }
     const data = {
       name: customName.trim() || food.name, calories: scaled.cal, protein: scaled.pro,
       carbs: scaled.carb, fat: scaled.fat, meal_type: mealSlot,
       brand: customBrand.trim() || null, food_catalog_id: food.food_catalog_id,
       serving_size: ss, serving_unit: food.serving_unit, quantity: qty,
-      fiber: food.fiber != null ? Math.round(food.fiber * scale * 10) / 10 : null,
-      sugar: food.sugar != null ? Math.round(food.sugar * scale * 10) / 10 : null,
+      fiber: microFields.fiber,
+      sugar: microFields.sugar,
       is_planned: isPlanned,
+      ...microFields,
     };
     if (editEntryId) { updateEntry(editEntryId, data); }
     else {
@@ -642,7 +709,7 @@ export default function FoodDetailModal({
       addEntry(userId, data, dateArg, targetHour);
     }
     onAdded();
-  }, [userId, food, quantity, servingSize, mealSlot, isPlanned, targetDate, targetHour, selectedDate, scaled, scale, customName, customBrand, addEntry, updateEntry, editEntryId, onAdded, onAddToMeal]);
+  }, [userId, food, quantity, servingSize, mealSlot, isPlanned, targetDate, targetHour, selectedDate, scaled, scale, customName, customBrand, customMicros, addEntry, updateEntry, editEntryId, onAdded, onAddToMeal]);
 
   const handleDelete = useCallback(() => {
     if (!editEntryId || !onDelete) return;
@@ -850,6 +917,7 @@ export default function FoodDetailModal({
                   <MicroRow
                     key={m.key} label={m.label} value={m.value}
                     unit={m.unit} last={i === microData.length - 1} s={s}
+                    editable onChangeText={handleMicroEdit(m.key)}
                   />
                 ))}
               </View>
@@ -1053,6 +1121,14 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   microRowLast: { borderBottomWidth: 0 },
   microLabel: { color: c.textSecondary, fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.medium },
   microVal: { color: c.textPrimary, fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.semiBold },
+  microInputWrap: { flexDirection: 'row', alignItems: 'center', gap: sw(4) },
+  microInput: {
+    color: c.textPrimary, fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.semiBold,
+    backgroundColor: c.surface, borderRadius: sw(6),
+    paddingHorizontal: sw(8), paddingVertical: sw(4),
+    textAlign: 'right', minWidth: sw(50), padding: 0,
+  },
+  microUnit: { color: c.textTertiary, fontSize: ms(11), lineHeight: ms(15), fontFamily: Fonts.medium, width: sw(28) },
 
   bottomSpacer: { height: sw(80) },
 
