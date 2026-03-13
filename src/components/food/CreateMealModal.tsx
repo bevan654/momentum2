@@ -76,8 +76,11 @@ const MealItemRow = React.memo(function MealItemRow({
   const totalC = Math.round(item.carbs * item.quantity);
   const totalF = Math.round(item.fat * item.quantity);
 
+  const handlePress = useCallback(() => onPress(item), [item, onPress]);
+  const handleRemove = useCallback(() => onRemove(item.id), [item.id, onRemove]);
+
   return (
-    <TouchableOpacity style={s.itemCard} onPress={() => onPress(item)} activeOpacity={0.7}>
+    <TouchableOpacity style={s.itemCard} onPress={handlePress} activeOpacity={0.7}>
       <View style={s.itemTop}>
         <View style={s.itemInfo}>
           <Text style={s.itemName} numberOfLines={1}>{item.name}</Text>
@@ -88,7 +91,7 @@ const MealItemRow = React.memo(function MealItemRow({
           <Text style={s.itemCalBig}>{totalCal}</Text>
           <Text style={s.itemCalUnit}>kcal</Text>
         </View>
-        <TouchableOpacity onPress={() => onRemove(item.id)} hitSlop={8} style={s.removeBtn}>
+        <TouchableOpacity onPress={handleRemove} hitSlop={8} style={s.removeBtn}>
           <Ionicons name="close" size={ms(14)} color={c.textTertiary} />
         </TouchableOpacity>
       </View>
@@ -114,8 +117,9 @@ interface CatalogRowProps {
 }
 
 const CatalogRow = React.memo(function CatalogRow({ item, onSelect, s, c }: CatalogRowProps) {
+  const handleSelect = useCallback(() => onSelect(item), [item, onSelect]);
   return (
-    <TouchableOpacity style={s.catalogRow} onPress={() => onSelect(item)} activeOpacity={0.7}>
+    <TouchableOpacity style={s.catalogRow} onPress={handleSelect} activeOpacity={0.7}>
       <View style={s.catalogInfo}>
         <Text style={s.catalogName} numberOfLines={1}>{item.name}</Text>
         {item.brand ? <Text style={s.catalogBrand} numberOfLines={1}>{item.brand}</Text> : null}
@@ -228,6 +232,7 @@ export default function CreateMealModal({
   /* ── Reset on close ─────────────────────────────────── */
   useEffect(() => {
     if (!visible) {
+      if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null; }
       setQuery('');
       clearSearch();
       setDetailVisible(false);

@@ -191,7 +191,7 @@ export default function BarcodeScannerModal({
 
 /* ── Corner bracket component ──────────────────────────── */
 
-function Corner({ style, rotate }: { style: object; rotate?: string }) {
+const Corner = React.memo(function Corner({ style, rotate }: { style: object; rotate?: string }) {
   return (
     <View
       style={[
@@ -209,7 +209,7 @@ function Corner({ style, rotate }: { style: object; rotate?: string }) {
       ]}
     />
   );
-}
+});
 
 /* ── Styles ─────────────────────────────────────────────── */
 

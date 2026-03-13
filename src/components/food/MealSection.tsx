@@ -5,6 +5,7 @@ import {
   Pressable,
   StyleSheet,
   Alert,
+  AppState,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -545,8 +546,18 @@ function MealSection({ entries, supplementEntries, onTogglePlanned, onAddFood, o
 
   const [currentHour, setCurrentHour] = useState(() => new Date().getHours());
   useEffect(() => {
-    const timer = setInterval(() => setCurrentHour(new Date().getHours()), 60_000);
-    return () => clearInterval(timer);
+    const updateHour = () => setCurrentHour(new Date().getHours());
+    // Only poll when app is in foreground to save battery
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') updateHour();
+    });
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') updateHour();
+    }, 60_000);
+    return () => {
+      sub.remove();
+      clearInterval(timer);
+    };
   }, []);
 
   const EMPTY: FoodEntry[] = useMemo(() => [], []);

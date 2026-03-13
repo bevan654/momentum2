@@ -47,6 +47,7 @@ const CatalogRow = React.memo(function CatalogRow({ item, onSelect, s, c }: Cata
   const addFav = useFavouritesStore((st) => st.addFavourite);
   const removeFav = useFavouritesStore((st) => st.removeFavourite);
 
+  const handleSelect = useCallback(() => onSelect(item), [item, onSelect]);
   const toggleFav = useCallback(() => {
     if (isFav) removeFav(item);
     else addFav(item);
@@ -54,7 +55,7 @@ const CatalogRow = React.memo(function CatalogRow({ item, onSelect, s, c }: Cata
 
   return (
     <View style={s.catalogRow}>
-      <TouchableOpacity style={s.catalogRowBody} onPress={() => onSelect(item)} activeOpacity={0.7}>
+      <TouchableOpacity style={s.catalogRowBody} onPress={handleSelect} activeOpacity={0.7}>
         <View style={s.catalogInfo}>
           <View style={s.catalogNameRow}>
             <Text style={s.catalogName} numberOfLines={1}>{item.name}</Text>
@@ -136,6 +137,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   /* ── Reset on close ────────────────────────────────── */
   useEffect(() => {
     if (!visible) {
+      if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null; }
       setQuery('');
       clearSearch();
       setDetailFood(null);
