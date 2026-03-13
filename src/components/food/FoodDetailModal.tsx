@@ -488,6 +488,31 @@ export default function FoodDetailModal({
   const [altLoading, setAltLoading] = useState(false);
   const [altSource, setAltSource] = useState<'off' | 'usda'>('off');
 
+  /* ── Editable macro overrides ────────────────────── */
+  const [customCal, setCustomCal] = useState('');
+  const [customPro, setCustomPro] = useState('');
+  const [customCarb, setCustomCarb] = useState('');
+  const [customFat, setCustomFat] = useState('');
+  const macroManualRef = useRef(false);
+
+  /* ── Focus pop animations ───────────────────────── */
+  const calScale = useSharedValue(1);
+  const proScale = useSharedValue(1);
+  const carbScale = useSharedValue(1);
+  const fatScale = useSharedValue(1);
+
+  const popIn = useCallback((sv: typeof calScale) => () => {
+    sv.value = withSpring(1.08, { damping: 12, stiffness: 400, mass: 0.4 });
+  }, []);
+  const popOut = useCallback((sv: typeof calScale) => () => {
+    sv.value = withSpring(1, { damping: 14, stiffness: 300, mass: 0.4 });
+  }, []);
+
+  const calPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: calScale.value }] }));
+  const proPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: proScale.value }] }));
+  const carbPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: carbScale.value }] }));
+  const fatPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: fatScale.value }] }));
+
   /* ── Reset ─────────────────────────────────────────── */
   useEffect(() => {
     if (food) {
@@ -498,6 +523,11 @@ export default function FoodDetailModal({
       setTargetDate(selectedDate);
       setAltSource('off');
       setAltLoading(false);
+      setCustomCal(String(Math.round(food.calories)));
+      setCustomPro(String(Math.round(food.protein * 10) / 10));
+      setCustomCarb(String(Math.round(food.carbs * 10) / 10));
+      setCustomFat(String(Math.round(food.fat * 10) / 10));
+      macroManualRef.current = false;
     }
   }, [food, initialMealSlot, initialIsPlanned]);
 
@@ -525,15 +555,26 @@ export default function FoodDetailModal({
     return (qty * ss) / food.serving_size;
   }, [food, quantity, servingSize]);
 
-  const scaled = useMemo(() => {
-    if (!food) return { cal: 0, pro: 0, carb: 0, fat: 0 };
-    return {
-      cal: Math.round(food.calories * scale),
-      pro: Math.round(food.protein * scale * 10) / 10,
-      carb: Math.round(food.carbs * scale * 10) / 10,
-      fat: Math.round(food.fat * scale * 10) / 10,
-    };
+  // Update macro fields when scale changes (unless user manually edited)
+  useEffect(() => {
+    if (!food || macroManualRef.current) return;
+    setCustomCal(String(Math.round(food.calories * scale)));
+    setCustomPro(String(Math.round(food.protein * scale * 10) / 10));
+    setCustomCarb(String(Math.round(food.carbs * scale * 10) / 10));
+    setCustomFat(String(Math.round(food.fat * scale * 10) / 10));
   }, [food, scale]);
+
+  const scaled = useMemo(() => ({
+    cal: Number(customCal) || 0,
+    pro: Number(customPro) || 0,
+    carb: Number(customCarb) || 0,
+    fat: Number(customFat) || 0,
+  }), [customCal, customPro, customCarb, customFat]);
+
+  const handleMacroEdit = useCallback((setter: (v: string) => void) => (val: string) => {
+    macroManualRef.current = true;
+    setter(val);
+  }, []);
 
   const microData = useMemo(() => {
     if (!food) return [];
@@ -558,17 +599,16 @@ export default function FoodDetailModal({
 
     // Meal mode — return per-serving data instead of logging
     if (onAddToMeal) {
-      const perServScale = ss / food.serving_size;
       onAddToMeal({
         name: food.name,
         brand: food.brand,
         food_catalog_id: food.food_catalog_id,
-        calories: Math.round(food.calories * perServScale * 10) / 10,
-        protein: Math.round(food.protein * perServScale * 10) / 10,
-        carbs: Math.round(food.carbs * perServScale * 10) / 10,
-        fat: Math.round(food.fat * perServScale * 10) / 10,
-        fiber: food.fiber != null ? Math.round(food.fiber * perServScale * 10) / 10 : null,
-        sugar: food.sugar != null ? Math.round(food.sugar * perServScale * 10) / 10 : null,
+        calories: Math.round(scaled.cal / qty * 10) / 10,
+        protein: Math.round(scaled.pro / qty * 10) / 10,
+        carbs: Math.round(scaled.carb / qty * 10) / 10,
+        fat: Math.round(scaled.fat / qty * 10) / 10,
+        fiber: food.fiber != null ? Math.round(food.fiber * (ss / food.serving_size) * 10) / 10 : null,
+        sugar: food.sugar != null ? Math.round(food.sugar * (ss / food.serving_size) * 10) / 10 : null,
         serving_size: ss,
         serving_unit: food.serving_unit,
         quantity: qty,
@@ -653,16 +693,62 @@ export default function FoodDetailModal({
           )}
 
           {/* Calories */}
-          <View style={s.calRow}>
-            <Text style={s.calNum}>{scaled.cal}</Text>
+          <Animated.View style={[s.calRow, calPopStyle]}>
+            <TextInput
+              style={s.calNum}
+              value={customCal}
+              onChangeText={handleMacroEdit(setCustomCal)}
+              keyboardType="numeric"
+              onFocus={popIn(calScale)}
+              onBlur={popOut(calScale)}
+            />
             <Text style={s.calUnit}>kcal</Text>
-          </View>
+          </Animated.View>
 
           {/* Macros */}
           <View style={s.macroRow}>
-            <MacroChip label="Protein" value={scaled.pro} color={colors.protein} s={s} />
-            <MacroChip label="Carbs" value={scaled.carb} color={colors.carbs} s={s} />
-            <MacroChip label="Fat" value={scaled.fat} color={colors.fat} s={s} />
+            <Animated.View style={[s.macroChip, proPopStyle]}>
+              <View style={[s.macroIndicator, { backgroundColor: colors.protein }]} />
+              <View style={s.macroChipInner}>
+                <TextInput
+                  style={[s.macroChipInput, { color: colors.protein }]}
+                  value={customPro}
+                  onChangeText={handleMacroEdit(setCustomPro)}
+                  keyboardType="numeric"
+                      onFocus={popIn(proScale)}
+                  onBlur={popOut(proScale)}
+                />
+                <Text style={s.macroChipLabel}>Protein</Text>
+              </View>
+            </Animated.View>
+            <Animated.View style={[s.macroChip, carbPopStyle]}>
+              <View style={[s.macroIndicator, { backgroundColor: colors.carbs }]} />
+              <View style={s.macroChipInner}>
+                <TextInput
+                  style={[s.macroChipInput, { color: colors.carbs }]}
+                  value={customCarb}
+                  onChangeText={handleMacroEdit(setCustomCarb)}
+                  keyboardType="numeric"
+                      onFocus={popIn(carbScale)}
+                  onBlur={popOut(carbScale)}
+                />
+                <Text style={s.macroChipLabel}>Carbs</Text>
+              </View>
+            </Animated.View>
+            <Animated.View style={[s.macroChip, fatPopStyle]}>
+              <View style={[s.macroIndicator, { backgroundColor: colors.fat }]} />
+              <View style={s.macroChipInner}>
+                <TextInput
+                  style={[s.macroChipInput, { color: colors.fat }]}
+                  value={customFat}
+                  onChangeText={handleMacroEdit(setCustomFat)}
+                  keyboardType="numeric"
+                      onFocus={popIn(fatScale)}
+                  onBlur={popOut(fatScale)}
+                />
+                <Text style={s.macroChipLabel}>Fat</Text>
+              </View>
+            </Animated.View>
           </View>
 
           {/* Serving */}
@@ -808,6 +894,7 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   calNum: {
     color: c.textPrimary, fontSize: ms(42), lineHeight: ms(48),
     fontFamily: Fonts.extraBold, letterSpacing: -1,
+    padding: 0, textAlign: 'center', minWidth: sw(80),
   },
   calUnit: { color: c.textTertiary, fontSize: ms(14), lineHeight: ms(20), fontFamily: Fonts.semiBold },
 
@@ -822,6 +909,9 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   macroIndicator: { width: sw(4), height: sw(28), borderRadius: sw(2) },
   macroChipInner: { flex: 1 },
   macroChipVal: { fontSize: ms(15), lineHeight: ms(20), fontFamily: Fonts.bold },
+  macroChipInput: {
+    fontSize: ms(15), lineHeight: ms(20), fontFamily: Fonts.bold, padding: 0,
+  },
   macroChipLabel: { color: c.textTertiary, fontSize: ms(10), lineHeight: ms(13), fontFamily: Fonts.medium },
 
   /* Section titles */
