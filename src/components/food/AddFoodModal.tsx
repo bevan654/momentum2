@@ -124,8 +124,8 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const favourites = useFavouritesStore((st) => st.favourites);
   const loadFavourites = useFavouritesStore((st) => st.loadFavourites);
 
-  // Default tab (popular / recent / favourites)
-  const [defaultTab, setDefaultTab] = useState<'popular' | 'recent' | 'favourites'>('popular');
+  // Default tab (popular / recent / favourites / meals)
+  const [defaultTab, setDefaultTab] = useState<'popular' | 'recent' | 'favourites' | 'meals'>('popular');
 
   /* ── Load defaults + saved meals + favourites on open ──── */
   useEffect(() => {
@@ -294,28 +294,39 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
 
           {/* Default tab pills */}
           {query.length === 0 && (
-            <View style={s.tabRow}>
-              <TouchableOpacity
-                style={[s.tabPill, defaultTab === 'popular' && s.tabPillActive]}
-                onPress={() => setDefaultTab('popular')}
-                activeOpacity={0.7}
-              >
-                <Text style={[s.tabPillText, defaultTab === 'popular' && s.tabPillTextActive]}>Popular</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.tabPill, defaultTab === 'recent' && s.tabPillActive]}
-                onPress={() => setDefaultTab('recent')}
-                activeOpacity={0.7}
-              >
-                <Text style={[s.tabPillText, defaultTab === 'recent' && s.tabPillTextActive]}>Recent</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.tabPill, defaultTab === 'favourites' && s.tabPillActive]}
-                onPress={() => setDefaultTab('favourites')}
-                activeOpacity={0.7}
-              >
-                <Text style={[s.tabPillText, defaultTab === 'favourites' && s.tabPillTextActive]}>Favourites{hasFavourites ? ` (${favourites.length})` : ''}</Text>
-              </TouchableOpacity>
+            <View style={s.tabGrid}>
+              <View style={s.tabGridRow}>
+                <TouchableOpacity
+                  style={[s.tabPill, defaultTab === 'popular' && s.tabPillActive]}
+                  onPress={() => setDefaultTab('popular')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.tabPillText, defaultTab === 'popular' && s.tabPillTextActive]}>Popular</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.tabPill, defaultTab === 'recent' && s.tabPillActive]}
+                  onPress={() => setDefaultTab('recent')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.tabPillText, defaultTab === 'recent' && s.tabPillTextActive]}>Recent</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={s.tabGridRow}>
+                <TouchableOpacity
+                  style={[s.tabPill, defaultTab === 'favourites' && s.tabPillActive]}
+                  onPress={() => setDefaultTab('favourites')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.tabPillText, defaultTab === 'favourites' && s.tabPillTextActive]}>Favourites{hasFavourites ? ` (${favourites.length})` : ''}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.tabPill, defaultTab === 'meals' && s.tabPillActive]}
+                  onPress={() => setDefaultTab('meals')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.tabPillText, defaultTab === 'meals' && s.tabPillTextActive]}>Meals{hasSavedMeals ? ` (${savedMeals.length})` : ''}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -357,41 +368,43 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
               ))}
               {showDefaults && (
                 <>
-                  {hasSavedMeals && (
-                    <>
-                      <Text style={s.sectionLabel}>Saved Meals</Text>
-                      {savedMeals.map((meal) => {
-                        const totalCal = Math.round(meal.items.reduce((sum, i) => sum + i.calories * i.quantity, 0));
-                        const totalP = Math.round(meal.items.reduce((sum, i) => sum + i.protein * i.quantity, 0));
-                        const totalC = Math.round(meal.items.reduce((sum, i) => sum + i.carbs * i.quantity, 0));
-                        const totalF = Math.round(meal.items.reduce((sum, i) => sum + i.fat * i.quantity, 0));
-                        return (
-                          <TouchableOpacity
-                            key={meal.id}
-                            style={s.savedMealCard}
-                            onPress={() => handleOpenSavedMeal(meal)}
-                            activeOpacity={0.7}
-                          >
-                            <View style={s.savedMealInfo}>
-                              <Text style={s.savedMealName} numberOfLines={1}>{meal.name}</Text>
-                              <View style={s.savedMealMeta}>
-                                <Text style={s.savedMealItems}>{meal.items.length} items</Text>
-                                <View style={s.savedMealMacros}>
-                                  <Text style={[s.catalogMacro, { color: colors.protein }]}>P {totalP}</Text>
-                                  <Text style={[s.catalogMacro, { color: colors.carbs }]}>C {totalC}</Text>
-                                  <Text style={[s.catalogMacro, { color: colors.fat }]}>F {totalF}</Text>
-                                </View>
-                              </View>
+                  {defaultTab === 'meals' && hasSavedMeals && savedMeals.map((meal) => {
+                    const totalCal = Math.round(meal.items.reduce((sum, i) => sum + i.calories * i.quantity, 0));
+                    const totalP = Math.round(meal.items.reduce((sum, i) => sum + i.protein * i.quantity, 0));
+                    const totalC = Math.round(meal.items.reduce((sum, i) => sum + i.carbs * i.quantity, 0));
+                    const totalF = Math.round(meal.items.reduce((sum, i) => sum + i.fat * i.quantity, 0));
+                    return (
+                      <TouchableOpacity
+                        key={meal.id}
+                        style={s.savedMealCard}
+                        onPress={() => handleOpenSavedMeal(meal)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={s.savedMealInfo}>
+                          <Text style={s.savedMealName} numberOfLines={1}>{meal.name}</Text>
+                          <View style={s.savedMealMeta}>
+                            <Text style={s.savedMealItems}>{meal.items.length} items</Text>
+                            <View style={s.savedMealMacros}>
+                              <Text style={[s.catalogMacro, { color: colors.protein }]}>P {totalP}</Text>
+                              <Text style={[s.catalogMacro, { color: colors.carbs }]}>C {totalC}</Text>
+                              <Text style={[s.catalogMacro, { color: colors.fat }]}>F {totalF}</Text>
                             </View>
-                            <View style={s.catalogRight}>
-                              <Text style={s.catalogCal}>{totalCal}</Text>
-                              <Text style={s.catalogCalUnit}>kcal</Text>
-                            </View>
-                            <Ionicons name="chevron-forward" size={ms(16)} color={colors.textTertiary} />
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </>
+                          </View>
+                        </View>
+                        <View style={s.catalogRight}>
+                          <Text style={s.catalogCal}>{totalCal}</Text>
+                          <Text style={s.catalogCalUnit}>kcal</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={ms(16)} color={colors.textTertiary} />
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {defaultTab === 'meals' && !hasSavedMeals && (
+                    <View style={s.tabEmptyState}>
+                      <Ionicons name="restaurant-outline" size={ms(28)} color={colors.textTertiary} />
+                      <Text style={s.emptyText}>No saved meals yet</Text>
+                      <Text style={s.emptySubtext}>Use "Make A Meal" to create and save meals</Text>
+                    </View>
                   )}
                   {defaultTab === 'recent' && hasRecent && recentFoods.map((item, i) => (
                     <CatalogRow key={`r-${item.id}-${i}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
@@ -556,17 +569,21 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
   },
   /* Tab pills */
-  tabRow: {
-    flexDirection: 'row',
+  tabGrid: {
     paddingHorizontal: sw(16),
-    gap: sw(8),
+    gap: sw(6),
     marginBottom: sw(12),
   },
+  tabGridRow: {
+    flexDirection: 'row',
+    gap: sw(6),
+  },
   tabPill: {
+    flex: 1,
     paddingVertical: sw(7),
-    paddingHorizontal: sw(16),
     borderRadius: sw(20),
     backgroundColor: colors.surface,
+    alignItems: 'center',
   },
   tabPillActive: {
     backgroundColor: colors.accent,
