@@ -74,17 +74,35 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
   const [calories, setCalories] = useState('');
+  const [kj, setKj] = useState('');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
   const [microValues, setMicroValues] = useState<Record<string, string>>({});
+  const editSourceRef = useRef<'kcal' | 'kj' | null>(null);
 
   /* ── Refs for field focus chain ─── */
   const brandRef = useRef<TextInput>(null);
   const calRef = useRef<TextInput>(null);
+  const kjRef = useRef<TextInput>(null);
   const proRef = useRef<TextInput>(null);
   const carbRef = useRef<TextInput>(null);
   const fatRef = useRef<TextInput>(null);
+
+  /* ── kcal ↔ kJ sync ─── */
+  const handleCalChange = useCallback((v: string) => {
+    editSourceRef.current = 'kcal';
+    setCalories(v);
+    const n = Number(v);
+    setKj(v === '' ? '' : Number.isFinite(n) ? String(Math.round(n * 4.184)) : '');
+  }, []);
+
+  const handleKjChange = useCallback((v: string) => {
+    editSourceRef.current = 'kj';
+    setKj(v);
+    const n = Number(v);
+    setCalories(v === '' ? '' : Number.isFinite(n) ? String(Math.round(n / 4.184)) : '');
+  }, []);
 
   /* ── Reset on close ─── */
   useEffect(() => {
@@ -92,10 +110,12 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
       setName('');
       setBrand('');
       setCalories('');
+      setKj('');
       setProtein('');
       setCarbs('');
       setFat('');
       setMicroValues({});
+      editSourceRef.current = null;
     }
   }, [visible]);
 
@@ -206,21 +226,43 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
               onSubmitEditing={() => calRef.current?.focus()}
             />
 
-            {/* Calories */}
-            <Text style={s.fieldLabel}>Calories</Text>
-            <TextInput
-              ref={calRef}
-              style={s.numField}
-              value={calories}
-              onChangeText={setCalories}
-              placeholder="0"
-              placeholderTextColor={colors.textTertiary + '30'}
-              keyboardType="numeric"
-              returnKeyType="next"
-              blurOnSubmit={false}
-              keyboardAppearance="dark"
-              onSubmitEditing={() => proRef.current?.focus()}
-            />
+            {/* Calories — split kcal / kJ */}
+            <Text style={s.fieldLabel}>Energy</Text>
+            <View style={s.energyRow}>
+              <View style={s.energyField}>
+                <Text style={s.energyLabel}>kcal</Text>
+                <TextInput
+                  ref={calRef}
+                  style={s.energyInput}
+                  value={calories}
+                  onChangeText={handleCalChange}
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary + '30'}
+                  keyboardType="numeric"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  keyboardAppearance="dark"
+                  onSubmitEditing={() => proRef.current?.focus()}
+                />
+              </View>
+              <View style={s.energyDivider} />
+              <View style={s.energyField}>
+                <Text style={s.energyLabel}>kJ</Text>
+                <TextInput
+                  ref={kjRef}
+                  style={s.energyInput}
+                  value={kj}
+                  onChangeText={handleKjChange}
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary + '30'}
+                  keyboardType="numeric"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  keyboardAppearance="dark"
+                  onSubmitEditing={() => proRef.current?.focus()}
+                />
+              </View>
+            </View>
             {!calories && (Number(protein) > 0 || Number(carbs) > 0 || Number(fat) > 0) && (
               <Text style={s.autoCalHint}>Auto-calculated from macros</Text>
             )}
@@ -432,6 +474,44 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.medium,
     textAlign: 'center',
     marginBottom: sw(8),
+  },
+
+  /* Energy split row */
+  energyRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: c.card,
+    borderRadius: sw(12),
+    marginBottom: sw(4),
+    overflow: 'hidden',
+  },
+  energyField: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: sw(10),
+    gap: sw(2),
+  },
+  energyLabel: {
+    color: c.textTertiary,
+    fontSize: ms(10),
+    lineHeight: ms(14),
+    fontFamily: Fonts.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  energyInput: {
+    width: '100%',
+    color: c.textPrimary,
+    fontSize: ms(22),
+    lineHeight: ms(27),
+    fontFamily: Fonts.bold,
+    textAlign: 'center',
+    padding: 0,
+  },
+  energyDivider: {
+    width: sw(1),
+    backgroundColor: c.surface,
+    marginVertical: sw(10),
   },
 
   /* Macro row */

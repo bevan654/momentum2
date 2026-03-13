@@ -515,6 +515,38 @@ export default function FoodDetailModal({
   const [customFat, setCustomFat] = useState('');
   const macroManualRef = useRef(false);
 
+  /* ── Energy unit toggle (kcal ↔ kJ) ────────────── */
+  const [energyUnit, setEnergyUnit] = useState<'kcal' | 'kj'>('kcal');
+  const [displayEnergy, setDisplayEnergy] = useState('');
+
+  const handleToggleUnit = useCallback(() => {
+    setEnergyUnit((prev) => {
+      const next = prev === 'kcal' ? 'kj' : 'kcal';
+      const n = Number(prev === 'kcal' ? customCal : displayEnergy);
+      if (next === 'kj') {
+        setDisplayEnergy(Number.isFinite(n) && n > 0 ? String(Math.round(n * 4.184)) : '');
+      } else {
+        // kj → kcal: convert displayEnergy back
+        const kjVal = Number(displayEnergy);
+        const kcal = Number.isFinite(kjVal) && kjVal > 0 ? Math.round(kjVal / 4.184) : 0;
+        setCustomCal(kcal > 0 ? String(kcal) : '');
+        macroManualRef.current = true;
+      }
+      return next;
+    });
+  }, [customCal, displayEnergy]);
+
+  const handleEnergyChange = useCallback((v: string) => {
+    macroManualRef.current = true;
+    if (energyUnit === 'kcal') {
+      setCustomCal(v);
+    } else {
+      setDisplayEnergy(v);
+      const n = Number(v);
+      setCustomCal(Number.isFinite(n) && n > 0 ? String(Math.round(n / 4.184)) : '');
+    }
+  }, [energyUnit]);
+
   /* ── Editable micro overrides ────────────────────── */
   const [customMicros, setCustomMicros] = useState<Record<string, string>>({});
   const microManualRef = useRef(false);
@@ -552,6 +584,8 @@ export default function FoodDetailModal({
       setCustomName(food.name);
       setCustomBrand(food.brand || '');
       setCustomCal(String(Math.round(food.calories)));
+      setEnergyUnit('kcal');
+      setDisplayEnergy('');
       setCustomPro(String(Math.round(food.protein * 10) / 10));
       setCustomCarb(String(Math.round(food.carbs * 10) / 10));
       setCustomFat(String(Math.round(food.fat * 10) / 10));
@@ -595,7 +629,9 @@ export default function FoodDetailModal({
   // Update macro fields when scale changes (unless user manually edited)
   useEffect(() => {
     if (!food || macroManualRef.current) return;
-    setCustomCal(String(Math.round(food.calories * scale)));
+    const kcal = Math.round(food.calories * scale);
+    setCustomCal(String(kcal));
+    if (energyUnit === 'kj') setDisplayEnergy(String(Math.round(kcal * 4.184)));
     setCustomPro(String(Math.round(food.protein * scale * 10) / 10));
     setCustomCarb(String(Math.round(food.carbs * scale * 10) / 10));
     setCustomFat(String(Math.round(food.fat * scale * 10) / 10));
@@ -801,13 +837,15 @@ export default function FoodDetailModal({
           <Animated.View style={[s.calRow, calPopStyle]}>
             <TextInput
               style={s.calNum}
-              value={customCal}
-              onChangeText={handleMacroEdit(setCustomCal)}
+              value={energyUnit === 'kcal' ? customCal : displayEnergy}
+              onChangeText={handleEnergyChange}
               keyboardType="numeric"
               onFocus={popIn(calScale)}
               onBlur={popOut(calScale)}
             />
-            <Text style={s.calUnit}>kcal</Text>
+            <Pressable onPress={handleToggleUnit} hitSlop={12}>
+              <Text style={s.calUnitTap}>{energyUnit === 'kcal' ? 'kcal' : 'kJ'}</Text>
+            </Pressable>
           </Animated.View>
 
           {/* Macros */}
@@ -1012,6 +1050,12 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     padding: 0, textAlign: 'center', minWidth: sw(80),
   },
   calUnit: { color: c.textTertiary, fontSize: ms(14), lineHeight: ms(20), fontFamily: Fonts.semiBold },
+  calUnitTap: {
+    color: c.accent, fontSize: ms(14), lineHeight: ms(20), fontFamily: Fonts.bold,
+    backgroundColor: c.accent + '15', borderRadius: sw(6),
+    paddingHorizontal: sw(8), paddingVertical: sw(2),
+    overflow: 'hidden',
+  },
 
   /* Macros */
   macroRow: { flexDirection: 'row', gap: sw(8), marginBottom: sw(20) },
