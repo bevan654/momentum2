@@ -1,16 +1,11 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable, FlatList } from 'react-native';
 import Svg, { Rect, Circle, Polyline, Line, Text as SvgText } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import { useShallow } from 'zustand/shallow';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
-import { useWeightStore } from '../../stores/useWeightStore';
-import { useAuthStore } from '../../stores/useAuthStore';
-import WeightLogModal from './WeightLogModal';
-import WeightHistoryModal from './WeightHistoryModal';
+import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
 import BottomSheet from '../workout-sheet/BottomSheet';
 
 const CHART_HEIGHT = sw(160);
@@ -31,198 +26,6 @@ const RANGES = [
 ] as const;
 
 type RangeLabel = typeof RANGES[number]['label'];
-type BodyTab = 'weight' | 'measurements';
-
-export default function WeightTrendCard() {
-  const { current, trend, change, entries, emaPoints } = useWeightStore(
-    useShallow((s) => ({ current: s.current, trend: s.trend, change: s.change, entries: s.entries, emaPoints: s.emaPoints })),
-  );
-  const userId = useAuthStore((s) => s.user?.id);
-  const goalWeight = useAuthStore((s) => s.profile?.goal_weight ?? null);
-  const logWeight = useWeightStore((s) => s.logWeight);
-  const deleteWeight = useWeightStore((s) => s.deleteWeight);
-  const fetchWeightData = useWeightStore((s) => s.fetchWeightData);
-  const [activeTab, setActiveTab] = useState<BodyTab>('weight');
-  const [selectedRange, setSelectedRange] = useState<RangeLabel>('1W');
-  const [showLogModal, setShowLogModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-
-  const selectedDays = RANGES.find((r) => r.label === selectedRange)!.days;
-  const chartOpacity = useSharedValue(1);
-  const prevRange = useRef(selectedRange);
-
-  useEffect(() => {
-    if (userId) {
-      if (prevRange.current !== selectedRange) {
-        chartOpacity.value = withTiming(0, { duration: 150, easing: Easing.out(Easing.ease) }, () => {
-          // Data fetch triggers re-render, then fade back in
-        });
-        prevRange.current = selectedRange;
-      }
-      fetchWeightData(userId, selectedDays);
-    }
-  }, [userId, selectedRange]);
-
-  useEffect(() => {
-    if (entries.length > 0) {
-      chartOpacity.value = withTiming(1, { duration: 250, easing: Easing.in(Easing.ease) });
-    }
-  }, [entries]);
-
-  const chartAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: chartOpacity.value,
-  }));
-
-  const hasData = entries.length > 0;
-  const changeColor = change !== null ? (change <= 0 ? colors.accentGreen : colors.accentOrange) : colors.textSecondary;
-
-  const handleLog = async (weight: number) => {
-    if (!userId) return { error: 'Not logged in' };
-    return logWeight(userId, weight, selectedDays);
-  };
-
-  const handleDelete = useCallback((date: string) => {
-    if (!userId) return;
-    deleteWeight(userId, date, selectedDays);
-  }, [userId, deleteWeight, selectedDays]);
-
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Body Tracker</Text>
-        <TouchableOpacity style={styles.logButton} onPress={() => setShowLogModal(true)}>
-          <Text style={styles.logButtonText}>+ Log</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Tab toggle */}
-      <View style={styles.tabRow}>
-        <Pressable
-          style={[styles.tab, activeTab === 'weight' && { backgroundColor: colors.accent }]}
-          onPress={() => setActiveTab('weight')}
-        >
-          <Text style={[styles.tabText, activeTab === 'weight' && { color: colors.textOnAccent }]}>
-            Weight
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, activeTab === 'measurements' && { backgroundColor: colors.accent }]}
-          onPress={() => setActiveTab('measurements')}
-        >
-          <Text style={[styles.tabText, activeTab === 'measurements' && { color: colors.textOnAccent }]}>
-            Measurements
-          </Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.tabContent}>
-      {activeTab === 'weight' ? (
-        <>
-          {/* Range picker */}
-          <View style={styles.rangeRow}>
-            {RANGES.map((r) => {
-              const active = r.label === selectedRange;
-              return (
-                <Pressable
-                  key={r.label}
-                  style={[styles.rangeChip, active && { backgroundColor: colors.accent }]}
-                  onPress={() => setSelectedRange(r.label)}
-                >
-                  <Text style={[styles.rangeChipText, active && { color: colors.textOnAccent }]}>
-                    {r.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Stats row */}
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{hasData ? current : '--'}</Text>
-              <Text style={styles.statLabel}>Current</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, hasData && { color: changeColor }]}>
-                {hasData && trend !== null ? trend : '--'}
-              </Text>
-              <Text style={styles.statLabel}>Trend</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, hasData && { color: changeColor }]}>
-                {change !== null ? `${change > 0 ? '+' : ''}${change}` : '--'}
-              </Text>
-              <Text style={styles.statLabel}>Change</Text>
-            </View>
-          </View>
-
-          {/* Goal projection */}
-          {hasData && current !== null && (
-            goalWeight !== null ? (
-              <GoalProjection
-                current={current}
-                goalWeight={goalWeight}
-                change={change}
-                entries={entries}
-                selectedDays={selectedDays}
-                colors={colors}
-              />
-            ) : (
-              <View style={styles.goalSection}>
-                <Text style={styles.goalText}>Set a goal weight in Settings</Text>
-              </View>
-            )
-          )}
-
-          {/* Chart or empty state */}
-          {hasData ? (
-            <TouchableOpacity activeOpacity={0.7} onPress={() => setShowHistoryModal(true)}>
-              <Animated.View style={chartAnimatedStyle}>
-                <WeightChart entries={entries} emaPoints={emaPoints} colors={colors} />
-              </Animated.View>
-              {/* Legend */}
-              <View style={styles.legend}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: colors.textTertiary }]} />
-                  <Text style={styles.legendText}>Daily</Text>
-                </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: EMA_COLOR }]} />
-                  <Text style={styles.legendText}>EMA Trend</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Log your weight to see trends</Text>
-            </View>
-          )}
-        </>
-      ) : (
-        <MeasurementsView colors={colors} />
-      )}
-      </View>
-
-      {/* Modals */}
-      <WeightLogModal
-        visible={showLogModal}
-        onClose={() => setShowLogModal(false)}
-        onSave={handleLog}
-      />
-      <WeightHistoryModal
-        visible={showHistoryModal}
-        onClose={() => setShowHistoryModal(false)}
-        entries={entries}
-        onDelete={handleDelete}
-      />
-    </View>
-  );
-}
-
-/* ─── Mock Data for Measurements Preview ─────────────────── */
 
 const BODY_PARTS = [
   { key: 'chest', label: 'Chest', group: 'Core', hasSides: false },
@@ -244,7 +47,6 @@ function getMeasKey(part: BodyPartKey, side: Side | null): string {
   return side ? `${part}_${side}` : part;
 }
 
-// Growth metrics — increase = green
 const GROWTH_KEYS = new Set<string>(['chest', 'shoulders', 'bicep', 'forearm', 'thigh', 'calf']);
 
 type MockEntry = { date: string; value: number };
@@ -406,11 +208,13 @@ const MOCK_DATA: Record<string, Record<PumpState, MockEntry[]>> = {
 
 const GROUPS: string[] = ['Core', 'Arms', 'Legs'];
 
-const MeasurementsView = React.memo(function MeasurementsView({ colors }: { colors: ThemeColors }) {
+export default function MeasurementsCard() {
+  const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [selectedPart, setSelectedPart] = useState<BodyPartKey>('chest');
-  const [selectedSide, setSelectedSide] = useState<Side>('left');
-  const [pumpState, setPumpState] = useState<PumpState>('no_pump');
+  const defaultMeas = useProfileSettingsStore((s) => s.defaultMeasurement);
+  const [selectedPart, setSelectedPart] = useState<BodyPartKey>(defaultMeas.part as BodyPartKey);
+  const [selectedSide, setSelectedSide] = useState<Side>(defaultMeas.side as Side);
+  const [pumpState, setPumpState] = useState<PumpState>(defaultMeas.pump as PumpState);
   const [measRange, setMeasRange] = useState<RangeLabel>('1M');
   const [showPicker, setShowPicker] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -420,7 +224,6 @@ const MeasurementsView = React.memo(function MeasurementsView({ colors }: { colo
   const allDataForPump = MOCK_DATA[measKey]?.[pumpState] ?? [];
   const allData = allDataForPump.length > 0 ? allDataForPump : (MOCK_DATA[measKey]?.no_pump ?? []);
 
-  // Filter by selected time range
   const selectedDays = RANGES.find((r) => r.label === measRange)!.days;
   const data = useMemo(() => {
     const cutoff = new Date();
@@ -449,8 +252,16 @@ const MeasurementsView = React.memo(function MeasurementsView({ colors }: { colo
   }, []);
 
   return (
-    <View>
-      {/* Time range picker — same position as weight tab */}
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Body Measurements</Text>
+        <TouchableOpacity style={styles.logButton} onPress={() => {}}>
+          <Text style={styles.logButtonText}>+ Log</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Time range picker */}
       <View style={styles.rangeRow}>
         {RANGES.map((r) => {
           const active = r.label === measRange;
@@ -481,17 +292,13 @@ const MeasurementsView = React.memo(function MeasurementsView({ colors }: { colo
             style={[styles.measSideChip, selectedSide === 'left' && { backgroundColor: colors.accent }]}
             onPress={() => setSelectedSide('left')}
           >
-            <Text style={[styles.measSideText, selectedSide === 'left' && { color: colors.textOnAccent }]}>
-              Left
-            </Text>
+            <Text style={[styles.measSideText, selectedSide === 'left' && { color: colors.textOnAccent }]}>Left</Text>
           </Pressable>
           <Pressable
             style={[styles.measSideChip, selectedSide === 'right' && { backgroundColor: colors.accent }]}
             onPress={() => setSelectedSide('right')}
           >
-            <Text style={[styles.measSideText, selectedSide === 'right' && { color: colors.textOnAccent }]}>
-              Right
-            </Text>
+            <Text style={[styles.measSideText, selectedSide === 'right' && { color: colors.textOnAccent }]}>Right</Text>
           </Pressable>
         </View>
       )}
@@ -502,32 +309,26 @@ const MeasurementsView = React.memo(function MeasurementsView({ colors }: { colo
           style={[styles.measPumpChip, pumpState === 'no_pump' && { backgroundColor: colors.accent }]}
           onPress={() => setPumpState('no_pump')}
         >
-          <Text style={[styles.measPumpText, pumpState === 'no_pump' && { color: colors.textOnAccent }]}>
-            No Pump
-          </Text>
+          <Text style={[styles.measPumpText, pumpState === 'no_pump' && { color: colors.textOnAccent }]}>No Pump</Text>
         </Pressable>
         <Pressable
           style={[styles.measPumpChip, pumpState === 'pumped' && { backgroundColor: colors.accent }]}
           onPress={() => setPumpState('pumped')}
         >
-          <Text style={[styles.measPumpText, pumpState === 'pumped' && { color: colors.textOnAccent }]}>
-            Pumped
-          </Text>
+          <Text style={[styles.measPumpText, pumpState === 'pumped' && { color: colors.textOnAccent }]}>Pumped</Text>
         </Pressable>
       </View>
 
       {hasData ? (
         <>
-          {/* Stats row — matches weight tab layout */}
+          {/* Stats row */}
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{latest!.value}</Text>
               <Text style={styles.statLabel}>Current (cm)</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: actualChangeColor }]}>
-                {changeStr}
-              </Text>
+              <Text style={[styles.statValue, { color: actualChangeColor }]}>{changeStr}</Text>
               <Text style={styles.statLabel}>Change (cm)</Text>
             </View>
             <View style={styles.statItem}>
@@ -536,7 +337,7 @@ const MeasurementsView = React.memo(function MeasurementsView({ colors }: { colo
             </View>
           </View>
 
-          {/* Chart — tappable for history */}
+          {/* Chart */}
           <TouchableOpacity activeOpacity={0.7} onPress={() => setShowHistory(true)}>
             <MeasurementChart data={data} colors={colors} />
             <View style={styles.legend}>
@@ -577,7 +378,7 @@ const MeasurementsView = React.memo(function MeasurementsView({ colors }: { colo
       )}
     </View>
   );
-});
+}
 
 /* ─── Body Part Picker Modal ─────────────────────────────── */
 
@@ -597,20 +398,13 @@ const BodyPartPickerModal = React.memo(function BodyPartPickerModal({
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={onClose}
-      height="55%"
-      modal
-      bgColor={colors.card}
-    >
+    <BottomSheet visible={visible} onClose={onClose} height="55%" modal bgColor={colors.card}>
       <View style={styles.historyHeader}>
         <Text style={styles.historyTitle}>Body Part</Text>
         <TouchableOpacity onPress={onClose}>
           <Text style={styles.historyCloseText}>Done</Text>
         </TouchableOpacity>
       </View>
-
       <View style={styles.pickerContent}>
         {GROUPS.map((group) => (
           <View key={group as string}>
@@ -624,13 +418,9 @@ const BodyPartPickerModal = React.memo(function BodyPartPickerModal({
                     style={[styles.pickerItem, active && { backgroundColor: colors.accent }]}
                     onPress={() => onSelect(part.key)}
                   >
-                    <Text style={[styles.pickerItemText, active && { color: colors.textOnAccent }]}>
-                      {part.label}
-                    </Text>
+                    <Text style={[styles.pickerItemText, active && { color: colors.textOnAccent }]}>{part.label}</Text>
                     {part.hasSides && (
-                      <Text style={[styles.pickerItemSub, active && { color: colors.textOnAccent + 'AA' }]}>
-                        L / R
-                      </Text>
+                      <Text style={[styles.pickerItemSub, active && { color: colors.textOnAccent + 'AA' }]}>L / R</Text>
                     )}
                   </Pressable>
                 );
@@ -643,11 +433,7 @@ const BodyPartPickerModal = React.memo(function BodyPartPickerModal({
   );
 });
 
-function formatShortDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[d.getMonth()]} ${d.getDate()}`;
-}
+/* ─── Measurement Chart ──────────────────────────────────── */
 
 function computeEma(data: { value: number }[], alpha = 0.2): number[] {
   if (data.length === 0) return [];
@@ -656,6 +442,12 @@ function computeEma(data: { value: number }[], alpha = 0.2): number[] {
     ema.push(alpha * data[i].value + (1 - alpha) * ema[i - 1]);
   }
   return ema.map((v) => Math.round(v * 10) / 10);
+}
+
+function formatShortDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[d.getMonth()]} ${d.getDate()}`;
 }
 
 const MeasurementChart = React.memo(function MeasurementChart({
@@ -688,17 +480,14 @@ const MeasurementChart = React.memo(function MeasurementChart({
 
   return (
     <Svg width={chartWidth} height={CHART_HEIGHT}>
-      {/* Grid lines */}
       <Line x1={CHART_PADDING_LEFT} y1={yFor(maxV)} x2={chartWidth - CHART_PADDING_RIGHT} y2={yFor(maxV)} stroke={GRID_COLOR} strokeWidth={1} />
       <Line x1={CHART_PADDING_LEFT} y1={yFor(midV)} x2={chartWidth - CHART_PADDING_RIGHT} y2={yFor(midV)} stroke={GRID_COLOR} strokeWidth={1} />
       <Line x1={CHART_PADDING_LEFT} y1={yFor(minV)} x2={chartWidth - CHART_PADDING_RIGHT} y2={yFor(minV)} stroke={GRID_COLOR} strokeWidth={1} />
 
-      {/* Y-axis labels */}
       <SvgText x={CHART_PADDING_LEFT - sw(6)} y={yFor(maxV) + 4} fill={colors.textTertiary} fontSize={ms(10)} textAnchor="end">{maxV}</SvgText>
       <SvgText x={CHART_PADDING_LEFT - sw(6)} y={yFor(midV) + 4} fill={colors.textTertiary} fontSize={ms(10)} textAnchor="end">{midV}</SvgText>
       <SvgText x={CHART_PADDING_LEFT - sw(6)} y={yFor(minV) + 4} fill={colors.textTertiary} fontSize={ms(10)} textAnchor="end">{minV}</SvgText>
 
-      {/* Bars */}
       {data.map((entry, i) => {
         const x = xFor(i);
         const barTop = yFor(entry.value);
@@ -718,7 +507,6 @@ const MeasurementChart = React.memo(function MeasurementChart({
         );
       })}
 
-      {/* EMA line */}
       {emaValues.length > 1 && (
         <Polyline
           points={emaLinePoints}
@@ -730,7 +518,6 @@ const MeasurementChart = React.memo(function MeasurementChart({
         />
       )}
 
-      {/* EMA dots */}
       {emaValues.map((v, i) => (
         <Circle
           key={data[i].date}
@@ -762,20 +549,13 @@ function MeasurementHistoryModal({
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={onClose}
-      height="70%"
-      modal
-      bgColor={colors.card}
-    >
+    <BottomSheet visible={visible} onClose={onClose} height="70%" modal bgColor={colors.card}>
       <View style={styles.historyHeader}>
         <Text style={styles.historyTitle}>{label} History</Text>
         <TouchableOpacity onPress={onClose}>
           <Text style={styles.historyCloseText}>Done</Text>
         </TouchableOpacity>
       </View>
-
       {reversed.length === 0 ? (
         <View style={styles.historyEmpty}>
           <Text style={styles.historyEmptyText}>No entries yet</Text>
@@ -798,204 +578,15 @@ function MeasurementHistoryModal({
   );
 }
 
-const GoalProjection = React.memo(function GoalProjection({
-  current,
-  goalWeight,
-  change,
-  entries,
-  selectedDays,
-  colors,
-}: {
-  current: number;
-  goalWeight: number;
-  change: number | null;
-  entries: { date: string; weight: number }[];
-  selectedDays: number;
-  colors: ThemeColors;
-}) {
-  const styles = useMemo(() => createStyles(colors), [colors]);
-
-  const remaining = goalWeight - current;
-  const needsToLose = remaining < 0;
-  const needsToGain = remaining > 0;
-
-  // Goal already reached (within 0.1 kg tolerance)
-  if (Math.abs(remaining) < 0.1) {
-    return (
-      <View style={styles.goalSection}>
-        <Text style={styles.goalLabel}>Goal: {goalWeight} kg</Text>
-        <Text style={[styles.goalText, { color: colors.accentGreen }]}>
-          Goal reached!
-        </Text>
-        <Text style={[styles.goalDisclaimer, { opacity: 0 }]}>Based on limited data</Text>
-      </View>
-    );
-  }
-
-  // Use actual tracking span instead of selected range
-  const firstDate = new Date(entries[0].date);
-  const lastDate = new Date(entries[entries.length - 1].date);
-  const actualDays = Math.max(Math.round((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)), 1);
-  const limitedData = actualDays < selectedDays * 0.75;
-  const actualWeeks = Math.max(Math.round(actualDays / 7), 1);
-  const limitedLabel = `Only ${actualWeeks} week${actualWeeks !== 1 ? 's' : ''} of data available`;
-
-  const weightPerDay = change !== null ? change / actualDays : 0;
-
-  // Not enough data to project
-  if (Math.abs(weightPerDay) < 0.001) {
-    return (
-      <View style={styles.goalSection}>
-        <Text style={styles.goalLabel}>Goal: {goalWeight} kg</Text>
-        <Text style={styles.goalText}>{Math.abs(Math.round(remaining * 10) / 10)} kg to {needsToLose ? 'lose' : 'gain'}</Text>
-        <Text style={[styles.goalDisclaimer, { opacity: 0 }]}>Based on limited data</Text>
-      </View>
-    );
-  }
-
-  const isLosingWeight = weightPerDay < 0;
-  const isGainingWeight = weightPerDay > 0;
-  const movingTowardGoal = (needsToLose && isLosingWeight) || (needsToGain && isGainingWeight);
-
-  if (!movingTowardGoal) {
-    const directionWord = isGainingWeight ? 'Gaining' : 'Losing';
-    const goalWord = needsToLose ? 'lose' : 'gain';
-    return (
-      <View style={styles.goalSection}>
-        <Text style={styles.goalLabel}>Goal: {goalWeight} kg</Text>
-        <Text style={[styles.goalText, { color: colors.accentOrange }]}>
-          {directionWord}: Need to {goalWord} {Math.abs(Math.round(remaining * 10) / 10)} kg
-        </Text>
-        <Text style={[styles.goalDisclaimer, !limitedData && { opacity: 0 }]}>{limitedLabel}</Text>
-      </View>
-    );
-  }
-
-  // Moving toward goal — estimate time
-  const daysToGoal = Math.abs(remaining / weightPerDay);
-  let timeString: string;
-  if (daysToGoal < 60) {
-    const weeks = Math.round(daysToGoal / 7);
-    timeString = `~${Math.max(weeks, 1)} week${weeks !== 1 ? 's' : ''}`;
-  } else {
-    const months = Math.round(daysToGoal / 30);
-    timeString = `~${months} month${months !== 1 ? 's' : ''}`;
-  }
-
-  const remainingKg = Math.abs(Math.round(remaining * 10) / 10);
-
-  return (
-    <View style={styles.goalSection}>
-      <Text style={styles.goalLabel}>Goal: {goalWeight} kg</Text>
-      <Text style={[styles.goalText, { color: colors.accent }]}>
-        {timeString} to goal ({remainingKg} kg to {needsToLose ? 'lose' : 'gain'})
-      </Text>
-      <Text style={[styles.goalDisclaimer, !limitedData && { opacity: 0 }]}>{limitedLabel}</Text>
-    </View>
-  );
-});
-
-const WeightChart = React.memo(function WeightChart({
-  entries,
-  emaPoints,
-  colors,
-}: {
-  entries: { date: string; weight: number }[];
-  emaPoints: { date: string; value: number }[];
-  colors: ThemeColors;
-}) {
-  const chartWidth = sw(340);
-  const drawWidth = chartWidth - CHART_PADDING_LEFT - CHART_PADDING_RIGHT;
-  const drawHeight = CHART_HEIGHT - CHART_PADDING_TOP - CHART_PADDING_BOTTOM;
-
-  const allWeights = [...entries.map((e) => e.weight), ...emaPoints.map((e) => e.value)];
-  const minW = Math.floor(Math.min(...allWeights) - 1);
-  const maxW = Math.ceil(Math.max(...allWeights) + 1);
-  const range = maxW - minW || 1;
-
-  const midW = Math.round((minW + maxW) / 2 * 10) / 10;
-
-  const yForWeight = (w: number) =>
-    CHART_PADDING_TOP + drawHeight - ((w - minW) / range) * drawHeight;
-
-  const xForIndex = (i: number) =>
-    CHART_PADDING_LEFT + (entries.length === 1 ? drawWidth / 2 : (i / (entries.length - 1)) * drawWidth);
-
-  // EMA polyline points
-  const emaLinePoints = emaPoints
-    .map((_, i) => `${xForIndex(i)},${yForWeight(emaPoints[i].value)}`)
-    .join(' ');
-
-  return (
-    <Svg width={chartWidth} height={CHART_HEIGHT}>
-      {/* Grid lines */}
-      <Line x1={CHART_PADDING_LEFT} y1={yForWeight(maxW)} x2={chartWidth - CHART_PADDING_RIGHT} y2={yForWeight(maxW)} stroke={GRID_COLOR} strokeWidth={1} />
-      <Line x1={CHART_PADDING_LEFT} y1={yForWeight(midW)} x2={chartWidth - CHART_PADDING_RIGHT} y2={yForWeight(midW)} stroke={GRID_COLOR} strokeWidth={1} />
-      <Line x1={CHART_PADDING_LEFT} y1={yForWeight(minW)} x2={chartWidth - CHART_PADDING_RIGHT} y2={yForWeight(minW)} stroke={GRID_COLOR} strokeWidth={1} />
-
-      {/* Y-axis labels */}
-      <SvgText x={CHART_PADDING_LEFT - sw(6)} y={yForWeight(maxW) + 4} fill={colors.textTertiary} fontSize={ms(10)} textAnchor="end">
-        {maxW}
-      </SvgText>
-      <SvgText x={CHART_PADDING_LEFT - sw(6)} y={yForWeight(midW) + 4} fill={colors.textTertiary} fontSize={ms(10)} textAnchor="end">
-        {midW}
-      </SvgText>
-      <SvgText x={CHART_PADDING_LEFT - sw(6)} y={yForWeight(minW) + 4} fill={colors.textTertiary} fontSize={ms(10)} textAnchor="end">
-        {minW}
-      </SvgText>
-
-      {/* Bars */}
-      {entries.map((entry, i) => {
-        const x = xForIndex(i);
-        const barTop = yForWeight(entry.weight);
-        const barBottom = yForWeight(minW);
-        const barHeight = barBottom - barTop;
-        return (
-          <Rect
-            key={entry.date}
-            x={x - BAR_WIDTH / 2}
-            y={barTop}
-            width={BAR_WIDTH}
-            height={Math.max(barHeight, 1)}
-            rx={BAR_WIDTH / 2}
-            fill={colors.textTertiary}
-            opacity={0.4}
-          />
-        );
-      })}
-
-      {/* EMA line */}
-      {emaPoints.length > 1 && (
-        <Polyline
-          points={emaLinePoints}
-          fill="none"
-          stroke={EMA_COLOR}
-          strokeWidth={2}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-      )}
-
-      {/* EMA dots */}
-      {emaPoints.map((point, i) => (
-        <Circle
-          key={point.date}
-          cx={xForIndex(i)}
-          cy={yForWeight(point.value)}
-          r={sw(3)}
-          fill={EMA_COLOR}
-        />
-      ))}
-    </Svg>
-  );
-});
+/* ─── Styles ──────────────────────────────────────────────── */
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     backgroundColor: colors.card,
-    borderRadius: sw(16),
+    borderRadius: sw(14),
     padding: sw(20),
-    marginTop: sw(10),
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   header: {
     flexDirection: 'row',
@@ -1084,37 +675,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(15),
     fontFamily: Fonts.medium,
   },
-  goalSection: {
-    backgroundColor: colors.surface,
-    borderRadius: sw(10),
-    paddingHorizontal: sw(14),
-    paddingVertical: sw(10),
-    marginBottom: sw(16),
-    alignItems: 'center',
-  },
-  goalLabel: {
-    color: colors.textSecondary,
-    fontSize: ms(12),
-    lineHeight: ms(16),
-    fontFamily: Fonts.medium,
-    marginBottom: sw(2),
-    textAlign: 'center',
-  },
-  goalText: {
-    color: colors.textPrimary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
-    fontFamily: Fonts.semiBold,
-    textAlign: 'center',
-  },
-  goalDisclaimer: {
-    color: colors.textTertiary,
-    fontSize: ms(11),
-    lineHeight: ms(15),
-    fontFamily: Fonts.medium,
-    textAlign: 'center',
-    marginTop: sw(4),
-  },
   emptyState: {
     backgroundColor: colors.surface,
     borderRadius: sw(12),
@@ -1127,29 +687,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(20),
     fontFamily: Fonts.medium,
   },
-  // Tab toggle
-  tabRow: {
-    flexDirection: 'row',
-    gap: sw(6),
-    marginBottom: sw(14),
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: sw(7),
-    borderRadius: sw(8),
-    backgroundColor: colors.surface,
-  },
-  tabText: {
-    color: colors.textSecondary,
-    fontSize: ms(13),
-    lineHeight: ms(18),
-    fontFamily: Fonts.semiBold,
-  },
-  tabContent: {
-    minHeight: CHART_HEIGHT + sw(100),
-  },
-  // Measurement dropdown selector
   measDropdown: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1166,7 +703,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(20),
     fontFamily: Fonts.semiBold,
   },
-  // L/R side toggle
   measSideRow: {
     flexDirection: 'row',
     gap: sw(6),
@@ -1185,7 +721,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(16),
     fontFamily: Fonts.semiBold,
   },
-  // Pump toggle
   measPumpRow: {
     flexDirection: 'row',
     gap: sw(6),
@@ -1204,7 +739,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(16),
     fontFamily: Fonts.semiBold,
   },
-  // Picker modal
   pickerContent: {
     paddingHorizontal: sw(20),
     paddingTop: sw(16),
@@ -1247,7 +781,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.medium,
     marginTop: sw(2),
   },
-  // Measurement history modal
   historyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
