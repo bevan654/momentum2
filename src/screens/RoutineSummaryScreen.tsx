@@ -46,7 +46,7 @@ const BODY_SCALE = 0.35;
 const BODY_W = 200 * BODY_SCALE;
 const BODY_H = 400 * BODY_SCALE;
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'RoutineSummary'>;
 
