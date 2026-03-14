@@ -270,8 +270,8 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
               <Ionicons name="chevron-forward" size={ms(14)} color={colors.textTertiary} />
             </TouchableOpacity>
             <View style={[s.actionBtn, s.actionBtnDisabled]}>
-              <Ionicons name="sparkles-outline" size={ms(20)} color={colors.textTertiary} />
-              <Text style={[s.actionBtnText, { color: colors.textTertiary }]}>Coming Soon</Text>
+              <Ionicons name="document-text-outline" size={ms(20)} color={colors.textTertiary} />
+              <Text style={[s.actionBtnText, { color: colors.textTertiary }]} numberOfLines={1}>Label Scanner</Text>
             </View>
           </View>
 
