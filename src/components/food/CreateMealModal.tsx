@@ -185,7 +185,7 @@ export default function CreateMealModal({
   const [items, setItems] = useState<MealItem[]>([]);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [defaultTab, setDefaultTab] = useState<'popular' | 'recent' | 'favourites' | 'meals'>('popular');
+  const [defaultTab, setDefaultTab] = useState<'popular' | 'recent' | 'favourites' | 'meals'>('recent');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ── Initialize from saved meal OR logged meal group ── */
@@ -238,7 +238,7 @@ export default function CreateMealModal({
       setDetailVisible(false);
       setDetailFood(null);
       setEditingItemId(null);
-      setDefaultTab('popular');
+      setDefaultTab('recent');
     }
   }, [visible]);
 
@@ -597,45 +597,34 @@ export default function CreateMealModal({
               )}
             </View>
 
-            {/* Tab pills */}
+            {/* Filter chips */}
             {query.length === 0 && (
-              <View style={s.tabGrid}>
-                <View style={s.tabGridRow}>
-                  <TouchableOpacity
-                    style={[s.tabPill, defaultTab === 'popular' && s.tabPillActive]}
-                    onPress={() => setDefaultTab('popular')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.tabPillText, defaultTab === 'popular' && s.tabPillTextActive]}>Popular</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.tabPill, defaultTab === 'recent' && s.tabPillActive]}
-                    onPress={() => setDefaultTab('recent')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.tabPillText, defaultTab === 'recent' && s.tabPillTextActive]}>Recent</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={s.tabGridRow}>
-                  <TouchableOpacity
-                    style={[s.tabPill, defaultTab === 'favourites' && s.tabPillActive]}
-                    onPress={() => setDefaultTab('favourites')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.tabPillText, defaultTab === 'favourites' && s.tabPillTextActive]}>
-                      Favourites{hasFavourites ? ` (${favourites.length})` : ''}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.tabPill, defaultTab === 'meals' && s.tabPillActive]}
-                    onPress={() => setDefaultTab('meals')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.tabPillText, defaultTab === 'meals' && s.tabPillTextActive]}>
-                      Meals{hasSavedMeals ? ` (${savedMeals.length})` : ''}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+              <View style={s.chipRow}>
+                {([
+                  { key: 'recent' as const, label: 'Recent', icon: 'time-outline' as const },
+                  { key: 'popular' as const, label: 'Popular', icon: 'trending-up-outline' as const },
+                  { key: 'favourites' as const, label: 'Favs', icon: 'heart-outline' as const },
+                  { key: 'meals' as const, label: 'Meals', icon: 'restaurant-outline' as const },
+                ]).map((tab) => {
+                  const active = defaultTab === tab.key;
+                  return (
+                    <TouchableOpacity
+                      key={tab.key}
+                      style={[s.chip, active && s.chipActive]}
+                      onPress={() => setDefaultTab(tab.key)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={tab.icon}
+                        size={ms(14)}
+                        color={active ? colors.textOnAccent : colors.textSecondary}
+                      />
+                      <Text style={[s.chipText, active && s.chipTextActive]}>
+                        {tab.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
 
@@ -1013,31 +1002,32 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
   },
   /* Tab pills */
-  tabGrid: {
-    gap: sw(6),
+  chipRow: {
+    flexDirection: 'row',
+    paddingHorizontal: sw(16),
+    gap: sw(8),
     marginBottom: sw(12),
   },
-  tabGridRow: {
-    flexDirection: 'row',
-    gap: sw(6),
-  },
-  tabPill: {
+  chip: {
     flex: 1,
-    paddingVertical: sw(7),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(4),
+    paddingVertical: sw(8),
     borderRadius: sw(20),
     backgroundColor: colors.surface,
-    alignItems: 'center',
   },
-  tabPillActive: {
+  chipActive: {
     backgroundColor: colors.accent,
   },
-  tabPillText: {
+  chipText: {
     color: colors.textSecondary,
     fontSize: ms(13),
     lineHeight: ms(18),
     fontFamily: Fonts.semiBold,
   },
-  tabPillTextActive: {
+  chipTextActive: {
     color: colors.textOnAccent,
   },
   /* Search states */
