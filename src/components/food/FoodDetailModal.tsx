@@ -96,8 +96,8 @@ interface Props {
 
 /* ─── Animation configs (hoisted — zero allocation in worklets) */
 
-const FADE_IN = { duration: 200, easing: Easing.out(Easing.cubic) };
-const FADE_OUT = { duration: 150, easing: Easing.in(Easing.cubic) };
+const FADE_IN = { duration: 250, easing: Easing.out(Easing.cubic) };
+const FADE_OUT = { duration: 300, easing: Easing.out(Easing.cubic) };
 
 /* ─── Static data ──────────────────────────────────────── */
 
@@ -479,8 +479,8 @@ export default function FoodDetailModal({
   const progress = useSharedValue(0);
 
   useEffect(() => {
-    progress.value = withTiming(visible && food ? 1 : 0, visible && food ? FADE_IN : FADE_OUT);
-  }, [visible, !!food]);
+    progress.value = withTiming(visible ? 1 : 0, visible ? FADE_IN : FADE_OUT);
+  }, [visible]);
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
