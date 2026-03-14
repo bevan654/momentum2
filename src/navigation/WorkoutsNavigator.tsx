@@ -105,7 +105,7 @@ export default function WorkoutsNavigator() {
             component={RoutineSummaryScreen}
             options={{
               presentation: 'transparentModal',
-              animation: 'slide_from_bottom',
+              animation: 'fade_from_bottom',
               gestureEnabled: true,
             }}
           />
@@ -114,7 +114,7 @@ export default function WorkoutsNavigator() {
             component={ProgramProgressScreen}
             options={{
               presentation: 'transparentModal',
-              animation: 'slide_from_bottom',
+              animation: 'fade_from_bottom',
               gestureEnabled: true,
             }}
           />
@@ -123,7 +123,7 @@ export default function WorkoutsNavigator() {
             component={ProgramSummaryScreen}
             options={{
               presentation: 'transparentModal',
-              animation: 'slide_from_bottom',
+              animation: 'fade_from_bottom',
               gestureEnabled: true,
             }}
           />

@@ -32,7 +32,7 @@ function TodayScheduled({ programHeader, onPreview }: { programHeader?: React.Re
   const programToday = activeProgram ? getTodaysRoutine() : null;
   const week = activeProgram ? getCurrentWeek() : 0;
   const durationWeeks = activeProgram ? useProgramStore.getState().getDurationWeeks(activeProgram) : 0;
-  const todayRoutines = routines.filter((r) => r.days.includes(jsDay));
+  const todayRoutines = routines.filter((r) => r.days.includes(todayDow));
 
   const programDaysPerWeek = activeProgram?.days.length ?? 0;
   const sortedDays = activeProgram ? [...activeProgram.days].sort((a, b) => a.day_of_week - b.day_of_week) : [];
@@ -311,6 +311,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: sw(12),
     gap: sw(4),
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   todayRestText: {
     color: colors.textPrimary,
