@@ -13,11 +13,19 @@ import { useProfileSettingsStore } from '../stores/useProfileSettingsStore';
 import MuscleHeatmap from '../components/body/MuscleHeatmap';
 import SummaryStatsCard from '../components/lab/SummaryStatsCard';
 import WeeklyVolumeCard from '../components/lab/WeeklyVolumeCard';
-import WeightTrendCard from '../components/home/WeightTrendCard';
+import WeightCard from '../components/lab/WeightCard';
+import MeasurementsCard from '../components/lab/MeasurementsCard';
+import BodyFatCard from '../components/lab/BodyFatCard';
 
 import type { ExerciseWithSets } from '../stores/useWorkoutStore';
 
 const HEATMAP_HEIGHT = SCREEN_HEIGHT * 0.52;
+
+const TRACKER_COMPONENTS: Record<string, React.ComponentType> = {
+  weight: WeightCard,
+  measurements: MeasurementsCard,
+  body_fat: BodyFatCard,
+};
 
 export default function LaboratoryScreen() {
   const user = useAuthStore((s) => s.user);
@@ -29,6 +37,7 @@ export default function LaboratoryScreen() {
   const analysis = useMuscleAnalysisStore((s) => s.analysis);
   const showRankLabels = useProfileSettingsStore((s) => s.showRankLabels);
   const setShowRankLabels = useProfileSettingsStore((s) => s.setShowRankLabels);
+  const labTrackers = useProfileSettingsStore((s) => s.labTrackers);
   const initialized = useProfileSettingsStore((s) => s.initialized);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsHeight = useSharedValue(0);
@@ -87,6 +96,11 @@ export default function LaboratoryScreen() {
     return exercises;
   }, [analysis, workouts]);
 
+  const sortedTrackers = useMemo(
+    () => [...labTrackers].sort((a, b) => a.order - b.order).filter((t) => t.enabled),
+    [labTrackers],
+  );
+
   return (
     <ScrollView
       style={styles.container}
@@ -123,7 +137,10 @@ export default function LaboratoryScreen() {
 
       <View style={styles.cardsSection}>
         <SummaryStatsCard analysis={analysis} />
-        <WeightTrendCard />
+        {sortedTrackers.map((tracker) => {
+          const Component = TRACKER_COMPONENTS[tracker.id];
+          return Component ? <Component key={tracker.id} /> : null;
+        })}
         <WeeklyVolumeCard analysis={analysis} />
       </View>
     </ScrollView>
