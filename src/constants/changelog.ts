@@ -13,6 +13,64 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.31',
+    date: '2026-03-11',
+    title: "What's New",
+    items: [
+      'Redesigned home page with new greeting layout and action cards',
+      'Workout programs — browse and start structured training plans',
+      'Routine preview so you can see exercises before starting',
+      'Recovery overlay improvements for better muscle rest visibility',
+    ],
+  },
+  {
+    version: '1.0.30',
+    date: '2026-03-08',
+    title: "What's New",
+    items: [
+      'Community page — see what your friends are up to',
+      'Ghost challenge flow — race against your previous workouts',
+      'Inline workout summary shown after finishing a session',
+      'Redesigned exercise history graphs for clearer progress tracking',
+    ],
+  },
+  {
+    version: '1.0.29',
+    date: '2026-03-05',
+    title: "What's New",
+    items: [
+      'Supplement settings revamp — cleaner UI with animations',
+      'Workout UI refinements: history graph, rep steppers, calendar today marker',
+      'Redesigned workout discard confirmation',
+      'Home screen cards now share a consistent settings layout',
+      'Protein powder settings moved to its own popup modal',
+    ],
+  },
+  {
+    version: '1.0.28',
+    date: '2026-03-04',
+    title: "What's New",
+    items: [
+      'Redesigned workout page with recovery body map, training calendar, and glass UI',
+      'Routine summary screen to review your plan before lifting',
+      'Swipe-to-delete on exercises and sets',
+      'Rest timer pause and beep countdown',
+      'Progressive overload redesigned as a minimal inline module',
+    ],
+  },
+  {
+    version: '1.0.27',
+    date: '2026-03-03',
+    title: "What's New",
+    items: [
+      'Protein powder tracking — save powder profiles with per-scoop macros',
+      'Log scoops from the home screen, auto-logged as snack entries in daily nutrition',
+      'Multiple scoop size options on the home screen',
+      'Weight trend analysis with goal weight projection and ETA',
+      'Smart disclaimers when tracking data is limited',
+    ],
+  },
+  {
     version: '1.0.26',
     date: '2026-03-02',
     title: "What's New",
