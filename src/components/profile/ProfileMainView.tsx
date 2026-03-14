@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { sw, ms } from '../../theme/responsive';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -11,10 +11,11 @@ import { BUILD_VERSION } from '../../constants/buildInfo';
 
 interface Props {
   onOpenSettings: () => void;
+  onOpenPatchNotes: () => void;
   onClose?: () => void;
 }
 
-export default function ProfileMainView({ onOpenSettings, onClose }: Props) {
+export default function ProfileMainView({ onOpenSettings, onOpenPatchNotes, onClose }: Props) {
   const profile = useAuthStore((s) => s.profile);
   const signOut = useAuthStore((s) => s.signOut);
   const colors = useColors();
@@ -53,6 +54,46 @@ export default function ProfileMainView({ onOpenSettings, onClose }: Props) {
           <Ionicons name="log-out-outline" size={ms(20)} color={colors.accentRed} />
           <Text style={[styles.rowText, { color: colors.accentRed }]}>Sign Out</Text>
           <Ionicons name="chevron-forward" size={ms(18)} color={colors.textTertiary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Patch Notes + Support rows */}
+      <View style={styles.section}>
+        <TouchableOpacity style={styles.row} onPress={onOpenPatchNotes} activeOpacity={0.7}>
+          <Ionicons name="document-text-outline" size={ms(20)} color={colors.textPrimary} />
+          <Text style={styles.rowText}>Patch Notes</Text>
+          <Ionicons name="chevron-forward" size={ms(18)} color={colors.textTertiary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Support */}
+      <Text style={styles.sectionTitle}>Support</Text>
+      <View style={styles.supportCard}>
+        <TouchableOpacity
+          style={styles.linkRow}
+          onPress={() => Linking.openURL('https://momentum.app/privacy')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.linkText}>Privacy Policy</Text>
+          <Ionicons name="open-outline" size={ms(16)} color={colors.textTertiary} />
+        </TouchableOpacity>
+        <View style={styles.linkRowBorder} />
+        <TouchableOpacity
+          style={styles.linkRow}
+          onPress={() => Linking.openURL('https://momentum.app/terms')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.linkText}>Terms of Service</Text>
+          <Ionicons name="open-outline" size={ms(16)} color={colors.textTertiary} />
+        </TouchableOpacity>
+        <View style={styles.linkRowBorder} />
+        <TouchableOpacity
+          style={styles.linkRow}
+          onPress={() => Linking.openURL('mailto:support@momentum.app')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.linkText}>Contact Us</Text>
+          <Ionicons name="open-outline" size={ms(16)} color={colors.textTertiary} />
         </TouchableOpacity>
       </View>
 
@@ -156,6 +197,7 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.semiBold,
       textTransform: 'uppercase',
       letterSpacing: 0.8,
+      marginTop: sw(20),
       marginBottom: sw(8),
     },
     card: {
@@ -186,6 +228,29 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textPrimary,
       fontSize: ms(15),
       lineHeight: ms(21),
+      fontFamily: Fonts.medium,
+    },
+    supportCard: {
+      backgroundColor: colors.card,
+      borderRadius: sw(12),
+      padding: sw(16),
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    linkRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: sw(12),
+    },
+    linkRowBorder: {
+      height: 1,
+      backgroundColor: colors.cardBorder,
+    },
+    linkText: {
+      color: colors.textPrimary,
+      fontSize: ms(14),
+      lineHeight: ms(20),
       fontFamily: Fonts.medium,
     },
     version: {

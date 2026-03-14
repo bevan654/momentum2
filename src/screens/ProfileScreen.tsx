@@ -5,13 +5,14 @@ import { useThemeStore } from '../stores/useThemeStore';
 import { useProfileSettingsStore } from '../stores/useProfileSettingsStore';
 import ProfileMainView from '../components/profile/ProfileMainView';
 import ProfileSettingsView from '../components/profile/ProfileSettingsView';
+import PatchNotesView from '../components/profile/PatchNotesView';
 
 interface Props {
   onClose?: () => void;
 }
 
 export default function ProfileScreen({ onClose }: Props) {
-  const [subView, setSubView] = useState<'main' | 'settings'>('main');
+  const [subView, setSubView] = useState<'main' | 'settings' | 'patchNotes'>('main');
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -22,14 +23,17 @@ export default function ProfileScreen({ onClose }: Props) {
   }, []);
 
   const openSettings = useCallback(() => setSubView('settings'), []);
-  const closeSettings = useCallback(() => setSubView('main'), []);
+  const openPatchNotes = useCallback(() => setSubView('patchNotes'), []);
+  const goBack = useCallback(() => setSubView('main'), []);
 
   return (
     <View style={styles.container}>
       {subView === 'main' ? (
-        <ProfileMainView onOpenSettings={openSettings} onClose={onClose} />
+        <ProfileMainView onOpenSettings={openSettings} onOpenPatchNotes={openPatchNotes} onClose={onClose} />
+      ) : subView === 'settings' ? (
+        <ProfileSettingsView onBack={goBack} />
       ) : (
-        <ProfileSettingsView onBack={closeSettings} />
+        <PatchNotesView onBack={goBack} />
       )}
     </View>
   );

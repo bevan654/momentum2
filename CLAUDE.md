@@ -226,6 +226,14 @@ GET https://api.nal.usda.gov/fdc/v1/foods/search
 
 ---
 
+## Pre-Commit Checklist
+
+- Before committing, **always ask the user** if the changes should include a patch notes entry in `src/constants/changelog.ts`
+- If the user confirms, add a new entry at the top of the `changelog` array with the next version number, today's date, and a summary of user-facing changes
+- Do not add patch notes for purely internal changes (refactors, dev tooling) unless the user requests it
+
+---
+
 ## What NOT to Do
 
 - Do not use `React.Animated` — use Reanimated only
