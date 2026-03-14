@@ -166,19 +166,19 @@ function FoodLoggerScreen() {
 
   const handleEditDismiss = useCallback(() => {
     setEditDetailVisible(false);
-    setEditEntry(null);
+    setTimeout(() => setEditEntry(null), 350);
   }, []);
 
   // When edit detail saves, update the existing entry instead of creating new
   const handleEditSaved = useCallback(() => {
     setEditDetailVisible(false);
-    setEditEntry(null);
+    setTimeout(() => setEditEntry(null), 350);
   }, []);
 
   const handleDeleteEntry = useCallback((id: string) => {
     setEditDetailVisible(false);
-    setEditEntry(null);
     deleteEntry(id);
+    setTimeout(() => setEditEntry(null), 350);
   }, [deleteEntry]);
 
   // Meal group handlers

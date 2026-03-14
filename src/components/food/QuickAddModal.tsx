@@ -72,7 +72,6 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
 
   /* ── Form state ─── */
   const [name, setName] = useState('');
-  const [brand, setBrand] = useState('');
   const [calories, setCalories] = useState('');
   const [kj, setKj] = useState('');
   const [protein, setProtein] = useState('');
@@ -82,7 +81,6 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
   const editSourceRef = useRef<'kcal' | 'kj' | null>(null);
 
   /* ── Refs for field focus chain ─── */
-  const brandRef = useRef<TextInput>(null);
   const calRef = useRef<TextInput>(null);
   const kjRef = useRef<TextInput>(null);
   const proRef = useRef<TextInput>(null);
@@ -108,7 +106,6 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
   useEffect(() => {
     if (!visible) {
       setName('');
-      setBrand('');
       setCalories('');
       setKj('');
       setProtein('');
@@ -145,7 +142,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
 
     addEntry(userId, {
       name: name.trim() || 'Quick Add',
-      brand: brand.trim() || null,
+      brand: null,
       calories: cal,
       protein: pro,
       carbs: c,
@@ -159,7 +156,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
     }, targetHour != null ? selectedDate : undefined, targetHour);
 
     onAdded();
-  }, [userId, canSubmit, name, brand, calories, protein, carbs, fat, mealSlot, targetHour, selectedDate, addEntry, onAdded, microGoals, microValues]);
+  }, [userId, canSubmit, name, calories, protein, carbs, fat, mealSlot, targetHour, selectedDate, addEntry, onAdded, microGoals, microValues]);
 
   /* ── Computed cal preview ─── */
   const previewCal = useMemo(() => {
@@ -204,21 +201,6 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
               value={name}
               onChangeText={setName}
               placeholder="e.g. Snack, Protein shake..."
-              placeholderTextColor={colors.textTertiary + '50'}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              keyboardAppearance="dark"
-              onSubmitEditing={() => brandRef.current?.focus()}
-            />
-
-            {/* Brand field */}
-            <Text style={s.fieldLabel}>Brand (optional)</Text>
-            <TextInput
-              ref={brandRef}
-              style={s.textField}
-              value={brand}
-              onChangeText={setBrand}
-              placeholder="e.g. Optimum Nutrition, MyProtein..."
               placeholderTextColor={colors.textTertiary + '50'}
               returnKeyType="next"
               blurOnSubmit={false}
