@@ -141,7 +141,8 @@ function FeedCard({
                   {item.streak > 0 && (
                     <>
                       <Text style={styles.subDot}>·</Text>
-                      <Text style={styles.streakText}>Streak: {item.streak}</Text>
+                      <Ionicons name="flame" size={ms(10)} color={colors.textSecondary} />
+                      <Text style={styles.streakText}>{item.streak}</Text>
                     </>
                   )}
                 </View>

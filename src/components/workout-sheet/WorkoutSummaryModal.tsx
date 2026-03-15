@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator, Platform, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring, withTiming, Easing, runOnJS } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -623,6 +623,32 @@ export default function WorkoutSummaryModal(props: Props) {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  // ── Crossfade animation for historical modal ────
+  const contentOpacity = useSharedValue(0);
+  const backdropOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (!inline && mode === 'historical') {
+      backdropOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
+      contentOpacity.value = withTiming(1, { duration: 400, easing: Easing.out(Easing.quad) });
+    }
+  }, []);
+
+  const contentFadeStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+  }));
+
+  const backdropAnimStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
+
+  const animatedDismiss = useCallback(() => {
+    contentOpacity.value = withTiming(0, { duration: 300, easing: Easing.in(Easing.quad) });
+    backdropOpacity.value = withTiming(0, { duration: 350, easing: Easing.in(Easing.quad) }, () => {
+      runOnJS(onDismiss)();
+    });
+  }, [onDismiss]);
+
   // ── Edit state ───────────────────────────────────
   const [editing, setEditing] = useState(false);
   const [editExercises, setEditExercises] = useState<EditExercise[]>([]);
@@ -1014,7 +1040,7 @@ export default function WorkoutSummaryModal(props: Props) {
           colors={colors}
           styles={styles}
           editing={editing}
-          onDismiss={onDismiss}
+          onDismiss={inline ? onDismiss : animatedDismiss}
           onDelete={onDelete}
           handleDelete={handleDelete}
           deleting={deleting}
@@ -1036,13 +1062,22 @@ export default function WorkoutSummaryModal(props: Props) {
     return (
       <Modal
         visible
-        animationType="slide"
-        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        transparent
         statusBarTranslucent
-        onRequestClose={onDismiss}
-        onDismiss={onDismiss}
+        onRequestClose={animatedDismiss}
       >
-        {historicalContent}
+        <View style={StyleSheet.absoluteFill}>
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }, backdropAnimStyle]}>
+            <TouchableWithoutFeedback onPress={animatedDismiss}>
+              <View style={StyleSheet.absoluteFill} />
+            </TouchableWithoutFeedback>
+          </Animated.View>
+          <Animated.View style={[{ flex: 1, marginTop: insets.top + sw(40) }, contentFadeStyle]}>
+            <View style={{ flex: 1, borderTopLeftRadius: sw(20), borderTopRightRadius: sw(20), overflow: 'hidden', backgroundColor: colors.background }}>
+              {historicalContent}
+            </View>
+          </Animated.View>
+        </View>
       </Modal>
     );
   }
@@ -1143,23 +1178,36 @@ function HistoricalPage({
 
   return (
     <View style={[ps.container, !inline && { paddingTop: insets.top }]}>
-      {/* Page header */}
-      <View style={[ps.pageHeader, inline && { paddingVertical: 0 }]}>
-        {!inline && (
-          <TouchableOpacity onPress={onDismiss} style={ps.backBtn} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
-          </TouchableOpacity>
-        )}
-        <View style={ps.pageHeaderCenter}>
-          <Text style={ps.pageTitle} numberOfLines={1}>
-            {editing ? 'Edit Workout' : 'Workout Summary'}
-          </Text>
-          {!editing && (
-            <Text style={ps.pageDate}>{formatWorkoutDate(data.created_at)}</Text>
+      {/* Dismiss area — drag handle + header */}
+      {!inline && (
+        <TouchableOpacity onPress={onDismiss} activeOpacity={0.8}>
+          <View style={{ alignSelf: 'center', paddingVertical: sw(10) }}>
+            <View style={{ width: sw(40), height: sw(5), borderRadius: sw(3), backgroundColor: colors.textTertiary, opacity: 0.5 }} />
+          </View>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity
+        onPress={!inline ? onDismiss : undefined}
+        activeOpacity={!inline ? 0.8 : 1}
+        disabled={inline}
+      >
+        <View style={[ps.pageHeader, inline && { paddingVertical: 0 }]}>
+          {!inline && (
+            <View style={ps.backBtn}>
+              <Ionicons name="chevron-down" size={ms(24)} color={colors.textPrimary} />
+            </View>
           )}
+          <View style={ps.pageHeaderCenter}>
+            <Text style={ps.pageTitle} numberOfLines={1}>
+              {editing ? 'Edit Workout' : 'Workout Summary'}
+            </Text>
+            {!editing && (
+              <Text style={ps.pageDate}>{formatWorkoutDate(data.created_at)}</Text>
+            )}
+          </View>
+          {!inline && <View style={ps.backBtn} />}
         </View>
-        {!inline && <View style={ps.backBtn} />}
-      </View>
+      </TouchableOpacity>
 
       {/* Scrollable content */}
       <ScrollView

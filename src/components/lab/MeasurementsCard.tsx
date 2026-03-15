@@ -583,7 +583,7 @@ function MeasurementHistoryModal({
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     backgroundColor: colors.card,
-    borderRadius: sw(14),
+    borderRadius: 0,
     padding: sw(20),
     borderWidth: 1,
     borderColor: colors.cardBorder,

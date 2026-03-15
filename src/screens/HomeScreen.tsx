@@ -39,6 +39,7 @@ function HomeScreen() {
   const fetchWeightData = useWeightStore((s) => s.fetchWeightData);
   const workouts = useWorkoutStore((s) => s.workouts);
   const currentStreak = useStreakStore((s) => s.currentStreak);
+  const refreshStreak = useStreakStore((s) => s.refreshStreak);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
   const navigation = useNavigation<any>();
@@ -56,6 +57,7 @@ function HomeScreen() {
       fetchSupplementGoals(user.id);
       fetchExerciseCatalog(user.id).then(() => fetchWorkoutHistory(user.id));
       fetchWeightData(user.id);
+      refreshStreak(user.id);
     }
   }, [user?.id]);
 
