@@ -13,13 +13,10 @@ import type { ExtendedBodyPart } from '../BodyHighlighter';
 import Svg, { Line as SvgLine, Circle as SvgCircle } from 'react-native-svg';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { useThemeStore } from '../../stores/useThemeStore';
-import { useRankStore } from '../../stores/useRankStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
-import { useWeightStore } from '../../stores/useWeightStore';
 import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
 import type { WeeklyAnalysis } from '../../stores/useMuscleAnalysisStore';
 import type { MuscleGroup } from './musclePathData';
-import { getRankColor } from '../workouts/RankBadge';
 import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { ExerciseWithSets } from '../../stores/useWorkoutStore';
@@ -30,14 +27,6 @@ import {
   INACTIVE,
   HEAT_MAX,
 } from '../../utils/muscleVolume';
-import {
-  computeFullRank,
-  estimateOneRepMax,
-  effectiveLoad,
-  type ExerciseType,
-  type BestSetEntry,
-  type SlugScoreDetail,
-} from '../../utils/strengthScore';
 
 /* --- Themed color palettes --------------------------------- */
 // Index 0 = inactive, 1-5 = heat gradient, 6 = selected highlight
@@ -83,21 +72,19 @@ const RECOVERY_PALETTES = {
 };
 
 function recoveryToIntensity(percent: number): number {
-  // Body component uses colors[intensity - 1], so:
-  // intensity 2 → colors[1] = red, 6 → colors[5] = green
-  if (percent >= 80) return 6;  // light green  → colors[5]
-  if (percent >= 60) return 5;  // dark green   → colors[4]
-  if (percent >= 40) return 4;  // yellow       → colors[3]
-  if (percent >= 20) return 3;  // orange       → colors[2]
-  return 2;                      // red          → colors[1]
+  if (percent >= 80) return 6;
+  if (percent >= 60) return 5;
+  if (percent >= 40) return 4;
+  if (percent >= 20) return 3;
+  return 2;
 }
 
 function getRecoveryStatusColor(percent: number, _c: ThemeColors): string {
-  if (percent >= 80) return '#22C55E';  // light green — colors[5]
-  if (percent >= 60) return '#16A34A';  // dark green  — colors[4]
-  if (percent >= 40) return '#EAB308';  // yellow      — colors[3]
-  if (percent >= 20) return '#F97316';  // orange      — colors[2]
-  return '#EF4444';                      // red         — colors[1]
+  if (percent >= 80) return '#22C55E';
+  if (percent >= 60) return '#16A34A';
+  if (percent >= 40) return '#EAB308';
+  if (percent >= 20) return '#F97316';
+  return '#EF4444';
 }
 
 function getRecoveryStatusLabel(percent: number): string {
@@ -115,32 +102,27 @@ const PULSE_COLORS = [
 ];
 
 type Callout = {
-  id: string;          // unique key
-  group: MuscleGroup;  // recovery data lookup
-  slug: string;        // rank data lookup (slugScores key)
-  mx: number; my: number; // anchor on muscle (fraction)
-  lx: number; ly: number; // label position (fraction)
+  id: string;
+  group: MuscleGroup;
+  slug: string;
+  mx: number; my: number;
+  lx: number; ly: number;
 };
 
 // Front: left-side labels for left muscles, right-side for right/center
 const FRONT_CALLOUTS: Callout[] = [
-  // Left column
   { id: 'shoulders', group: 'shoulders', slug: 'deltoids',   mx: 0.32, my: 0.25, lx: 0.04, ly: 0.21 },
   { id: 'chest',     group: 'chest',     slug: 'chest',      mx: 0.45, my: 0.28, lx: 0.04, ly: 0.28 },
   { id: 'biceps',    group: 'biceps',    slug: 'biceps',     mx: 0.19, my: 0.37, lx: 0.04, ly: 0.40 },
-  // Right column
   { id: 'traps',     group: 'back',      slug: 'trapezius',  mx: 0.58, my: 0.21, lx: 0.96, ly: 0.17 },
   { id: 'abs',       group: 'abs',       slug: 'abs',        mx: 0.55, my: 0.43, lx: 0.96, ly: 0.43 },
   { id: 'quads',     group: 'quads',     slug: 'quadriceps', mx: 0.60, my: 0.57, lx: 0.96, ly: 0.57 },
 ];
 
-// Back: traps / upper-back / lats shown separately
 const BACK_CALLOUTS: Callout[] = [
-  // Left column
   { id: 'upper-back', group: 'back',       slug: 'upper-back', mx: 0.42, my: 0.26, lx: 0.04, ly: 0.24 },
   { id: 'lats',       group: 'back',       slug: 'upper-back', mx: 0.39, my: 0.36, lx: 0.04, ly: 0.41 },
   { id: 'glutes',     group: 'glutes',     slug: 'gluteal',    mx: 0.45, my: 0.50, lx: 0.04, ly: 0.52 },
-  // Right column
   { id: 'triceps',    group: 'triceps',    slug: 'triceps',    mx: 0.76, my: 0.34, lx: 0.96, ly: 0.34 },
   { id: 'hamstrings', group: 'hamstrings', slug: 'hamstring',  mx: 0.60, my: 0.60, lx: 0.96, ly: 0.60 },
   { id: 'calves',     group: 'calves',     slug: 'calves',     mx: 0.60, my: 0.75, lx: 0.96, ly: 0.75 },
@@ -148,41 +130,17 @@ const BACK_CALLOUTS: Callout[] = [
 
 /* --- Sizing ------------------------------------------------ */
 
-// Width-based max scale (two bodies side-by-side)
 const DEFAULT_WIDTH_SCALE = Math.min(1, (SCREEN_WIDTH * 0.9 - sw(40)) / (2 * 200));
-
-// Full-page: use nearly all the width for a bigger body
 const FILL_WIDTH_SCALE = (SCREEN_WIDTH - sw(8)) / (2 * 200);
-
-// Vertical space reserved for labels, toggle, legend, gaps
 const FILL_OVERHEAD = sw(140);
 
 // Slide-toggle pill dimensions
 const PILL_W = sw(64);
 const PILL_H = sw(40);
-const PILL_W_3 = sw(64);    // per-section width when 3 options
-
-/* --- Rank palette ------------------------------------------ */
-
-const RANK_NAMES = [
-  'Novice', 'Apprentice', 'Intermediate', 'Advanced', 'Elite',
-  'Master', 'Grandmaster', 'Titan', 'Mythic', 'Legend',
-] as const;
-
-const RANK_NAME_TO_INTENSITY: Record<string, number> = {};
-RANK_NAMES.forEach((name, i) => { RANK_NAME_TO_INTENSITY[name] = i + 2; });
-
-const RANK_SELECTED = RANK_NAMES.length + 2; // 12
-
-// Short labels for the vertical rank legend (bottom = lowest, top = highest)
-const RANK_SHORT: Record<string, string> = {
-  Novice: 'NOV', Apprentice: 'APP', Intermediate: 'INT', Advanced: 'ADV', Elite: 'ELI',
-  Master: 'MAS', Grandmaster: 'GM', Titan: 'TIT', Mythic: 'MYT', Legend: 'LEG',
-};
 
 /* --- Toggle modes ------------------------------------------ */
 
-type ViewMode = 'intensity' | 'rank' | 'recovery';
+type ViewMode = 'intensity' | 'recovery';
 
 /* --- Props ------------------------------------------------- */
 
@@ -209,40 +167,6 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
 
   const colors = useColors();
   const mode = useThemeStore((s) => s.mode);
-  const globalSlugScores = useRankStore((s) => s.slugScores);
-
-  // When embedded (workout summary), compute rank from only this workout's exercises
-  const localSlugScores = useMemo<Partial<Record<string, SlugScoreDetail>>>(() => {
-    if (!embedded) return {};
-    const catalogMap = useWorkoutStore.getState().catalogMap;
-    const ciCatalog: Record<string, any> = {};
-    for (const [n, e] of Object.entries(catalogMap)) ciCatalog[n.toLowerCase()] = e;
-    const bodyweight = useWeightStore.getState().current ?? 70;
-
-    const bestSets: Record<string, BestSetEntry> = {};
-    for (const ex of exercises) {
-      const cat = catalogMap[ex.name] ?? ciCatalog[ex.name.toLowerCase()];
-      const exType = (ex.exercise_type || cat?.exercise_type || 'weighted') as ExerciseType;
-      for (const s of ex.sets) {
-        if (!s.completed) continue;
-        if (s.set_type && s.set_type !== 'working') continue;
-        const kg = Number(s.kg) || 0;
-        const reps = Number(s.reps) || 0;
-        if (reps <= 0) continue;
-        const load = effectiveLoad(kg, bodyweight, exType);
-        if (load <= 0) continue;
-        const e1rm = estimateOneRepMax(load, reps);
-        const prev = bestSets[ex.name];
-        if (!prev || e1rm > prev.e1rm) {
-          bestSets[ex.name] = { kg, reps, exerciseType: exType, e1rm };
-        }
-      }
-    }
-    if (Object.keys(bestSets).length === 0) return {};
-    return computeFullRank({ bestSets, bodyweight, catalog: ciCatalog, totalWorkouts: 1 }).slugScores;
-  }, [embedded, exercises]);
-
-  const slugScores = embedded ? localSlugScores : globalSlugScores;
 
   const styles = useMemo(() => createStyles(colors), [colors]);
   const isLab = !!fillHeight;
@@ -253,7 +177,6 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
   const [selected, setSelected] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(analysis ? 'recovery' : 'intensity');
   const showPct = useProfileSettingsStore((s) => s.showRecoveryPercent);
-  const showRankLabels = useProfileSettingsStore((s) => s.showRankLabels);
   const toggleAnim = useSharedValue(0);
 
   // Switch to recovery mode once analysis loads for the first time
@@ -305,38 +228,9 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
     onMuscleSelect?.(next);
   }, [selected, onMuscleSelect]);
 
-  /* --- Rank mode data -------------------------------------- */
-
-  // Palette for rank mode: [inactive, ...10 rank colors, selected highlight]
-  const rankPalette = useMemo(() => [
-    palette[0],
-    ...RANK_NAMES.map((name) => getRankColor(name)),
-    palette[6],
-  ], [palette]);
-
-  // Body data colored by each slug's own rank
-  const rankBodyData = useMemo(() => {
-    return bodyData.map((d) => {
-      const slugDetail = slugScores[d.slug!];
-      if (!slugDetail) return { ...d, intensity: 1 };
-      const rankName = slugDetail.rank.name;
-      const intensity = RANK_NAME_TO_INTENSITY[rankName] ?? 1;
-      return { ...d, intensity };
-    });
-  }, [bodyData, slugScores]);
-
-  // Apply selection highlight on top of rank data
-  const rankDisplayData = useMemo(() => {
-    if (!selected) return rankBodyData;
-    return rankBodyData.map((d) =>
-      d.slug === selected ? { ...d, intensity: RANK_SELECTED } : d,
-    );
-  }, [rankBodyData, selected]);
-
   /* --- Recovery mode data ----------------------------------- */
 
   const hasRecovery = !embedded && !!analysis;
-  const pillW = hasRecovery ? PILL_W_3 : PILL_W;
 
   const baseRecoveryPalette = RECOVERY_PALETTES[mode];
   const recoveryPalette = useMemo(() => isLab ? ['#3A3A42', ...baseRecoveryPalette.slice(1)] : baseRecoveryPalette, [isLab, baseRecoveryPalette]);
@@ -346,9 +240,9 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
     if (!analysis) return bodyData;
     return bodyData.map((d) => {
       const group = SLUG_TO_GROUP[d.slug!];
-      if (!group) return { ...d, intensity: 1 }; // no mapping → neutral
+      if (!group) return { ...d, intensity: 1 };
       const groupData = analysis.groups[group];
-      if (!groupData || !groupData.lastTrainedAt) return { ...d, intensity: 1 }; // untrained → neutral
+      if (!groupData || !groupData.lastTrainedAt) return { ...d, intensity: 1 };
       return { ...d, intensity: recoveryToIntensity(groupData.recoveryPercent) };
     });
   }, [bodyData, analysis]);
@@ -395,25 +289,18 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
     });
   }, [bodyData, analysis]);
 
-  // Callout renderer — dots + sticks + labels (recovery & rank modes)
-  const renderCallouts = useCallback((side: 'front' | 'back', calloutMode: 'recovery' | 'rank') => {
+  // Callout renderer — dots + sticks + labels (recovery mode)
+  const renderCallouts = useCallback((side: 'front' | 'back') => {
     const callouts = side === 'front' ? FRONT_CALLOUTS : BACK_CALLOUTS;
     const bodyW = 200 * bodyScale;
     const bodyH = 400 * bodyScale;
     const dotR = sw(2.5);
 
     const getCalloutData = (c: Callout): { color: string; label: string } | null => {
-      if (calloutMode === 'recovery') {
-        if (!analysis) return null;
-        const groupData = analysis.groups[c.group];
-        const pct = groupData?.lastTrainedAt ? groupData.recoveryPercent : 100;
-        return { color: getRecoveryStatusColor(pct, colors), label: `${Math.round(pct)}%` };
-      }
-      // rank mode
-      const detail = slugScores[c.slug];
-      if (!detail) return { color: colors.textTertiary, label: 'N/A' };
-      const rankName = detail.rank.name;
-      return { color: getRankColor(rankName), label: rankName };
+      if (!analysis) return null;
+      const groupData = analysis.groups[c.group];
+      const pct = groupData?.lastTrainedAt ? groupData.recoveryPercent : 100;
+      return { color: getRecoveryStatusColor(pct, colors), label: `${Math.round(pct)}%` };
     };
 
     return (
@@ -470,33 +357,27 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
         })}
       </>
     );
-  }, [analysis, bodyScale, colors, styles, slugScores]);
+  }, [analysis, bodyScale, colors, styles]);
 
   /* --- Slide toggle animation ------------------------------- */
 
   const pillStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: toggleAnim.value * pillW }],
+    transform: [{ translateX: toggleAnim.value * PILL_W }],
   }));
 
   const handleToggle = useCallback((next: ViewMode) => {
     setViewMode(next);
-    const idx = hasRecovery
-      ? (next === 'recovery' ? 0 : next === 'intensity' ? 1 : 2)
-      : (next === 'intensity' ? 0 : 1);
+    const idx = next === 'recovery' ? 0 : 1;
     toggleAnim.value = withTiming(idx, { duration: 200 });
-  }, [hasRecovery]);
+  }, []);
 
   if (!ready) return <View style={{ height: 400 * bodyScale + sw(50) }} />;
 
-  const isRank = viewMode === 'rank';
   const isRecovery = viewMode === 'recovery';
 
   // Detail chip data
   const selVol = selected ? (volumeMap[selected] || 0) : 0;
   const selPct = maxVolume > 0 ? Math.round((selVol / maxVolume) * 100) : 0;
-  const selSlugDetail = selected ? slugScores[selected] : undefined;
-  const selRank = selSlugDetail ? selSlugDetail.rank.name : null;
-  const selRankColor = selRank ? getRankColor(selRank) : null;
 
   // Recovery detail chip data
   const selRecoveryGroup = selected ? SLUG_TO_GROUP[selected] : null;
@@ -516,18 +397,7 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
       {/* Bodies with vertical legend on left */}
       <View style={styles.bodyWithLegend}>
         {/* Vertical legend bar — hidden in compact mode */}
-        {compact ? null : isRank ? (
-          <View style={styles.rankLegend}>
-            {[...RANK_NAMES].reverse().map((name) => (
-              <View key={name} style={styles.rankLegendItem}>
-                <View style={[styles.rankLegendDot, { backgroundColor: getRankColor(name) }]} />
-                <Text style={[styles.rankLegendText, { color: getRankColor(name) }]}>
-                  {RANK_SHORT[name]}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : (
+        {compact ? null : (
           <View style={styles.verticalLegend}>
             <Text style={styles.verticalLegendLabel}>{isRecovery ? 'R' : 'H'}</Text>
             <View style={styles.verticalLegendBar}>
@@ -543,11 +413,11 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
         <View style={[styles.bodyRow, fillHeight != null && styles.bodyRowFill]}>
         <View style={{ width: 200 * bodyScale, height: 400 * bodyScale }}>
           <Body
-            data={isRecovery ? recoveryDisplayData : isRank ? rankDisplayData : displayData}
+            data={isRecovery ? recoveryDisplayData : displayData}
             side="front"
             gender="male"
             scale={bodyScale}
-            colors={isRecovery ? recoveryPalette : isRank ? rankPalette : palette}
+            colors={isRecovery ? recoveryPalette : palette}
             border={BORDERS[mode]}
             backColor={isLab ? '#3A3A42' : undefined}
             onBodyPartPress={handlePress}
@@ -565,16 +435,15 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
               />
             </Animated.View>
           )}
-          {isRecovery && showPct && renderCallouts('front', 'recovery')}
-          {isRank && showRankLabels && renderCallouts('front', 'rank')}
+          {isRecovery && showPct && renderCallouts('front')}
         </View>
         <View style={{ width: 200 * bodyScale, height: 400 * bodyScale }}>
           <Body
-            data={isRecovery ? recoveryDisplayData : isRank ? rankDisplayData : displayData}
+            data={isRecovery ? recoveryDisplayData : displayData}
             side="back"
             gender="male"
             scale={bodyScale}
-            colors={isRecovery ? recoveryPalette : isRank ? rankPalette : palette}
+            colors={isRecovery ? recoveryPalette : palette}
             border={BORDERS[mode]}
             backColor={isLab ? '#3A3A42' : undefined}
             onBodyPartPress={handlePress}
@@ -592,14 +461,13 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
               />
             </Animated.View>
           )}
-          {isRecovery && showPct && renderCallouts('back', 'recovery')}
-          {isRank && showRankLabels && renderCallouts('back', 'rank')}
+          {isRecovery && showPct && renderCallouts('back')}
         </View>
         </View>
       </View>
 
       {/* Detail chip */}
-      {selected && (isRecovery ? selRecoveryData?.lastTrainedAt : isRank ? selRank : selVol > 0) && (
+      {selected && (isRecovery ? selRecoveryData?.lastTrainedAt : selVol > 0) && (
         <View style={styles.detailChip}>
           <View
             style={[
@@ -607,9 +475,7 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
               {
                 backgroundColor: isRecovery
                   ? selRecoveryColor!
-                  : isRank
-                    ? selRankColor!
-                    : palette[Math.min(HEAT_MAX, bodyData.find((d) => d.slug === selected)?.intensity ?? INACTIVE) - 1],
+                  : palette[Math.min(HEAT_MAX, bodyData.find((d) => d.slug === selected)?.intensity ?? INACTIVE) - 1],
               },
             ]}
           />
@@ -619,32 +485,26 @@ function MuscleHeatmap({ exercises, refreshKey, embedded, compact, fillHeight, o
             <Text style={[styles.detailPct, { color: selRecoveryColor! }]}>
               {selRecoveryStatus} {'\u00B7'} {selRecoveryPct}%
             </Text>
-          ) : isRank ? (
-            <Text style={[styles.detailPct, { color: selRankColor! }]}>{selRank}</Text>
           ) : (
             <Text style={[styles.detailPct, { color: HIGHLIGHT_TEXT[mode] }]}>{selPct}%</Text>
           )}
         </View>
       )}
 
-      {/* Toggle: Recovery / Intensity / Rank */}
-      {compact ? null : <View style={styles.toggleContainer}>
-        <Animated.View style={[styles.togglePill, { backgroundColor: colors.accent, width: pillW }, pillStyle]} />
-        {hasRecovery && (
-          <Pressable style={[styles.toggleHalf, { width: pillW }]} onPress={() => handleToggle('recovery')}>
+      {/* Toggle: Recovery / Volume */}
+      {compact ? null : hasRecovery ? (
+        <View style={styles.toggleContainer}>
+          <Animated.View style={[styles.togglePill, { backgroundColor: colors.accent, width: PILL_W }, pillStyle]} />
+          <Pressable style={[styles.toggleHalf, { width: PILL_W }]} onPress={() => handleToggle('recovery')}>
             <Ionicons name="heart-outline" size={ms(14)} color={viewMode === 'recovery' ? colors.textOnAccent : colors.textTertiary} />
             <Text style={[styles.toggleLabel, viewMode === 'recovery' && { color: colors.textOnAccent }]}>Recovery</Text>
           </Pressable>
-        )}
-        <Pressable style={[styles.toggleHalf, { width: pillW }]} onPress={() => handleToggle('intensity')}>
-          <Ionicons name="flame-outline" size={ms(14)} color={viewMode === 'intensity' ? colors.textOnAccent : colors.textTertiary} />
-          <Text style={[styles.toggleLabel, viewMode === 'intensity' && { color: colors.textOnAccent }]}>Volume</Text>
-        </Pressable>
-        <Pressable style={[styles.toggleHalf, { width: pillW }]} onPress={() => handleToggle('rank')}>
-          <Ionicons name="trophy-outline" size={ms(14)} color={viewMode === 'rank' ? colors.textOnAccent : colors.textTertiary} />
-          <Text style={[styles.toggleLabel, viewMode === 'rank' && { color: colors.textOnAccent }]}>Rank</Text>
-        </Pressable>
-      </View>}
+          <Pressable style={[styles.toggleHalf, { width: PILL_W }]} onPress={() => handleToggle('intensity')}>
+            <Ionicons name="flame-outline" size={ms(14)} color={viewMode === 'intensity' ? colors.textOnAccent : colors.textTertiary} />
+            <Text style={[styles.toggleLabel, viewMode === 'intensity' && { color: colors.textOnAccent }]}>Volume</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
     </View>
   );
@@ -789,28 +649,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   verticalLegendSeg: {
     flex: 1,
-  },
-
-  /* Rank legend */
-  rankLegend: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    marginRight: sw(6),
-    gap: sw(1),
-  },
-  rankLegendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(3),
-  },
-  rankLegendDot: {
-    width: sw(4),
-    height: sw(4),
-    borderRadius: sw(2),
-  },
-  rankLegendText: {
-    fontSize: ms(6),
-    fontFamily: Fonts.bold,
-    lineHeight: ms(8),
   },
 });

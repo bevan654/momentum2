@@ -36,6 +36,18 @@ const changelog: ChangelogEntry[] = [
   },
   {
     version: '1.0.29',
+    date: '2026-03-06',
+    title: "What's New",
+    items: [
+      'Redesigned workouts page with recovery overview, training calendar, and workout history',
+      'New routines — save and reuse your favourite workout templates',
+      'Improved exercises modal with better search, filtering, and exercise details',
+      'Grouped muscle recovery filters — view by Chest, Back, Shoulders, Arms, or Legs',
+      'Streamlined navigation with cleaner tab layout',
+    ],
+  },
+  {
+    version: '1.0.28',
     date: '2026-03-05',
     title: "What's New",
     items: [
@@ -47,7 +59,7 @@ const changelog: ChangelogEntry[] = [
     ],
   },
   {
-    version: '1.0.28',
+    version: '1.0.27',
     date: '2026-03-04',
     title: "What's New",
     items: [
@@ -59,7 +71,7 @@ const changelog: ChangelogEntry[] = [
     ],
   },
   {
-    version: '1.0.27',
+    version: '1.0.26a',
     date: '2026-03-03',
     title: "What's New",
     items: [

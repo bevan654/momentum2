@@ -115,7 +115,7 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     card: {
       backgroundColor: colors.card,
-      borderRadius: sw(14),
+      borderRadius: 0,
       borderWidth: 1,
       borderColor: colors.cardBorder,
       padding: sw(14),

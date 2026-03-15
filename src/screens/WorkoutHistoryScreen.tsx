@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, TouchableWithoutFeedback, ActivityIndicator, ScrollView, StyleSheet, Alert } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Canvas, Path as SkiaPath, Rect as SkiaRect, Oval as SkiaOval, Skia, BlurMask, RadialGradient, vec } from '@shopify/react-native-skia';
 import { Ionicons } from '@expo/vector-icons';
@@ -684,14 +684,14 @@ function WorkoutHistoryScreen() {
     return { rows, dotSize, gap, startKey };
   }, []);
 
-  const trainedDays = useMemo(() => {
-    const days = new Set<string>();
+  const trainedDaysMap = useMemo(() => {
+    const days = new Map<string, WorkoutWithDetails>();
 
     for (const w of workouts) {
       const dateKey = toDateKey(w.created_at);
 
       if (!debugPart) {
-        days.add(dateKey);
+        if (!days.has(dateKey)) days.set(dateKey, w);
         continue;
       }
 
@@ -721,7 +721,7 @@ function WorkoutHistoryScreen() {
         }
         if (matched) break;
       }
-      if (matched) days.add(dateKey);
+      if (matched && !days.has(dateKey)) days.set(dateKey, w);
     }
 
     return days;
@@ -918,26 +918,10 @@ function WorkoutHistoryScreen() {
                   const date = new Date(y, m - 1, d);
                   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
                   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-                  return `${days[date.getDay()]}, ${months[date.getMonth()]} ${d}${trainedDays.has(selectedCalDate) ? ' — trained' : ' — rest day'}`;
+                  return `${days[date.getDay()]}, ${months[date.getMonth()]} ${d}${trainedDaysMap.has(selectedCalDate) ? ' — trained' : ' — rest day'}`;
                 })()
               : `${debugPart ? `${debugPart} training` : 'All training'} — 8 weeks`}
           </Text>
-          {selectedCalDate && trainedDays.has(selectedCalDate) && (
-            <TouchableOpacity
-              style={styles.calViewDetailsBtn}
-              activeOpacity={0.7}
-              onPress={() => {
-                const w = workouts.find((w) => toDateKey(w.created_at) === selectedCalDate);
-                if (w) {
-                  setSelectedCalDate(null);
-                  setSelectedWorkout(w);
-                }
-              }}
-            >
-              <Text style={styles.calViewDetailsText}>View Details</Text>
-              <Ionicons name="chevron-forward" size={ms(12)} color={colors.accent} />
-            </TouchableOpacity>
-          )}
         </View>
         <View style={styles.calendarSection}>
           <View style={[styles.calendarHeatmap, { gap: calendarGrid.gap }]}>
@@ -947,11 +931,18 @@ function WorkoutHistoryScreen() {
                   <TouchableOpacity
                     key={ci}
                     activeOpacity={0.7}
-                    onPress={() => setSelectedCalDate(selectedCalDate === dateStr ? null : dateStr)}
+                    onPress={() => {
+                      const w = trainedDaysMap.get(dateStr);
+                      if (w) {
+                        setSelectedWorkout(w);
+                      } else {
+                        setSelectedCalDate(selectedCalDate === dateStr ? null : dateStr);
+                      }
+                    }}
                     style={[
                       styles.calDot,
                       { width: calendarGrid.dotSize, height: calendarGrid.dotSize },
-                      trainedDays.has(dateStr) && styles.calDotTrained,
+                      trainedDaysMap.has(dateStr) && styles.calDotTrained,
                       dateStr === todayStr && selectedCalDate !== dateStr && styles.calDotToday,
                       selectedCalDate === dateStr && styles.calDotSelected,
                     ]}
@@ -1080,8 +1071,29 @@ const WorkoutDetailOverlay = React.memo(function WorkoutDetailOverlay({
   const insets = useSafeAreaInsets();
   const os = useMemo(() => overlayStyles(colors), [colors]);
 
+  const backdropOpacity = useSharedValue(0);
+  const sheetOpacity = useSharedValue(0);
   const translateY = useSharedValue(0);
   const ctx = useSharedValue(0);
+
+  useEffect(() => {
+    backdropOpacity.value = withTiming(1, { duration: 300 });
+    sheetOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
+  }, []);
+
+  const animatedDismiss = useCallback(() => {
+    backdropOpacity.value = withTiming(0, { duration: 250 });
+    sheetOpacity.value = withTiming(0, { duration: 200 }, () => {
+      runOnJS(onDismiss)();
+    });
+  }, [onDismiss]);
+
+  const backdropStyle = useAnimatedStyle(() => {
+    const dragFade = translateY.value > 0
+      ? 1 - Math.min(translateY.value / (SCREEN_HEIGHT * 0.5), 1)
+      : 1;
+    return { opacity: backdropOpacity.value * dragFade };
+  });
 
   const panGesture = useMemo(
     () =>
@@ -1110,6 +1122,7 @@ const WorkoutDetailOverlay = React.memo(function WorkoutDetailOverlay({
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: Math.max(0, translateY.value) }],
+    opacity: sheetOpacity.value,
   }));
 
   const totalSets = workout.exercises.reduce((n, ex) => n + ex.sets.length, 0);
@@ -1123,28 +1136,35 @@ const WorkoutDetailOverlay = React.memo(function WorkoutDetailOverlay({
   }, [workout]);
 
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}>
+    <View style={StyleSheet.absoluteFill}>
+      <TouchableWithoutFeedback onPress={animatedDismiss}>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)' }, backdropStyle]} />
+      </TouchableWithoutFeedback>
       <Animated.View style={[os.container, sheetStyle]}>
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={os.handleRow} hitSlop={{ top: 10, bottom: 10 }}>
-            <View style={os.handle} />
-          </Animated.View>
-        </GestureDetector>
-
         <ScrollView style={os.scroll} contentContainerStyle={os.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={os.header}>
-            <View style={os.headerSpacer} />
-            <Text style={os.headerTitle}>Workout Details</Text>
-            <View style={os.headerSpacer} />
-          </View>
+          <TouchableOpacity onPress={animatedDismiss} activeOpacity={0.8}>
+            <GestureDetector gesture={panGesture}>
+              <Animated.View style={os.handleRow} hitSlop={{ top: 10, bottom: 10 }}>
+                <View style={os.handle} />
+              </Animated.View>
+            </GestureDetector>
 
-          <View style={os.info}>
-            <Text style={os.infoName}>{workout.programName || 'Workout'}</Text>
-            <Text style={os.infoSub}>
-              {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
-              {'  ·  '}{fmtDate(workout.created_at)}
-            </Text>
-          </View>
+            <View style={os.header}>
+              <View style={os.headerSpacer}>
+                <Ionicons name="chevron-down" size={ms(22)} color={colors.textPrimary} />
+              </View>
+              <Text style={os.headerTitle}>Workout Details</Text>
+              <View style={os.headerSpacer} />
+            </View>
+
+            <View style={os.info}>
+              <Text style={os.infoName}>{workout.programName || 'Workout'}</Text>
+              <Text style={os.infoSub}>
+                {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
+                {'  ·  '}{fmtDate(workout.created_at)}
+              </Text>
+            </View>
+          </TouchableOpacity>
 
           {bodyParts.length > 0 && (
             <View style={os.muscleRow}>
