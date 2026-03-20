@@ -579,19 +579,10 @@ function WorkoutHistoryScreen() {
     return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
   }, [selectedDate, isToday]);
 
-  if (loading && workouts.length === 0) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.accent} />
-        </View>
-      </View>
-    );
-  }
-
-  const hasWorkout = !!dayStats;
-  const activeMin = dayStats ? Math.round(dayStats.duration / 60) : 0;
-  const caloriesBurnt = calorieAnalysis?.caloriesBurnt ?? 0;
+  // Selected body part filter — must be before any early return
+  const [debugPart, setDebugPart] = useState<string | null>(null);
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [selectedCalDate, setSelectedCalDate] = useState<string | null>(null);
 
   // Recovery % → intensity: 3 colours only (red / orange / green)
   const recoveryToIntensity = (pct: number) => {
@@ -603,11 +594,6 @@ function WorkoutHistoryScreen() {
   // BodyHighlighter uses colors[intensity - 1], so:
   // intensity 1 → [0] bg, 2 → [1] red, 3 → [2] orange, 4 → [3] green
   const RECOVERY_COLORS = ['#1A1A1E', '#EF4444', '#F97316', '#34D399'];
-
-  // Selected body part filter
-  const [debugPart, setDebugPart] = useState<string | null>(null);
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
-  const [selectedCalDate, setSelectedCalDate] = useState<string | null>(null);
 
   // Build body data from recovery percentages
   const recoveryBodyData: ExtendedBodyPart[] = useMemo(() => {
@@ -807,6 +793,20 @@ function WorkoutHistoryScreen() {
 
     return { most, least, mostCount: maxCount, leastCount: minCount };
   }, [workouts, catalogMap, calendarGrid.startKey, todayStr]);
+
+  if (loading && workouts.length === 0) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
+      </View>
+    );
+  }
+
+  const hasWorkout = !!dayStats;
+  const activeMin = dayStats ? Math.round(dayStats.duration / 60) : 0;
+  const caloriesBurnt = calorieAnalysis?.caloriesBurnt ?? 0;
 
   return (
     <View style={styles.container}>
