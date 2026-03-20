@@ -183,7 +183,7 @@ export function computeWeeklyAnalysis(
         const hasMuscleData =
           (primary && primary.length > 0) || (secondary && secondary.length > 0);
 
-        const affectedGroups = new Set<MuscleGroup>();
+        const primaryGroups = new Set<MuscleGroup>();
 
         if (hasMuscleData) {
           for (const raw of primary || []) {
@@ -191,7 +191,7 @@ export function computeWeeklyAnalysis(
             if (slug && SLUG_TO_GROUP[slug]) {
               const group = SLUG_TO_GROUP[slug];
               volMap[group] += vol;
-              affectedGroups.add(group);
+              primaryGroups.add(group);
               if (isThisWeek) {
                 groupExercises[group].push({
                   name: ex.name,
@@ -207,7 +207,7 @@ export function computeWeeklyAnalysis(
             if (slug && SLUG_TO_GROUP[slug]) {
               const group = SLUG_TO_GROUP[slug];
               volMap[group] += vol * 0.5;
-              affectedGroups.add(group);
+              // Secondary muscles get volume credit but don't count as sessions/lastTrained
               if (isThisWeek) {
                 groupExercises[group].push({
                   name: ex.name,
@@ -225,7 +225,7 @@ export function computeWeeklyAnalysis(
               const group = SLUG_TO_GROUP[s];
               if (group) {
                 volMap[group] += vol;
-                affectedGroups.add(group);
+                primaryGroups.add(group);
                 if (isThisWeek) {
                   groupExercises[group].push({
                     name: ex.name,
@@ -240,7 +240,7 @@ export function computeWeeklyAnalysis(
         }
 
         if (isThisWeek) {
-          for (const g of affectedGroups) {
+          for (const g of primaryGroups) {
             groupSessions[g].add(w.id);
             const prev = groupLastTrained[g];
             if (!prev || new Date(workoutDate) > new Date(prev)) {

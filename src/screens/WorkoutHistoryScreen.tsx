@@ -200,6 +200,8 @@ const PART_GROUPS: Record<string, string[]> = {
   Hamstrings: ['hamstrings'],
   Glutes: ['glutes'],
   Calves: ['calves'],
+  Arms: ['shoulders', 'biceps', 'triceps'],
+  Legs: ['quads', 'hamstrings', 'glutes', 'calves'],
 };
 
 function getLastLabel(lastDate: Date | null): string {
@@ -236,7 +238,7 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
 }: {
   workouts: WorkoutWithDetails[];
   catalogMap: Record<string, any>;
-  debugPart: string | null;
+  debugPart: string[];
   styles: any;
   colors: ThemeColors;
   entering: boolean;
@@ -255,7 +257,7 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
   }, [entering]);
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('All');
-  const [bodyFilter, setBodyFilter] = useState<string>(debugPart || 'All');
+  const [bodyFilter, setBodyFilter] = useState<string>(debugPart.length > 0 ? debugPart[0] : 'All');
   const [planFilter, setPlanFilter] = useState<PlanFilter>('All');
 
   const dismiss = useCallback(() => {
@@ -308,23 +310,26 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
       if (planFilter === 'Program' && !w.programName) return false;
       if (planFilter === 'Quick' && w.programName) return false;
       // Body part filter
-      const activePart = bodyFilter !== 'All' ? bodyFilter : debugPart;
-      if (activePart) {
-        const targetGroups = PART_GROUPS[activePart];
-        if (targetGroups) {
+      const activeParts = bodyFilter !== 'All' ? [bodyFilter] : debugPart;
+      if (activeParts.length > 0) {
+        const allTargetGroups = new Set<string>();
+        for (const part of activeParts) {
+          const groups = PART_GROUPS[part];
+          if (groups) for (const g of groups) allTargetGroups.add(g);
+        }
+        if (allTargetGroups.size > 0) {
           let matched = false;
           for (const ex of w.exercises) {
             let primary = ex.primary_muscles || [];
-            let secondary = ex.secondary_muscles || [];
-            if (primary.length === 0 && secondary.length === 0) {
+            if (primary.length === 0) {
               const cat = catalogMap[ex.name];
-              if (cat) { primary = cat.primary_muscles || []; secondary = cat.secondary_muscles || []; }
+              if (cat) { primary = cat.primary_muscles || []; }
             }
-            for (const raw of [...primary, ...secondary]) {
+            for (const raw of primary) {
               const slug = toSlug(raw);
               if (slug) {
                 const group = SLUG_GROUP[slug];
-                if (group && targetGroups.includes(group)) { matched = true; break; }
+                if (group && allTargetGroups.has(group)) { matched = true; break; }
               }
             }
             if (matched) break;
@@ -352,7 +357,7 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
       </GestureDetector>
 
       <View style={styles.historyHeader}>
-        <Text style={styles.historyTitle}>{debugPart ? `${debugPart} History` : 'Workout History'}</Text>
+        <Text style={styles.historyTitle}>{debugPart.length > 0 ? `${debugPart.join(', ')} History` : 'Workout History'}</Text>
         {activeFilterCount > 0 && (
           <TouchableOpacity onPress={() => { setTimeFilter('All'); setBodyFilter('All'); setPlanFilter('All'); setOpenFilter(null); }} activeOpacity={0.7}>
             <Text style={styles.filterClearText}>Clear</Text>
@@ -580,7 +585,7 @@ function WorkoutHistoryScreen() {
   }, [selectedDate, isToday]);
 
   // Selected body part filter — must be before any early return
-  const [debugPart, setDebugPart] = useState<string | null>(null);
+  const [debugParts, setDebugParts] = useState<string[]>([]);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [selectedCalDate, setSelectedCalDate] = useState<string | null>(null);
 
@@ -598,33 +603,43 @@ function WorkoutHistoryScreen() {
   // Build body data from recovery percentages
   const recoveryBodyData: ExtendedBodyPart[] = useMemo(() => {
     if (!analysis?.groups) return [];
-    const activeGroups = debugPart && PART_GROUPS[debugPart] ? PART_GROUPS[debugPart] : null;
+    const activeGroups = new Set<string>();
+    for (const part of debugParts) {
+      const groups = PART_GROUPS[part];
+      if (groups) for (const g of groups) activeGroups.add(g);
+    }
     return Array.from(MUSCLE_SLUGS).map((slug) => {
       const group = SLUG_GROUP[slug];
-      if (activeGroups && (!group || !activeGroups.includes(group))) {
+      if (activeGroups.size > 0 && (!group || !activeGroups.has(group))) {
         return { slug: slug as Slug, intensity: 1 };
       }
       const groupData = group ? analysis.groups[group as keyof typeof analysis.groups] : null;
       const pct = groupData?.recoveryPercent ?? 100;
       return { slug: slug as Slug, intensity: recoveryToIntensity(pct) };
     });
-  }, [analysis, debugPart]);
+  }, [analysis, debugParts]);
 
   // Overall recovery % — use min (not average) so platform matches the most fatigued visible muscle
   const overallRecovery = useMemo(() => {
     if (!analysis?.groups) return 100;
-    if (debugPart && PART_GROUPS[debugPart]) {
-      const keys = PART_GROUPS[debugPart];
-      const vals = keys.map((k) => {
-        const g = analysis.groups[k as keyof typeof analysis.groups] as { recoveryPercent?: number } | undefined;
-        return g?.recoveryPercent ?? 100;
-      });
-      return Math.min(...vals);
+    if (debugParts.length > 0) {
+      const allKeys: string[] = [];
+      for (const part of debugParts) {
+        const groups = PART_GROUPS[part];
+        if (groups) allKeys.push(...groups);
+      }
+      if (allKeys.length > 0) {
+        const vals = allKeys.map((k) => {
+          const g = analysis.groups[k as keyof typeof analysis.groups] as { recoveryPercent?: number } | undefined;
+          return g?.recoveryPercent ?? 100;
+        });
+        return Math.min(...vals);
+      }
     }
     const groups = Object.values(analysis.groups) as { recoveryPercent?: number }[];
     if (groups.length === 0) return 100;
     return Math.min(...groups.map((g) => g.recoveryPercent ?? 100));
-  }, [analysis, debugPart]);
+  }, [analysis, debugParts]);
 
   // Platform glow — derive from the SAME intensity + color array as the body map
   const platformGlow = useMemo(() => {
@@ -672,34 +687,32 @@ function WorkoutHistoryScreen() {
 
   const trainedDaysMap = useMemo(() => {
     const days = new Map<string, WorkoutWithDetails>();
+    const allTargetGroups = new Set<string>();
+    for (const part of debugParts) {
+      const groups = PART_GROUPS[part];
+      if (groups) for (const g of groups) allTargetGroups.add(g);
+    }
 
     for (const w of workouts) {
       const dateKey = toDateKey(w.created_at);
 
-      if (!debugPart) {
+      if (allTargetGroups.size === 0) {
         if (!days.has(dateKey)) days.set(dateKey, w);
         continue;
       }
 
-      const targetGroups = PART_GROUPS[debugPart];
-      if (!targetGroups) continue;
-
       let matched = false;
       for (const ex of w.exercises) {
         let primary = ex.primary_muscles || [];
-        let secondary = ex.secondary_muscles || [];
-        if (primary.length === 0 && secondary.length === 0) {
+        if (primary.length === 0) {
           const cat = catalogMap[ex.name];
-          if (cat) {
-            primary = cat.primary_muscles || [];
-            secondary = cat.secondary_muscles || [];
-          }
+          if (cat) { primary = cat.primary_muscles || []; }
         }
-        for (const raw of [...primary, ...secondary]) {
+        for (const raw of primary) {
           const slug = toSlug(raw);
           if (slug) {
             const group = SLUG_GROUP[slug];
-            if (group && targetGroups.includes(group)) {
+            if (group && allTargetGroups.has(group)) {
               matched = true;
               break;
             }
@@ -711,9 +724,9 @@ function WorkoutHistoryScreen() {
     }
 
     return days;
-  }, [workouts, catalogMap, debugPart]);
+  }, [workouts, catalogMap, debugParts]);
 
-  // Last trained date per body part (from all workouts)
+  // Last trained date per body part (primary muscles only — secondary don't count)
   const lastTrainedMap = useMemo(() => {
     const map: Record<string, Date | null> = {};
     for (const label of Object.keys(PART_GROUPS)) map[label] = null;
@@ -723,12 +736,11 @@ function WorkoutHistoryScreen() {
       const hitParts = new Set<string>();
       for (const ex of w.exercises) {
         let primary = ex.primary_muscles || [];
-        let secondary = ex.secondary_muscles || [];
-        if (primary.length === 0 && secondary.length === 0) {
+        if (primary.length === 0) {
           const cat = catalogMap[ex.name];
-          if (cat) { primary = cat.primary_muscles || []; secondary = cat.secondary_muscles || []; }
+          if (cat) { primary = cat.primary_muscles || []; }
         }
-        for (const raw of [...primary, ...secondary]) {
+        for (const raw of primary) {
           const slug = toSlug(raw);
           if (slug) {
             const group = SLUG_GROUP[slug];
@@ -760,17 +772,15 @@ function WorkoutHistoryScreen() {
       const hitGroups = new Set<string>();
       for (const ex of w.exercises) {
         let primary = ex.primary_muscles || [];
-        let secondary = ex.secondary_muscles || [];
-        if (primary.length === 0 && secondary.length === 0) {
+        if (primary.length === 0) {
           const cat = catalogMap[ex.name];
-          if (cat) { primary = cat.primary_muscles || []; secondary = cat.secondary_muscles || []; }
+          if (cat) { primary = cat.primary_muscles || []; }
         }
-        for (const raw of [...primary, ...secondary]) {
+        for (const raw of primary) {
           const slug = toSlug(raw);
           if (slug) {
             const group = SLUG_GROUP[slug];
             if (group) {
-              // Find which PART_GROUPS key maps to this group
               for (const [label, groups] of Object.entries(PART_GROUPS)) {
                 if (groups.includes(group)) hitGroups.add(label);
               }
@@ -822,52 +832,84 @@ function WorkoutHistoryScreen() {
           {/* Main row: Whole, Chest, Back, Core + section toggles */}
           <View style={styles.filterMainRow}>
             <TouchableOpacity
-              onPress={() => { setDebugPart(null); setExpandedSection(null); }}
-              style={[styles.filterChip, debugPart === null && styles.filterChipActive]}
+              onPress={() => { setDebugParts([]); setExpandedSection(null); }}
+              style={[styles.filterChip, debugParts.length === 0 && styles.filterChipActive]}
             >
               <Text style={styles.filterChipText}>Whole</Text>
+              <Text style={styles.filterChipSub}>{getLastLabel(
+                workouts.length > 0 ? new Date(workouts[0].created_at) : null
+              )}</Text>
             </TouchableOpacity>
+            {['Chest', 'Back', 'Core'].map((part) => (
+              <TouchableOpacity
+                key={part}
+                onPress={() => {
+                  setExpandedSection(null);
+                  setDebugParts((prev) =>
+                    prev.includes(part) ? prev.filter((p) => p !== part) : [...prev, part]
+                  );
+                }}
+                style={[styles.filterChip, debugParts.includes(part) && styles.filterChipActive]}
+              >
+                <Text style={styles.filterChipText}>{part}</Text>
+                <Text style={styles.filterChipSub}>{getLastLabel(lastTrainedMap[part])}</Text>
+              </TouchableOpacity>
+            ))}
             <TouchableOpacity
-              onPress={() => { setDebugPart('Chest'); setExpandedSection(null); }}
-              style={[styles.filterChip, debugPart === 'Chest' && styles.filterChipActive]}
-            >
-              <Text style={styles.filterChipText}>Chest</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => { setDebugPart('Back'); setExpandedSection(null); }}
-              style={[styles.filterChip, debugPart === 'Back' && styles.filterChipActive]}
-            >
-              <Text style={styles.filterChipText}>Back</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => { setDebugPart('Core'); setExpandedSection(null); }}
-              style={[styles.filterChip, debugPart === 'Core' && styles.filterChipActive]}
-            >
-              <Text style={styles.filterChipText}>Core</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setExpandedSection(expandedSection === 'Arms' ? null : 'Arms')}
-              style={[styles.filterChip, (expandedSection === 'Arms' || ['Shoulders', 'Biceps', 'Triceps'].includes(debugPart || '')) && styles.filterChipActive]}
+              onPress={() => {
+                if (expandedSection === 'Arms') {
+                  setExpandedSection(null);
+                  setDebugParts((prev) => prev.filter((p) => !['Arms', 'Shoulders', 'Biceps', 'Triceps'].includes(p)));
+                } else {
+                  setExpandedSection('Arms');
+                  setDebugParts((prev) => {
+                    const without = prev.filter((p) => !['Arms', 'Shoulders', 'Biceps', 'Triceps'].includes(p));
+                    return [...without, 'Shoulders', 'Biceps', 'Triceps'];
+                  });
+                }
+              }}
+              style={[styles.filterChip, debugParts.some((p) => ['Arms', 'Shoulders', 'Biceps', 'Triceps'].includes(p)) && styles.filterChipActive]}
             >
               <Text style={styles.filterChipText}>Arms</Text>
-              <Ionicons name={expandedSection === 'Arms' ? 'chevron-up' : 'chevron-down'} size={ms(8)} color="rgba(255,255,255,0.5)" />
+              <Text style={styles.filterChipSub}>{getLastLabel(
+                ['Shoulders', 'Biceps', 'Triceps'].reduce<Date | null>((best, k) => {
+                  const d = lastTrainedMap[k];
+                  return d && (!best || d > best) ? d : best;
+                }, null)
+              )}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setExpandedSection(expandedSection === 'Legs' ? null : 'Legs')}
-              style={[styles.filterChip, (expandedSection === 'Legs' || ['Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(debugPart || '')) && styles.filterChipActive]}
+              onPress={() => {
+                if (expandedSection === 'Legs') {
+                  setExpandedSection(null);
+                  setDebugParts((prev) => prev.filter((p) => !['Legs', 'Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(p)));
+                } else {
+                  setExpandedSection('Legs');
+                  setDebugParts((prev) => {
+                    const without = prev.filter((p) => !['Legs', 'Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(p));
+                    return [...without, 'Quads', 'Hamstrings', 'Glutes', 'Calves'];
+                  });
+                }
+              }}
+              style={[styles.filterChip, debugParts.some((p) => ['Legs', 'Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(p)) && styles.filterChipActive]}
             >
               <Text style={styles.filterChipText}>Legs</Text>
-              <Ionicons name={expandedSection === 'Legs' ? 'chevron-up' : 'chevron-down'} size={ms(8)} color="rgba(255,255,255,0.5)" />
+              <Text style={styles.filterChipSub}>{getLastLabel(
+                ['Quads', 'Hamstrings', 'Glutes', 'Calves'].reduce<Date | null>((best, k) => {
+                  const d = lastTrainedMap[k];
+                  return d && (!best || d > best) ? d : best;
+                }, null)
+              )}</Text>
             </TouchableOpacity>
           </View>
           {/* Expanded sub-parts */}
           {expandedSection === 'Arms' && (
             <View style={styles.filterExpandedRow}>
               {['Shoulders', 'Biceps', 'Triceps'].map((label) => {
-                const isActive = debugPart === label;
+                const isActive = debugParts.includes(label);
                 const lastLabel = getLastLabel(lastTrainedMap[label]);
                 return (
-                  <TouchableOpacity key={label} onPress={() => setDebugPart(label)} style={[styles.filterChip, isActive && styles.filterChipActive]}>
+                  <TouchableOpacity key={label} onPress={() => setDebugParts((prev) => prev.includes(label) ? prev.filter((p) => p !== label) : [...prev, label])} style={[styles.filterChip, isActive && styles.filterChipActive]}>
                     <Text style={styles.filterChipText}>{label}</Text>
                     <Text style={styles.filterChipSub}>{lastLabel}</Text>
                   </TouchableOpacity>
@@ -878,10 +920,10 @@ function WorkoutHistoryScreen() {
           {expandedSection === 'Legs' && (
             <View style={styles.filterExpandedRow}>
               {['Quads', 'Hamstrings', 'Glutes', 'Calves'].map((label) => {
-                const isActive = debugPart === label;
+                const isActive = debugParts.includes(label);
                 const lastLabel = getLastLabel(lastTrainedMap[label]);
                 return (
-                  <TouchableOpacity key={label} onPress={() => setDebugPart(label)} style={[styles.filterChip, isActive && styles.filterChipActive]}>
+                  <TouchableOpacity key={label} onPress={() => setDebugParts((prev) => prev.includes(label) ? prev.filter((p) => p !== label) : [...prev, label])} style={[styles.filterChip, isActive && styles.filterChipActive]}>
                     <Text style={styles.filterChipText}>{label}</Text>
                     <Text style={styles.filterChipSub}>{lastLabel}</Text>
                   </TouchableOpacity>
@@ -920,7 +962,7 @@ function WorkoutHistoryScreen() {
                   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
                   return `${days[date.getDay()]}, ${months[date.getMonth()]} ${d}${trainedDaysMap.has(selectedCalDate) ? ' — trained' : ' — rest day'}`;
                 })()
-              : `${debugPart ? `${debugPart} training` : 'All training'} — 8 weeks`}
+              : `${debugParts.length > 0 ? `${debugParts.join(', ')} training` : 'All training'} — 8 weeks`}
           </Text>
         </View>
         <View style={styles.calendarSection}>
@@ -1002,7 +1044,7 @@ function WorkoutHistoryScreen() {
         <HistoryOverlay
           workouts={workouts}
           catalogMap={catalogMap}
-          debugPart={debugPart}
+          debugPart={debugParts}
           styles={styles}
           colors={colors}
           entering={historyEntering}
@@ -1554,24 +1596,24 @@ const createStyles = (colors: ThemeColors, mode: string) => {
     },
     /* ── Body Part Filter Chips ─────────────────────────── */
     filterContainer: {
-      gap: sw(5),
-      marginBottom: sw(4),
+      gap: sw(4),
+      marginBottom: sw(2),
       paddingHorizontal: sw(8),
     },
     filterMainRow: {
       flexDirection: 'row',
       justifyContent: 'center',
       flexWrap: 'wrap',
-      gap: sw(5),
+      gap: sw(4),
     },
     filterExpandedRow: {
       flexDirection: 'row',
       justifyContent: 'center',
-      gap: sw(5),
+      gap: sw(4),
     },
     filterChip: {
       paddingHorizontal: sw(8),
-      paddingVertical: sw(3),
+      paddingVertical: sw(4),
       borderRadius: sw(8),
       backgroundColor: 'rgba(255,255,255,0.06)',
       alignItems: 'center',
