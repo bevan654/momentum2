@@ -70,7 +70,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.card,
-    borderRadius: 0,
+    borderRadius: sw(14),
     padding: sw(14),
     justifyContent: 'space-between',
     gap: sw(8),
@@ -84,7 +84,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   iconWrap: {
     width: sw(22),
     height: sw(22),
-    borderRadius: 0,
+    borderRadius: sw(6),
     backgroundColor: colors.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',
