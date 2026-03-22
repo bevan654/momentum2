@@ -27,6 +27,7 @@ import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useNutritionStore } from '../../stores/useNutritionStore';
 import { useSavedMealsStore, type MealItem, type SavedMeal } from '../../stores/useSavedMealsStore';
+import { useFavouritesStore } from '../../stores/useFavouritesStore';
 import { supabase } from '../../lib/supabase';
 import type { FoodCatalogItem, FoodEntry } from '../../stores/useFoodLogStore';
 import FoodDetailModal from './FoodDetailModal';
@@ -75,8 +76,11 @@ const MealItemRow = React.memo(function MealItemRow({
   const totalC = Math.round(item.carbs * item.quantity);
   const totalF = Math.round(item.fat * item.quantity);
 
+  const handlePress = useCallback(() => onPress(item), [item, onPress]);
+  const handleRemove = useCallback(() => onRemove(item.id), [item.id, onRemove]);
+
   return (
-    <TouchableOpacity style={s.itemCard} onPress={() => onPress(item)} activeOpacity={0.7}>
+    <TouchableOpacity style={s.itemCard} onPress={handlePress} activeOpacity={0.7}>
       <View style={s.itemTop}>
         <View style={s.itemInfo}>
           <Text style={s.itemName} numberOfLines={1}>{item.name}</Text>
@@ -87,7 +91,7 @@ const MealItemRow = React.memo(function MealItemRow({
           <Text style={s.itemCalBig}>{totalCal}</Text>
           <Text style={s.itemCalUnit}>kcal</Text>
         </View>
-        <TouchableOpacity onPress={() => onRemove(item.id)} hitSlop={8} style={s.removeBtn}>
+        <TouchableOpacity onPress={handleRemove} hitSlop={8} style={s.removeBtn}>
           <Ionicons name="close" size={ms(14)} color={c.textTertiary} />
         </TouchableOpacity>
       </View>
@@ -113,8 +117,9 @@ interface CatalogRowProps {
 }
 
 const CatalogRow = React.memo(function CatalogRow({ item, onSelect, s, c }: CatalogRowProps) {
+  const handleSelect = useCallback(() => onSelect(item), [item, onSelect]);
   return (
-    <TouchableOpacity style={s.catalogRow} onPress={() => onSelect(item)} activeOpacity={0.7}>
+    <TouchableOpacity style={s.catalogRow} onPress={handleSelect} activeOpacity={0.7}>
       <View style={s.catalogInfo}>
         <Text style={s.catalogName} numberOfLines={1}>{item.name}</Text>
         {item.brand ? <Text style={s.catalogBrand} numberOfLines={1}>{item.brand}</Text> : null}
@@ -167,14 +172,20 @@ export default function CreateMealModal({
   const popularFoods = useFoodLogStore((st) => st.popularFoods);
   const fetchDefaultFoods = useFoodLogStore((st) => st.fetchDefaultFoods);
 
+  const savedMeals = useSavedMealsStore((st) => st.meals);
+  const loadSavedMeals = useSavedMealsStore((st) => st.loadMeals);
   const saveMeal = useSavedMealsStore((st) => st.saveMeal);
   const updateMeal = useSavedMealsStore((st) => st.updateMeal);
+
+  const favourites = useFavouritesStore((st) => st.favourites);
+  const loadFavourites = useFavouritesStore((st) => st.loadFavourites);
 
   /* ── Local state ────────────────────────────────────── */
   const [mealName, setMealName] = useState('');
   const [items, setItems] = useState<MealItem[]>([]);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [defaultTab, setDefaultTab] = useState<'popular' | 'recent' | 'favourites' | 'meals'>('recent');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ── Initialize from saved meal OR logged meal group ── */
@@ -215,16 +226,19 @@ export default function CreateMealModal({
   /* ── Load defaults on open ──────────────────────────── */
   useEffect(() => {
     if (visible && userId) fetchDefaultFoods(userId);
+    if (visible) { loadFavourites(); loadSavedMeals(); }
   }, [visible, userId]);
 
   /* ── Reset on close ─────────────────────────────────── */
   useEffect(() => {
     if (!visible) {
+      if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null; }
       setQuery('');
       clearSearch();
       setDetailVisible(false);
       setDetailFood(null);
       setEditingItemId(null);
+      setDefaultTab('recent');
     }
   }, [visible]);
 
@@ -333,6 +347,16 @@ export default function CreateMealModal({
     setDetailVisible(false);
     setDetailFood(null);
     setEditingItemId(null);
+  }, []);
+
+  /* ── Add saved meal items (compound meal) ────────────── */
+  const handleAddSavedMeal = useCallback((meal: SavedMeal) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const newItems: MealItem[] = meal.items.map((item) => ({
+      ...item,
+      id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    }));
+    setItems((prev) => [...prev, ...newItems]);
   }, []);
 
   /* ── Remove item ────────────────────────────────────── */
@@ -460,7 +484,9 @@ export default function CreateMealModal({
   const showEmpty = query.length > 0 && catalogResults.length === 0 && !catalogLoading;
   const hasRecent = recentFoods.length > 0;
   const hasPopular = popularFoods.length > 0;
-  const showDefaults = query.length === 0 && (hasRecent || hasPopular);
+  const hasFavourites = favourites.length > 0;
+  const hasSavedMeals = savedMeals.length > 0;
+  const showDefaults = query.length === 0 && (hasRecent || hasPopular || hasFavourites || hasSavedMeals);
 
   /* ── Render ─────────────────────────────────────────── */
   return (
@@ -571,6 +597,37 @@ export default function CreateMealModal({
               )}
             </View>
 
+            {/* Filter chips */}
+            {query.length === 0 && (
+              <View style={s.chipRow}>
+                {([
+                  { key: 'recent' as const, label: 'Recent', icon: 'time-outline' as const },
+                  { key: 'popular' as const, label: 'Popular', icon: 'trending-up-outline' as const },
+                  { key: 'favourites' as const, label: 'Favs', icon: 'heart-outline' as const },
+                  { key: 'meals' as const, label: 'Meals', icon: 'restaurant-outline' as const },
+                ]).map((tab) => {
+                  const active = defaultTab === tab.key;
+                  return (
+                    <TouchableOpacity
+                      key={tab.key}
+                      style={[s.chip, active && s.chipActive]}
+                      onPress={() => setDefaultTab(tab.key)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={tab.icon}
+                        size={ms(14)}
+                        color={active ? colors.textOnAccent : colors.textSecondary}
+                      />
+                      <Text style={[s.chipText, active && s.chipTextActive]}>
+                        {tab.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
             {/* Search results / defaults */}
             {catalogLoading ? (
               <View style={s.searchState}>
@@ -587,21 +644,62 @@ export default function CreateMealModal({
               ))
             ) : showDefaults ? (
               <>
-                {hasRecent && (
-                  <>
-                    <Text style={s.resultsSectionLabel}>Recent</Text>
-                    {recentFoods.map((item, i) => (
-                      <CatalogRow key={`r-${item.id}-${i}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
-                    ))}
-                  </>
+                {defaultTab === 'popular' && hasPopular && popularFoods.map((item) => (
+                  <CatalogRow key={`p-${item.id}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
+                ))}
+                {defaultTab === 'recent' && hasRecent && recentFoods.map((item, i) => (
+                  <CatalogRow key={`r-${item.id}-${i}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
+                ))}
+                {defaultTab === 'recent' && !hasRecent && (
+                  <View style={s.searchState}>
+                    <Text style={s.searchStateText}>No recent foods yet</Text>
+                  </View>
                 )}
-                {hasPopular && (
-                  <>
-                    <Text style={s.resultsSectionLabel}>Popular</Text>
-                    {popularFoods.map((item) => (
-                      <CatalogRow key={`p-${item.id}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
-                    ))}
-                  </>
+                {defaultTab === 'favourites' && hasFavourites && favourites.map((item, i) => (
+                  <CatalogRow key={`fav-${item.id}-${i}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
+                ))}
+                {defaultTab === 'favourites' && !hasFavourites && (
+                  <View style={s.searchState}>
+                    <Ionicons name="heart-outline" size={ms(24)} color={colors.textTertiary} />
+                    <Text style={s.searchStateText}>No favourites yet</Text>
+                  </View>
+                )}
+                {defaultTab === 'meals' && hasSavedMeals && savedMeals.map((meal) => {
+                  const totalCal = Math.round(meal.items.reduce((sum, i) => sum + i.calories * i.quantity, 0));
+                  const totalP = Math.round(meal.items.reduce((sum, i) => sum + i.protein * i.quantity, 0));
+                  const totalC = Math.round(meal.items.reduce((sum, i) => sum + i.carbs * i.quantity, 0));
+                  const totalF = Math.round(meal.items.reduce((sum, i) => sum + i.fat * i.quantity, 0));
+                  return (
+                    <TouchableOpacity
+                      key={meal.id}
+                      style={s.savedMealCard}
+                      onPress={() => handleAddSavedMeal(meal)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={s.savedMealInfo}>
+                        <Text style={s.savedMealName} numberOfLines={1}>{meal.name}</Text>
+                        <View style={s.savedMealMeta}>
+                          <Text style={s.savedMealItems}>{meal.items.length} items</Text>
+                          <View style={s.savedMealMacros}>
+                            <Text style={[s.catalogMacro, { color: colors.protein }]}>P {totalP}</Text>
+                            <Text style={[s.catalogMacro, { color: colors.carbs }]}>C {totalC}</Text>
+                            <Text style={[s.catalogMacro, { color: colors.fat }]}>F {totalF}</Text>
+                          </View>
+                        </View>
+                      </View>
+                      <View style={s.catalogRight}>
+                        <Text style={s.catalogCals}>{totalCal}</Text>
+                        <Text style={s.catalogCalUnit}>kcal</Text>
+                      </View>
+                      <Ionicons name="add-circle" size={ms(22)} color={colors.accent} />
+                    </TouchableOpacity>
+                  );
+                })}
+                {defaultTab === 'meals' && !hasSavedMeals && (
+                  <View style={s.searchState}>
+                    <Ionicons name="restaurant-outline" size={ms(24)} color={colors.textTertiary} />
+                    <Text style={s.searchStateText}>No saved meals yet</Text>
+                  </View>
                 )}
               </>
             ) : (
@@ -903,6 +1001,35 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /* Tab pills */
+  chipRow: {
+    flexDirection: 'row',
+    paddingHorizontal: sw(16),
+    gap: sw(8),
+    marginBottom: sw(12),
+  },
+  chip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(4),
+    paddingVertical: sw(8),
+    borderRadius: sw(20),
+    backgroundColor: colors.surface,
+  },
+  chipActive: {
+    backgroundColor: colors.accent,
+  },
+  chipText: {
+    color: colors.textSecondary,
+    fontSize: ms(13),
+    lineHeight: ms(18),
+    fontFamily: Fonts.semiBold,
+  },
+  chipTextActive: {
+    color: colors.textOnAccent,
+  },
   /* Search states */
   searchState: {
     alignItems: 'center',
@@ -972,6 +1099,39 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     textTransform: 'uppercase',
     marginTop: sw(8),
     marginBottom: sw(6),
+  },
+  /* Saved meal card */
+  savedMealCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: sw(12),
+    paddingVertical: sw(10),
+    paddingHorizontal: sw(12),
+    gap: sw(10),
+    marginBottom: sw(6),
+  },
+  savedMealInfo: { flex: 1, gap: sw(4) },
+  savedMealName: {
+    color: colors.textPrimary,
+    fontSize: ms(13),
+    lineHeight: ms(18),
+    fontFamily: Fonts.semiBold,
+  },
+  savedMealMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(10),
+  },
+  savedMealItems: {
+    color: colors.textTertiary,
+    fontSize: ms(10),
+    lineHeight: ms(14),
+    fontFamily: Fonts.medium,
+  },
+  savedMealMacros: {
+    flexDirection: 'row',
+    gap: sw(6),
   },
   /* Bottom bar */
   bottomBar: {

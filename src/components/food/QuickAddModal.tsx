@@ -23,6 +23,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
 
 /* ─── Props ──────────────────────────────────────────── */
 
@@ -61,30 +62,64 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
   const userId = useAuthStore((st) => st.user?.id);
   const addEntry = useFoodLogStore((st) => st.addEntry);
   const selectedDate = useFoodLogStore((st) => st.selectedDate);
+  const microGoals = useNutrientGoalStore((st) => st.microGoals);
+  const loaded = useNutrientGoalStore((st) => st.loaded);
+  const loadConfigs = useNutrientGoalStore((st) => st.loadConfigs);
+
+  useEffect(() => {
+    if (!loaded) loadConfigs();
+  }, [loaded, loadConfigs]);
 
   /* ── Form state ─── */
   const [name, setName] = useState('');
   const [calories, setCalories] = useState('');
+  const [kj, setKj] = useState('');
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
+  const [microValues, setMicroValues] = useState<Record<string, string>>({});
+  const editSourceRef = useRef<'kcal' | 'kj' | null>(null);
 
   /* ── Refs for field focus chain ─── */
   const calRef = useRef<TextInput>(null);
+  const kjRef = useRef<TextInput>(null);
   const proRef = useRef<TextInput>(null);
   const carbRef = useRef<TextInput>(null);
   const fatRef = useRef<TextInput>(null);
+
+  /* ── kcal ↔ kJ sync ─── */
+  const handleCalChange = useCallback((v: string) => {
+    editSourceRef.current = 'kcal';
+    setCalories(v);
+    const n = Number(v);
+    setKj(v === '' ? '' : Number.isFinite(n) ? String(Math.round(n * 4.184)) : '');
+  }, []);
+
+  const handleKjChange = useCallback((v: string) => {
+    editSourceRef.current = 'kj';
+    setKj(v);
+    const n = Number(v);
+    setCalories(v === '' ? '' : Number.isFinite(n) ? String(Math.round(n / 4.184)) : '');
+  }, []);
 
   /* ── Reset on close ─── */
   useEffect(() => {
     if (!visible) {
       setName('');
       setCalories('');
+      setKj('');
       setProtein('');
       setCarbs('');
       setFat('');
+      setMicroValues({});
+      editSourceRef.current = null;
     }
   }, [visible]);
+
+  /* ── Micro value handler ─── */
+  const handleMicroChange = useCallback((key: string, value: string) => {
+    setMicroValues((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   /* ── Submit ─── */
   const canSubmit = Number(calories) > 0 || Number(protein) > 0 || Number(carbs) > 0 || Number(fat) > 0;
@@ -98,8 +133,16 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
     const c = Number(carbs) || 0;
     const f = Number(fat) || 0;
 
+    // Build micro fields from form
+    const microFields: Record<string, number | null> = {};
+    for (const g of microGoals) {
+      const val = Number(microValues[g.key]);
+      microFields[g.key] = val > 0 ? val : null;
+    }
+
     addEntry(userId, {
       name: name.trim() || 'Quick Add',
+      brand: null,
       calories: cal,
       protein: pro,
       carbs: c,
@@ -109,10 +152,11 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
       serving_size: 1,
       serving_unit: 'serving',
       is_planned: false,
+      ...microFields,
     }, targetHour != null ? selectedDate : undefined, targetHour);
 
     onAdded();
-  }, [userId, canSubmit, name, calories, protein, carbs, fat, mealSlot, targetHour, selectedDate, addEntry, onAdded]);
+  }, [userId, canSubmit, name, calories, protein, carbs, fat, mealSlot, targetHour, selectedDate, addEntry, onAdded, microGoals, microValues]);
 
   /* ── Computed cal preview ─── */
   const previewCal = useMemo(() => {
@@ -159,23 +203,48 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
               placeholder="e.g. Snack, Protein shake..."
               placeholderTextColor={colors.textTertiary + '50'}
               returnKeyType="next"
+              blurOnSubmit={false}
+              keyboardAppearance="dark"
               onSubmitEditing={() => calRef.current?.focus()}
             />
 
-            {/* Calories */}
-            <Text style={s.fieldLabel}>Calories</Text>
-            <TextInput
-              ref={calRef}
-              style={s.numField}
-              value={calories}
-              onChangeText={setCalories}
-              placeholder="0"
-              placeholderTextColor={colors.textTertiary + '30'}
-              keyboardType="numeric"
-              returnKeyType="next"
-
-              onSubmitEditing={() => proRef.current?.focus()}
-            />
+            {/* Calories — split kcal / kJ */}
+            <Text style={s.fieldLabel}>Energy</Text>
+            <View style={s.energyRow}>
+              <View style={s.energyField}>
+                <Text style={s.energyLabel}>kcal</Text>
+                <TextInput
+                  ref={calRef}
+                  style={s.energyInput}
+                  value={calories}
+                  onChangeText={handleCalChange}
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary + '30'}
+                  keyboardType="numeric"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  keyboardAppearance="dark"
+                  onSubmitEditing={() => proRef.current?.focus()}
+                />
+              </View>
+              <View style={s.energyDivider} />
+              <View style={s.energyField}>
+                <Text style={s.energyLabel}>kJ</Text>
+                <TextInput
+                  ref={kjRef}
+                  style={s.energyInput}
+                  value={kj}
+                  onChangeText={handleKjChange}
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary + '30'}
+                  keyboardType="numeric"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  keyboardAppearance="dark"
+                  onSubmitEditing={() => proRef.current?.focus()}
+                />
+              </View>
+            </View>
             {!calories && (Number(protein) > 0 || Number(carbs) > 0 || Number(fat) > 0) && (
               <Text style={s.autoCalHint}>Auto-calculated from macros</Text>
             )}
@@ -195,7 +264,8 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
                   placeholderTextColor={colors.textTertiary + '30'}
                   keyboardType="numeric"
                   returnKeyType="next"
-    
+                  blurOnSubmit={false}
+                  keyboardAppearance="dark"
                   onSubmitEditing={() => carbRef.current?.focus()}
                 />
               </View>
@@ -211,7 +281,8 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
                   placeholderTextColor={colors.textTertiary + '30'}
                   keyboardType="numeric"
                   returnKeyType="next"
-    
+                  blurOnSubmit={false}
+                  keyboardAppearance="dark"
                   onSubmitEditing={() => fatRef.current?.focus()}
                 />
               </View>
@@ -227,10 +298,37 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
                   placeholderTextColor={colors.textTertiary + '30'}
                   keyboardType="numeric"
                   returnKeyType="done"
-    
+                  keyboardAppearance="dark"
                 />
               </View>
             </View>
+
+            {/* Micros section — only shown if user tracks any */}
+            {microGoals.length > 0 && (
+              <>
+                <Text style={[s.fieldLabel, { marginTop: sw(20) }]}>Micronutrients</Text>
+                <View style={s.microCard}>
+                  {microGoals.map((g, i) => (
+                    <View key={g.key} style={[s.microRow, i === microGoals.length - 1 && s.microRowLast]}>
+                      <View style={[s.microDot, { backgroundColor: g.color }]} />
+                      <Text style={s.microLabel}>{g.name}</Text>
+                      <View style={s.microInputWrap}>
+                        <TextInput
+                          style={s.microInput}
+                          value={microValues[g.key] || ''}
+                          onChangeText={(v) => handleMicroChange(g.key, v)}
+                          placeholder="0"
+                          placeholderTextColor={colors.textTertiary + '30'}
+                          keyboardType="decimal-pad"
+                          keyboardAppearance="dark"
+                        />
+                        <Text style={s.microUnit}>{g.unit}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
           </ScrollView>
 
           {/* Bottom bar */}
@@ -360,6 +458,44 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     marginBottom: sw(8),
   },
 
+  /* Energy split row */
+  energyRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: c.card,
+    borderRadius: sw(12),
+    marginBottom: sw(4),
+    overflow: 'hidden',
+  },
+  energyField: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: sw(10),
+    gap: sw(2),
+  },
+  energyLabel: {
+    color: c.textTertiary,
+    fontSize: ms(10),
+    lineHeight: ms(14),
+    fontFamily: Fonts.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  energyInput: {
+    width: '100%',
+    color: c.textPrimary,
+    fontSize: ms(22),
+    lineHeight: ms(27),
+    fontFamily: Fonts.bold,
+    textAlign: 'center',
+    padding: 0,
+  },
+  energyDivider: {
+    width: sw(1),
+    backgroundColor: c.surface,
+    marginVertical: sw(10),
+  },
+
   /* Macro row */
   macroRow: {
     flexDirection: 'row',
@@ -394,6 +530,61 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     padding: 0,
   },
 
+  /* Micro section */
+  microCard: {
+    backgroundColor: c.card,
+    borderRadius: sw(14),
+    paddingVertical: sw(4),
+    paddingHorizontal: sw(14),
+  },
+  microDot: {
+    width: sw(6),
+    height: sw(6),
+    borderRadius: sw(3),
+  },
+  microRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(8),
+    paddingVertical: sw(9),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: c.surface,
+  },
+  microRowLast: {
+    borderBottomWidth: 0,
+  },
+  microLabel: {
+    flex: 1,
+    color: c.textSecondary,
+    fontSize: ms(13),
+    lineHeight: ms(18),
+    fontFamily: Fonts.medium,
+  },
+  microInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(4),
+  },
+  microInput: {
+    width: sw(56),
+    color: c.textPrimary,
+    fontSize: ms(13),
+    lineHeight: ms(18),
+    fontFamily: Fonts.semiBold,
+    textAlign: 'center',
+    backgroundColor: c.surface,
+    borderRadius: sw(8),
+    paddingHorizontal: sw(6),
+    paddingVertical: sw(4),
+  },
+  microUnit: {
+    color: c.textTertiary,
+    fontSize: ms(12),
+    lineHeight: ms(16),
+    fontFamily: Fonts.medium,
+    width: sw(28),
+  },
+
   /* Bottom bar */
   bottomBar: {
     paddingHorizontal: sw(20),
@@ -426,4 +617,5 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     lineHeight: ms(18),
     fontFamily: Fonts.semiBold,
   },
+
 });
