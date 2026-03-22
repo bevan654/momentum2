@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -87,7 +87,12 @@ export default function CreateRoutineScreen() {
   });
   const [showAddModal, setShowAddModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 400);
+    return () => clearTimeout(timer);
+  }, []);
 
   const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -166,11 +171,7 @@ export default function CreateRoutineScreen() {
       goal_weight: prevSets[i]?.kg ?? 0,
     }));
 
-    setExercises((prev) => {
-      const next = [...prev, { name, sets: defaultSets, rest_seconds: 90, category, exercise_type: exerciseType, prevSets }];
-      setActiveTab(next.length - 1);
-      return next;
-    });
+    setExercises((prev) => [...prev, { name, sets: defaultSets, rest_seconds: 90, category, exercise_type: exerciseType, prevSets }]);
   }, []);
 
   const handleAddSet = useCallback((exerciseIndex: number) => {
@@ -324,89 +325,98 @@ export default function CreateRoutineScreen() {
             ))}
           </View>
 
-          {/* Muscle Summary */}
-          <View style={styles.muscleSummary}>
-              <Text style={styles.label}>Muscles Targeted</Text>
-              <View style={styles.bodyMapRow}>
-                <View style={styles.bodyMapSide}>
-                  <Body
-                    data={summaryBodyData}
-                    side="front"
-                    gender="male"
-                    scale={0.4}
-                    colors={summaryPalette}
-                    border="none"
-                    backColor={colors.cardBorder}
-                  />
-                  <Text style={styles.bodyMapLabel}>Front</Text>
+          {/* Muscle Summary + Exercises — deferred until transition settles */}
+          {!ready ? (
+            <>
+              <Text style={styles.label}>Exercises</Text>
+              {exercises.map((_, i) => (
+                <View key={`skel-${i}`} style={styles.skelCard}>
+                  <View style={styles.skelBar} />
+                  <View style={styles.skelBarShort} />
+                  <View style={{ height: sw(8) }} />
+                  <View style={styles.skelRow}>
+                    <View style={styles.skelCell} />
+                    <View style={styles.skelCell} />
+                    <View style={styles.skelCell} />
+                  </View>
+                  <View style={styles.skelRow}>
+                    <View style={styles.skelCell} />
+                    <View style={styles.skelCell} />
+                    <View style={styles.skelCell} />
+                  </View>
                 </View>
-                <View style={styles.bodyMapSide}>
-                  <Body
-                    data={summaryBodyData}
-                    side="back"
-                    gender="male"
-                    scale={0.4}
-                    colors={summaryPalette}
-                    border="none"
-                    backColor={colors.cardBorder}
-                  />
-                  <Text style={styles.bodyMapLabel}>Back</Text>
-                </View>
-              </View>
-          </View>
-
-          {/* Exercise Tabs */}
-          <Text style={styles.label}>Exercises</Text>
-          <View style={styles.tabGrid}>
-            {Array.from({ length: Math.max(10, exercises.length + 1) }, (_, i) => {
-              const ex = exercises[i];
-              return (
-                <TouchableOpacity
-                  key={`tab-${i}`}
-                  style={[styles.tab, ex && styles.tabFilled, i === activeTab && (ex ? styles.tabActive : styles.tabSelectedEmpty)]}
-                  onPress={() => setActiveTab(i)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.tabNumber, i === activeTab && ex && styles.tabTextActive]}>
-                    {i + 1}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Viewing area for selected box */}
-          {exercises[activeTab] ? (
-            <ExerciseCard
-              key={`${exercises[activeTab].name}-${activeTab}`}
-              name={exercises[activeTab].name}
-              sets={exercises[activeTab].sets}
-              restSeconds={exercises[activeTab].rest_seconds}
-              category={exercises[activeTab].category}
-              prevSets={exercises[activeTab].prevSets}
-              onAddSet={() => handleAddSet(activeTab)}
-              onRemoveSet={(setIndex) => handleRemoveSet(activeTab, setIndex)}
-              onSetRepsChange={(setIndex, reps) => handleSetRepsChange(activeTab, setIndex, reps)}
-              onSetWeightChange={(setIndex, weight) => handleSetWeightChange(activeTab, setIndex, weight)}
-              onRestChange={(seconds) => handleRestChange(activeTab, seconds)}
-              onRemove={() => {
-                handleRemove(activeTab);
-                setActiveTab((prev) => Math.max(0, Math.min(prev, exercises.length - 2)));
-              }}
-              onMoveUp={() => handleMoveUp(activeTab)}
-              onMoveDown={() => handleMoveDown(activeTab)}
-              isFirst={activeTab === 0}
-              isLast={activeTab === exercises.length - 1}
-            />
+              ))}
+            </>
           ) : (
-            <TouchableOpacity
-              style={styles.emptySlotView}
-              onPress={() => setShowAddModal(true)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="add-circle-outline" size={ms(24)} color={colors.textTertiary} />
-              <Text style={styles.emptySlotText}>Add Exercise {activeTab + 1}</Text>
-            </TouchableOpacity>
+            <>
+              <View style={styles.muscleSummary}>
+                  <Text style={styles.label}>Muscles Targeted</Text>
+                  <View style={styles.bodyMapRow}>
+                    <View style={styles.bodyMapSide}>
+                      <Body
+                        data={summaryBodyData}
+                        side="front"
+                        gender="male"
+                        scale={0.4}
+                        colors={summaryPalette}
+                        border="none"
+                        backColor={colors.cardBorder}
+                      />
+                      <Text style={styles.bodyMapLabel}>Front</Text>
+                    </View>
+                    <View style={styles.bodyMapSide}>
+                      <Body
+                        data={summaryBodyData}
+                        side="back"
+                        gender="male"
+                        scale={0.4}
+                        colors={summaryPalette}
+                        border="none"
+                        backColor={colors.cardBorder}
+                      />
+                      <Text style={styles.bodyMapLabel}>Back</Text>
+                    </View>
+                  </View>
+              </View>
+
+              <Text style={styles.label}>Exercises</Text>
+              {exercises.map((ex, i) => (
+                <View key={`${ex.name}-${i}`} style={styles.exerciseItem}>
+                  <View style={styles.exerciseNumber}>
+                    <Text style={styles.exerciseNumberText}>{i + 1}</Text>
+                  </View>
+                  <View style={styles.exerciseCardWrap}>
+                    <ExerciseCard
+                      name={ex.name}
+                      sets={ex.sets}
+                      restSeconds={ex.rest_seconds}
+                      category={ex.category}
+                      prevSets={ex.prevSets}
+                      onAddSet={() => handleAddSet(i)}
+                      onRemoveSet={(setIndex) => handleRemoveSet(i, setIndex)}
+                      onSetRepsChange={(setIndex, reps) => handleSetRepsChange(i, setIndex, reps)}
+                      onSetWeightChange={(setIndex, weight) => handleSetWeightChange(i, setIndex, weight)}
+                      onRestChange={(seconds) => handleRestChange(i, seconds)}
+                      onRemove={() => handleRemove(i)}
+                      onMoveUp={() => handleMoveUp(i)}
+                      onMoveDown={() => handleMoveDown(i)}
+                      isFirst={i === 0}
+                      isLast={i === exercises.length - 1}
+                    />
+                  </View>
+                </View>
+              ))}
+
+              {/* Add Exercise Button */}
+              <TouchableOpacity
+                style={styles.addExerciseBtn}
+                onPress={() => setShowAddModal(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={ms(18)} color={colors.accent} />
+                <Text style={styles.addExerciseText}>Add Exercise</Text>
+              </TouchableOpacity>
+            </>
           )}
 
           {/* Bottom spacing for button */}
@@ -529,77 +539,72 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  tabGrid: {
+  exerciseItem: {
     flexDirection: 'row',
-    gap: sw(6),
+    alignItems: 'flex-start',
     marginBottom: sw(10),
+    gap: sw(10),
   },
-  tabSlot: {
-    flex: 1,
-    alignItems: 'center',
-    gap: sw(4),
-  },
-  tab: {
-    flex: 1,
-    height: sw(38),
-    borderRadius: 0,
+  exerciseNumber: {
+    width: sw(28),
+    height: sw(28),
+    borderRadius: sw(14),
     backgroundColor: colors.card,
-    borderWidth: 0,
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: sw(10),
   },
-  tabFilled: {
-    borderBottomColor: '#FFFFFF',
-    borderBottomWidth: 2,
-  },
-  tabActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  tabNumber: {
-    color: colors.textTertiary,
-    fontSize: ms(13),
+  exerciseNumberText: {
+    color: colors.textSecondary,
+    fontSize: ms(12),
     fontFamily: Fonts.bold,
   },
-  tabTextActive: {
-    color: colors.textOnAccent,
+  exerciseCardWrap: {
+    flex: 1,
   },
-  tabLabel: {
-    color: colors.textSecondary,
-    fontSize: ms(8),
-    fontFamily: Fonts.medium,
-    lineHeight: ms(10),
-    textAlign: 'center',
-  },
-  tabLabelActive: {
-    color: colors.accent,
-    fontFamily: Fonts.semiBold,
-  },
-  tabAddText: {
-    color: colors.textTertiary,
-    fontSize: ms(8),
-    fontFamily: Fonts.medium,
-    lineHeight: ms(10),
-  },
-  tabEmpty: {
-    borderStyle: 'dashed',
-    opacity: 0.4,
-  },
-  tabSelectedEmpty: {
-    borderColor: colors.accent,
-    borderWidth: 2,
-  },
-  emptySlotView: {
-    paddingVertical: sw(32),
+  addExerciseBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: sw(8),
+    gap: sw(6),
+    paddingVertical: sw(14),
+    marginTop: sw(4),
+    backgroundColor: colors.card,
   },
-  emptySlotText: {
-    color: colors.textTertiary,
-    fontSize: ms(12),
-    lineHeight: ms(16),
-    fontFamily: Fonts.medium,
+  addExerciseText: {
+    color: colors.accent,
+    fontSize: ms(13),
+    lineHeight: ms(18),
+    fontFamily: Fonts.semiBold,
+  },
+  skelCard: {
+    backgroundColor: colors.card,
+    padding: sw(12),
+    marginBottom: sw(10),
+  },
+  skelBar: {
+    height: sw(14),
+    width: '60%',
+    backgroundColor: colors.cardBorder,
+    borderRadius: sw(4),
+    marginBottom: sw(8),
+  },
+  skelBarShort: {
+    height: sw(10),
+    width: '35%',
+    backgroundColor: colors.cardBorder,
+    borderRadius: sw(4),
+  },
+  skelRow: {
+    flexDirection: 'row',
+    gap: sw(10),
+    marginBottom: sw(6),
+  },
+  skelCell: {
+    flex: 1,
+    height: sw(12),
+    backgroundColor: colors.cardBorder,
+    borderRadius: sw(4),
   },
   footer: {
     position: 'absolute',

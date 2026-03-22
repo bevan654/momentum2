@@ -185,24 +185,27 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   },
 
   fetchPrevData: async (userId: string) => {
-    // Get user's exercises with sets from recent workouts, newest first (limit to 500 rows)
-    const { data: exercises } = await supabase
-      .from('exercises')
-      .select('name, sets(kg, reps, set_number, completed), workouts!inner(user_id, created_at)')
-      .eq('workouts.user_id', userId)
-      .order('created_at', { ascending: false, referencedTable: 'workouts' })
-      .limit(500);
+    // Fetch recent workouts (newest first) with their exercises + sets
+    const { data: workouts } = await supabase
+      .from('workouts')
+      .select('created_at, exercises(name, sets(kg, reps, set_number, completed))')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     const map: Record<string, { kg: number; reps: number }[]> = {};
-    if (exercises) {
-      for (const ex of exercises) {
-        if (map[ex.name]) continue; // already have most recent for this exercise
-        const sets = (ex.sets || [])
-          .filter((s: any) => s.completed)
-          .sort((a: any, b: any) => a.set_number - b.set_number)
-          .map((s: any) => ({ kg: Number(s.kg) || 0, reps: Number(s.reps) || 0 }));
-        if (sets.length > 0) {
-          map[ex.name] = sets;
+    if (workouts) {
+      // Workouts are already newest-first, so first occurrence per name is most recent
+      for (const w of workouts) {
+        for (const ex of (w.exercises || []) as any[]) {
+          if (map[ex.name]) continue;
+          const sets = (ex.sets || [])
+            .filter((s: any) => s.completed)
+            .sort((a: any, b: any) => a.set_number - b.set_number)
+            .map((s: any) => ({ kg: Number(s.kg) || 0, reps: Number(s.reps) || 0 }));
+          if (sets.length > 0) {
+            map[ex.name] = sets;
+          }
         }
       }
     }

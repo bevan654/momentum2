@@ -89,6 +89,39 @@ interface ExerciseCardProps {
 
 const REST_OPTIONS = [30, 45, 60, 90, 120, 150, 180, 240, 300];
 
+/* ─── Editable cell that allows empty while typing ──── */
+function CellInput({
+  value,
+  onCommit,
+  parseValue,
+  style,
+  ...rest
+}: {
+  value: string;
+  onCommit: (n: number) => void;
+  parseValue: (text: string) => number;
+  style: any;
+} & Omit<React.ComponentProps<typeof TextInput>, 'value' | 'onChangeText' | 'onBlur'>) {
+  const [localValue, setLocalValue] = useState<string | null>(null);
+  const editing = localValue !== null;
+
+  return (
+    <TextInput
+      style={style}
+      value={editing ? localValue : value}
+      onFocus={() => setLocalValue(value)}
+      onChangeText={setLocalValue}
+      onBlur={() => {
+        const n = parseValue(localValue ?? value);
+        onCommit(n);
+        setLocalValue(null);
+      }}
+      selectTextOnFocus
+      {...rest}
+    />
+  );
+}
+
 function ExerciseCard({
   name,
   sets,
@@ -275,31 +308,25 @@ function ExerciseCard({
               <Text style={[styles.setNumber, styles.colSet]}>{setIndex + 1}</Text>
               <Text style={[styles.prevText, styles.colPrev]}>{prevText}</Text>
               <View style={[styles.colWeight, styles.inputContainer]}>
-                <TextInput
-                  style={styles.cellInput}
+                <CellInput
                   value={setItem.goal_weight > 0 ? String(setItem.goal_weight) : ''}
-                  onChangeText={(text) => {
-                    const n = parseFloat(text);
-                    onSetWeightChange(setIndex, isNaN(n) ? 0 : n);
-                  }}
+                  onCommit={(n) => onSetWeightChange(setIndex, n)}
                   placeholder="—"
                   placeholderTextColor={colors.textTertiary}
                   keyboardType="decimal-pad"
-                  selectTextOnFocus
+                  style={styles.cellInput}
                   maxLength={5}
+                  parseValue={(t) => { const n = parseFloat(t); return isNaN(n) ? 0 : n; }}
                 />
               </View>
               <View style={[styles.colReps, styles.inputContainer]}>
-                <TextInput
-                  style={styles.cellInput}
+                <CellInput
                   value={String(setItem.goal_reps)}
-                  onChangeText={(text) => {
-                    const n = parseInt(text, 10);
-                    if (!isNaN(n) && n > 0) onSetRepsChange(setIndex, n);
-                  }}
+                  onCommit={(n) => onSetRepsChange(setIndex, n)}
                   keyboardType="number-pad"
-                  selectTextOnFocus
+                  style={styles.cellInput}
                   maxLength={3}
+                  parseValue={(t) => { const n = parseInt(t, 10); return isNaN(n) || n < 1 ? 1 : n; }}
                 />
               </View>
               <View style={styles.colAction}>

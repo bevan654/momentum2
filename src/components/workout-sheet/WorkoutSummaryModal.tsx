@@ -21,7 +21,7 @@ import type { WorkoutOverlayData } from '../dev/WorkoutOverlay';
 // ── Edit-mode types ──────────────────────────────────
 
 type EditSet = { kg: string; reps: string; completed: boolean; set_type: string };
-type EditExercise = { name: string; category: string | null; sets: EditSet[] };
+type EditExercise = { name: string; category: string | null; exercise_type?: string; sets: EditSet[] };
 
 type Props = {
   onDismiss: () => void;
@@ -44,6 +44,16 @@ function formatVolume(kg: number): string {
   return `${kg.toLocaleString()} kg`;
 }
 
+function formatTimeSecs(secs: number): string {
+  if (secs <= 0) return '0:00';
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+const isTimedType = (t?: string) => t === 'duration';
+const showsKg = (t?: string) => t === 'weighted' || t === 'weighted+bodyweight' || !t;
+
 function formatWorkoutDate(isoString: string): string {
   const d = new Date(isoString);
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -57,17 +67,28 @@ function formatWorkoutDate(isoString: string): string {
 function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercise: ExerciseWithSets; colors: ThemeColors; styles: ReturnType<typeof createStyles>; prevSets?: { kg: number; reps: number }[] }) {
   const catColor = exercise.category ? getMuscleGroupColor(exercise.category) : colors.textTertiary;
   const completedSets = exercise.sets.filter((s) => s.completed);
-  const totalReps = completedSets.reduce((sum, s) => sum + s.reps, 0);
+  const timed = isTimedType(exercise.exercise_type);
+  const hasKg = showsKg(exercise.exercise_type);
 
-  // Volume progression
-  const volume = completedSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
-  const prevVolume = prevSets ? prevSets.reduce((sum, s) => sum + s.kg * s.reps, 0) : 0;
-  const volDiff = prevSets && prevVolume > 0 ? Math.round(((volume - prevVolume) / prevVolume) * 100) : null;
+  // Summary line
+  const summaryLine = timed
+    ? `${completedSets.length} sets · ${formatTimeSecs(completedSets.reduce((sum, s) => sum + s.reps, 0))} total`
+    : `${completedSets.length} sets · ${completedSets.reduce((sum, s) => sum + s.reps, 0)} reps`;
 
-  // Top weight comparison
-  const topWeight = completedSets.reduce((max, s) => Math.max(max, s.kg), 0);
-  const prevTopWeight = prevSets ? prevSets.reduce((max, s) => Math.max(max, s.kg), 0) : 0;
-  const weightDiff = prevSets && prevTopWeight > 0 ? topWeight - prevTopWeight : null;
+  // Volume progression (skip for duration/bodyweight-only)
+  const volume = hasKg ? completedSets.reduce((sum, s) => sum + s.kg * s.reps, 0) : 0;
+  const prevVolume = hasKg && prevSets ? prevSets.reduce((sum, s) => sum + s.kg * s.reps, 0) : 0;
+  const volDiff = hasKg && prevSets && prevVolume > 0 ? Math.round(((volume - prevVolume) / prevVolume) * 100) : null;
+
+  // Top weight comparison (skip for non-weighted)
+  const topWeight = hasKg ? completedSets.reduce((max, s) => Math.max(max, s.kg), 0) : 0;
+  const prevTopWeight = hasKg && prevSets ? prevSets.reduce((max, s) => Math.max(max, s.kg), 0) : 0;
+  const weightDiff = hasKg && prevSets && prevTopWeight > 0 ? topWeight - prevTopWeight : null;
+
+  // Duration total for timed exercises
+  const totalTime = timed ? completedSets.reduce((sum, s) => sum + s.reps, 0) : 0;
+  const prevTotalTime = timed && prevSets ? prevSets.reduce((sum, s) => sum + s.reps, 0) : 0;
+  const timeDiff = timed && prevSets && prevTotalTime > 0 ? Math.round(((totalTime - prevTotalTime) / prevTotalTime) * 100) : null;
 
   return (
     <View style={styles.summaryCard}>
@@ -75,31 +96,50 @@ function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercis
         <View style={[styles.catStrip, { backgroundColor: catColor }]} />
         <View style={{ flex: 1 }}>
           <Text style={styles.exerciseDetailName} numberOfLines={1}>{exercise.name}</Text>
-          <Text style={styles.summaryExSummary}>{completedSets.length} sets · {totalReps} reps</Text>
+          <Text style={styles.summaryExSummary}>{summaryLine}</Text>
         </View>
       </View>
 
       {/* Progression stats */}
       <View style={styles.progressionRow}>
-        <View style={styles.progressionItem}>
-          <Text style={styles.progressionLabel}>Vol</Text>
-          <Text style={styles.progressionValue}>{volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : volume} kg</Text>
-          {volDiff !== null && (
-            <Text style={[styles.progressionDelta, volDiff >= 0 ? styles.deltaUp : styles.deltaDown]}>
-              {volDiff >= 0 ? '+' : ''}{volDiff}%
-            </Text>
-          )}
-        </View>
-        <View style={styles.progressionDivider} />
-        <View style={styles.progressionItem}>
-          <Text style={styles.progressionLabel}>Top</Text>
-          <Text style={styles.progressionValue}>{topWeight} kg</Text>
-          {weightDiff !== null && weightDiff !== 0 && (
-            <Text style={[styles.progressionDelta, weightDiff > 0 ? styles.deltaUp : styles.deltaDown]}>
-              {weightDiff > 0 ? '+' : ''}{weightDiff} kg
-            </Text>
-          )}
-        </View>
+        {hasKg ? (
+          <>
+            <View style={styles.progressionItem}>
+              <Text style={styles.progressionLabel}>Vol</Text>
+              <Text style={styles.progressionValue}>{volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : volume} kg</Text>
+              {volDiff !== null && (
+                <Text style={[styles.progressionDelta, volDiff >= 0 ? styles.deltaUp : styles.deltaDown]}>
+                  {volDiff >= 0 ? '+' : ''}{volDiff}%
+                </Text>
+              )}
+            </View>
+            <View style={styles.progressionDivider} />
+            <View style={styles.progressionItem}>
+              <Text style={styles.progressionLabel}>Top</Text>
+              <Text style={styles.progressionValue}>{topWeight} kg</Text>
+              {weightDiff !== null && weightDiff !== 0 && (
+                <Text style={[styles.progressionDelta, weightDiff > 0 ? styles.deltaUp : styles.deltaDown]}>
+                  {weightDiff > 0 ? '+' : ''}{weightDiff} kg
+                </Text>
+              )}
+            </View>
+          </>
+        ) : timed ? (
+          <View style={styles.progressionItem}>
+            <Text style={styles.progressionLabel}>Total</Text>
+            <Text style={styles.progressionValue}>{formatTimeSecs(totalTime)}</Text>
+            {timeDiff !== null && (
+              <Text style={[styles.progressionDelta, timeDiff >= 0 ? styles.deltaUp : styles.deltaDown]}>
+                {timeDiff >= 0 ? '+' : ''}{timeDiff}%
+              </Text>
+            )}
+          </View>
+        ) : (
+          <View style={styles.progressionItem}>
+            <Text style={styles.progressionLabel}>Sets</Text>
+            <Text style={styles.progressionValue}>{completedSets.length}</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.summaryDivider} />
@@ -108,8 +148,8 @@ function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercis
       <View style={styles.summaryColHeaders}>
         <Text style={[styles.summaryColHeader, styles.colSet]}>SET</Text>
         <Text style={[styles.summaryColHeader, styles.colPrev]}>PREV</Text>
-        <Text style={[styles.summaryColHeader, styles.colVal]}>KG</Text>
-        <Text style={[styles.summaryColHeader, styles.colVal]}>REPS</Text>
+        {hasKg && <Text style={[styles.summaryColHeader, styles.colVal]}>{exercise.exercise_type === 'weighted+bodyweight' ? '+KG' : 'KG'}</Text>}
+        <Text style={[styles.summaryColHeader, styles.colVal]}>{timed ? 'TIME' : 'REPS'}</Text>
       </View>
 
       {/* Set rows */}
@@ -119,10 +159,14 @@ function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercis
           <View key={s.id} style={styles.summarySetRow}>
             <Text style={[styles.summarySetNum, styles.colSet]}>{i + 1}</Text>
             <Text style={[styles.summaryPrevText, styles.colPrev]}>
-              {prev ? `${prev.kg}×${prev.reps}` : '—'}
+              {prev
+                ? timed ? formatTimeSecs(prev.reps)
+                : hasKg ? `${prev.kg}×${prev.reps}`
+                : `${prev.reps}`
+                : '—'}
             </Text>
-            <Text style={[styles.summaryCellVal, styles.colVal]}>{s.kg}</Text>
-            <Text style={[styles.summaryCellVal, styles.colVal]}>{s.reps}</Text>
+            {hasKg && <Text style={[styles.summaryCellVal, styles.colVal]}>{s.kg}</Text>}
+            <Text style={[styles.summaryCellVal, styles.colVal]}>{timed ? formatTimeSecs(s.reps) : s.reps}</Text>
           </View>
         );
       })}
@@ -133,61 +177,86 @@ function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercis
 function SummaryExerciseSection({ exercise, colors, styles, prevSets }: { exercise: SummaryExercise; colors: ThemeColors; styles: ReturnType<typeof createStyles>; prevSets?: { kg: number; reps: number }[] }) {
   const catColor = exercise.category ? getMuscleGroupColor(exercise.category) : colors.textTertiary;
   const completedSets = exercise.sets.filter((s) => s.completed);
-  const totalReps = completedSets.reduce((sum, s) => sum + s.reps, 0);
+  const timed = isTimedType(exercise.exercise_type);
+  const hasKg = showsKg(exercise.exercise_type);
 
-  // Volume progression
-  const volume = completedSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
-  const prevVolume = prevSets ? prevSets.reduce((sum, s) => sum + s.kg * s.reps, 0) : 0;
-  const volDiff = prevSets && prevVolume > 0 ? Math.round(((volume - prevVolume) / prevVolume) * 100) : null;
+  const summaryLine = timed
+    ? `${completedSets.length} sets · ${formatTimeSecs(completedSets.reduce((sum, s) => sum + s.reps, 0))} total`
+    : `${completedSets.length} sets · ${completedSets.reduce((sum, s) => sum + s.reps, 0)} reps`;
 
-  // Top weight comparison
-  const topWeight = completedSets.reduce((max, s) => Math.max(max, s.kg), 0);
-  const prevTopWeight = prevSets ? prevSets.reduce((max, s) => Math.max(max, s.kg), 0) : 0;
-  const weightDiff = prevSets && prevTopWeight > 0 ? topWeight - prevTopWeight : null;
+  // Volume progression (skip for duration/bodyweight-only)
+  const volume = hasKg ? completedSets.reduce((sum, s) => sum + s.kg * s.reps, 0) : 0;
+  const prevVolume = hasKg && prevSets ? prevSets.reduce((sum, s) => sum + s.kg * s.reps, 0) : 0;
+  const volDiff = hasKg && prevSets && prevVolume > 0 ? Math.round(((volume - prevVolume) / prevVolume) * 100) : null;
+
+  const topWeight = hasKg ? completedSets.reduce((max, s) => Math.max(max, s.kg), 0) : 0;
+  const prevTopWeight = hasKg && prevSets ? prevSets.reduce((max, s) => Math.max(max, s.kg), 0) : 0;
+  const weightDiff = hasKg && prevSets && prevTopWeight > 0 ? topWeight - prevTopWeight : null;
+
+  const totalTime = timed ? completedSets.reduce((sum, s) => sum + s.reps, 0) : 0;
+  const prevTotalTime = timed && prevSets ? prevSets.reduce((sum, s) => sum + s.reps, 0) : 0;
+  const timeDiff = timed && prevSets && prevTotalTime > 0 ? Math.round(((totalTime - prevTotalTime) / prevTotalTime) * 100) : null;
 
   return (
     <View style={styles.summaryCard}>
-      {/* Exercise name + summary */}
       <View style={styles.exerciseHeader}>
         <View style={[styles.catStrip, { backgroundColor: catColor }]} />
         <View style={{ flex: 1 }}>
           <Text style={styles.exerciseDetailName} numberOfLines={1}>{exercise.name}</Text>
-          <Text style={styles.summaryExSummary}>{completedSets.length} sets · {totalReps} reps</Text>
+          <Text style={styles.summaryExSummary}>{summaryLine}</Text>
         </View>
       </View>
 
       {/* Progression stats */}
       <View style={styles.progressionRow}>
-        <View style={styles.progressionItem}>
-          <Text style={styles.progressionLabel}>Vol</Text>
-          <Text style={styles.progressionValue}>{volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : volume} kg</Text>
-          {volDiff !== null && (
-            <Text style={[styles.progressionDelta, volDiff >= 0 ? styles.deltaUp : styles.deltaDown]}>
-              {volDiff >= 0 ? '+' : ''}{volDiff}%
-            </Text>
-          )}
-        </View>
-        <View style={styles.progressionDivider} />
-        <View style={styles.progressionItem}>
-          <Text style={styles.progressionLabel}>Top</Text>
-          <Text style={styles.progressionValue}>{topWeight} kg</Text>
-          {weightDiff !== null && weightDiff !== 0 && (
-            <Text style={[styles.progressionDelta, weightDiff > 0 ? styles.deltaUp : styles.deltaDown]}>
-              {weightDiff > 0 ? '+' : ''}{weightDiff} kg
-            </Text>
-          )}
-        </View>
+        {hasKg ? (
+          <>
+            <View style={styles.progressionItem}>
+              <Text style={styles.progressionLabel}>Vol</Text>
+              <Text style={styles.progressionValue}>{volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : volume} kg</Text>
+              {volDiff !== null && (
+                <Text style={[styles.progressionDelta, volDiff >= 0 ? styles.deltaUp : styles.deltaDown]}>
+                  {volDiff >= 0 ? '+' : ''}{volDiff}%
+                </Text>
+              )}
+            </View>
+            <View style={styles.progressionDivider} />
+            <View style={styles.progressionItem}>
+              <Text style={styles.progressionLabel}>Top</Text>
+              <Text style={styles.progressionValue}>{topWeight} kg</Text>
+              {weightDiff !== null && weightDiff !== 0 && (
+                <Text style={[styles.progressionDelta, weightDiff > 0 ? styles.deltaUp : styles.deltaDown]}>
+                  {weightDiff > 0 ? '+' : ''}{weightDiff} kg
+                </Text>
+              )}
+            </View>
+          </>
+        ) : timed ? (
+          <View style={styles.progressionItem}>
+            <Text style={styles.progressionLabel}>Total</Text>
+            <Text style={styles.progressionValue}>{formatTimeSecs(totalTime)}</Text>
+            {timeDiff !== null && (
+              <Text style={[styles.progressionDelta, timeDiff >= 0 ? styles.deltaUp : styles.deltaDown]}>
+                {timeDiff >= 0 ? '+' : ''}{timeDiff}%
+              </Text>
+            )}
+          </View>
+        ) : (
+          <View style={styles.progressionItem}>
+            <Text style={styles.progressionLabel}>Sets</Text>
+            <Text style={styles.progressionValue}>{completedSets.length}</Text>
+          </View>
+        )}
       </View>
 
-      {/* Divider */}
       <View style={styles.summaryDivider} />
 
       {/* Column headers */}
       <View style={styles.summaryColHeaders}>
         <Text style={[styles.summaryColHeader, styles.colSet]}>SET</Text>
         <Text style={[styles.summaryColHeader, styles.colPrev]}>PREV</Text>
-        <Text style={[styles.summaryColHeader, styles.colVal]}>KG</Text>
-        <Text style={[styles.summaryColHeader, styles.colVal]}>REPS</Text>
+        {hasKg && <Text style={[styles.summaryColHeader, styles.colVal]}>{exercise.exercise_type === 'weighted+bodyweight' ? '+KG' : 'KG'}</Text>}
+        <Text style={[styles.summaryColHeader, styles.colVal]}>{timed ? 'TIME' : 'REPS'}</Text>
       </View>
 
       {/* Set rows */}
@@ -197,10 +266,14 @@ function SummaryExerciseSection({ exercise, colors, styles, prevSets }: { exerci
           <View key={i} style={styles.summarySetRow}>
             <Text style={[styles.summarySetNum, styles.colSet]}>{i + 1}</Text>
             <Text style={[styles.summaryPrevText, styles.colPrev]}>
-              {prev ? `${prev.kg}×${prev.reps}` : '—'}
+              {prev
+                ? timed ? formatTimeSecs(prev.reps)
+                : hasKg ? `${prev.kg}×${prev.reps}`
+                : `${prev.reps}`
+                : '—'}
             </Text>
-            <Text style={[styles.summaryCellVal, styles.colVal]}>{s.kg}</Text>
-            <Text style={[styles.summaryCellVal, styles.colVal]}>{s.reps}</Text>
+            {hasKg && <Text style={[styles.summaryCellVal, styles.colVal]}>{s.kg}</Text>}
+            <Text style={[styles.summaryCellVal, styles.colVal]}>{timed ? formatTimeSecs(s.reps) : s.reps}</Text>
           </View>
         );
       })}
@@ -257,9 +330,15 @@ function EditableExerciseSection({
         <View style={styles.setNumCol}>
           <Text style={styles.editColHeader}>#</Text>
         </View>
-        <Text style={[styles.editColHeader, { flex: 1, textAlign: 'center' }]}>kg</Text>
-        <View style={{ width: sw(14) }} />
-        <Text style={[styles.editColHeader, { flex: 1, textAlign: 'center' }]}>reps</Text>
+        {showsKg(exercise.exercise_type) && (
+          <Text style={[styles.editColHeader, { flex: 1, textAlign: 'center' }]}>
+            {exercise.exercise_type === 'weighted+bodyweight' ? '+kg' : 'kg'}
+          </Text>
+        )}
+        {showsKg(exercise.exercise_type) && <View style={{ width: sw(14) }} />}
+        <Text style={[styles.editColHeader, { flex: 1, textAlign: 'center' }]}>
+          {isTimedType(exercise.exercise_type) ? 'secs' : 'reps'}
+        </Text>
         <View style={styles.setStatusCol} />
       </View>
 
@@ -274,23 +353,25 @@ function EditableExerciseSection({
                 <Text style={styles.setNumber}>{i + 1}</Text>
               )}
             </View>
-            <TextInput
-              style={styles.editInput}
-              value={s.kg}
-              onChangeText={(v) => onUpdateSet(exIdx, i, 'kg', v)}
-              keyboardType="decimal-pad"
-              maxLength={6}
-              selectTextOnFocus
-              placeholderTextColor={colors.textTertiary}
-              placeholder="0"
-            />
-            <Text style={styles.setTimes}>&times;</Text>
+            {showsKg(exercise.exercise_type) && (
+              <TextInput
+                style={styles.editInput}
+                value={s.kg}
+                onChangeText={(v) => onUpdateSet(exIdx, i, 'kg', v)}
+                keyboardType="decimal-pad"
+                maxLength={6}
+                selectTextOnFocus
+                placeholderTextColor={colors.textTertiary}
+                placeholder="0"
+              />
+            )}
+            {showsKg(exercise.exercise_type) && <Text style={styles.setTimes}>&times;</Text>}
             <TextInput
               style={styles.editInput}
               value={s.reps}
               onChangeText={(v) => onUpdateSet(exIdx, i, 'reps', v)}
               keyboardType="number-pad"
-              maxLength={4}
+              maxLength={isTimedType(exercise.exercise_type) ? 5 : 4}
               selectTextOnFocus
               placeholderTextColor={colors.textTertiary}
               placeholder="0"
@@ -720,6 +801,7 @@ export default function WorkoutSummaryModal(props: Props) {
       exercises = src.map((ex) => ({
         name: ex.name,
         category: ex.category,
+        exercise_type: ex.exercise_type,
         sets: ex.sets.map((s) => ({
           kg: String(s.kg),
           reps: String(s.reps),
@@ -731,6 +813,7 @@ export default function WorkoutSummaryModal(props: Props) {
       exercises = (data as WorkoutWithDetails).exercises.map((ex) => ({
         name: ex.name,
         category: ex.category,
+        exercise_type: ex.exercise_type,
         sets: ex.sets.map((s) => ({
           kg: String(s.kg),
           reps: String(s.reps),
@@ -878,6 +961,7 @@ export default function WorkoutSummaryModal(props: Props) {
       const newSummaryExercises: SummaryExercise[] = cleanedExercises.map((ex) => ({
         name: ex.name,
         category: ex.category,
+        exercise_type: ex.exercise_type || 'weighted',
         sets: ex.sets.map((s) => ({
           kg: parseFloat(s.kg) || 0,
           reps: parseInt(s.reps, 10) || 0,
@@ -1002,7 +1086,8 @@ export default function WorkoutSummaryModal(props: Props) {
         : (data as WorkoutWithDetails).exercises.map((ex) => ({
             name: ex.name,
             category: ex.category,
-            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed, set_type: s.set_type })),
+            exercise_type: ex.exercise_type || 'weighted',
+            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed, set_type: s.set_type || 'working' })),
           }))
     ),
     duration: displayDuration,

@@ -1,11 +1,9 @@
 import React, { useMemo, useCallback, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
@@ -143,32 +141,6 @@ export default function ProgramProgressScreen() {
     return `${m}m`;
   };
 
-  // Swipe dismiss
-  const SCREEN_H = Dimensions.get('window').height;
-  const translateY = useSharedValue(0);
-  const ctx = useSharedValue(0);
-  const dismiss = useCallback(() => navigation.goBack(), [navigation]);
-
-  const panGesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetY(8)
-        .onStart(() => { ctx.value = translateY.value; })
-        .onUpdate((e) => { translateY.value = Math.max(0, ctx.value + e.translationY); })
-        .onEnd((e) => {
-          if (e.translationY > 120 || e.velocityY > 800) {
-            translateY.value = withSpring(SCREEN_H, { velocity: e.velocityY, damping: 50, stiffness: 300, mass: 0.8, overshootClamping: true });
-            runOnJS(dismiss)();
-          } else {
-            translateY.value = withSpring(0, { damping: 20, stiffness: 200 });
-          }
-        }),
-    [dismiss],
-  );
-
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: Math.max(0, translateY.value) }],
-  }));
 
   if (!program) {
     return (
@@ -181,13 +153,7 @@ export default function ProgramProgressScreen() {
   }
 
   return (
-    <Animated.View style={[styles.container, sheetStyle]}>
-      <GestureDetector gesture={panGesture}>
-        <Animated.View style={styles.handleRow} hitSlop={{ top: 10, bottom: 10 }}>
-          <View style={styles.handle} />
-        </Animated.View>
-      </GestureDetector>
-
+    <View style={styles.container}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
@@ -353,7 +319,7 @@ export default function ProgramProgressScreen() {
 
         <View style={{ height: sw(40) }} />
       </ScrollView>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -362,21 +328,7 @@ export default function ProgramProgressScreen() {
 const createStyles = (colors: ThemeColors, topInset: number) => StyleSheet.create({
   container: {
     flex: 1,
-    marginTop: topInset + sw(44),
     backgroundColor: colors.background,
-    borderTopLeftRadius: sw(16),
-    borderTopRightRadius: sw(16),
-    overflow: 'hidden',
-  },
-  handleRow: {
-    alignItems: 'center',
-    paddingVertical: sw(10),
-  },
-  handle: {
-    width: sw(36),
-    height: sw(4),
-    backgroundColor: colors.textTertiary + '40',
-    borderRadius: sw(2),
   },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: sw(20), paddingBottom: sw(20) },
