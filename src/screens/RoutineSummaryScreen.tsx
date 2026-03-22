@@ -1,11 +1,9 @@
-import React, { useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, InteractionManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
@@ -93,42 +91,12 @@ export default function RoutineSummaryScreen() {
   const MAP_W = sw(44);
   const MAP_H = sw(52);
 
-  const SCREEN_H = Dimensions.get('window').height;
-  const translateY = useSharedValue(0);
-  const ctx = useSharedValue(0);
-
-  const dismiss = useCallback(() => navigation.goBack(), [navigation]);
-
-  const panGesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetY(8)
-        .onStart(() => {
-          ctx.value = translateY.value;
-        })
-        .onUpdate((e) => {
-          translateY.value = Math.max(0, ctx.value + e.translationY);
-        })
-        .onEnd((e) => {
-          if (e.translationY > 120 || e.velocityY > 800) {
-            translateY.value = withSpring(SCREEN_H, {
-              velocity: e.velocityY,
-              damping: 50,
-              stiffness: 300,
-              mass: 0.8,
-              overshootClamping: true,
-            });
-            runOnJS(dismiss)();
-          } else {
-            translateY.value = withSpring(0, { damping: 20, stiffness: 200 });
-          }
-        }),
-    [dismiss],
-  );
-
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: Math.max(0, translateY.value) }],
-  }));
+  // Defer heavy content until after the navigation transition fully settles
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 400);
+    return () => clearTimeout(timer);
+  }, []);
 
   if (!routine) {
     return (
@@ -149,14 +117,7 @@ export default function RoutineSummaryScreen() {
     : null;
 
   return (
-    <Animated.View style={[styles.container, sheetStyle]}>
-      {/* Drag handle */}
-      <GestureDetector gesture={panGesture}>
-        <Animated.View style={styles.handleRow} hitSlop={{ top: 10, bottom: 10 }}>
-          <View style={styles.handle} />
-        </Animated.View>
-      </GestureDetector>
-
+    <View style={styles.container}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -164,6 +125,9 @@ export default function RoutineSummaryScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.editBtn}>
+            <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>{isPreview ? 'Workout Summary' : 'Routine Summary'}</Text>
           {!isPreview ? (
             <TouchableOpacity
@@ -184,8 +148,27 @@ export default function RoutineSummaryScreen() {
           </Text>
         </View>
 
-        {/* Exercise cards */}
-        {routine.exercises.map((ex, i) => {
+        {/* Skeleton placeholders while loading */}
+        {!ready && routine.exercises.map((_, i) => (
+          <View key={`skel-${i}`} style={styles.exerciseCard}>
+            <View style={styles.skelBar} />
+            <View style={styles.skelBarShort} />
+            <View style={{ height: sw(8) }} />
+            <View style={styles.skelRow}>
+              <View style={styles.skelCell} />
+              <View style={styles.skelCell} />
+              <View style={styles.skelCell} />
+            </View>
+            <View style={styles.skelRow}>
+              <View style={styles.skelCell} />
+              <View style={styles.skelCell} />
+              <View style={styles.skelCell} />
+            </View>
+          </View>
+        ))}
+
+        {/* Exercise cards — deferred until transition completes */}
+        {ready && routine.exercises.map((ex, i) => {
           const reps = ex.set_reps || Array(ex.default_sets).fill(ex.default_reps);
           const weights = ex.set_weights || Array(ex.default_sets).fill(0);
           const prev = prevMap[ex.name] || [];
@@ -302,26 +285,14 @@ export default function RoutineSummaryScreen() {
           <Ionicons name="play" size={ms(22)} color={colors.textOnAccent} />
         </TouchableOpacity>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
 const createStyles = (colors: ThemeColors, topInset: number) => StyleSheet.create({
   container: {
     flex: 1,
-    marginTop: topInset + sw(44),
     backgroundColor: colors.background,
-    overflow: 'hidden',
-  },
-  handleRow: {
-    alignItems: 'center',
-    paddingVertical: sw(10),
-  },
-  handle: {
-    width: sw(36),
-    height: sw(4),
-    borderRadius: sw(2),
-    backgroundColor: colors.textTertiary + '60',
   },
   header: {
     flexDirection: 'row',
@@ -368,6 +339,32 @@ const createStyles = (colors: ThemeColors, topInset: number) => StyleSheet.creat
     fontSize: ms(13),
     fontFamily: Fonts.medium,
     lineHeight: ms(18),
+  },
+
+  /* Skeleton */
+  skelBar: {
+    height: sw(14),
+    width: '60%',
+    backgroundColor: colors.cardBorder,
+    borderRadius: sw(4),
+    marginBottom: sw(8),
+  },
+  skelBarShort: {
+    height: sw(10),
+    width: '35%',
+    backgroundColor: colors.cardBorder,
+    borderRadius: sw(4),
+  },
+  skelRow: {
+    flexDirection: 'row',
+    gap: sw(10),
+    marginBottom: sw(6),
+  },
+  skelCell: {
+    flex: 1,
+    height: sw(12),
+    backgroundColor: colors.cardBorder,
+    borderRadius: sw(4),
   },
 
   /* Exercise card */

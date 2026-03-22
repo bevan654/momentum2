@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   Text,
   Pressable,
+  Modal,
   StyleSheet,
   Keyboard,
   Platform,
@@ -22,7 +23,7 @@ import Animated, {
   runOnJS,
   Easing,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,12 +41,12 @@ import ExercisePicker from './ExercisePicker';
 /* ─── Constants (computed once) ────────────────────────── */
 
 const SCREEN_H = Dimensions.get('window').height;
-const SHEET_H = SCREEN_H;
+const SHEET_H = Math.round(SCREEN_H * 0.95);
 const RADIUS = sw(20);
 const HANDLE_W = sw(40);
 const DISMISS_THRESHOLD = 80;
 const VELOCITY_THRESHOLD = 800;
-const BACKDROP_MAX = 1;
+const BACKDROP_MAX = 0.6;
 
 const OPEN_SPRING = { damping: 28, stiffness: 280, mass: 0.8 };
 const SNAP_SPRING = { damping: 24, stiffness: 350, mass: 0.7 };
@@ -487,35 +488,28 @@ const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
             }} />
           </View>
 
-          {/* Set labels */}
-          <View style={{ flexDirection: 'row', marginTop: -sw(3) }}>
-            {overload.segments.map((_, i) => (
-              <Text
-                key={i}
-                style={{
-                  flex: (overload.segments[i] - (overload.segments[i - 1] ?? 0)) * overload.ghostPct,
-                  textAlign: 'center',
-                  color: colors.textTertiary,
-                  fontSize: ms(8),
-                  fontFamily: Fonts.medium,
-                }}
-              >
-                S{i + 1}
-              </Text>
-            ))}
+          {/* Set markers — kg × reps targets */}
+          <View style={{ flexDirection: 'row', marginTop: sw(2) }}>
+            {overload.segments.map((_, i) => {
+              const prev = exercises[0]?.prevSets[i];
+              return (
+                <Text
+                  key={i}
+                  style={{
+                    flex: (overload.segments[i] - (overload.segments[i - 1] ?? 0)) * overload.ghostPct,
+                    textAlign: 'center',
+                    color: colors.textTertiary,
+                    fontSize: ms(8),
+                    fontFamily: Fonts.medium,
+                  }}
+                  numberOfLines={1}
+                >
+                  {prev ? `${prev.kg}×${prev.reps}` : `S${i + 1}`}
+                </Text>
+              );
+            })}
             <View style={{ flex: 1 - overload.ghostPct }} />
           </View>
-
-          {/* Pre-first-set prompt */}
-          {overload.completedCount === 0 && (
-            <Text style={{
-              color: colors.textTertiary,
-              fontSize: ms(10),
-              fontFamily: Fonts.medium,
-            }}>
-              Complete your first set to start your Momentum
-            </Text>
-          )}
 
           {/* Needs more sets */}
           {overload.needsMoreSets && (
@@ -596,6 +590,7 @@ const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
 
 export default function ActiveWorkoutSheet() {
   const isActive = useActiveWorkoutStore((s) => s.isActive);
+  const sheetVisible = useActiveWorkoutStore((s) => s.sheetVisible);
   const showSummary = useActiveWorkoutStore((s) => s.showSummary);
   const summaryData = useActiveWorkoutStore((s) => s.summaryData);
   const dismissSummary = useActiveWorkoutStore((s) => s.dismissSummary);
@@ -636,21 +631,21 @@ export default function ActiveWorkoutSheet() {
   if (!isActive && !showSummary) return null;
 
   return (
-    <>
-      <SheetOverlay
-        onOpenAdd={handleOpenAdd}
-        onOpenReplace={handleOpenReplace}
-      />
+    <Modal visible={sheetVisible} transparent statusBarTranslucent animationType="none">
+      <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+        <SheetOverlay
+          onOpenAdd={handleOpenAdd}
+          onOpenReplace={handleOpenReplace}
+        />
 
-      <ExercisePicker
-        visible={pickerVisible}
-        onClose={() => setPickerVisible(false)}
-        onSelect={handlePickerSelect}
-        mode={pickerMode}
-      />
-
-      {/* Normal workout finish is handled by WorkoutFinishScreen in TabNavigator */}
-    </>
+        <ExercisePicker
+          visible={pickerVisible}
+          onClose={() => setPickerVisible(false)}
+          onSelect={handlePickerSelect}
+          mode={pickerMode}
+        />
+      </GestureHandlerRootView>
+    </Modal>
   );
 }
 
@@ -875,9 +870,9 @@ const SheetOverlay = React.memo(function SheetOverlay({
         style={[styles.sheet, sheetStyle]}
         renderToHardwareTextureAndroid
       >
-        {/* Drag handle — large touch target for reliable iOS gestures */}
+        {/* Drag handle — swipe down to dismiss */}
         <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.handleRow, { paddingTop: insets.top + sw(18) }]} hitSlop={{ top: 10, bottom: 10 }}>
+          <Animated.View style={[styles.handleRow, { paddingTop: sw(12) }]}>
             <View style={styles.handle} />
           </Animated.View>
         </GestureDetector>
@@ -975,6 +970,8 @@ const createStyles = (colors: ThemeColors) =>
       right: 0,
       height: SHEET_H,
       backgroundColor: colors.background,
+      borderTopLeftRadius: RADIUS,
+      borderTopRightRadius: RADIUS,
       overflow: 'hidden',
     },
     handleRow: {

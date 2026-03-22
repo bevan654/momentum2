@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, TouchableWithoutFeedback, ActivityIndicator, ScrollView, StyleSheet, Alert } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { View, Text, TouchableOpacity, TouchableWithoutFeedback, ActivityIndicator, ScrollView, StyleSheet, Alert, Modal, StatusBar } from 'react-native';
 import { Canvas, Path as SkiaPath, Rect as SkiaRect, Oval as SkiaOval, Skia, BlurMask, RadialGradient, vec } from '@shopify/react-native-skia';
 import { Ionicons } from '@expo/vector-icons';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, Easing } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { useThemeStore, type ThemeMode } from '../stores/useThemeStore';
 import { Fonts } from '../theme/typography';
@@ -27,7 +25,6 @@ import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal
 import ActivityChart from '../components/workouts/ActivityChart';
 import TodayScheduled from '../components/workouts/TodayScheduled';
 import type { Routine, RoutineExercise } from '../stores/useRoutineStore';
-import { hideRecoveryOverlay } from '../navigation/TabNavigator';
 import { navigateWorkoutsStack } from '../navigation/WorkoutsNavigator';
 
 function toDateKey(iso: string): string {
@@ -208,8 +205,10 @@ function getLastLabel(lastDate: Date | null): string {
   if (!lastDate) return 'Never';
   const elapsed = (Date.now() - lastDate.getTime()) / (1000 * 60 * 60);
   if (elapsed < 24) return `${Math.round(elapsed)}h ago`;
-  if (elapsed < 48) return '1d ago';
-  return `${Math.round(elapsed / 24)}d ago`;
+  const days = Math.floor(elapsed / 24);
+  const hours = Math.round(elapsed % 24);
+  if (days < 7) return hours > 0 ? `${days}d ${hours}h ago` : `${days}d ago`;
+  return `${days}d ago`;
 }
 
 /* ─── History overlay (swipe-to-dismiss) ─────────────── */
@@ -226,13 +225,14 @@ const BODY_FILTERS = ['All', 'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 
 const PLAN_FILTERS = ['All', 'Program', 'Quick'] as const;
 type PlanFilter = typeof PLAN_FILTERS[number];
 
+const SHEET_HEIGHT = SCREEN_HEIGHT * 0.92;
+
 const HistoryOverlay = React.memo(function HistoryOverlay({
   workouts,
   catalogMap,
   debugPart,
   styles,
   colors,
-  entering,
   onClose,
   onSelectWorkout,
 }: {
@@ -241,28 +241,26 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
   debugPart: string[];
   styles: any;
   colors: ThemeColors;
-  entering: boolean;
   onClose: () => void;
   onSelectWorkout: (w: WorkoutWithDetails) => void;
 }) {
-  const translateY = useSharedValue(entering ? -40 : 0);
-  const overlayOpacity = useSharedValue(entering ? 0 : 1);
+  const translateY = useSharedValue(SHEET_HEIGHT);
+  const backdropOpacity = useSharedValue(0);
   const ctx = useSharedValue(0);
 
+  // Animate in immediately on mount
   useEffect(() => {
-    if (entering) {
-      translateY.value = withTiming(0, { duration: 350, easing: Easing.out(Easing.cubic) });
-      overlayOpacity.value = withTiming(1, { duration: 300 });
-    }
-  }, [entering]);
+    translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
+    backdropOpacity.value = withTiming(1, { duration: 250 });
+  }, []);
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('All');
   const [bodyFilter, setBodyFilter] = useState<string>(debugPart.length > 0 ? debugPart[0] : 'All');
   const [planFilter, setPlanFilter] = useState<PlanFilter>('All');
 
   const dismiss = useCallback(() => {
-    translateY.value = withTiming(40, { duration: 300, easing: Easing.in(Easing.cubic) });
-    overlayOpacity.value = withTiming(0, { duration: 300 }, () => {
+    translateY.value = withSpring(SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
+    backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
       runOnJS(onClose)();
     });
   }, [onClose]);
@@ -282,20 +280,23 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
             e.translationY > DISMISS_THRESHOLD ||
             e.velocityY > VELOCITY_THRESHOLD
           ) {
-            translateY.value = withTiming(40, { duration: 300, easing: Easing.in(Easing.cubic) });
-            overlayOpacity.value = withTiming(0, { duration: 300 }, () => {
+            translateY.value = withSpring(SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
+            backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
               runOnJS(onClose)();
             });
           } else {
-            translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
+            translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
           }
         }),
     [onClose],
   );
 
-  const animStyle = useAnimatedStyle(() => ({
+  const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
-    opacity: overlayOpacity.value,
+  }));
+
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
   }));
 
   const filtered = useMemo(() => {
@@ -349,12 +350,18 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
   }, []);
 
   return (
-    <Animated.View style={[styles.historyOverlay, animStyle]}>
-      <GestureDetector gesture={panGesture}>
-        <Animated.View style={styles.historyHandle}>
-          <View style={styles.historyHandleBar} />
-        </Animated.View>
-      </GestureDetector>
+    <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+    <View style={styles.historyBackdropWrap}>
+      <StatusBar barStyle="light-content" />
+      <TouchableWithoutFeedback onPress={dismiss}>
+        <Animated.View style={[styles.historyBackdrop, backdropStyle]} />
+      </TouchableWithoutFeedback>
+      <Animated.View style={[styles.historySheet, sheetStyle]}>
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={styles.historyHandle}>
+            <View style={styles.historyHandleBar} />
+          </Animated.View>
+        </GestureDetector>
 
       <View style={styles.historyHeader}>
         <Text style={styles.historyTitle}>{debugPart.length > 0 ? `${debugPart.join(', ')} History` : 'Workout History'}</Text>
@@ -456,7 +463,9 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
           })
         )}
       </ScrollView>
-    </Animated.View>
+      </Animated.View>
+    </View>
+    </GestureHandlerRootView>
   );
 });
 
@@ -485,23 +494,17 @@ function WorkoutHistoryScreen() {
 
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutWithDetails | null>(null);
   const [previewRoutine, setPreviewRoutine] = useState<Routine | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [historyMounted, setHistoryMounted] = useState(false);
-  const [historyEntering, setHistoryEntering] = useState(false);
-  const historyOpacity = useSharedValue(0);
-  const historyTransY = useSharedValue(40);
-
+  const [historyVisible, setHistoryVisible] = useState(false);
   const openHistory = useCallback(() => {
-    setHistoryMounted(true);
-    setHistoryEntering(true);
-    setShowHistory(true);
+    setHistoryVisible(true);
   }, []);
 
   const closeHistory = useCallback(() => {
-    setShowHistory(false);
-    setHistoryEntering(false);
-    // Let the HistoryOverlay's own swipe animation play, then unmount
-    setTimeout(() => setHistoryMounted(false), 350);
+    setHistoryVisible(false);
+  }, []);
+
+  const openPlans = useCallback(() => {
+    navigateWorkoutsStack('Plans');
   }, []);
   const [heroSize, setHeroSize] = useState({ w: 0, h: 0 });
   const [calorieSize, setCalorieSize] = useState({ w: 0, h: 0 });
@@ -1000,7 +1003,7 @@ function WorkoutHistoryScreen() {
           <TodayScheduled
             onPreview={setPreviewRoutine}
             programHeader={activeProgram ? (
-              <TouchableOpacity style={styles.programCardRow} activeOpacity={0.7} onPress={() => hideRecoveryOverlay()}>
+              <TouchableOpacity style={styles.programCardRow} activeOpacity={0.7} onPress={openPlans}>
                 <View style={styles.programCardLeft}>
                   <Text style={styles.programCardLabel}>ACTIVE PROGRAM</Text>
                   <View style={styles.programCardHeader}>
@@ -1033,51 +1036,73 @@ function WorkoutHistoryScreen() {
           <Text style={styles.actionBtnAccentLabel}>Start Empty</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={() => hideRecoveryOverlay()}>
+        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={openPlans}>
           <Ionicons name="clipboard-outline" size={ms(16)} color={colors.textPrimary} />
           <Text style={styles.actionBtnLabel}>Plans</Text>
         </TouchableOpacity>
       </View>
 
       {/* ── History Overlay ──────────────────────── */}
-      {historyMounted && (
+      <Modal
+        visible={historyVisible}
+        transparent
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={closeHistory}
+      >
         <HistoryOverlay
           workouts={workouts}
           catalogMap={catalogMap}
           debugPart={debugParts}
           styles={styles}
           colors={colors}
-          entering={historyEntering}
           onClose={closeHistory}
           onSelectWorkout={(w) => {
             closeHistory();
             setTimeout(() => setSelectedWorkout(w), 350);
           }}
         />
-      )}
+      </Modal>
 
-      {selectedWorkout && (
-        <WorkoutDetailOverlay
-          workout={selectedWorkout}
-          colors={colors}
-          onDismiss={() => setSelectedWorkout(null)}
-          onDelete={async () => {
-            const id = selectedWorkout.id;
-            setSelectedWorkout(null);
-            await deleteWorkout(id);
-          }}
-        />
-      )}
+      <Modal
+        visible={!!selectedWorkout}
+        transparent
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={() => setSelectedWorkout(null)}
+      >
+        {selectedWorkout && (
+          <WorkoutDetailOverlay
+            workout={selectedWorkout}
+            colors={colors}
+            onDismiss={() => setSelectedWorkout(null)}
+            onDelete={async () => {
+              const id = selectedWorkout.id;
+              setSelectedWorkout(null);
+              await deleteWorkout(id);
+            }}
+          />
+        )}
+      </Modal>
 
-      {previewRoutine && (
-        <RoutinePreviewOverlay
-          routine={previewRoutine}
-          colors={colors}
-          catalogMap={catalogMap}
-          prevMap={prevMap}
-          onDismiss={() => setPreviewRoutine(null)}
-        />
-      )}
+      <Modal
+        visible={!!previewRoutine}
+        transparent
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={() => setPreviewRoutine(null)}
+      >
+        {previewRoutine && (
+          <RoutinePreviewOverlay
+            routine={previewRoutine}
+            colors={colors}
+            catalogMap={catalogMap}
+            prevMap={prevMap}
+            onDismiss={() => setPreviewRoutine(null)}
+          />
+        )}
+      </Modal>
+
     </View>
   );
 }
@@ -1102,6 +1127,8 @@ function fmtDate(iso: string): string {
   return `${DAY_LABELS[d.getDay()]}, ${MONTH_LABELS[d.getMonth()]} ${d.getDate()}`;
 }
 
+const DETAIL_SHEET_HEIGHT = SCREEN_HEIGHT * 0.92;
+
 const WorkoutDetailOverlay = React.memo(function WorkoutDetailOverlay({
   workout, colors, onDismiss, onDelete,
 }: {
@@ -1110,32 +1137,27 @@ const WorkoutDetailOverlay = React.memo(function WorkoutDetailOverlay({
   onDismiss: () => void;
   onDelete: () => void;
 }) {
-  const insets = useSafeAreaInsets();
   const os = useMemo(() => overlayStyles(colors), [colors]);
 
+  const translateY = useSharedValue(DETAIL_SHEET_HEIGHT);
   const backdropOpacity = useSharedValue(0);
-  const sheetOpacity = useSharedValue(0);
-  const translateY = useSharedValue(0);
   const ctx = useSharedValue(0);
 
   useEffect(() => {
-    backdropOpacity.value = withTiming(1, { duration: 300 });
-    sheetOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
+    translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
+    backdropOpacity.value = withTiming(1, { duration: 250 });
   }, []);
 
-  const animatedDismiss = useCallback(() => {
-    backdropOpacity.value = withTiming(0, { duration: 250 });
-    sheetOpacity.value = withTiming(0, { duration: 200 }, () => {
+  const dismiss = useCallback(() => {
+    translateY.value = withSpring(DETAIL_SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
+    backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
       runOnJS(onDismiss)();
     });
   }, [onDismiss]);
 
-  const backdropStyle = useAnimatedStyle(() => {
-    const dragFade = translateY.value > 0
-      ? 1 - Math.min(translateY.value / (SCREEN_HEIGHT * 0.5), 1)
-      : 1;
-    return { opacity: backdropOpacity.value * dragFade };
-  });
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
 
   const panGesture = useMemo(
     () =>
@@ -1146,25 +1168,20 @@ const WorkoutDetailOverlay = React.memo(function WorkoutDetailOverlay({
           translateY.value = Math.max(0, ctx.value + e.translationY);
         })
         .onEnd((e) => {
-          if (e.translationY > 120 || e.velocityY > 800) {
-            translateY.value = withSpring(SCREEN_HEIGHT, {
-              velocity: e.velocityY,
-              damping: 50,
-              stiffness: 300,
-              mass: 0.8,
-              overshootClamping: true,
+          if (e.translationY > DISMISS_THRESHOLD || e.velocityY > VELOCITY_THRESHOLD) {
+            translateY.value = withSpring(DETAIL_SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
+            backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
+              runOnJS(onDismiss)();
             });
-            runOnJS(onDismiss)();
           } else {
-            translateY.value = withSpring(0, { damping: 20, stiffness: 200 });
+            translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
           }
         }),
     [onDismiss],
   );
 
   const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: Math.max(0, translateY.value) }],
-    opacity: sheetOpacity.value,
+    transform: [{ translateY: translateY.value }],
   }));
 
   const totalSets = workout.exercises.reduce((n, ex) => n + ex.sets.length, 0);
@@ -1178,23 +1195,21 @@ const WorkoutDetailOverlay = React.memo(function WorkoutDetailOverlay({
   }, [workout]);
 
   return (
-    <View style={StyleSheet.absoluteFill}>
-      <TouchableWithoutFeedback onPress={animatedDismiss}>
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)' }, backdropStyle]} />
+    <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+    <View style={os.backdropWrap}>
+      <StatusBar barStyle="light-content" />
+      <TouchableWithoutFeedback onPress={dismiss}>
+        <Animated.View style={[os.backdrop, backdropStyle]} />
       </TouchableWithoutFeedback>
-      <Animated.View style={[os.container, sheetStyle]}>
+      <Animated.View style={[os.sheetContainer, sheetStyle]}>
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={os.handleRow} hitSlop={{ top: 10, bottom: 10 }}>
+            <View style={os.handle} />
+          </Animated.View>
+        </GestureDetector>
         <ScrollView style={os.scroll} contentContainerStyle={os.scrollContent} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity onPress={animatedDismiss} activeOpacity={0.8}>
-            <GestureDetector gesture={panGesture}>
-              <Animated.View style={os.handleRow} hitSlop={{ top: 10, bottom: 10 }}>
-                <View style={os.handle} />
-              </Animated.View>
-            </GestureDetector>
-
             <View style={os.header}>
-              <View style={os.headerSpacer}>
-                <Ionicons name="chevron-down" size={ms(22)} color={colors.textPrimary} />
-              </View>
+              <View style={os.headerSpacer} />
               <Text style={os.headerTitle}>Workout Details</Text>
               <View style={os.headerSpacer} />
             </View>
@@ -1206,7 +1221,6 @@ const WorkoutDetailOverlay = React.memo(function WorkoutDetailOverlay({
                 {'  ·  '}{fmtDate(workout.created_at)}
               </Text>
             </View>
-          </TouchableOpacity>
 
           {bodyParts.length > 0 && (
             <View style={os.muscleRow}>
@@ -1271,10 +1285,13 @@ const WorkoutDetailOverlay = React.memo(function WorkoutDetailOverlay({
         </View>
       </Animated.View>
     </View>
+    </GestureHandlerRootView>
   );
 });
 
 /* ─── Routine Preview Overlay ─────────────────────────── */
+
+const PREVIEW_SHEET_HEIGHT = SCREEN_HEIGHT * 0.92;
 
 const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
   routine, colors, catalogMap, prevMap, onDismiss,
@@ -1287,21 +1304,25 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
 }) {
   const os = useMemo(() => previewStyles(colors), [colors]);
 
-  const translateY = useSharedValue(-40);
-  const overlayOpacity = useSharedValue(0);
+  const translateY = useSharedValue(PREVIEW_SHEET_HEIGHT);
+  const backdropOpacity = useSharedValue(0);
   const ctx = useSharedValue(0);
 
   useEffect(() => {
-    translateY.value = withTiming(0, { duration: 350, easing: Easing.out(Easing.cubic) });
-    overlayOpacity.value = withTiming(1, { duration: 300 });
+    translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
+    backdropOpacity.value = withTiming(1, { duration: 250 });
   }, []);
 
   const dismiss = useCallback(() => {
-    translateY.value = withTiming(40, { duration: 300, easing: Easing.in(Easing.cubic) });
-    overlayOpacity.value = withTiming(0, { duration: 300 }, () => {
+    translateY.value = withSpring(PREVIEW_SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
+    backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
       runOnJS(onDismiss)();
     });
   }, [onDismiss]);
+
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
 
   const panGesture = useMemo(
     () =>
@@ -1312,13 +1333,13 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
           translateY.value = Math.max(0, ctx.value + e.translationY);
         })
         .onEnd((e) => {
-          if (e.translationY > 120 || e.velocityY > 800) {
-            translateY.value = withTiming(40, { duration: 300, easing: Easing.in(Easing.cubic) });
-            overlayOpacity.value = withTiming(0, { duration: 300 }, () => {
+          if (e.translationY > DISMISS_THRESHOLD || e.velocityY > VELOCITY_THRESHOLD) {
+            translateY.value = withSpring(PREVIEW_SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
+            backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
               runOnJS(onDismiss)();
             });
           } else {
-            translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
+            translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
           }
         }),
     [onDismiss],
@@ -1326,7 +1347,6 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
-    opacity: overlayOpacity.value,
   }));
 
   const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -1335,8 +1355,13 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
     : null;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Animated.View style={[os.container, sheetStyle]}>
+    <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+    <View style={os.backdropWrap}>
+      <StatusBar barStyle="light-content" />
+      <TouchableWithoutFeedback onPress={dismiss}>
+        <Animated.View style={[os.backdrop, backdropStyle]} />
+      </TouchableWithoutFeedback>
+      <Animated.View style={[os.sheetContainer, sheetStyle]}>
         <GestureDetector gesture={panGesture}>
           <Animated.View style={os.handleRow} hitSlop={{ top: 10, bottom: 10 }}>
             <View style={os.handle} />
@@ -1410,11 +1435,26 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
         </ScrollView>
       </Animated.View>
     </View>
+    </GestureHandlerRootView>
   );
 });
 
 const previewStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, overflow: 'hidden' },
+  backdropWrap: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sheetContainer: {
+    height: SCREEN_HEIGHT * 0.92,
+    backgroundColor: colors.background,
+    borderTopLeftRadius: sw(20),
+    borderTopRightRadius: sw(20),
+    overflow: 'hidden',
+  },
   handleRow: { alignItems: 'center', paddingVertical: sw(10) },
   handle: { width: sw(36), height: sw(4), borderRadius: sw(2), backgroundColor: colors.textTertiary + '60' },
   scroll: { flex: 1 },
@@ -1441,6 +1481,21 @@ const previewStyles = (colors: ThemeColors) => StyleSheet.create({
 });
 
 const overlayStyles = (colors: ThemeColors) => StyleSheet.create({
+  backdropWrap: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sheetContainer: {
+    height: SCREEN_HEIGHT * 0.92,
+    backgroundColor: colors.background,
+    borderTopLeftRadius: sw(20),
+    borderTopRightRadius: sw(20),
+    overflow: 'hidden',
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -1843,10 +1898,21 @@ const createStyles = (colors: ThemeColors, mode: string) => {
     },
 
     /* ── History Modal ──────────────────────────────────── */
-    historyOverlay: {
+    historyBackdropWrap: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: colors.background,
       zIndex: 10,
+      justifyContent: 'flex-end',
+    },
+    historyBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    historySheet: {
+      height: SCREEN_HEIGHT * 0.92,
+      backgroundColor: colors.background,
+      borderTopLeftRadius: sw(20),
+      borderTopRightRadius: sw(20),
+      overflow: 'hidden',
     },
     historyHandle: {
       alignItems: 'center',

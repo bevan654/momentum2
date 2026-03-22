@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import StartWorkoutScreen from '../screens/StartWorkoutScreen';
 import CreateRoutineScreen from '../screens/CreateRoutineScreen';
 import RoutineSummaryScreen from '../screens/RoutineSummaryScreen';
 import CreateProgramScreen from '../screens/CreateProgramScreen';
@@ -10,11 +9,14 @@ import ProgramDayEditorScreen from '../screens/ProgramDayEditorScreen';
 import ProgramProgressScreen from '../screens/ProgramProgressScreen';
 import WorkoutHistoryScreen from '../screens/WorkoutHistoryScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
+import StartWorkoutScreen from '../screens/StartWorkoutScreen';
+import SheetWrapper from '../components/SheetWrapper';
 import { useColors } from '../theme/useColors';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 
 export type WorkoutsStackParamList = {
   StartWorkout: undefined;
+  Plans: undefined;
   CreateRoutine: { routineId?: string } | undefined;
   RoutineSummary: { routineId: string };
   CreateProgram: { programId?: string } | undefined;
@@ -28,17 +30,48 @@ const Stack = createNativeStackNavigator<WorkoutsStackParamList>();
 
 /* ─── Recovery overlay control (module-level bridge) ── */
 let _setRecoveryVisible: ((v: boolean) => void) | null = null;
-let _onPlansShow: (() => void) | null = null;
-export function setOnPlansShow(cb: (() => void) | null) { _onPlansShow = cb; }
 export function showRecoveryOverlay() { _setRecoveryVisible?.(true); }
-export function hideRecoveryOverlay() { _setRecoveryVisible?.(false); _onPlansShow?.(); }
+export function hideRecoveryOverlay() { _setRecoveryVisible?.(false); }
 
 /* ─── Stack navigation bridge (for navigating from recovery overlay) ── */
 let _workoutsNavRef: any = null;
-export function setWorkoutsNavRef(nav: any) { _workoutsNavRef = nav; }
 export function navigateWorkoutsStack(screen: string, params?: any) {
   _workoutsNavRef?.navigate(screen, params);
   setTimeout(() => hideRecoveryOverlay(), 50);
+}
+
+// Placeholder root — when stack pops back here, show recovery overlay
+function StackRoot({ navigation }: any) {
+  useEffect(() => {
+    _workoutsNavRef = navigation;
+    const unsubscribe = navigation.addListener('focus', () => {
+      showRecoveryOverlay();
+    });
+    return unsubscribe;
+  }, [navigation]);
+  return <View style={{ flex: 1 }} />;
+}
+
+/* ─── Sheet wrappers for form screens (no own sheet chrome) ── */
+function CreateProgramModal() {
+  return <SheetWrapper><CreateProgramScreen /></SheetWrapper>;
+}
+function CreateRoutineModal() {
+  return <SheetWrapper><CreateRoutineScreen /></SheetWrapper>;
+}
+function ProgramDayEditorModal() {
+  return <SheetWrapper><ProgramDayEditorScreen /></SheetWrapper>;
+}
+
+/* ─── Backdrop wrappers for screens with own sheet chrome ── */
+function RoutineSummaryModal() {
+  return <SheetWrapper hasOwnSheet><RoutineSummaryScreen /></SheetWrapper>;
+}
+function ProgramSummaryModal() {
+  return <SheetWrapper hasOwnSheet><ProgramSummaryScreen /></SheetWrapper>;
+}
+function ProgramProgressModal() {
+  return <SheetWrapper hasOwnSheet><ProgramProgressScreen /></SheetWrapper>;
 }
 
 export default function WorkoutsNavigator() {
@@ -46,7 +79,6 @@ export default function WorkoutsNavigator() {
   const showSummary = useActiveWorkoutStore((s) => s.showSummary);
   const [recoveryVisible, setRecoveryVisible] = useState(true);
 
-  // Expose for external callers
   useEffect(() => {
     _setRecoveryVisible = setRecoveryVisible;
     return () => { _setRecoveryVisible = null; };
@@ -69,7 +101,7 @@ export default function WorkoutsNavigator() {
         </View>
       )}
 
-      {/* Plans stack — on top (zIndex 1), transparent bg so recovery shows through during drag */}
+      {/* Stack — on top (zIndex 1) */}
       <View
         style={{
           position: 'absolute',
@@ -82,50 +114,64 @@ export default function WorkoutsNavigator() {
         <Stack.Navigator
           screenOptions={{
             headerShown: false,
-            animation: 'ios_from_right',
-            gestureEnabled: true,
-            contentStyle: { backgroundColor: 'transparent' },
+            gestureEnabled: false,
+            contentStyle: { backgroundColor: colors.background },
           }}
         >
-          <Stack.Screen name="StartWorkout" component={StartWorkoutScreen} />
-          <Stack.Screen name="CreateRoutine" component={CreateRoutineScreen} />
-          <Stack.Screen name="CreateProgram" component={CreateProgramScreen} />
-          <Stack.Screen name="ProgramDayEditor" component={ProgramDayEditorScreen} />
           <Stack.Screen
-            name="WorkoutDetail"
-            component={WorkoutDetailScreen}
+            name="StartWorkout"
+            component={StackRoot}
+            options={{ animation: 'none', contentStyle: { backgroundColor: 'transparent' } }}
+          />
+
+          {/* ── Plans overlay (needs transparency for backdrop) ── */}
+          <Stack.Screen
+            name="Plans"
+            component={StartWorkoutScreen}
             options={{
-              animation: 'slide_from_bottom',
-              gestureEnabled: false,
-              contentStyle: { backgroundColor: colors.background },
+              presentation: 'transparentModal',
+              contentStyle: { backgroundColor: 'transparent' },
+              animation: 'none',
             }}
+          />
+
+          {/* ── Sub-modals (card presentation for speed) ── */}
+          <Stack.Screen
+            name="CreateProgram"
+            component={CreateProgramModal}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="CreateRoutine"
+            component={CreateRoutineModal}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="ProgramDayEditor"
+            component={ProgramDayEditorModal}
+            options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="RoutineSummary"
-            component={RoutineSummaryScreen}
-            options={{
-              presentation: 'transparentModal',
-              animation: 'fade_from_bottom',
-              gestureEnabled: true,
-            }}
-          />
-          <Stack.Screen
-            name="ProgramProgress"
-            component={ProgramProgressScreen}
-            options={{
-              presentation: 'transparentModal',
-              animation: 'fade_from_bottom',
-              gestureEnabled: true,
-            }}
+            component={RoutineSummaryModal}
+            options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="ProgramSummary"
-            component={ProgramSummaryScreen}
-            options={{
-              presentation: 'transparentModal',
-              animation: 'fade_from_bottom',
-              gestureEnabled: true,
-            }}
+            component={ProgramSummaryModal}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="ProgramProgress"
+            component={ProgramProgressModal}
+            options={{ animation: 'slide_from_right' }}
+          />
+
+          {/* WorkoutDetail keeps its own presentation */}
+          <Stack.Screen
+            name="WorkoutDetail"
+            component={WorkoutDetailScreen}
+            options={{ gestureEnabled: false }}
           />
         </Stack.Navigator>
       </View>

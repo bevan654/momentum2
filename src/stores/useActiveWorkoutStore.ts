@@ -48,6 +48,7 @@ export interface ActiveExercise {
 export interface SummaryExercise {
   name: string;
   category: string | null;
+  exercise_type: string;
   sets: { kg: number; reps: number; completed: boolean; set_type: string }[];
 }
 
@@ -626,6 +627,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     const summaryExercises: SummaryExercise[] = filteredExercises.map((ex) => ({
       name: ex.name,
       category: ex.category,
+      exercise_type: ex.exercise_type,
       sets: ex.sets.map((s) => ({
         kg: parseFloat(s.kg) || 0,
         reps: parseInt(s.reps, 10) || 0,
