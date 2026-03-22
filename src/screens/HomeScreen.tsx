@@ -11,6 +11,7 @@ import { useSupplementStore } from '../stores/useSupplementStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWeightStore } from '../stores/useWeightStore';
+import { useStreakStore } from '../stores/useStreakStore';
 import NutritionCard from '../components/home/NutritionCard';
 import WaterCard from '../components/home/WaterCard';
 import MotivationCard from '../components/home/MotivationCard';
@@ -27,6 +28,7 @@ function HomeScreen() {
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
   const fetchExerciseCatalog = useWorkoutStore((s) => s.fetchExerciseCatalog);
   const fetchWeightData = useWeightStore((s) => s.fetchWeightData);
+  const initStreak = useStreakStore((s) => s.initStreak);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
   const navigation = useNavigation<any>();
@@ -41,6 +43,7 @@ function HomeScreen() {
       fetchSupplementGoals(user.id);
       fetchExerciseCatalog(user.id).then(() => fetchWorkoutHistory(user.id));
       fetchWeightData(user.id);
+      initStreak(user.id);
     }
   }, [user?.id]);
 
@@ -49,6 +52,7 @@ function HomeScreen() {
       if (state === 'active' && user?.id) {
         fetchTodayNutrition(user.id);
         fetchTodaySupplements(user.id);
+        useStreakStore.getState().refreshStreak(user.id);
       }
     });
     return () => sub.remove();

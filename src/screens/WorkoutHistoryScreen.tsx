@@ -1002,6 +1002,7 @@ function WorkoutHistoryScreen() {
         <View style={styles.programSection}>
           <TodayScheduled
             onPreview={setPreviewRoutine}
+            onOpenPlans={openPlans}
             programHeader={activeProgram ? (
               <TouchableOpacity style={styles.programCardRow} activeOpacity={0.7} onPress={openPlans}>
                 <View style={styles.programCardLeft}>

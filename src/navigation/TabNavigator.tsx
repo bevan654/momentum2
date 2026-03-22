@@ -29,6 +29,7 @@ import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useRankStore } from '../stores/useRankStore';
 import { useProgramStore } from '../stores/useProgramStore';
+import { useRoutineStore } from '../stores/useRoutineStore';
 import { initNotifications, cleanupNotifications } from '../services/notificationService';
 
 const Tab = createMaterialTopTabNavigator();
@@ -261,6 +262,7 @@ export default function TabNavigator() {
       useRankStore.getState().loadRank(userId);
       useRankStore.getState().computeRank(userId);
       useProgramStore.getState().fetchPrograms(userId);
+      useRoutineStore.getState().fetchRoutines(userId);
       initNotifications(userId);
     }
     return () => {

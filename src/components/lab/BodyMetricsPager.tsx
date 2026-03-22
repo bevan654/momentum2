@@ -7,9 +7,8 @@ import {
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
-import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
+import { sw, SCREEN_WIDTH } from '../../theme/responsive';
 import WeightCard from './WeightCard';
 import MeasurementsCard from './MeasurementsCard';
 import BodyFatCard from './BodyFatCard';
@@ -22,7 +21,6 @@ const PAGES = [
   { key: 'body_fat', label: 'Body Fat', Component: BodyFatCard },
 ] as const;
 
-const ARROW_SIZE = sw(26);
 const PAGE_W = SCREEN_WIDTH - sw(16) * 2;
 
 /* ─── Component ──────────────────────────────────────────── */
@@ -48,6 +46,19 @@ export default function BodyMetricsPager() {
     setActivePage(clamped);
   }, []);
 
+  const pageIndicator = useMemo(
+    () => (
+      <View style={styles.dotsRow}>
+        {PAGES.map((p, i) => (
+          <Pressable key={p.key} onPress={() => goToPage(i)} hitSlop={6}>
+            <View style={[styles.dot, i === activePage && { backgroundColor: colors.accent }]} />
+          </Pressable>
+        ))}
+      </View>
+    ),
+    [activePage, colors.accent, styles, goToPage],
+  );
+
   return (
     <View style={styles.wrapper}>
       <ScrollView
@@ -61,30 +72,10 @@ export default function BodyMetricsPager() {
       >
         {PAGES.map((p) => (
           <View key={p.key} style={{ width: PAGE_W }}>
-            <p.Component />
+            <p.Component pageIndicator={pageIndicator} />
           </View>
         ))}
       </ScrollView>
-
-      {/* Left arrow */}
-      {activePage > 0 && (
-        <Pressable
-          onPress={() => goToPage(activePage - 1)}
-          style={[styles.arrowBtn, styles.arrowLeft]}
-        >
-          <Ionicons name="chevron-back" size={ms(14)} color={colors.textPrimary} />
-        </Pressable>
-      )}
-
-      {/* Right arrow */}
-      {activePage < PAGES.length - 1 && (
-        <Pressable
-          onPress={() => goToPage(activePage + 1)}
-          style={[styles.arrowBtn, styles.arrowRight]}
-        >
-          <Ionicons name="chevron-forward" size={ms(14)} color={colors.textPrimary} />
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -96,24 +87,15 @@ const createStyles = (colors: ThemeColors) =>
     wrapper: {
       overflow: 'hidden',
     },
-    arrowBtn: {
-      position: 'absolute',
-      top: '50%',
-      marginTop: -ARROW_SIZE / 2,
-      width: ARROW_SIZE,
-      height: ARROW_SIZE,
-      borderRadius: ARROW_SIZE / 2,
-      backgroundColor: colors.card,
-      borderWidth: 0.5,
-      borderColor: colors.cardBorder,
+    dotsRow: {
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1,
+      gap: sw(6),
     },
-    arrowLeft: {
-      left: sw(6),
-    },
-    arrowRight: {
-      right: sw(6),
+    dot: {
+      width: sw(5),
+      height: sw(5),
+      borderRadius: sw(3),
+      backgroundColor: colors.textTertiary + '40',
     },
   });

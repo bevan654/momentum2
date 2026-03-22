@@ -135,36 +135,36 @@ export default function WorkoutsNavigator() {
             }}
           />
 
-          {/* ── Sub-modals (card presentation for speed) ── */}
+          {/* ── Sub-modals (transparent so SheetWrapper backdrop shows through) ── */}
           <Stack.Screen
             name="CreateProgram"
             component={CreateProgramModal}
-            options={{ animation: 'slide_from_right' }}
+            options={{ presentation: 'transparentModal', animation: 'slide_from_right', contentStyle: { backgroundColor: 'transparent' } }}
           />
           <Stack.Screen
             name="CreateRoutine"
             component={CreateRoutineModal}
-            options={{ animation: 'slide_from_right' }}
+            options={{ presentation: 'transparentModal', animation: 'slide_from_right', contentStyle: { backgroundColor: 'transparent' } }}
           />
           <Stack.Screen
             name="ProgramDayEditor"
             component={ProgramDayEditorModal}
-            options={{ animation: 'slide_from_right' }}
+            options={{ presentation: 'transparentModal', animation: 'slide_from_right', contentStyle: { backgroundColor: 'transparent' } }}
           />
           <Stack.Screen
             name="RoutineSummary"
             component={RoutineSummaryModal}
-            options={{ animation: 'slide_from_right' }}
+            options={{ presentation: 'transparentModal', animation: 'slide_from_right', contentStyle: { backgroundColor: 'transparent' } }}
           />
           <Stack.Screen
             name="ProgramSummary"
             component={ProgramSummaryModal}
-            options={{ animation: 'slide_from_right' }}
+            options={{ presentation: 'transparentModal', animation: 'slide_from_right', contentStyle: { backgroundColor: 'transparent' } }}
           />
           <Stack.Screen
             name="ProgramProgress"
             component={ProgramProgressModal}
-            options={{ animation: 'slide_from_right' }}
+            options={{ presentation: 'transparentModal', animation: 'slide_from_right', contentStyle: { backgroundColor: 'transparent' } }}
           />
 
           {/* WorkoutDetail keeps its own presentation */}

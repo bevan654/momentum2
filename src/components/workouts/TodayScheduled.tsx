@@ -12,8 +12,9 @@ import { hideRecoveryOverlay } from '../../navigation/TabNavigator';
 
 const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-function TodayScheduled({ programHeader, onPreview }: { programHeader?: React.ReactNode; onPreview?: (routine: Routine) => void }) {
+function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHeader?: React.ReactNode; onPreview?: (routine: Routine) => void; onOpenPlans?: () => void }) {
   const routines = useRoutineStore((s) => s.routines);
+  const programs = useProgramStore((s) => s.programs);
   const activeProgram = useProgramStore((s) => s.activeProgram);
   const getTodaysRoutine = useProgramStore((s) => s.getTodaysRoutine);
   const getCurrentWeek = useProgramStore((s) => s.getCurrentWeek);
@@ -42,8 +43,6 @@ function TodayScheduled({ programHeader, onPreview }: { programHeader?: React.Re
   const visibleRoutines = todayRoutines.filter((r) => !skipped.has(`routine-${r.id}`));
   const totalVisible = (visibleProgram ? 1 : 0) + visibleRoutines.length;
 
-  if (totalVisible === 0 && !activeProgram) return null;
-
   return (
     <View style={styles.todaySection}>
       <View style={styles.todaySectionHeader}>
@@ -56,6 +55,33 @@ function TodayScheduled({ programHeader, onPreview }: { programHeader?: React.Re
           </View>
         )}
       </View>
+
+      {/* Empty state — nothing scheduled for today, no active program */}
+      {totalVisible === 0 && !activeProgram && (
+        <TouchableOpacity style={styles.emptyState} activeOpacity={0.7} onPress={onOpenPlans}>
+          {programs.length > 0 || routines.length > 0 ? (
+            <>
+              <Ionicons name="bed-outline" size={ms(24)} color={colors.textTertiary} />
+              <Text style={styles.emptyStateTitle}>Rest Day</Text>
+              <Text style={styles.emptyStateSub}>No workout scheduled for {DAYS_FULL[todayDow]}</Text>
+              <View style={styles.emptyStateBtn}>
+                <Text style={styles.emptyStateBtnText}>View Plans</Text>
+                <Ionicons name="chevron-forward" size={ms(12)} color={colors.accent} />
+              </View>
+            </>
+          ) : (
+            <>
+              <Ionicons name="clipboard-outline" size={ms(24)} color={colors.textTertiary} />
+              <Text style={styles.emptyStateTitle}>No workout scheduled</Text>
+              <Text style={styles.emptyStateSub}>Create a routine or program to see your workouts here</Text>
+              <View style={styles.emptyStateBtn}>
+                <Text style={styles.emptyStateBtnText}>View Plans</Text>
+                <Ionicons name="chevron-forward" size={ms(12)} color={colors.accent} />
+              </View>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
 
       {/* Program workout */}
       {activeProgram && programToday && !skipped.has(`program-${activeProgram.id}`) && (
@@ -337,5 +363,34 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   todayCardRoutine: {
     backgroundColor: 'rgba(255,255,255,0.06)',
     padding: sw(12),
+  },
+  emptyState: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    padding: sw(16),
+    alignItems: 'center',
+    gap: sw(4),
+  },
+  emptyStateTitle: {
+    color: colors.textSecondary,
+    fontSize: ms(13),
+    fontFamily: Fonts.semiBold,
+    marginTop: sw(4),
+  },
+  emptyStateSub: {
+    color: colors.textTertiary,
+    fontSize: ms(11),
+    fontFamily: Fonts.medium,
+    textAlign: 'center',
+  },
+  emptyStateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(4),
+    marginTop: sw(6),
+  },
+  emptyStateBtnText: {
+    color: colors.accent,
+    fontSize: ms(12),
+    fontFamily: Fonts.semiBold,
   },
 });

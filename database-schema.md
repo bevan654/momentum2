@@ -363,6 +363,28 @@ CREATE TABLE public.user_exercises (
   CONSTRAINT user_exercises_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
   CONSTRAINT user_exercises_user_slug_unique UNIQUE (user_id, slug)
 );
+CREATE TABLE public.body_fat_entries (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  value numeric NOT NULL,
+  method text NOT NULL DEFAULT 'tape',
+  date date NOT NULL DEFAULT CURRENT_DATE,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT body_fat_entries_pkey PRIMARY KEY (id),
+  CONSTRAINT body_fat_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.measurement_entries (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  body_part text NOT NULL,
+  side text,
+  pump_state text NOT NULL DEFAULT 'no_pump',
+  value numeric NOT NULL,
+  date date NOT NULL DEFAULT CURRENT_DATE,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT measurement_entries_pkey PRIMARY KEY (id),
+  CONSTRAINT measurement_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
 CREATE TABLE public.weight_entries (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
