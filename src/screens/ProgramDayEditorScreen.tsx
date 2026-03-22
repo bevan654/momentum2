@@ -20,6 +20,8 @@ import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { getDayEditInput, saveDayEdit, type ProgramDayExercise } from '../stores/useProgramStore';
+import { useRoutineStore, type Routine } from '../stores/useRoutineStore';
+import { useAuthStore } from '../stores/useAuthStore';
 
 import ExerciseCard from '../components/workouts/ExerciseRow';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
@@ -136,6 +138,47 @@ const inlineRowStyles = StyleSheet.create({
   },
 });
 
+/* ─── Routine picker row ──────────────────────────────── */
+
+const RoutinePickerRow = memo(function RoutinePickerRow({
+  routine,
+  onSelect,
+  colors,
+}: {
+  routine: Routine;
+  onSelect: (routine: Routine) => void;
+  colors: ThemeColors;
+}) {
+  const exNames = routine.exercises.slice(0, 4).map((e) => titleCase(e.name)).join(', ');
+  const extra = routine.exercises.length > 4 ? ` +${routine.exercises.length - 4}` : '';
+
+  return (
+    <TouchableOpacity
+      style={{
+        backgroundColor: colors.card,
+        padding: sw(12),
+        marginBottom: sw(4),
+        borderRadius: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: sw(10),
+      }}
+      onPress={() => onSelect(routine)}
+      activeOpacity={0.6}
+    >
+      <View style={{ flex: 1, gap: sw(2) }}>
+        <Text style={{ color: colors.textPrimary, fontSize: ms(14), fontFamily: Fonts.semiBold }} numberOfLines={1}>
+          {routine.name}
+        </Text>
+        <Text style={{ color: colors.textTertiary, fontSize: ms(11), fontFamily: Fonts.medium }} numberOfLines={1}>
+          {routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''} · {exNames}{extra}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={ms(16)} color={colors.textTertiary} />
+    </TouchableOpacity>
+  );
+});
+
 /* ─── Module-level sorted catalog cache ──────────────── */
 
 let _sortedCache: CatalogEntry[] | null = null;
@@ -170,6 +213,14 @@ export default function ProgramDayEditorScreen() {
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const aliasMap = useWorkoutStore((s) => s.aliasMap);
   const prevMap = useWorkoutStore((s) => s.prevMap);
+  const userId = useAuthStore((s) => s.user?.id);
+  const routines = useRoutineStore((s) => s.routines);
+  const fetchRoutines = useRoutineStore((s) => s.fetchRoutines);
+
+  // Fetch routines on mount if needed
+  useEffect(() => {
+    if (userId && routines.length === 0) fetchRoutines(userId);
+  }, [userId]);
 
   const input = getDayEditInput();
   const dayName = input?.dayName ?? 'Day';
@@ -194,11 +245,9 @@ export default function ProgramDayEditorScreen() {
       };
     });
   });
-  const [activeTab, setActiveTab] = useState(0);
+  const [showCatalog, setShowCatalog] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-
-  const hasExerciseAtTab = !!exercises[activeTab];
 
   /* ─── Inline catalog ──────────────────────────────── */
 
@@ -227,11 +276,9 @@ export default function ProgramDayEditorScreen() {
     }));
 
     setSearch('');
-    setExercises((prev) => {
-      const next = [...prev, { name, sets: defaultSets, rest_seconds: 90, category, exercise_type: exerciseType, prevSets }];
-      setActiveTab(next.length - 1);
-      return next;
-    });
+    setSelectedCategory(null);
+    setExercises((prev) => [...prev, { name, sets: defaultSets, rest_seconds: 90, category, exercise_type: exerciseType, prevSets }]);
+    setShowCatalog(false);
   }, []);
 
   const handleAddSet = useCallback((exerciseIndex: number) => {
@@ -306,6 +353,30 @@ export default function ProgramDayEditorScreen() {
     });
   }, []);
 
+  const handleImportRoutine = useCallback((routine: Routine) => {
+    const prev = useWorkoutStore.getState().prevMap;
+    const imported: LocalExercise[] = routine.exercises.map((re) => {
+      const reps = re.set_reps.length > 0 ? re.set_reps : Array(re.default_sets).fill(re.default_reps);
+      const weights = re.set_weights.length > 0 ? re.set_weights : Array(re.default_sets).fill(0);
+      const entry = catalogMap[re.name];
+      const prevSets = prev[re.name] || [];
+      return {
+        name: re.name,
+        sets: reps.map((r: number, i: number) => ({
+          goal_reps: r,
+          goal_weight: weights[i] ?? (prevSets[i]?.kg ?? 0),
+        })),
+        rest_seconds: re.default_rest_seconds,
+        category: entry?.category ?? null,
+        exercise_type: re.exercise_type || 'weighted',
+        prevSets,
+      };
+    });
+    setExercises(imported);
+    setLabel((prev) => prev || routine.name);
+    setShowCatalog(false);
+  }, [catalogMap]);
+
   const handleSave = useCallback(() => {
     const programExercises: ProgramDayExercise[] = exercises.map((e, i) => ({
       name: e.name,
@@ -349,7 +420,7 @@ export default function ProgramDayEditorScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Label + Tabs — always visible at top */}
+        {/* Label input */}
         <View style={styles.topSection}>
           <TextInput
             style={styles.input}
@@ -358,66 +429,21 @@ export default function ProgramDayEditorScreen() {
             value={label}
             onChangeText={setLabel}
           />
-
-          <Text style={styles.sectionLabel}>Choose Exercise</Text>
-
-          <View style={styles.tabGrid}>
-            {Array.from({ length: Math.max(10, exercises.length + 1) }, (_, i) => {
-              const ex = exercises[i];
-              return (
-                <TouchableOpacity
-                  key={`tab-${i}`}
-                  style={[
-                    styles.tab,
-                    ex && styles.tabFilled,
-                    i === activeTab && styles.tabActive,
-                    i === exercises.length && !ex && styles.tabLast,
-                  ]}
-                  onPress={() => { setActiveTab(i); setSearch(''); }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.tabNumber, i === activeTab && styles.tabTextActive]}>
-                    {i + 1}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
         </View>
 
-        {/* Content area: exercise card OR inline catalog */}
-        {hasExerciseAtTab ? (
-          <ScrollView
-            style={styles.flex}
-            contentContainerStyle={styles.cardContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <ExerciseCard
-              key={`${exercises[activeTab].name}-${activeTab}`}
-              name={exercises[activeTab].name}
-              sets={exercises[activeTab].sets}
-              restSeconds={exercises[activeTab].rest_seconds}
-              category={exercises[activeTab].category}
-              prevSets={exercises[activeTab].prevSets}
-              onAddSet={() => handleAddSet(activeTab)}
-              onRemoveSet={(setIndex) => handleRemoveSet(activeTab, setIndex)}
-              onSetRepsChange={(setIndex, reps) => handleSetRepsChange(activeTab, setIndex, reps)}
-              onSetWeightChange={(setIndex, weight) => handleSetWeightChange(activeTab, setIndex, weight)}
-              onRestChange={(seconds) => handleRestChange(activeTab, seconds)}
-              onRemove={() => {
-                handleRemove(activeTab);
-                setActiveTab((prev) => Math.max(0, Math.min(prev, exercises.length - 2)));
-              }}
-              onMoveUp={() => handleMoveUp(activeTab)}
-              onMoveDown={() => handleMoveDown(activeTab)}
-              isFirst={activeTab === 0}
-              isLast={activeTab === exercises.length - 1}
-            />
-            <View style={{ height: sw(40) }} />
-          </ScrollView>
-        ) : (
+        {showCatalog ? (
+          /* ─── Catalog view ─────────────────────────────── */
           <View style={styles.flex}>
+            {/* Back to exercise list */}
+            <TouchableOpacity
+              style={styles.backToListBtn}
+              onPress={() => { setShowCatalog(false); setSearch(''); setSelectedCategory(null); }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="chevron-back" size={ms(14)} color={colors.accent} />
+              <Text style={styles.backToListText}>Back to exercises</Text>
+            </TouchableOpacity>
+
             {/* Inline search */}
             <View style={styles.searchRow}>
               <Ionicons name="search" size={ms(16)} color={colors.textTertiary} />
@@ -427,7 +453,7 @@ export default function ProgramDayEditorScreen() {
                 placeholderTextColor={colors.textTertiary}
                 value={search}
                 onChangeText={setSearch}
-                autoFocus={exercises.length === 0}
+                autoFocus={exercises.length === 0 && routines.length === 0}
               />
               {search.length > 0 && (
                 <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -486,6 +512,63 @@ export default function ProgramDayEditorScreen() {
               }
             />
           </View>
+        ) : (
+          /* ─── Exercise list view ────────────────────────── */
+          <ScrollView
+            style={styles.flex}
+            contentContainerStyle={styles.cardContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Routine picker — shown when no exercises */}
+            {exercises.length === 0 && routines.length > 0 && (
+              <View style={styles.routineSection}>
+                <Text style={styles.routineSectionLabel}>USE A ROUTINE</Text>
+                {routines.map((r) => (
+                  <RoutinePickerRow key={r.id} routine={r} onSelect={handleImportRoutine} colors={colors} />
+                ))}
+                <View style={styles.routineDividerRow}>
+                  <View style={styles.routineDivider} />
+                  <Text style={styles.routineDividerText}>or add individually</Text>
+                  <View style={styles.routineDivider} />
+                </View>
+              </View>
+            )}
+
+            {exercises.map((ex, i) => (
+              <View key={`${ex.name}-${i}`} style={styles.exerciseCardWrapper}>
+                <ExerciseCard
+                  name={ex.name}
+                  sets={ex.sets}
+                  restSeconds={ex.rest_seconds}
+                  category={ex.category}
+                  prevSets={ex.prevSets}
+                  onAddSet={() => handleAddSet(i)}
+                  onRemoveSet={(setIndex) => handleRemoveSet(i, setIndex)}
+                  onSetRepsChange={(setIndex, reps) => handleSetRepsChange(i, setIndex, reps)}
+                  onSetWeightChange={(setIndex, weight) => handleSetWeightChange(i, setIndex, weight)}
+                  onRestChange={(seconds) => handleRestChange(i, seconds)}
+                  onRemove={() => handleRemove(i)}
+                  onMoveUp={() => handleMoveUp(i)}
+                  onMoveDown={() => handleMoveDown(i)}
+                  isFirst={i === 0}
+                  isLast={i === exercises.length - 1}
+                />
+              </View>
+            ))}
+
+            {/* Add Exercise button */}
+            <TouchableOpacity
+              style={styles.addExerciseBtn}
+              onPress={() => setShowCatalog(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add" size={ms(18)} color={colors.accent} />
+              <Text style={styles.addExerciseText}>Add Exercise</Text>
+            </TouchableOpacity>
+
+            <View style={{ height: sw(40) }} />
+          </ScrollView>
         )}
       </KeyboardAvoidingView>
     </Pressable>
@@ -531,10 +614,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.bold,
   },
 
-  // Top section (label + tabs)
+  // Top section (label)
   topSection: {
     paddingHorizontal: sw(16),
-    gap: sw(10),
     paddingBottom: sw(6),
   },
   input: {
@@ -548,51 +630,45 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(20),
     fontFamily: Fonts.medium,
   },
-  sectionLabel: {
-    color: colors.textSecondary,
-    fontSize: ms(10),
-    fontFamily: Fonts.bold,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginTop: sw(10),
-  },
-  tabGrid: {
-    flexDirection: 'row',
-  },
-  tab: {
-    flex: 1,
-    height: sw(38),
-    borderRadius: 0,
-    backgroundColor: colors.card,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: colors.border,
-  },
-  tabFilled: {
-    borderBottomColor: '#FFFFFF',
-    borderBottomWidth: 2,
-  },
-  tabActive: {
-    borderBottomColor: '#FFFFFF',
-    borderBottomWidth: 2,
-  },
-  tabNumber: {
-    color: colors.textTertiary,
-    fontSize: ms(13),
-    fontFamily: Fonts.bold,
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
-  },
-  tabLast: {
-    borderRightWidth: 0,
-  },
 
-  // Exercise card scroll area
+  // Exercise list
   cardContent: {
     paddingHorizontal: sw(16),
     paddingTop: sw(8),
+  },
+  exerciseCardWrapper: {
+    marginBottom: sw(8),
+  },
+  addExerciseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(6),
+    paddingVertical: sw(14),
+    backgroundColor: colors.card,
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: colors.accent + '30',
+    borderStyle: 'dashed',
+  },
+  addExerciseText: {
+    color: colors.accent,
+    fontSize: ms(13),
+    fontFamily: Fonts.semiBold,
+  },
+
+  // Back to list button
+  backToListBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(4),
+    paddingHorizontal: sw(16),
+    paddingVertical: sw(8),
+  },
+  backToListText: {
+    color: colors.accent,
+    fontSize: ms(12),
+    fontFamily: Fonts.semiBold,
   },
 
   // Inline search
@@ -654,6 +730,35 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   chipTextActive: {
     color: colors.accent,
+  },
+
+  // Routine picker
+  routineSection: {
+    paddingBottom: sw(4),
+  },
+  routineSectionLabel: {
+    color: colors.textSecondary,
+    fontSize: ms(10),
+    fontFamily: Fonts.bold,
+    letterSpacing: 1,
+    marginBottom: sw(6),
+  },
+  routineDividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(10),
+    marginTop: sw(8),
+    marginBottom: sw(2),
+  },
+  routineDivider: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.cardBorder,
+  },
+  routineDividerText: {
+    color: colors.textTertiary,
+    fontSize: ms(10),
+    fontFamily: Fonts.medium,
   },
 
   // Catalog list
