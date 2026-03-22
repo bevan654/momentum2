@@ -160,24 +160,25 @@ function FoodLoggerScreen() {
       potassium: editEntry.potassium != null ? editEntry.potassium / qty : null,
       zinc: editEntry.zinc != null ? editEntry.zinc / qty : null,
       sodium: editEntry.sodium != null ? editEntry.sodium / qty : null,
+      caffeine: editEntry.caffeine != null ? editEntry.caffeine / qty : null,
     };
   }, [editEntry]);
 
   const handleEditDismiss = useCallback(() => {
     setEditDetailVisible(false);
-    setEditEntry(null);
+    setTimeout(() => setEditEntry(null), 350);
   }, []);
 
   // When edit detail saves, update the existing entry instead of creating new
   const handleEditSaved = useCallback(() => {
     setEditDetailVisible(false);
-    setEditEntry(null);
+    setTimeout(() => setEditEntry(null), 350);
   }, []);
 
   const handleDeleteEntry = useCallback((id: string) => {
     setEditDetailVisible(false);
-    setEditEntry(null);
     deleteEntry(id);
+    setTimeout(() => setEditEntry(null), 350);
   }, [deleteEntry]);
 
   // Meal group handlers
@@ -267,9 +268,11 @@ function FoodLoggerScreen() {
         editMealGroupId={editGroupId}
         editMealGroupEntries={editGroupEntries}
       />
-      <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.8}>
-        <Ionicons name="add" size={ms(26)} color={colors.textOnAccent} />
-      </TouchableOpacity>
+      {!addModalVisible && !editDetailVisible && !editGroupModalVisible && (
+        <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.8}>
+          <Ionicons name="add" size={ms(26)} color={colors.textOnAccent} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

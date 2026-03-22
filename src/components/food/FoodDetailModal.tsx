@@ -27,6 +27,7 @@ import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { lookupBarcodeUSDA } from '../../utils/barcodeApi';
 import type { MealConfig } from '../../stores/useFoodLogStore';
+import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
 
 /* ─── Types ────────────────────────────────────────────── */
 
@@ -59,6 +60,7 @@ export interface FoodDetailData {
   potassium?: number | null;
   zinc?: number | null;
   sodium?: number | null;
+  caffeine?: number | null;
 }
 
 /** Data returned by onAddToMeal — per-serving macros + quantity */
@@ -94,14 +96,15 @@ interface Props {
 
 /* ─── Animation configs (hoisted — zero allocation in worklets) */
 
-const FADE_IN = { duration: 200, easing: Easing.out(Easing.cubic) };
-const FADE_OUT = { duration: 150, easing: Easing.in(Easing.cubic) };
+const FADE_IN = { duration: 250, easing: Easing.out(Easing.cubic) };
+const FADE_OUT = { duration: 300, easing: Easing.out(Easing.cubic) };
 
 /* ─── Static data ──────────────────────────────────────── */
 
 const STATUS_H = StatusBar.currentHeight ?? 0;
 
 const MICROS: { key: string; label: string; unit: string }[] = [
+  { key: 'caffeine', label: 'Caffeine', unit: 'mg' },
   { key: 'fiber', label: 'Fiber', unit: 'g' },
   { key: 'sugar', label: 'Sugar', unit: 'g' },
   { key: 'sodium', label: 'Sodium', unit: 'mg' },
@@ -203,12 +206,24 @@ const DateChipItem = React.memo(function DateChipItem({
 });
 
 const MicroRow = React.memo(function MicroRow({
-  label, value, unit, last, s,
-}: { label: string; value: number; unit: string; last: boolean; s: ReturnType<typeof createStyles> }) {
+  label, value, unit, last, s, editable, onChangeText,
+}: { label: string; value: string; unit: string; last: boolean; s: ReturnType<typeof createStyles>; editable?: boolean; onChangeText?: (v: string) => void }) {
   return (
     <View style={[s.microRow, last && s.microRowLast]}>
       <Text style={s.microLabel}>{label}</Text>
-      <Text style={s.microVal}>{value} {unit}</Text>
+      {editable && onChangeText ? (
+        <View style={s.microInputWrap}>
+          <TextInput
+            style={s.microInput}
+            value={value}
+            onChangeText={onChangeText}
+            keyboardType="numeric"
+          />
+          <Text style={s.microUnit}>{unit}</Text>
+        </View>
+      ) : (
+        <Text style={s.microVal}>{value} {unit}</Text>
+      )}
     </View>
   );
 });
@@ -464,8 +479,8 @@ export default function FoodDetailModal({
   const progress = useSharedValue(0);
 
   useEffect(() => {
-    progress.value = withTiming(visible && food ? 1 : 0, visible && food ? FADE_IN : FADE_OUT);
-  }, [visible, !!food]);
+    progress.value = withTiming(visible ? 1 : 0, visible ? FADE_IN : FADE_OUT);
+  }, [visible]);
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
@@ -478,6 +493,7 @@ export default function FoodDetailModal({
   const updateEntry = useFoodLogStore((st) => st.updateEntry);
   const userId = useAuthStore((st) => st.user?.id);
   const selectedDate = useFoodLogStore((st) => st.selectedDate);
+  const microGoals = useNutrientGoalStore((st) => st.microGoals);
 
   /* ── State ─────────────────────────────────────────── */
   const [mealSlot, setMealSlot] = useState(initialMealSlot);
@@ -487,6 +503,73 @@ export default function FoodDetailModal({
   const [targetDate, setTargetDate] = useState(selectedDate);
   const [altLoading, setAltLoading] = useState(false);
   const [altSource, setAltSource] = useState<'off' | 'usda'>('off');
+
+  /* ── Editable name / brand ─────────────────────── */
+  const [customName, setCustomName] = useState('');
+  const [customBrand, setCustomBrand] = useState('');
+
+  /* ── Editable macro overrides ────────────────────── */
+  const [customCal, setCustomCal] = useState('');
+  const [customPro, setCustomPro] = useState('');
+  const [customCarb, setCustomCarb] = useState('');
+  const [customFat, setCustomFat] = useState('');
+  const macroManualRef = useRef(false);
+
+  /* ── Energy unit toggle (kcal ↔ kJ) ────────────── */
+  const [energyUnit, setEnergyUnit] = useState<'kcal' | 'kj'>('kcal');
+  const [displayEnergy, setDisplayEnergy] = useState('');
+
+  const handleToggleUnit = useCallback(() => {
+    setEnergyUnit((prev) => {
+      const next = prev === 'kcal' ? 'kj' : 'kcal';
+      const n = Number(prev === 'kcal' ? customCal : displayEnergy);
+      if (next === 'kj') {
+        setDisplayEnergy(Number.isFinite(n) && n > 0 ? String(Math.round(n * 4.184)) : '');
+      } else {
+        // kj → kcal: convert displayEnergy back
+        const kjVal = Number(displayEnergy);
+        const kcal = Number.isFinite(kjVal) && kjVal > 0 ? Math.round(kjVal / 4.184) : 0;
+        setCustomCal(kcal > 0 ? String(kcal) : '');
+        macroManualRef.current = true;
+      }
+      return next;
+    });
+  }, [customCal, displayEnergy]);
+
+  const handleEnergyChange = useCallback((v: string) => {
+    macroManualRef.current = true;
+    if (energyUnit === 'kcal') {
+      setCustomCal(v);
+    } else {
+      setDisplayEnergy(v);
+      const n = Number(v);
+      setCustomCal(Number.isFinite(n) && n > 0 ? String(Math.round(n / 4.184)) : '');
+    }
+  }, [energyUnit]);
+
+  /* ── Editable micro overrides ────────────────────── */
+  const [customMicros, setCustomMicros] = useState<Record<string, string>>({});
+  const microManualRef = useRef(false);
+
+  /* ── Focus pop animations ───────────────────────── */
+  const nameScale = useSharedValue(1);
+  const calScale = useSharedValue(1);
+  const proScale = useSharedValue(1);
+  const carbScale = useSharedValue(1);
+  const fatScale = useSharedValue(1);
+
+  const popIn = useCallback((sv: typeof calScale) => () => {
+    sv.value = withSpring(1.08, { damping: 12, stiffness: 400, mass: 0.4 });
+  }, []);
+  const popOut = useCallback((sv: typeof calScale) => () => {
+    sv.value = withSpring(1, { damping: 14, stiffness: 300, mass: 0.4 });
+  }, []);
+
+  const namePopStyle = useAnimatedStyle(() => ({ transform: [{ scale: nameScale.value }] }));
+  const calPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: calScale.value }] }));
+  const proPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: proScale.value }] }));
+  const carbPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: carbScale.value }] }));
+  const fatPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: fatScale.value }] }));
 
   /* ── Reset ─────────────────────────────────────────── */
   useEffect(() => {
@@ -498,6 +581,24 @@ export default function FoodDetailModal({
       setTargetDate(selectedDate);
       setAltSource('off');
       setAltLoading(false);
+      setCustomName(food.name);
+      setCustomBrand(food.brand || '');
+      setCustomCal(String(Math.round(food.calories)));
+      setEnergyUnit('kcal');
+      setDisplayEnergy('');
+      setCustomPro(String(Math.round(food.protein * 10) / 10));
+      setCustomCarb(String(Math.round(food.carbs * 10) / 10));
+      setCustomFat(String(Math.round(food.fat * 10) / 10));
+      macroManualRef.current = false;
+      // Initialize micro overrides
+      const initMicros: Record<string, string> = {};
+      for (const m of MICROS) {
+        const v = (food as any)[m.key];
+        if (v != null) initMicros[m.key] = String(Math.round(Number(v) * 10) / 10);
+      }
+      setCustomMicros(initMicros);
+      microManualRef.current = false;
+
     }
   }, [food, initialMealSlot, initialIsPlanned]);
 
@@ -525,27 +626,66 @@ export default function FoodDetailModal({
     return (qty * ss) / food.serving_size;
   }, [food, quantity, servingSize]);
 
-  const scaled = useMemo(() => {
-    if (!food) return { cal: 0, pro: 0, carb: 0, fat: 0 };
-    return {
-      cal: Math.round(food.calories * scale),
-      pro: Math.round(food.protein * scale * 10) / 10,
-      carb: Math.round(food.carbs * scale * 10) / 10,
-      fat: Math.round(food.fat * scale * 10) / 10,
-    };
+  // Update macro fields when scale changes (unless user manually edited)
+  useEffect(() => {
+    if (!food || macroManualRef.current) return;
+    const kcal = Math.round(food.calories * scale);
+    setCustomCal(String(kcal));
+    if (energyUnit === 'kj') setDisplayEnergy(String(Math.round(kcal * 4.184)));
+    setCustomPro(String(Math.round(food.protein * scale * 10) / 10));
+    setCustomCarb(String(Math.round(food.carbs * scale * 10) / 10));
+    setCustomFat(String(Math.round(food.fat * scale * 10) / 10));
   }, [food, scale]);
+
+  // Update micro fields when scale changes (unless user manually edited)
+  useEffect(() => {
+    if (!food || microManualRef.current) return;
+    const updated: Record<string, string> = {};
+    for (const m of MICROS) {
+      const v = (food as any)[m.key];
+      if (v != null) updated[m.key] = String(Math.round(Number(v) * scale * 10) / 10);
+    }
+    setCustomMicros(updated);
+  }, [food, scale]);
+
+  const scaled = useMemo(() => ({
+    cal: Number(customCal) || 0,
+    pro: Number(customPro) || 0,
+    carb: Number(customCarb) || 0,
+    fat: Number(customFat) || 0,
+  }), [customCal, customPro, customCarb, customFat]);
+
+  const handleMacroEdit = useCallback((setter: (v: string) => void) => (val: string) => {
+    macroManualRef.current = true;
+    setter(val);
+  }, []);
+
+  const handleMicroEdit = useCallback((key: string) => (val: string) => {
+    microManualRef.current = true;
+    setCustomMicros((prev) => ({ ...prev, [key]: val }));
+  }, []);
 
   const microData = useMemo(() => {
     if (!food) return [];
+    // When editing, show all tracked micros (from settings) so the user can add values
+    // For new entries, only show micros that already have values on the food
+    const trackedKeys = new Set(microGoals.map((g) => g.key));
     return MICROS
-      .filter((m) => { const v = (food as any)[m.key]; return v != null && v > 0; })
+      .filter((m) => {
+        const v = (food as any)[m.key];
+        const hasValue = v != null && v > 0;
+        const hasCustomValue = customMicros[m.key] != null && customMicros[m.key] !== '' && Number(customMicros[m.key]) > 0;
+        return hasValue || hasCustomValue || trackedKeys.has(m.key);
+      })
       .map((m) => ({
         key: m.key,
         label: m.label,
         unit: m.unit,
-        value: Math.round(((food as any)[m.key] as number) * scale * 10) / 10,
+        value: customMicros[m.key] ?? ((food as any)[m.key] != null
+          ? String(Math.round(((food as any)[m.key] as number) * scale * 10) / 10)
+          : ''),
       }));
-  }, [food, scale]);
+  }, [food, scale, customMicros, editEntryId, microGoals]);
 
   /* ── Stable callbacks ──────────────────────────────── */
   const handleTypeSelect = useCallback((planned: boolean) => setIsPlanned(planned), []);
@@ -558,17 +698,16 @@ export default function FoodDetailModal({
 
     // Meal mode — return per-serving data instead of logging
     if (onAddToMeal) {
-      const perServScale = ss / food.serving_size;
       onAddToMeal({
-        name: food.name,
-        brand: food.brand,
+        name: customName.trim() || food.name,
+        brand: customBrand.trim() || food.brand,
         food_catalog_id: food.food_catalog_id,
-        calories: Math.round(food.calories * perServScale * 10) / 10,
-        protein: Math.round(food.protein * perServScale * 10) / 10,
-        carbs: Math.round(food.carbs * perServScale * 10) / 10,
-        fat: Math.round(food.fat * perServScale * 10) / 10,
-        fiber: food.fiber != null ? Math.round(food.fiber * perServScale * 10) / 10 : null,
-        sugar: food.sugar != null ? Math.round(food.sugar * perServScale * 10) / 10 : null,
+        calories: Math.round(scaled.cal / qty * 10) / 10,
+        protein: Math.round(scaled.pro / qty * 10) / 10,
+        carbs: Math.round(scaled.carb / qty * 10) / 10,
+        fat: Math.round(scaled.fat / qty * 10) / 10,
+        fiber: food.fiber != null ? Math.round(food.fiber * (ss / food.serving_size) * 10) / 10 : null,
+        sugar: food.sugar != null ? Math.round(food.sugar * (ss / food.serving_size) * 10) / 10 : null,
         serving_size: ss,
         serving_unit: food.serving_unit,
         quantity: qty,
@@ -577,14 +716,26 @@ export default function FoodDetailModal({
     }
 
     if (!userId) return;
+    // Build micro fields from customMicros
+    const microFields: Record<string, number | null> = {};
+    for (const m of MICROS) {
+      const v = customMicros[m.key];
+      if (v != null && v !== '') {
+        const n = Number(v);
+        microFields[m.key] = Number.isFinite(n) ? n : null;
+      } else {
+        microFields[m.key] = (food as any)[m.key] != null ? Math.round(((food as any)[m.key] as number) * scale * 10) / 10 : null;
+      }
+    }
     const data = {
-      name: food.name, calories: scaled.cal, protein: scaled.pro,
+      name: customName.trim() || food.name, calories: scaled.cal, protein: scaled.pro,
       carbs: scaled.carb, fat: scaled.fat, meal_type: mealSlot,
-      brand: food.brand, food_catalog_id: food.food_catalog_id,
+      brand: customBrand.trim() || null, food_catalog_id: food.food_catalog_id,
       serving_size: ss, serving_unit: food.serving_unit, quantity: qty,
-      fiber: food.fiber != null ? Math.round(food.fiber * scale * 10) / 10 : null,
-      sugar: food.sugar != null ? Math.round(food.sugar * scale * 10) / 10 : null,
+      fiber: microFields.fiber,
+      sugar: microFields.sugar,
       is_planned: isPlanned,
+      ...microFields,
     };
     if (editEntryId) { updateEntry(editEntryId, data); }
     else {
@@ -594,7 +745,7 @@ export default function FoodDetailModal({
       addEntry(userId, data, dateArg, targetHour);
     }
     onAdded();
-  }, [userId, food, quantity, servingSize, mealSlot, isPlanned, targetDate, targetHour, selectedDate, scaled, scale, addEntry, updateEntry, editEntryId, onAdded, onAddToMeal]);
+  }, [userId, food, quantity, servingSize, mealSlot, isPlanned, targetDate, targetHour, selectedDate, scaled, scale, customName, customBrand, customMicros, addEntry, updateEntry, editEntryId, onAdded, onAddToMeal]);
 
   const handleDelete = useCallback(() => {
     if (!editEntryId || !onDelete) return;
@@ -637,10 +788,40 @@ export default function FoodDetailModal({
           overScrollMode="never"
         >
           {/* Name */}
-          <NameBadge
-            name={displayFood.name} brand={displayFood.brand}
-            confidence={displayFood.confidence} s={s} colors={colors}
-          />
+          <Animated.View style={[s.nameSection, namePopStyle]}>
+            <TextInput
+              style={s.foodNameInput}
+              value={customName}
+              onChangeText={setCustomName}
+              placeholder="Food name"
+              placeholderTextColor={colors.textTertiary + '50'}
+              onFocus={popIn(nameScale)}
+              onBlur={popOut(nameScale)}
+              returnKeyType="next"
+            />
+            <TextInput
+              style={s.foodBrandInput}
+              value={customBrand}
+              onChangeText={setCustomBrand}
+              placeholder="Brand (optional)"
+              placeholderTextColor={colors.textTertiary + '40'}
+              onFocus={popIn(nameScale)}
+              onBlur={popOut(nameScale)}
+              returnKeyType="done"
+            />
+            {displayFood.confidence === 'verified' && (
+              <View style={s.badge}>
+                <Ionicons name="checkmark-circle" size={ms(11)} color={colors.accentGreen} />
+                <Text style={[s.badgeText, { color: colors.accentGreen }]}>Verified</Text>
+              </View>
+            )}
+            {displayFood.confidence === 'user_submitted' && (
+              <View style={[s.badge, { backgroundColor: colors.textTertiary + '18' }]}>
+                <Ionicons name="person-outline" size={ms(11)} color={colors.textTertiary} />
+                <Text style={[s.badgeText, { color: colors.textTertiary }]}>Unverified</Text>
+              </View>
+            )}
+          </Animated.View>
 
           {/* Alt source */}
           {displayFood.barcode && onFoodSwap && (
@@ -653,16 +834,64 @@ export default function FoodDetailModal({
           )}
 
           {/* Calories */}
-          <View style={s.calRow}>
-            <Text style={s.calNum}>{scaled.cal}</Text>
-            <Text style={s.calUnit}>kcal</Text>
-          </View>
+          <Animated.View style={[s.calRow, calPopStyle]}>
+            <TextInput
+              style={s.calNum}
+              value={energyUnit === 'kcal' ? customCal : displayEnergy}
+              onChangeText={handleEnergyChange}
+              keyboardType="numeric"
+              onFocus={popIn(calScale)}
+              onBlur={popOut(calScale)}
+            />
+            <Pressable onPress={handleToggleUnit} hitSlop={12}>
+              <Text style={s.calUnitTap}>{energyUnit === 'kcal' ? 'kcal' : 'kJ'}</Text>
+            </Pressable>
+          </Animated.View>
 
           {/* Macros */}
           <View style={s.macroRow}>
-            <MacroChip label="Protein" value={scaled.pro} color={colors.protein} s={s} />
-            <MacroChip label="Carbs" value={scaled.carb} color={colors.carbs} s={s} />
-            <MacroChip label="Fat" value={scaled.fat} color={colors.fat} s={s} />
+            <Animated.View style={[s.macroChip, proPopStyle]}>
+              <View style={[s.macroIndicator, { backgroundColor: colors.protein }]} />
+              <View style={s.macroChipInner}>
+                <TextInput
+                  style={[s.macroChipInput, { color: colors.protein }]}
+                  value={customPro}
+                  onChangeText={handleMacroEdit(setCustomPro)}
+                  keyboardType="numeric"
+                      onFocus={popIn(proScale)}
+                  onBlur={popOut(proScale)}
+                />
+                <Text style={s.macroChipLabel}>Protein</Text>
+              </View>
+            </Animated.View>
+            <Animated.View style={[s.macroChip, carbPopStyle]}>
+              <View style={[s.macroIndicator, { backgroundColor: colors.carbs }]} />
+              <View style={s.macroChipInner}>
+                <TextInput
+                  style={[s.macroChipInput, { color: colors.carbs }]}
+                  value={customCarb}
+                  onChangeText={handleMacroEdit(setCustomCarb)}
+                  keyboardType="numeric"
+                      onFocus={popIn(carbScale)}
+                  onBlur={popOut(carbScale)}
+                />
+                <Text style={s.macroChipLabel}>Carbs</Text>
+              </View>
+            </Animated.View>
+            <Animated.View style={[s.macroChip, fatPopStyle]}>
+              <View style={[s.macroIndicator, { backgroundColor: colors.fat }]} />
+              <View style={s.macroChipInner}>
+                <TextInput
+                  style={[s.macroChipInput, { color: colors.fat }]}
+                  value={customFat}
+                  onChangeText={handleMacroEdit(setCustomFat)}
+                  keyboardType="numeric"
+                      onFocus={popIn(fatScale)}
+                  onBlur={popOut(fatScale)}
+                />
+                <Text style={s.macroChipLabel}>Fat</Text>
+              </View>
+            </Animated.View>
           </View>
 
           {/* Serving */}
@@ -726,6 +955,7 @@ export default function FoodDetailModal({
                   <MicroRow
                     key={m.key} label={m.label} value={m.value}
                     unit={m.unit} last={i === microData.length - 1} s={s}
+                    editable onChangeText={handleMicroEdit(m.key)}
                   />
                 ))}
               </View>
@@ -785,7 +1015,16 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
     color: c.textPrimary, fontSize: ms(20), lineHeight: ms(26),
     fontFamily: Fonts.extraBold, textAlign: 'center', letterSpacing: -0.3,
   },
+  foodNameInput: {
+    color: c.textPrimary, fontSize: ms(20), lineHeight: ms(26),
+    fontFamily: Fonts.extraBold, textAlign: 'center', letterSpacing: -0.3,
+    padding: 0, width: '100%',
+  },
   foodBrand: { color: c.textSecondary, fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.medium },
+  foodBrandInput: {
+    color: c.textSecondary, fontSize: ms(13), lineHeight: ms(18),
+    fontFamily: Fonts.medium, textAlign: 'center', padding: 0, width: '100%',
+  },
   badge: {
     flexDirection: 'row', alignItems: 'center', gap: sw(4),
     backgroundColor: c.accentGreen + '15', borderRadius: sw(8),
@@ -808,8 +1047,15 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   calNum: {
     color: c.textPrimary, fontSize: ms(42), lineHeight: ms(48),
     fontFamily: Fonts.extraBold, letterSpacing: -1,
+    padding: 0, textAlign: 'center', minWidth: sw(80),
   },
   calUnit: { color: c.textTertiary, fontSize: ms(14), lineHeight: ms(20), fontFamily: Fonts.semiBold },
+  calUnitTap: {
+    color: c.accent, fontSize: ms(14), lineHeight: ms(20), fontFamily: Fonts.bold,
+    backgroundColor: c.accent + '15', borderRadius: sw(6),
+    paddingHorizontal: sw(8), paddingVertical: sw(2),
+    overflow: 'hidden',
+  },
 
   /* Macros */
   macroRow: { flexDirection: 'row', gap: sw(8), marginBottom: sw(20) },
@@ -822,6 +1068,9 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   macroIndicator: { width: sw(4), height: sw(28), borderRadius: sw(2) },
   macroChipInner: { flex: 1 },
   macroChipVal: { fontSize: ms(15), lineHeight: ms(20), fontFamily: Fonts.bold },
+  macroChipInput: {
+    fontSize: ms(15), lineHeight: ms(20), fontFamily: Fonts.bold, padding: 0,
+  },
   macroChipLabel: { color: c.textTertiary, fontSize: ms(10), lineHeight: ms(13), fontFamily: Fonts.medium },
 
   /* Section titles */
@@ -905,7 +1154,7 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   dateChipLabel: { color: c.textPrimary, fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.bold },
   dateChipLabelActive: { color: c.textOnAccent },
   dateChipSub: { color: c.textTertiary, fontSize: ms(10), lineHeight: ms(14), fontFamily: Fonts.medium, marginTop: sw(2) },
-  dateChipSubActive: { color: 'rgba(255,255,255,0.7)' },
+  dateChipSubActive: { color: c.textOnAccent + 'B3' },
 
   /* Micros */
   microCard: { backgroundColor: c.card, borderRadius: sw(14), paddingVertical: sw(4), paddingHorizontal: sw(14) },
@@ -916,6 +1165,14 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   microRowLast: { borderBottomWidth: 0 },
   microLabel: { color: c.textSecondary, fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.medium },
   microVal: { color: c.textPrimary, fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.semiBold },
+  microInputWrap: { flexDirection: 'row', alignItems: 'center', gap: sw(4) },
+  microInput: {
+    color: c.textPrimary, fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.semiBold,
+    backgroundColor: c.surface, borderRadius: sw(6),
+    paddingHorizontal: sw(8), paddingVertical: sw(4),
+    textAlign: 'right', minWidth: sw(50), padding: 0,
+  },
+  microUnit: { color: c.textTertiary, fontSize: ms(11), lineHeight: ms(15), fontFamily: Fonts.medium, width: sw(28) },
 
   bottomSpacer: { height: sw(80) },
 
@@ -936,5 +1193,5 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   },
   addBtnPlanned: { backgroundColor: c.accentGreen },
   addBtnText: { color: c.textOnAccent, fontSize: ms(16), lineHeight: ms(22), fontFamily: Fonts.bold },
-  addBtnCal: { color: 'rgba(255,255,255,0.7)', fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.semiBold },
+  addBtnCal: { color: c.textOnAccent + 'B3', fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.semiBold },
 });

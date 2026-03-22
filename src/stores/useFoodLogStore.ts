@@ -37,6 +37,7 @@ export interface FoodEntry {
   potassium?: number | null;
   zinc?: number | null;
   sodium?: number | null;
+  caffeine?: number | null;
   // Meal group (null = standalone entry)
   meal_group_id?: string | null;
   meal_group_name?: string | null;
@@ -72,6 +73,7 @@ export interface FoodCatalogItem {
   potassium?: number | null;
   zinc?: number | null;
   sodium?: number | null;
+  caffeine?: number | null;
 }
 
 export interface MealConfig {
@@ -119,7 +121,7 @@ function dateRange(dateStr: string) {
  */
 async function saveUserCreatedFood(
   userId: string,
-  entry: { name?: string; brand?: string | null; calories: number; protein: number; carbs: number; fat: number; fiber?: number | null; sugar?: number | null; serving_size?: number | null; serving_unit?: string | null },
+  entry: Record<string, any>,
 ) {
   try {
     await supabase.from('user_created_foods').insert({
@@ -131,6 +133,21 @@ async function saveUserCreatedFood(
       fat: Number(entry.fat) || 0,
       fiber: entry.fiber != null ? Number(entry.fiber) : null,
       sugar: entry.sugar != null ? Number(entry.sugar) : null,
+      sodium: entry.sodium != null ? Number(entry.sodium) : null,
+      caffeine: entry.caffeine != null ? Number(entry.caffeine) : null,
+      calcium: entry.calcium != null ? Number(entry.calcium) : null,
+      iron: entry.iron != null ? Number(entry.iron) : null,
+      potassium: entry.potassium != null ? Number(entry.potassium) : null,
+      magnesium: entry.magnesium != null ? Number(entry.magnesium) : null,
+      zinc: entry.zinc != null ? Number(entry.zinc) : null,
+      vitamin_a: entry.vitamin_a != null ? Number(entry.vitamin_a) : null,
+      vitamin_c: entry.vitamin_c != null ? Number(entry.vitamin_c) : null,
+      vitamin_d: entry.vitamin_d != null ? Number(entry.vitamin_d) : null,
+      vitamin_e: entry.vitamin_e != null ? Number(entry.vitamin_e) : null,
+      vitamin_k: entry.vitamin_k != null ? Number(entry.vitamin_k) : null,
+      vitamin_b6: entry.vitamin_b6 != null ? Number(entry.vitamin_b6) : null,
+      vitamin_b12: entry.vitamin_b12 != null ? Number(entry.vitamin_b12) : null,
+      folate: entry.folate != null ? Number(entry.folate) : null,
       serving_size: Number(entry.serving_size) || 1,
       serving_unit: entry.serving_unit || 'serving',
       created_by: userId,
@@ -334,6 +351,22 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       fiber: entry.fiber != null ? Number(entry.fiber) : null,
       sugar: entry.sugar != null ? Number(entry.sugar) : null,
       is_planned: Boolean(entry.is_planned),
+      // Micronutrients — pass through if present
+      vitamin_a: entry.vitamin_a != null ? Number(entry.vitamin_a) : null,
+      vitamin_c: entry.vitamin_c != null ? Number(entry.vitamin_c) : null,
+      vitamin_d: entry.vitamin_d != null ? Number(entry.vitamin_d) : null,
+      vitamin_e: entry.vitamin_e != null ? Number(entry.vitamin_e) : null,
+      vitamin_k: entry.vitamin_k != null ? Number(entry.vitamin_k) : null,
+      vitamin_b6: entry.vitamin_b6 != null ? Number(entry.vitamin_b6) : null,
+      vitamin_b12: entry.vitamin_b12 != null ? Number(entry.vitamin_b12) : null,
+      folate: entry.folate != null ? Number(entry.folate) : null,
+      calcium: entry.calcium != null ? Number(entry.calcium) : null,
+      iron: entry.iron != null ? Number(entry.iron) : null,
+      magnesium: entry.magnesium != null ? Number(entry.magnesium) : null,
+      potassium: entry.potassium != null ? Number(entry.potassium) : null,
+      zinc: entry.zinc != null ? Number(entry.zinc) : null,
+      sodium: entry.sodium != null ? Number(entry.sodium) : null,
+      caffeine: entry.caffeine != null ? Number(entry.caffeine) : null,
     };
     if (targetDate) {
       insertData.created_at = createdAt;
@@ -688,7 +721,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .limit(25),
+        .limit(100),
       supabase
         .from('food_catalog')
         .select('*')
@@ -734,8 +767,9 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
           potassium: d.potassium != null ? Number(d.potassium) / qty : null,
           zinc: d.zinc != null ? Number(d.zinc) / qty : null,
           sodium: d.sodium != null ? Number(d.sodium) / qty : null,
+          caffeine: d.caffeine != null ? Number(d.caffeine) / qty : null,
         });
-        if (recentFoods.length >= 5) break;
+        if (recentFoods.length >= 25) break;
       }
     }
 
