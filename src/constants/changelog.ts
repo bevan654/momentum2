@@ -13,6 +13,20 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.32',
+    date: '2026-03-22',
+    title: "What's New",
+    items: [
+      'Body metrics cards redesigned with Skia charts, gradient bars, and smooth trend curves',
+      'Body fat % and body measurements now tracked in Supabase with full history',
+      'Weight chart projection uses curved model based on your EMA trend velocity and acceleration',
+      'Goal weight line with estimated time-to-goal displayed on the chart',
+      'Streak system now loads on app launch and refreshes on foreground resume',
+      'Food diary optimisations — micronutrient tracker, kcal/kj toggle, macro editing after adding, quick add brand names',
+      'Recent foods list expanded with improved meal search',
+    ],
+  },
+  {
     version: '1.0.31',
     date: '2026-03-11',
     title: "What's New",
