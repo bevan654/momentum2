@@ -90,14 +90,14 @@ export default function FriendsTab() {
 
         {/* ── Feed Mode Tabs ─────────────────────────────── */}
         <View style={styles.feedTabs}>
-          {(['global', 'friends', 'messages'] as const).map((tab) => {
-            const label = tab === 'global' ? 'Feed' : tab === 'friends' ? 'Friends' : 'Messages';
+          {(['global', 'friends'] as const).map((tab) => {
+            const label = tab === 'global' ? 'Feed' : 'Friends';
             const isActive = feedMode === tab;
             return (
               <TouchableOpacity
                 key={tab}
                 style={[styles.feedTab, isActive && styles.feedTabActive]}
-                onPress={() => tab !== 'messages' && setFeedMode(tab)}
+                onPress={() => setFeedMode(tab)}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.feedTabText, isActive && styles.feedTabTextActive]}>{label}</Text>

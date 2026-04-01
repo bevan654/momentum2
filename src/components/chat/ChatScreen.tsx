@@ -75,10 +75,10 @@ export default function ChatScreen() {
     }
   }, [loading, hasMore, conversationId, fetchMessages]);
 
-  // Find last own message to show read receipt
+  // Find last own message to show read receipt (newest is at end in ascending order)
   const lastOwnMessageId = useMemo(() => {
-    for (const m of messages) {
-      if (m.sender_id === userId && !m.pending) return m.id;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].sender_id === userId && !messages[i].pending) return messages[i].id;
     }
     return null;
   }, [messages, userId]);

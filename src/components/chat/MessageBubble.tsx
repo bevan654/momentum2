@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -26,7 +27,13 @@ function MessageBubble({ message, isOwn, showReadReceipt, isLastInGroup, showTim
   }, [message.created_at]);
 
   return (
-    <View style={[styles.row, isOwn ? styles.rowOwn : styles.rowOther]}>
+    <View
+      style={[
+        styles.row,
+        isOwn ? styles.rowOwn : styles.rowOther,
+        isLastInGroup && styles.rowGroupEnd,
+      ]}
+    >
       <View
         style={[
           styles.bubble,
@@ -40,13 +47,17 @@ function MessageBubble({ message, isOwn, showReadReceipt, isLastInGroup, showTim
           {message.text}
         </Text>
       </View>
-      {showTimestamp && (
-        <Text style={[styles.time, isOwn ? styles.timeOwn : styles.timeOther]}>
-          {time}
-        </Text>
-      )}
-      {showReadReceipt && (
-        <Text style={[styles.read, styles.timeOwn]}>Read</Text>
+      {(showTimestamp || showReadReceipt) && (
+        <View style={[styles.meta, isOwn ? styles.metaOwn : styles.metaOther]}>
+          {showTimestamp && (
+            <Text style={styles.time}>{time}</Text>
+          )}
+          {showReadReceipt && (
+            <View style={styles.readReceipt}>
+              <Ionicons name="checkmark-done" size={ms(12)} color={colors.accent} />
+            </View>
+          )}
+        </View>
       )}
     </View>
   );
@@ -57,8 +68,8 @@ export default React.memo(MessageBubble);
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     row: {
-      paddingHorizontal: sw(12),
-      marginBottom: sw(2),
+      paddingHorizontal: sw(14),
+      marginBottom: sw(1.5),
     },
     rowOwn: {
       alignItems: 'flex-end',
@@ -66,35 +77,36 @@ const createStyles = (colors: ThemeColors) =>
     rowOther: {
       alignItems: 'flex-start',
     },
+    rowGroupEnd: {
+      marginBottom: sw(8),
+    },
     bubble: {
       maxWidth: '78%',
       paddingHorizontal: sw(14),
-      paddingVertical: sw(9),
-      borderRadius: sw(18),
+      paddingVertical: sw(8),
+      borderRadius: sw(20),
     },
     bubbleOwn: {
       backgroundColor: colors.accent,
-      borderBottomRightRadius: sw(18),
     },
     bubbleOther: {
       backgroundColor: colors.card,
       borderWidth: 0.5,
       borderColor: colors.cardBorder,
-      borderBottomLeftRadius: sw(18),
     },
     tailOwn: {
-      borderBottomRightRadius: sw(4),
+      borderBottomRightRadius: sw(6),
     },
     tailOther: {
-      borderBottomLeftRadius: sw(4),
+      borderBottomLeftRadius: sw(6),
     },
     pending: {
-      opacity: 0.6,
+      opacity: 0.5,
     },
     text: {
       fontSize: ms(15),
       fontFamily: Fonts.regular,
-      lineHeight: ms(20),
+      lineHeight: ms(21),
     },
     textOwn: {
       color: colors.textOnAccent,
@@ -102,24 +114,25 @@ const createStyles = (colors: ThemeColors) =>
     textOther: {
       color: colors.textPrimary,
     },
-    time: {
-      fontSize: ms(10),
-      fontFamily: Fonts.regular,
-      color: colors.textTertiary,
-      marginTop: sw(2),
-      marginBottom: sw(4),
+    meta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(3),
+      marginTop: sw(3),
+      marginBottom: sw(2),
     },
-    timeOwn: {
+    metaOwn: {
       marginRight: sw(4),
     },
-    timeOther: {
+    metaOther: {
       marginLeft: sw(4),
     },
-    read: {
+    time: {
       fontSize: ms(10),
       fontFamily: Fonts.medium,
       color: colors.textTertiary,
-      marginTop: sw(1),
-      marginBottom: sw(4),
+    },
+    readReceipt: {
+      marginLeft: sw(1),
     },
   });

@@ -38,7 +38,7 @@ export default function StartWorkoutScreen() {
   const abandonProgram = useProgramStore((s) => s.abandonProgram);
   const getCurrentWeek = useProgramStore((s) => s.getCurrentWeek);
   const colors = useColors();
-  const sheetMarginTop = insets.top + sw(10);
+  const sheetMarginTop = SCREEN_HEIGHT * 0.08;
   const sheetTravel = SCREEN_HEIGHT;
   const styles = useMemo(() => createStyles(colors, sheetMarginTop), [colors, sheetMarginTop]);
 
