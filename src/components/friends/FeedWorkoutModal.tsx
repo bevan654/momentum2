@@ -1,6 +1,5 @@
 import React, { useMemo, useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, Alert, Pressable } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { useThemeStore } from '../../stores/useThemeStore';
@@ -13,6 +12,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useRoutineStore } from '../../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
+import BottomSheet from '../workout-sheet/BottomSheet';
 
 /* --- Body map helpers --- */
 
@@ -44,7 +44,7 @@ const BODY_W = 200 * BODY_SCALE;
 const BODY_H = 400 * BODY_SCALE;
 
 interface Props {
-  item: ActivityFeedItem;
+  item: ActivityFeedItem | null;
   onDismiss: () => void;
 }
 
@@ -70,27 +70,31 @@ function formatDate(isoString: string): string {
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} \u00b7 ${h}:${min} ${ampm}`;
 }
 
+/* ── Thin wrapper — always mounted, toggles BottomSheet visibility ── */
+
 export default function FeedWorkoutModal({ item, onDismiss }: Props) {
+  const visible = !!item;
+  const isGhost = !!(item?.ghost_username && item?.ghost_result && item?.ghost_exercises);
+
+  return (
+    <BottomSheet visible={visible} onClose={onDismiss} height="92%" modal>
+      {item && (
+        isGhost
+          ? <GhostContent item={item} onDismiss={onDismiss} />
+          : <WorkoutContent item={item} onDismiss={onDismiss} />
+      )}
+    </BottomSheet>
+  );
+}
+
+/* ── Normal workout content ────────────────────────── */
+
+function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss: () => void }) {
   const displayName = item.profile.username || item.profile.email;
   const exercises = item.exercise_details || [];
   const colors = useColors();
   const themeMode = useThemeStore((s) => s.mode);
-  const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
-
-  const isGhostPost = !!(item.ghost_username && item.ghost_result && item.ghost_exercises);
-
-  if (isGhostPost) {
-    return (
-      <FeedGhostModal
-        item={item}
-        displayName={displayName}
-        colors={colors}
-        topInset={insets.top}
-        onDismiss={onDismiss}
-      />
-    );
-  }
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const bodyPalette = useMemo(() => {
     const a = colors.accent;
@@ -107,7 +111,6 @@ export default function FeedWorkoutModal({ item, onDismiss }: Props) {
   const createRoutine = useRoutineStore((s) => s.createRoutine);
   const startFromRoutine = useActiveWorkoutStore((s) => s.startFromRoutine);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
-  const prevMap = useWorkoutStore((s) => s.prevMap);
 
   const handleSaveRoutine = useCallback(async () => {
     if (!userId) return;
@@ -134,7 +137,6 @@ export default function FeedWorkoutModal({ item, onDismiss }: Props) {
   }, [userId, exercises, displayName, createRoutine]);
 
   const handleTryWorkout = useCallback(() => {
-    // Build ghost prevMap from the poster's exercise data
     const ghostPrevMap: Record<string, { kg: number; reps: number }[]> = {};
     for (const ex of exercises) {
       if (ex.sets && ex.sets.length > 0) {
@@ -159,60 +161,55 @@ export default function FeedWorkoutModal({ item, onDismiss }: Props) {
   }, [item.id, exercises, startFromRoutine, catalogMap, onDismiss]);
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onDismiss}>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>{displayName}'s Workout</Text>
+    <>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>{displayName}'s Workout</Text>
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Workout info */}
+        <View style={styles.workoutInfo}>
+          <Text style={styles.workoutDate}>{formatDate(item.created_at)}</Text>
+          <Text style={styles.workoutSub}>
+            {exercises.length} exercise{exercises.length !== 1 ? 's' : ''}
+            {'  \u00b7  '}{formatDuration(item.duration)}
+            {'  \u00b7  '}{formatVolume(item.total_volume)}
+          </Text>
         </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Workout info */}
-          <View style={styles.workoutInfo}>
-            <Text style={styles.workoutDate}>{formatDate(item.created_at)}</Text>
-            <Text style={styles.workoutSub}>
-              {exercises.length} exercise{exercises.length !== 1 ? 's' : ''}
-              {'  \u00b7  '}{formatDuration(item.duration)}
-              {'  \u00b7  '}{formatVolume(item.total_volume)}
-            </Text>
-          </View>
+        {/* Exercise cards */}
+        {exercises.map((ex, i) => (
+          <ExerciseCard
+            key={i}
+            exercise={ex}
+            colors={colors}
+            styles={styles}
+            bodyPalette={bodyPalette}
+            mapW={MAP_W}
+            mapH={MAP_H}
+          />
+        ))}
+      </ScrollView>
 
-          {/* Exercise cards */}
-          {exercises.map((ex, i) => (
-            <ExerciseCard
-              key={i}
-              exercise={ex}
-              colors={colors}
-              styles={styles}
-              bodyPalette={bodyPalette}
-              mapW={MAP_W}
-              mapH={MAP_H}
-            />
-          ))}
-        </ScrollView>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <View style={styles.footerRow}>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveRoutine} activeOpacity={0.8}>
-              <Ionicons name="bookmark-outline" size={ms(13)} color={colors.accent} />
-              <Text style={styles.saveBtnText}>Save</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.tryBtn} onPress={handleTryWorkout} activeOpacity={0.8}>
-              <Ionicons name="flash" size={ms(13)} color={colors.textOnAccent} />
-              <Text style={styles.tryBtnText}>Beat This</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.closeBtn} onPress={onDismiss} activeOpacity={0.7}>
-              <Text style={styles.closeBtnText}>Close</Text>
-            </TouchableOpacity>
-          </View>
+      {/* Footer */}
+      <View style={styles.footer}>
+        <View style={styles.footerRow}>
+          <TouchableOpacity style={styles.saveBtn} onPress={handleSaveRoutine} activeOpacity={0.8}>
+            <Ionicons name="bookmark-outline" size={ms(13)} color={colors.accent} />
+            <Text style={styles.saveBtnText}>Save</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.tryBtn} onPress={handleTryWorkout} activeOpacity={0.8}>
+            <Ionicons name="flash" size={ms(13)} color={colors.textOnAccent} />
+            <Text style={styles.tryBtnText}>Beat This</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </>
   );
 }
 
@@ -235,23 +232,14 @@ function compareGhostSet(
   return 'tie';
 }
 
-function FeedGhostModal({
-  item,
-  displayName,
-  colors,
-  topInset,
-  onDismiss,
-}: {
-  item: ActivityFeedItem;
-  displayName: string;
-  colors: ThemeColors;
-  topInset: number;
-  onDismiss: () => void;
-}) {
+/* ── Ghost content ─────────────────────────────────── */
+
+function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss: () => void }) {
+  const displayName = item.profile.username || item.profile.email;
   const exercises = item.exercise_details || [];
   const ghostExercises = item.ghost_exercises!;
   const ghostUserName = item.ghost_username!;
-  const ghostResult = item.ghost_result!;
+  const colors = useColors();
 
   const userId = useAuthStore((s) => s.user?.id);
   const isSelf = userId === item.user_id;
@@ -364,145 +352,132 @@ function FeedGhostModal({
   const secs = item.duration % 60;
   const totalSets = exercises.reduce((sum, ex) => sum + (ex.sets?.length || ex.sets_count), 0);
 
-  const gs = useMemo(() => createGhostStyles(colors, topInset), [colors, topInset]);
+  const gs = useMemo(() => createGhostStyles(colors), [colors]);
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onDismiss}>
-      <View style={gs.container}>
-        <View style={{ paddingTop: sw(20), paddingBottom: sw(8), alignItems: 'center' }}>
-          <Text style={{ fontSize: ms(15), fontFamily: Fonts.bold, color: colors.textPrimary }}>Challenge Summary</Text>
+    <>
+      <View style={{ paddingTop: sw(4), paddingBottom: sw(8), alignItems: 'center' }}>
+        <Text style={{ fontSize: ms(15), fontFamily: Fonts.bold, color: colors.textPrimary }}>Challenge Summary</Text>
+      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: sw(16), paddingBottom: sw(32) }}>
+        {/* Verdict */}
+        <View style={{ alignItems: 'center', paddingVertical: sw(24), gap: sw(6) }}>
+          <Text style={{ fontSize: ms(34), fontFamily: Fonts.extraBold, color: verdictColor, letterSpacing: 2 }}>
+            {verdictText}
+          </Text>
+          <Text style={{ fontSize: ms(12), fontFamily: Fonts.medium, color: colors.textTertiary }}>
+            {displayName} vs {ghostUserName}
+          </Text>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: sw(16), paddingBottom: sw(32) }}>
-          {/* Verdict */}
-          <View style={{ alignItems: 'center', paddingVertical: sw(24), gap: sw(6) }}>
-            <Text style={{ fontSize: ms(34), fontFamily: Fonts.extraBold, color: verdictColor, letterSpacing: 2 }}>
-              {verdictText}
+
+        {/* Stats row */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: sw(16), marginBottom: sw(16) }}>
+          <Text style={gs.statText}>{mins}:{secs.toString().padStart(2, '0')}</Text>
+          <Text style={gs.statText}>·</Text>
+          <Text style={gs.statText}>{exercises.length} exercises</Text>
+          <Text style={gs.statText}>·</Text>
+          <Text style={gs.statText}>{totalSets} sets</Text>
+        </View>
+
+        {/* Set Score Bar */}
+        <View style={{ marginBottom: sw(36) }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: sw(6) }}>
+            <Text style={{ fontSize: ms(12), fontFamily: Fonts.bold, color: '#34C759' }}>{displayName}  {results.setWins}</Text>
+            {results.setTies > 0 && (
+              <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary }}>{results.setTies} tied</Text>
+            )}
+            <Text style={{ fontSize: ms(12), fontFamily: Fonts.bold, color: colors.accentRed }}>{results.setLosses}  {ghostUserName}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', height: sw(6), borderRadius: sw(3), overflow: 'hidden' }}>
+            {results.setWins > 0 && (
+              <View style={{ flex: results.setWins, backgroundColor: '#34C759', borderTopLeftRadius: sw(3), borderBottomLeftRadius: sw(3) }} />
+            )}
+            {results.setTies > 0 && (
+              <View style={{ flex: results.setTies, backgroundColor: colors.textTertiary + '40' }} />
+            )}
+            {results.setLosses > 0 && (
+              <View style={{ flex: results.setLosses, backgroundColor: colors.accentRed, borderTopRightRadius: sw(3), borderBottomRightRadius: sw(3) }} />
+            )}
+          </View>
+        </View>
+
+        {/* Head-to-head split */}
+        {results.perExercise.map((ex, i) => (
+          <View key={i} style={{ marginBottom: sw(16) }}>
+            <Text style={{
+              fontSize: ms(12), fontFamily: Fonts.bold, color: colors.textPrimary,
+              textAlign: 'center', marginBottom: sw(8),
+            }} numberOfLines={1}>
+              {ex.name}
             </Text>
-            <Text style={{ fontSize: ms(12), fontFamily: Fonts.medium, color: colors.textTertiary }}>
-              {displayName} vs {ghostUserName}
-            </Text>
-          </View>
 
-          {/* Stats row */}
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: sw(16), marginBottom: sw(16) }}>
-            <Text style={gs.statText}>{mins}:{secs.toString().padStart(2, '0')}</Text>
-            <Text style={gs.statText}>·</Text>
-            <Text style={gs.statText}>{exercises.length} exercises</Text>
-            <Text style={gs.statText}>·</Text>
-            <Text style={gs.statText}>{totalSets} sets</Text>
-          </View>
-
-          {/* Set Score Bar */}
-          <View style={{ marginBottom: sw(36) }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: sw(6) }}>
-              <Text style={{ fontSize: ms(12), fontFamily: Fonts.bold, color: '#34C759' }}>{displayName}  {results.setWins}</Text>
-              {results.setTies > 0 && (
-                <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary }}>{results.setTies} tied</Text>
-              )}
-              <Text style={{ fontSize: ms(12), fontFamily: Fonts.bold, color: colors.accentRed }}>{results.setLosses}  {ghostUserName}</Text>
+            {/* Column headers */}
+            <View style={{
+              flexDirection: 'row', alignItems: 'center', paddingBottom: sw(6),
+              borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder,
+            }}>
+              <Text style={{ flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary }}>{displayName.toUpperCase()}</Text>
+              <Text style={{ width: sw(24), fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'center' }}>SET</Text>
+              <Text style={{ flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right' }}>{ghostUserName.toUpperCase()}</Text>
             </View>
-            <View style={{ flexDirection: 'row', height: sw(6), borderRadius: sw(3), overflow: 'hidden' }}>
-              {results.setWins > 0 && (
-                <View style={{ flex: results.setWins, backgroundColor: '#34C759', borderTopLeftRadius: sw(3), borderBottomLeftRadius: sw(3) }} />
-              )}
-              {results.setTies > 0 && (
-                <View style={{ flex: results.setTies, backgroundColor: colors.textTertiary + '40' }} />
-              )}
-              {results.setLosses > 0 && (
-                <View style={{ flex: results.setLosses, backgroundColor: colors.accentRed, borderTopRightRadius: sw(3), borderBottomRightRadius: sw(3) }} />
-              )}
-            </View>
+
+            {/* Set rows */}
+            {ex.setResults.map((r, si) => {
+              const userSet = ex.userSets[si];
+              const ghostSet = ex.ghostSets[si];
+              const bgColor = r === 'win' ? '#34C759' + '12' : r === 'loss' ? colors.accentRed + '12' : 'transparent';
+              return (
+                <View key={si} style={{
+                  flexDirection: 'row', alignItems: 'center', paddingVertical: sw(8),
+                  backgroundColor: bgColor,
+                  borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder,
+                }}>
+                  <Text style={{ flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textPrimary, paddingLeft: sw(4) }}>
+                    {userSet.kg} × {userSet.reps}
+                  </Text>
+                  <Text style={{ width: sw(24), fontSize: ms(10), fontFamily: Fonts.bold, color: colors.textTertiary, textAlign: 'center' }}>
+                    {si + 1}
+                  </Text>
+                  <Text style={{ flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right', paddingRight: sw(4) }}>
+                    {ghostSet.kg} × {ghostSet.reps}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
+        ))}
+      </ScrollView>
 
-          {/* Head-to-head split */}
-          {results.perExercise.map((ex, i) => (
-            <View key={i} style={{ marginBottom: sw(16) }}>
-              <Text style={{
-                fontSize: ms(12), fontFamily: Fonts.bold, color: colors.textPrimary,
-                textAlign: 'center', marginBottom: sw(8),
-              }} numberOfLines={1}>
-                {ex.name}
-              </Text>
-
-              {/* Column headers */}
-              <View style={{
-                flexDirection: 'row', alignItems: 'center', paddingBottom: sw(6),
-                borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder,
-              }}>
-                <Text style={{ flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary }}>{displayName.toUpperCase()}</Text>
-                <Text style={{ width: sw(24), fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'center' }}>SET</Text>
-                <Text style={{ flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right' }}>{ghostUserName.toUpperCase()}</Text>
-              </View>
-
-              {/* Set rows */}
-              {ex.setResults.map((r, si) => {
-                const userSet = ex.userSets[si];
-                const ghostSet = ex.ghostSets[si];
-                const bgColor = r === 'win' ? '#34C759' + '12' : r === 'loss' ? colors.accentRed + '12' : 'transparent';
-                return (
-                  <View key={si} style={{
-                    flexDirection: 'row', alignItems: 'center', paddingVertical: sw(8),
-                    backgroundColor: bgColor,
-                    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder,
-                  }}>
-                    <Text style={{ flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textPrimary, paddingLeft: sw(4) }}>
-                      {userSet.kg} × {userSet.reps}
-                    </Text>
-                    <Text style={{ width: sw(24), fontSize: ms(10), fontFamily: Fonts.bold, color: colors.textTertiary, textAlign: 'center' }}>
-                      {si + 1}
-                    </Text>
-                    <Text style={{ flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right', paddingRight: sw(4) }}>
-                      {ghostSet.kg} × {ghostSet.reps}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          ))}
-        </ScrollView>
-
-        {/* Footer */}
-        <View style={gs.footer}>
-          {showPicker && (
-            <View style={gs.pickerRow}>
-              {!isSelf && (
-                <TouchableOpacity style={gs.pickerPill} onPress={() => handlePickUser('poster')} activeOpacity={0.7}>
-                  <Text style={gs.pickerName}>{displayName}</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity style={gs.pickerPill} onPress={() => handlePickUser('ghost')} activeOpacity={0.7}>
-                <Text style={gs.pickerName}>{ghostUserName}</Text>
+      {/* Footer */}
+      <View style={gs.footer}>
+        {showPicker && (
+          <View style={gs.pickerRow}>
+            {!isSelf && (
+              <TouchableOpacity style={gs.pickerPill} onPress={() => handlePickUser('poster')} activeOpacity={0.7}>
+                <Text style={gs.pickerName}>{displayName}</Text>
               </TouchableOpacity>
-            </View>
-          )}
-          <View style={gs.footerRow}>
-            <TouchableOpacity style={gs.saveBtn} onPress={handleSaveRoutine} activeOpacity={0.8}>
-              <Ionicons name="bookmark-outline" size={ms(13)} color={colors.accent} />
-              <Text style={gs.saveBtnText}>Save</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={gs.tryBtn} onPress={() => setShowPicker(!showPicker)} activeOpacity={0.8}>
-              <Ionicons name="flash" size={ms(13)} color={colors.textOnAccent} />
-              <Text style={gs.tryBtnText}>Beat This</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={gs.closeBtn} onPress={onDismiss} activeOpacity={0.7}>
-              <Text style={gs.closeBtnText}>Close</Text>
+            )}
+            <TouchableOpacity style={gs.pickerPill} onPress={() => handlePickUser('ghost')} activeOpacity={0.7}>
+              <Text style={gs.pickerName}>{ghostUserName}</Text>
             </TouchableOpacity>
           </View>
+        )}
+        <View style={gs.footerRow}>
+          <TouchableOpacity style={gs.saveBtn} onPress={handleSaveRoutine} activeOpacity={0.8}>
+            <Ionicons name="bookmark-outline" size={ms(13)} color={colors.accent} />
+            <Text style={gs.saveBtnText}>Save</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={gs.tryBtn} onPress={() => setShowPicker(!showPicker)} activeOpacity={0.8}>
+            <Ionicons name="flash" size={ms(13)} color={colors.textOnAccent} />
+            <Text style={gs.tryBtnText}>Beat This</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </>
   );
 }
 
-const createGhostStyles = (colors: ThemeColors, topInset: number) => StyleSheet.create({
-  container: {
-    flex: 1,
-    marginTop: topInset + sw(44),
-    backgroundColor: colors.background,
-    borderTopLeftRadius: sw(16),
-    borderTopRightRadius: sw(16),
-    overflow: 'hidden',
-  },
+const createGhostStyles = (colors: ThemeColors) => StyleSheet.create({
   statText: {
     fontSize: ms(11),
     fontFamily: Fonts.medium,
@@ -549,21 +524,6 @@ const createGhostStyles = (colors: ThemeColors, topInset: number) => StyleSheet.
   },
   tryBtnText: {
     color: colors.textOnAccent,
-    fontSize: ms(12),
-    fontFamily: Fonts.bold,
-    lineHeight: ms(16),
-  },
-  closeBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: sw(12),
-    borderRadius: sw(10),
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  closeBtnText: {
-    color: colors.textSecondary,
     fontSize: ms(12),
     fontFamily: Fonts.bold,
     lineHeight: ms(16),
@@ -717,18 +677,10 @@ function ExerciseCard({
   );
 }
 
-const createStyles = (colors: ThemeColors, topInset: number) => StyleSheet.create({
-  container: {
-    flex: 1,
-    marginTop: topInset + sw(44),
-    backgroundColor: colors.background,
-    borderTopLeftRadius: sw(16),
-    borderTopRightRadius: sw(16),
-    overflow: 'hidden',
-  },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   header: {
     paddingHorizontal: sw(16),
-    paddingTop: sw(20),
+    paddingTop: sw(4),
     paddingBottom: sw(8),
     alignItems: 'center',
   },
@@ -891,21 +843,6 @@ const createStyles = (colors: ThemeColors, topInset: number) => StyleSheet.creat
   },
   tryBtnText: {
     color: colors.textOnAccent,
-    fontSize: ms(12),
-    fontFamily: Fonts.bold,
-    lineHeight: ms(16),
-  },
-  closeBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: sw(12),
-    borderRadius: sw(10),
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  closeBtnText: {
-    color: colors.textSecondary,
     fontSize: ms(12),
     fontFamily: Fonts.bold,
     lineHeight: ms(16),

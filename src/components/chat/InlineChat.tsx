@@ -2,10 +2,6 @@ import React, { useEffect, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RouteProp } from '@react-navigation/native';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -13,19 +9,18 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useChatStore } from '../../stores/useChatStore';
 import { setViewingChat } from '../../services/chatService';
 import type { ChatMessage } from '../../lib/chatDatabase';
-import type { CommunityStackParamList } from '../../navigation/CommunityNavigator';
 import MessageBubble from './MessageBubble';
 import ChatInputBar from './ChatInputBar';
 import AvatarCircle from '../friends/AvatarCircle';
 
-type Nav = NativeStackNavigationProp<CommunityStackParamList, 'Chat'>;
-type Route = RouteProp<CommunityStackParamList, 'Chat'>;
+interface Props {
+  conversationId: string;
+  friendId: string;
+  friendName: string;
+  onBack: () => void;
+}
 
-export default function ChatScreen() {
-  const navigation = useNavigation<Nav>();
-  const route = useRoute<Route>();
-  const { conversationId, friendId, friendName } = route.params;
-
+function InlineChat({ conversationId, friendId, friendName, onBack }: Props) {
   const userId = useAuthStore((s) => s.user?.id);
   const messages = useChatStore((s) => s.messages[conversationId] || []);
   const loading = useChatStore((s) => s.messagesLoading);
@@ -34,7 +29,6 @@ export default function ChatScreen() {
   const sendMessage = useChatStore((s) => s.sendMessage);
   const markConversationRead = useChatStore((s) => s.markConversationRead);
 
-  const insets = useSafeAreaInsets();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -45,7 +39,6 @@ export default function ChatScreen() {
       markConversationRead(conversationId, userId);
     }
     setViewingChat(conversationId);
-
     return () => {
       setViewingChat(null);
     };
@@ -86,17 +79,10 @@ export default function ChatScreen() {
   const renderItem = useCallback(
     ({ item, index }: { item: ChatMessage; index: number }) => {
       const isOwn = item.sender_id === userId;
-      // In an inverted list, index 0 is the newest message
-      // "next" in display order is index + 1 (the message visually above)
       const nextMsg = messages[index + 1];
       const isLastInGroup = !nextMsg || nextMsg.sender_id !== item.sender_id;
-
-      // Show timestamp on last message in a group
       const showTimestamp = isLastInGroup;
-
-      // Show "Read" below the user's last sent message if it's been read
-      const showReadReceipt =
-        isOwn && item.id === lastOwnMessageId && item.read;
+      const showReadReceipt = isOwn && item.id === lastOwnMessageId && item.read;
 
       return (
         <MessageBubble
@@ -112,22 +98,19 @@ export default function ChatScreen() {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
+    <View style={styles.container}>
+      {/* Chat header */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => navigation.goBack()}
+          onPress={onBack}
           activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.backBtn}
         >
-          <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
+          <Ionicons name="chevron-back" size={ms(22)} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <AvatarCircle
-            username={friendName}
-            email={friendName}
-            size={sw(32)}
-          />
+          <AvatarCircle username={friendName} email={friendName} size={sw(28)} />
           <Text style={styles.headerName} numberOfLines={1}>
             {friendName}
           </Text>
@@ -135,15 +118,17 @@ export default function ChatScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      {/* Messages */}
-      <View style={styles.messagesWrap}>
+      {/* Messages list */}
+      <View style={styles.messages}>
         {loading && messages.length === 0 ? (
           <View style={styles.center}>
             <ActivityIndicator color={colors.textSecondary} />
           </View>
         ) : messages.length === 0 ? (
           <View style={styles.center}>
-            <Text style={styles.emptyText}>Say hello!</Text>
+            <AvatarCircle username={friendName} email={friendName} size={sw(56)} />
+            <Text style={styles.emptyName}>{friendName}</Text>
+            <Text style={styles.emptyText}>Send a message to start the conversation</Text>
           </View>
         ) : (
           <FlashList
@@ -160,62 +145,71 @@ export default function ChatScreen() {
         )}
       </View>
 
-      {/* Input */}
+      {/* Input bar */}
       <ChatInputBar onSend={handleSend} />
     </View>
   );
 }
 
+export default React.memo(InlineChat);
+
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.background,
     },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
       paddingHorizontal: sw(8),
       paddingVertical: sw(10),
       borderBottomWidth: 0.5,
       borderBottomColor: colors.cardBorder,
     },
     backBtn: {
-      width: sw(40),
-      height: sw(40),
+      width: sw(32),
+      height: sw(32),
       justifyContent: 'center',
       alignItems: 'center',
     },
     headerCenter: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: sw(8),
-      flex: 1,
       justifyContent: 'center',
+      gap: sw(8),
     },
     headerName: {
       color: colors.textPrimary,
-      fontSize: ms(16),
+      fontSize: ms(15),
       fontFamily: Fonts.bold,
-      lineHeight: ms(22),
+      lineHeight: ms(20),
     },
-    messagesWrap: {
+    messages: {
       flex: 1,
     },
     center: {
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
+      gap: sw(6),
+      paddingBottom: sw(40),
+    },
+    emptyName: {
+      color: colors.textPrimary,
+      fontSize: ms(16),
+      fontFamily: Fonts.bold,
+      lineHeight: ms(22),
+      marginTop: sw(8),
     },
     emptyText: {
       color: colors.textTertiary,
-      fontSize: ms(14),
-      fontFamily: Fonts.medium,
-      lineHeight: ms(20),
+      fontSize: ms(13),
+      fontFamily: Fonts.regular,
+      lineHeight: ms(18),
     },
     listContent: {
-      paddingTop: sw(8),
-      paddingBottom: sw(8),
+      paddingTop: sw(10),
+      paddingBottom: sw(10),
     },
   });

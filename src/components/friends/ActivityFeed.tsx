@@ -225,12 +225,10 @@ export default function ActivityFeed() {
 
       <NewPostsPill count={newPostCount} onPress={handleNewPostsTap} />
 
-      {selectedFeedItem && (
-        <FeedWorkoutModal
-          item={selectedFeedItem}
-          onDismiss={() => setSelectedFeedItem(null)}
-        />
-      )}
+      <FeedWorkoutModal
+        item={selectedFeedItem}
+        onDismiss={() => setSelectedFeedItem(null)}
+      />
 
       {commentsActivityId && (
         <CommentsSheet

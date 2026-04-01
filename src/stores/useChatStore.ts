@@ -85,7 +85,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const cursor = reset
         ? null
         : existing.length > 0
-          ? existing[existing.length - 1].created_at
+          ? existing[0].created_at
           : null;
 
       const fetched = await chatDb.getMessages(
@@ -94,7 +94,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         cursor,
       );
 
-      const merged = reset ? fetched : [...existing, ...fetched];
+      const merged = reset ? fetched : [...fetched, ...existing];
 
       set({
         messages: { ...get().messages, [conversationId]: merged },
@@ -122,12 +122,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       tempId,
     };
 
-    // Optimistic insert at front (newest first)
+    // Optimistic insert at end (ascending order — oldest first)
     const current = get().messages[conversationId] || [];
     set({
       messages: {
         ...get().messages,
-        [conversationId]: [optimistic, ...current],
+        [conversationId]: [...current, optimistic],
       },
     });
 
@@ -228,7 +228,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: {
         ...get().messages,
-        [convId]: [message, ...existing],
+        [convId]: [...existing, message],
       },
     });
 

@@ -23,6 +23,7 @@ import type { FoodDetailData } from './FoodDetailModal';
 import BarcodeScannerModal from './BarcodeScannerModal';
 import CreateMealModal from './CreateMealModal';
 import QuickAddModal from './QuickAddModal';
+import BottomSheet from '../workout-sheet/BottomSheet';
 
 /* ─── Props ──────────────────────────────────────────── */
 
@@ -234,20 +235,14 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
 
   /* ── Render ────────────────────────────────────────── */
   return (
-    <>
-    {visible && (
-      <View style={[StyleSheet.absoluteFill, s.overlay]}>
+    <BottomSheet visible={visible} onClose={onDismiss} height="92%" modal>
         <KeyboardAvoidingView
           style={s.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           {/* Header */}
           <View style={s.header}>
-            <TouchableOpacity onPress={onDismiss} style={s.backBtn} activeOpacity={0.5}>
-              <Ionicons name="chevron-back" size={ms(20)} color={colors.textSecondary} />
-            </TouchableOpacity>
             <Text style={s.title}>Log Food</Text>
-            <View style={s.headerSpacer} />
           </View>
 
           {/* Action buttons */}
@@ -427,41 +422,47 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
             </ScrollView>
           )}
         </KeyboardAvoidingView>
-      </View>
-    )}
 
-    <FoodDetailModal
-      visible={detailVisible}
-      food={detailFood}
-      initialMealSlot={mealSlot}
-      initialIsPlanned={false}
-      targetHour={targetHour}
-      onDismiss={handleDetailDismiss}
-      onAdded={handleDetailAdded}
-      onFoodSwap={setDetailFood}
-    />
-    <BarcodeScannerModal
-      visible={scannerVisible}
-      onDismiss={handleScanDismiss}
-      onFoodFound={handleScanFound}
-      onNotFound={handleScanNotFound}
-    />
-    <CreateMealModal
-      visible={createMealVisible}
-      mealSlot={mealSlot}
-      targetHour={targetHour}
-      onDismiss={handleCreateMealDismiss}
-      onLogged={handleMealLogged}
-      initialMeal={selectedSavedMeal}
-    />
-    <QuickAddModal
-      visible={quickAddVisible}
-      mealSlot={mealSlot}
-      targetHour={targetHour}
-      onDismiss={handleQuickAddDismiss}
-      onAdded={handleQuickAdded}
-    />
-    </>
+      {detailVisible && (
+        <FoodDetailModal
+          visible={detailVisible}
+          food={detailFood}
+          initialMealSlot={mealSlot}
+          initialIsPlanned={false}
+          targetHour={targetHour}
+          onDismiss={handleDetailDismiss}
+          onAdded={handleDetailAdded}
+          onFoodSwap={setDetailFood}
+        />
+      )}
+      {scannerVisible && (
+        <BarcodeScannerModal
+          visible={scannerVisible}
+          onDismiss={handleScanDismiss}
+          onFoodFound={handleScanFound}
+          onNotFound={handleScanNotFound}
+        />
+      )}
+      {createMealVisible && (
+        <CreateMealModal
+          visible={createMealVisible}
+          mealSlot={mealSlot}
+          targetHour={targetHour}
+          onDismiss={handleCreateMealDismiss}
+          onLogged={handleMealLogged}
+          initialMeal={selectedSavedMeal}
+        />
+      )}
+      {quickAddVisible && (
+        <QuickAddModal
+          visible={quickAddVisible}
+          mealSlot={mealSlot}
+          targetHour={targetHour}
+          onDismiss={handleQuickAddDismiss}
+          onAdded={handleQuickAdded}
+        />
+      )}
+    </BottomSheet>
   );
 }
 
@@ -469,37 +470,19 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   flex: { flex: 1 },
-  overlay: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingTop: sw(12),
-  },
   /* Header */
   header: {
-    flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: sw(12),
     marginBottom: sw(16),
   },
-  backBtn: {
-    width: sw(36),
-    height: sw(36),
-    borderRadius: sw(12),
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   title: {
-    flex: 1,
     color: colors.textPrimary,
     fontSize: ms(18),
     lineHeight: ms(24),
     fontFamily: Fonts.bold,
     textAlign: 'center',
     letterSpacing: -0.3,
-  },
-  headerSpacer: {
-    width: sw(36),
   },
   /* Action buttons */
   actionRow: {

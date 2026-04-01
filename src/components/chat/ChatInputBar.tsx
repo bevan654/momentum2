@@ -38,32 +38,34 @@ function ChatInputBar({ onSend }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={sw(20)}
     >
-      <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, sw(10)) }]}>
-        <TextInput
-          ref={inputRef}
-          style={styles.input}
-          placeholder="Message..."
-          placeholderTextColor={colors.textTertiary}
-          value={text}
-          onChangeText={setText}
-          multiline
-          maxLength={1000}
-          returnKeyType="send"
-          blurOnSubmit
-          onSubmitEditing={handleSend}
-        />
-        <TouchableOpacity
-          style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
-          onPress={handleSend}
-          disabled={!canSend}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="send"
-            size={ms(18)}
-            color={canSend ? colors.textOnAccent : colors.textTertiary}
+      <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, sw(8)) }]}>
+        <View style={styles.inputWrap}>
+          <TextInput
+            ref={inputRef}
+            style={styles.input}
+            placeholder="Message..."
+            placeholderTextColor={colors.textTertiary}
+            value={text}
+            onChangeText={setText}
+            multiline
+            maxLength={1000}
+            returnKeyType="send"
+            blurOnSubmit
+            onSubmitEditing={handleSend}
           />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.sendBtn, canSend && styles.sendBtnActive]}
+            onPress={handleSend}
+            disabled={!canSend}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="arrow-up"
+              size={ms(18)}
+              color={canSend ? colors.textOnAccent : colors.textTertiary}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -74,38 +76,39 @@ export default React.memo(ChatInputBar);
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: {
+      paddingHorizontal: sw(10),
+      paddingTop: sw(8),
+      backgroundColor: colors.background,
+    },
+    inputWrap: {
       flexDirection: 'row',
       alignItems: 'flex-end',
-      gap: sw(8),
-      paddingHorizontal: sw(12),
-      paddingTop: sw(10),
-      borderTopWidth: 0.5,
-      borderTopColor: colors.cardBorder,
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
+      borderRadius: sw(22),
+      borderWidth: 0.5,
+      borderColor: colors.cardBorder,
+      paddingLeft: sw(14),
+      paddingRight: sw(5),
+      paddingVertical: sw(5),
     },
     input: {
       flex: 1,
       color: colors.textPrimary,
-      fontSize: ms(14),
-      fontFamily: Fonts.medium,
+      fontSize: ms(15),
+      fontFamily: Fonts.regular,
       lineHeight: ms(20),
-      backgroundColor: colors.surface,
-      borderRadius: sw(20),
-      paddingHorizontal: sw(14),
-      paddingVertical: sw(8),
+      paddingVertical: sw(4),
       maxHeight: sw(100),
-      borderWidth: 0.5,
-      borderColor: colors.cardBorder,
     },
     sendBtn: {
-      width: sw(36),
-      height: sw(36),
-      borderRadius: sw(18),
-      backgroundColor: colors.accent,
+      width: sw(30),
+      height: sw(30),
+      borderRadius: sw(15),
+      backgroundColor: 'transparent',
       justifyContent: 'center',
       alignItems: 'center',
     },
-    sendBtnDisabled: {
-      backgroundColor: colors.surface,
+    sendBtnActive: {
+      backgroundColor: colors.accent,
     },
   });

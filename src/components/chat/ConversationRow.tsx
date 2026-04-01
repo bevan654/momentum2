@@ -37,7 +37,7 @@ function ConversationRow({ conversation, currentUserId, onPress }: Props) {
       <AvatarCircle
         username={conversation.friendUsername}
         email={conversation.friendEmail}
-        size={sw(50)}
+        size={sw(48)}
       />
       <View style={styles.content}>
         <View style={styles.topRow}>
@@ -60,6 +60,7 @@ function ConversationRow({ conversation, currentUserId, onPress }: Props) {
           </Text>
           {hasUnread && <View style={styles.dot} />}
         </View>
+        <View style={styles.separator} />
       </View>
     </TouchableOpacity>
   );
@@ -88,7 +89,8 @@ const createStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: sw(16),
-      paddingVertical: sw(12),
+      paddingTop: sw(12),
+      paddingBottom: sw(2),
       gap: sw(12),
     },
     content: {
@@ -103,7 +105,7 @@ const createStyles = (colors: ThemeColors) =>
     name: {
       color: colors.textPrimary,
       fontSize: ms(15),
-      fontFamily: Fonts.medium,
+      fontFamily: Fonts.semiBold,
       lineHeight: ms(20),
       flex: 1,
       marginRight: sw(8),
@@ -113,9 +115,9 @@ const createStyles = (colors: ThemeColors) =>
     },
     time: {
       color: colors.textTertiary,
-      fontSize: ms(12),
+      fontSize: ms(11),
       fontFamily: Fonts.regular,
-      lineHeight: ms(17),
+      lineHeight: ms(16),
     },
     timeUnread: {
       color: colors.accent,
@@ -134,13 +136,18 @@ const createStyles = (colors: ThemeColors) =>
     },
     previewUnread: {
       color: colors.textSecondary,
-      fontFamily: Fonts.semiBold,
+      fontFamily: Fonts.medium,
     },
     dot: {
-      width: sw(8),
-      height: sw(8),
-      borderRadius: sw(4),
+      width: sw(9),
+      height: sw(9),
+      borderRadius: sw(4.5),
       backgroundColor: colors.accent,
       marginLeft: sw(8),
+    },
+    separator: {
+      height: 0.5,
+      backgroundColor: colors.cardBorder,
+      marginTop: sw(10),
     },
   });
