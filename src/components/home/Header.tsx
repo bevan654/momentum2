@@ -11,8 +11,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useStreakStore } from '../../stores/useStreakStore';
 import { useFoodLogStore } from '../../stores/useFoodLogStore';
+import { useFriendsStore } from '../../stores/useFriendsStore';
 import AvatarCircle from '../friends/AvatarCircle';
 import { openProfileSheet } from '../../navigation/TabNavigator';
+import { openShareHub } from '../../screens/WorkoutHistoryScreen';
+import NotificationList from '../friends/NotificationList';
+import BottomSheet from '../workout-sheet/BottomSheet';
 
 /* ─── Date helpers ──────────────────────────────────────── */
 
@@ -244,6 +248,7 @@ export default function Header({ activeTab }: HeaderProps) {
   const username = useAuthStore((s) => s.profile?.username ?? null);
   const email = useAuthStore((s) => s.profile?.email ?? '');
   const currentStreak = useStreakStore((s) => s.currentStreak);
+  const unreadCount = useFriendsStore((s) => s.unreadCount);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const selectedDate = useFoodLogStore((s) => s.selectedDate);
@@ -259,6 +264,12 @@ export default function Header({ activeTab }: HeaderProps) {
     if (h < 17) return 'Good Afternoon';
     return 'Good Evening';
   }, []);
+
+  const badgeText = unreadCount > 99 ? '99+' : String(unreadCount);
+
+  const [notifOpen, setNotifOpen] = useState(false);
+  const openNotif = useCallback(() => setNotifOpen(true), []);
+  const closeNotif = useCallback(() => setNotifOpen(false), []);
 
   const [calendarOpen, setCalendarOpen] = useState(false);
   const openCal = useCallback(() => setCalendarOpen(true), []);
@@ -286,6 +297,11 @@ export default function Header({ activeTab }: HeaderProps) {
           </TouchableOpacity>
         )}
 
+        {/* Share button */}
+        <TouchableOpacity onPress={openShareHub} activeOpacity={0.7} style={styles.shareWrap}>
+          <Ionicons name="share-outline" size={ms(17)} color={colors.textPrimary} />
+        </TouchableOpacity>
+
         {/* Streak + Avatar — right */}
         {showStreak && (
           <View style={styles.streakBadge}>
@@ -293,6 +309,14 @@ export default function Header({ activeTab }: HeaderProps) {
             <Text style={styles.streakText}>{currentStreak}</Text>
           </View>
         )}
+        <TouchableOpacity onPress={openNotif} activeOpacity={0.7} style={styles.bellWrap}>
+          <Ionicons name="notifications-outline" size={ms(18)} color={colors.textPrimary} />
+          {unreadCount > 0 && (
+            <View style={styles.bellBadge}>
+              <Text style={styles.bellBadgeText}>{badgeText}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
         <TouchableOpacity onPress={openProfileSheet} activeOpacity={0.7}>
           <View style={styles.avatarRing}>
             <AvatarCircle
@@ -313,6 +337,10 @@ export default function Header({ activeTab }: HeaderProps) {
           onSelect={setDate}
         />
       )}
+
+      <BottomSheet visible={notifOpen} onClose={closeNotif} height="70%" modal>
+        <NotificationList />
+      </BottomSheet>
     </View>
   );
 }
@@ -369,6 +397,33 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textPrimary,
     fontSize: ms(17),
     fontFamily: Fonts.extraBold,
+  },
+  shareWrap: {
+    padding: sw(4),
+  },
+  bellWrap: {
+    position: 'relative',
+    padding: sw(4),
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: colors.accentRed,
+    borderRadius: sw(8),
+    minWidth: sw(16),
+    height: sw(16),
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: sw(3),
+    borderWidth: 1.5,
+    borderColor: colors.navBar,
+  },
+  bellBadgeText: {
+    color: colors.textOnAccent,
+    fontSize: ms(8),
+    fontFamily: Fonts.bold,
+    lineHeight: ms(11),
   },
   avatarRing: {
     borderWidth: 1.5,

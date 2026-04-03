@@ -23,6 +23,7 @@ import type { ExtendedBodyPart } from '../components/BodyHighlighter';
 import RankBadge from '../components/workouts/RankBadge';
 import { computeWorkoutRank } from '../utils/strengthScore';
 import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
+import ShareHub from '../components/share/ShareHub';
 import ActivityChart from '../components/workouts/ActivityChart';
 import TodayScheduled from '../components/workouts/TodayScheduled';
 import type { Routine, RoutineExercise } from '../stores/useRoutineStore';
@@ -37,6 +38,7 @@ function formatVolume(vol: number): string {
   if (vol >= 1000) return `${(vol / 1000).toFixed(1)}k`;
   return `${vol}`;
 }
+
 
 /* ─── Glass border + corner glow (all Skia, no CSS border) ── */
 
@@ -471,6 +473,11 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
   );
 });
 
+/* ─── Share hub trigger (module-level, like openProfileSheet) ── */
+
+let _openShareHub: (() => void) | null = null;
+export function openShareHub() { _openShareHub?.(); }
+
 /* ─── Main screen ────────────────────────────────────── */
 
 function WorkoutHistoryScreen() {
@@ -581,6 +588,13 @@ function WorkoutHistoryScreen() {
 
   const isToday = selectedDate === todayStr;
   const isFuture = selectedDate > todayStr;
+
+  // Share hub
+  const [shareVisible, setShareVisible] = useState(false);
+  useEffect(() => {
+    _openShareHub = () => setShareVisible(true);
+    return () => { _openShareHub = null; };
+  }, []);
 
   const dateLabel = useMemo(() => {
     const d = new Date(selectedDate + 'T12:00:00');
@@ -830,7 +844,7 @@ function WorkoutHistoryScreen() {
         contentContainerStyle={{ paddingBottom: sw(16) }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Body Map ─────────────────────────────── */}
+        {/* ── Recovery header ── */}
         <Text style={styles.recoveryTitle}>Recovery Overview — {Math.round(overallRecovery)}%</Text>
         {/* Body part filter */}
         <View style={styles.filterContainer}>
@@ -1096,6 +1110,11 @@ function WorkoutHistoryScreen() {
           />
         )}
       </Modal>
+
+      <ShareHub
+        visible={shareVisible}
+        onClose={() => setShareVisible(false)}
+      />
 
     </View>
   );
@@ -1404,7 +1423,6 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       letterSpacing: 1.5,
       textTransform: 'uppercase',
       marginBottom: sw(8),
-      zIndex: 1,
     },
     /* ── Body Part Filter Chips ─────────────────────────── */
     filterContainer: {

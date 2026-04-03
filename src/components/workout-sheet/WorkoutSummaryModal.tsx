@@ -15,8 +15,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { supabase } from '../../lib/supabase';
 import { useActiveWorkoutStore, type WorkoutSummary, type SummaryExercise, type GhostExerciseData } from '../../stores/useActiveWorkoutStore';
 import type { WorkoutWithDetails, ExerciseWithSets } from '../../stores/useWorkoutStore';
-import ShareWorkoutModal from './ShareWorkoutModal';
-import type { WorkoutOverlayData } from '../dev/WorkoutOverlay';
+import ShareModal from '../share/ShareModal';
+import WorkoutOverlay from '../dev/WorkoutOverlay';
 
 // ── Edit-mode types ──────────────────────────────────
 
@@ -1160,11 +1160,9 @@ export default function WorkoutSummaryModal(props: Props) {
         />
       )}
       {showShare && (
-        <ShareWorkoutModal
-          visible={showShare}
-          data={shareData}
-          onClose={() => setShowShare(false)}
-        />
+        <ShareModal visible={showShare} onClose={() => setShowShare(false)}>
+          {({ imageUri }) => <WorkoutOverlay backgroundUri={imageUri} data={shareData} />}
+        </ShareModal>
       )}
     </>
   );
