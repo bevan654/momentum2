@@ -210,12 +210,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   emptyCard: {
     width: FULL_WIDTH,
     backgroundColor: colors.card,
-    borderRadius: sw(14),
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
     paddingVertical: sw(20),
     alignItems: 'center',
     justifyContent: 'center',
     gap: sw(8),
-    ...colors.cardShadow,
   },
   emptyLabel: {
     color: colors.textTertiary,
@@ -229,9 +230,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: FULL_WIDTH,
     flexDirection: 'row',
     backgroundColor: colors.card,
-    borderRadius: sw(14),
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
     overflow: 'hidden',
-    ...colors.cardShadow,
   },
   splitLeft: {
     width: '50%',
@@ -250,7 +252,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   addIconWrap: {
     width: sw(36),
     height: sw(36),
-    borderRadius: sw(10),
+    borderRadius: sw(8),
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -266,10 +268,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   cell: {
     width: CELL_WIDTH,
     backgroundColor: colors.card,
-    borderRadius: sw(14),
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
     padding: sw(12),
     gap: sw(6),
-    ...colors.cardShadow,
   },
   /* Cell embedded inside splitCard (no bg/shadow/width) */
   cellEmbedded: {

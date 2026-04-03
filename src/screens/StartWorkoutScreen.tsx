@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, TouchableWithoutFeedback, ScrollView, StyleSheet, Alert, Pressable, Animated as RNAnimated } from 'react-native';
 import { Swipeable, Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -48,8 +48,8 @@ export default function StartWorkoutScreen() {
   const dismissing = useRef(false);
 
   useEffect(() => {
-    translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
-    backdropOpacity.value = withTiming(1, { duration: 250 });
+    translateY.value = 0;
+    backdropOpacity.value = 1;
   }, []);
 
   useEffect(() => {
@@ -66,10 +66,9 @@ export default function StartWorkoutScreen() {
   const dismiss = useCallback(() => {
     if (dismissing.current) return;
     dismissing.current = true;
-    translateY.value = withSpring(sheetTravel, { damping: 28, stiffness: 280, mass: 0.8 });
-    backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
-      runOnJS(goBack)();
-    });
+    translateY.value = sheetTravel;
+    backdropOpacity.value = 0;
+    goBack();
   }, [goBack, sheetTravel]);
 
   const panGesture = useMemo(
@@ -87,12 +86,11 @@ export default function StartWorkoutScreen() {
             e.translationY > DISMISS_THRESHOLD ||
             e.velocityY > VELOCITY_THRESHOLD
           ) {
-            translateY.value = withSpring(sheetTravel, { damping: 28, stiffness: 280, mass: 0.8 });
-            backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
-              runOnJS(goBack)();
-            });
+            translateY.value = sheetTravel;
+            backdropOpacity.value = 0;
+            runOnJS(goBack)();
           } else {
-            translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
+            translateY.value = 0;
           }
         }),
     [goBack, sheetTravel],

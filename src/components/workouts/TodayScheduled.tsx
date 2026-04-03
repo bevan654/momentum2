@@ -228,7 +228,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     textTransform: 'uppercase',
   },
   todayCount: {
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: colors.surface,
     width: sw(16),
     height: sw(16),
     justifyContent: 'center',
@@ -243,13 +243,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: sw(3),
   },
   todayProgramBlock: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.surface,
     padding: sw(12),
     gap: sw(3),
   },
   todayProgramDivider: {
     height: 0.5,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: colors.cardBorder,
     marginVertical: sw(6),
   },
   todayHeader: {
@@ -281,7 +281,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.bold,
   },
   todayMeta: {
-    color: 'rgba(255,255,255,0.40)',
+    color: colors.textTertiary,
     fontSize: ms(10),
     fontFamily: Fonts.medium,
   },
@@ -291,7 +291,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginTop: sw(8),
   },
   todayExSummary: {
-    color: 'rgba(255,255,255,0.40)',
+    color: colors.textTertiary,
     fontSize: ms(10),
     fontFamily: Fonts.medium,
   },
@@ -300,7 +300,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: sw(12),
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.surface,
   },
   todaySkipText: {
     color: colors.textTertiary,
@@ -312,7 +312,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: sw(12),
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.surface,
   },
   todaySummaryText: {
     color: colors.textSecondary,
@@ -337,7 +337,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: sw(12),
     gap: sw(4),
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.surface,
   },
   todayRestText: {
     color: colors.textPrimary,
@@ -345,7 +345,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.bold,
   },
   todayRestSub: {
-    color: 'rgba(255,255,255,0.40)',
+    color: colors.textTertiary,
     fontSize: ms(10),
     fontFamily: Fonts.medium,
   },
@@ -357,15 +357,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   todayDivider: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.cardBorder,
     marginVertical: sw(6),
   },
   todayCardRoutine: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.surface,
     padding: sw(12),
   },
   emptyState: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.surface,
     padding: sw(16),
     alignItems: 'center',
     gap: sw(4),

@@ -544,9 +544,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.card,
-    borderRadius: sw(16),
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
     padding: sw(14),
-    ...colors.cardShadow,
   },
 
   /* Header */

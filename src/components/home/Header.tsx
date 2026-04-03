@@ -272,17 +272,9 @@ export default function Header({ activeTab }: HeaderProps) {
         {/* Greeting + name — left */}
         <View style={styles.greetingBlock}>
           <Text style={styles.greeting}>{greeting},</Text>
-          <View style={styles.nameLine}>
-            <Text style={styles.greetingName}>
-              {(username || 'there').split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')}
-            </Text>
-            {showStreak && (
-              <View style={styles.streakBadge}>
-                <Ionicons name="flame" size={ms(11)} color={colors.textPrimary} />
-                <Text style={styles.streakText}>{currentStreak}</Text>
-              </View>
-            )}
-          </View>
+          <Text style={styles.greetingName}>
+            {(username || 'there').split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')}
+          </Text>
         </View>
 
         <View style={styles.spacer} />
@@ -294,7 +286,13 @@ export default function Header({ activeTab }: HeaderProps) {
           </TouchableOpacity>
         )}
 
-        {/* Avatar — right */}
+        {/* Streak + Avatar — right */}
+        {showStreak && (
+          <View style={styles.streakBadge}>
+            <Ionicons name="flame" size={ms(13)} color={colors.streak} />
+            <Text style={styles.streakText}>{currentStreak}</Text>
+          </View>
+        )}
         <TouchableOpacity onPress={openProfileSheet} activeOpacity={0.7}>
           <View style={styles.avatarRing}>
             <AvatarCircle
@@ -323,7 +321,7 @@ export default function Header({ activeTab }: HeaderProps) {
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.navBar,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.cardBorder,
     zIndex: 10,
@@ -332,7 +330,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingBottom: sw(8),
+    paddingBottom: sw(4),
     gap: sw(12),
   },
   spacer: {
@@ -345,25 +343,26 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textTertiary,
     fontSize: ms(13),
     fontFamily: Fonts.medium,
-  },
-  nameLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(6),
+    lineHeight: ms(15),
   },
   greetingName: {
     color: colors.textPrimary,
     fontSize: ms(18),
     fontFamily: Fonts.bold,
+    lineHeight: ms(21),
   },
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: sw(2),
+    gap: sw(3),
+    backgroundColor: colors.streak + '18',
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(4),
+    borderRadius: sw(10),
   },
   streakText: {
-    color: colors.textPrimary,
-    fontSize: ms(11),
+    color: colors.streak,
+    fontSize: ms(12),
     fontFamily: Fonts.bold,
   },
   dateChipText: {

@@ -67,11 +67,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.card,
-    borderRadius: sw(14),
-    padding: sw(14),
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: sw(12),
     justifyContent: 'space-between',
     gap: sw(8),
-    ...colors.cardShadow,
   },
   header: {
     flexDirection: 'row',

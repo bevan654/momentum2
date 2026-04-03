@@ -19,7 +19,7 @@ import WorkoutsNavigator from './WorkoutsNavigator';
 import { showRecoveryOverlay } from './WorkoutsNavigator';
 import ActiveWorkoutSheet from '../components/workout-sheet/ActiveWorkoutSheet';
 import GhostFinishScreen from '../components/workout-sheet/GhostFinishScreen';
-import WorkoutFinishScreen from '../components/workout-sheet/WorkoutFinishScreen';
+import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
 import FriendProfileModal from '../components/friends/FriendProfileModal';
 import FloatingWorkoutBanner from '../components/workout-sheet/FloatingWorkoutBanner';
 import BottomSheet from '../components/workout-sheet/BottomSheet';
@@ -270,6 +270,12 @@ export default function TabNavigator() {
     };
   }, [userId]);
 
+  const showSummary = useActiveWorkoutStore((s) => s.showSummary);
+  const summaryData = useActiveWorkoutStore((s) => s.summaryData);
+  const dismissSummary = useActiveWorkoutStore((s) => s.dismissSummary);
+  const isGhostSummary = showSummary && summaryData &&
+    'ghostUserName' in summaryData && !!summaryData.ghostUserName;
+
   const openProfile = useCallback(() => setProfileVisible(true), []);
   const closeProfile = useCallback(() => setProfileVisible(false), []);
 
@@ -311,7 +317,6 @@ export default function TabNavigator() {
           <Tab.Screen name="Nutrition" component={FoodLoggerScreen} />
           <Tab.Screen name="Community" component={FriendsScreen} />
         </Tab.Navigator>
-        <WorkoutFinishScreen />
         <GhostFinishScreen />
       </View>
       <BottomSheet visible={profileVisible} onClose={closeProfile} height="92%" modal>
@@ -319,6 +324,13 @@ export default function TabNavigator() {
       </BottomSheet>
       <ActiveWorkoutSheet />
       <FriendProfileModal />
+      {showSummary && summaryData && !isGhostSummary && (
+        <WorkoutSummaryModal
+          mode="just-completed"
+          data={summaryData}
+          onDismiss={dismissSummary}
+        />
+      )}
     </View>
   );
 }
@@ -332,7 +344,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: colors.background,
+    backgroundColor: colors.navBar,
     borderTopColor: colors.cardBorder,
     borderTopWidth: 0.5,
     paddingTop: sw(16),

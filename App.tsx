@@ -66,7 +66,7 @@ if (Platform.OS === 'android') {
 export default function App() {
   const { session, profile, initialized, initialize, showWelcome } = useAuthStore();
   const mode = useThemeStore((s) => s.mode);
-  const accentColor = useThemeStore((s) => s.accentColor);
+  const accentColor = useThemeStore((s) => s.accent);
   const themeReady = useThemeStore((s) => s.initialized);
 
   const [fontsLoaded] = useFonts({

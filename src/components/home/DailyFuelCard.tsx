@@ -59,7 +59,7 @@ export default React.memo(function DailyFuelCard() {
         <View style={styles.iconWrap}>
           <Ionicons name="flame-outline" size={ms(12)} color={FUEL_COLOR} />
         </View>
-        <Text style={styles.title}>Daily Fuel</Text>
+        <Text style={styles.title}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
       </View>
       <Text style={styles.quote}>{quote.text}</Text>
       <Text style={styles.author}>— {quote.author}</Text>

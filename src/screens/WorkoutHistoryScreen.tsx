@@ -3,7 +3,8 @@ import { View, Text, TouchableOpacity, TouchableWithoutFeedback, ActivityIndicat
 import { Canvas, Path as SkiaPath, Rect as SkiaRect, Oval as SkiaOval, Skia, BlurMask, RadialGradient, vec } from '@shopify/react-native-skia';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, Easing } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { useThemeStore, type ThemeMode } from '../stores/useThemeStore';
 import { Fonts } from '../theme/typography';
@@ -115,10 +116,11 @@ const GlassCornerGlow = React.memo(({ width, height, radius, accentColor, border
 
 /* ─── Rest day gradient accent (Skia) ────────────────── */
 
-const RestDayGlow = React.memo(({ width, height, radius }: {
+const RestDayGlow = React.memo(({ width, height, radius, glowColor }: {
   width: number;
   height: number;
   radius: number;
+  glowColor: string;
 }) => {
   const clipPath = useMemo(() => {
     const rect = Skia.XYWHRect(0, 0, width, height);
@@ -135,7 +137,7 @@ const RestDayGlow = React.memo(({ width, height, radius }: {
           <RadialGradient
             c={vec(width, 0)}
             r={width * 0.85}
-            colors={['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0.0)']}
+            colors={[`${glowColor}2E`, `${glowColor}0F`, `${glowColor}00`]}
             positions={[0, 0.4, 1]}
           />
         </SkiaRect>
@@ -154,28 +156,28 @@ const HistoryRow = React.memo(({ workout, dateStr, durationMin, styles, colors, 
   styles: ReturnType<typeof createStyles>;
   colors: ThemeColors;
   onPress: () => void;
-}) => (
-  <TouchableOpacity
-    style={styles.historyRowCard}
-    activeOpacity={0.6}
-    onPress={onPress}
-  >
-    <View style={styles.historyRowContent}>
+}) => {
+  const title = workout.programName || dateStr;
+
+  return (
+    <TouchableOpacity
+      style={styles.historyRowCard}
+      activeOpacity={0.6}
+      onPress={onPress}
+    >
       <View style={styles.historyRowLeft}>
-        <Text style={styles.historyDate}>{dateStr}</Text>
-        <Text style={styles.historyMeta}>
-          {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
-          {'  ·  '}{durationMin} min
-        </Text>
+        <Text style={styles.historyRowTitle} numberOfLines={1}>{title}</Text>
+        <View style={styles.historyMetaRow}>
+          <Text style={styles.historyMeta}>{workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}</Text>
+          <View style={styles.historyDot} />
+          <Text style={styles.historyMeta}>{durationMin} min</Text>
+        </View>
       </View>
-      <View style={styles.historyRowRight}>
-        <Text style={styles.historyVolume}>{formatVolume(workout.totalVolume)}</Text>
-        <Text style={styles.historyVolUnit}>kg</Text>
-      </View>
+      <Text style={styles.historyVolume}>{formatVolume(workout.totalVolume)}</Text>
       <Ionicons name="chevron-forward" size={ms(14)} color={colors.textTertiary} />
-    </View>
-  </TouchableOpacity>
-));
+    </TouchableOpacity>
+  );
+});
 
 /* ─── Muscle group constants ─────────────────────────── */
 
@@ -248,10 +250,9 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
   const backdropOpacity = useSharedValue(0);
   const ctx = useSharedValue(0);
 
-  // Animate in immediately on mount
   useEffect(() => {
-    translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
-    backdropOpacity.value = withTiming(1, { duration: 250 });
+    translateY.value = 0;
+    backdropOpacity.value = 1;
   }, []);
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('All');
@@ -259,10 +260,9 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
   const [planFilter, setPlanFilter] = useState<PlanFilter>('All');
 
   const dismiss = useCallback(() => {
-    translateY.value = withSpring(SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
-    backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
-      runOnJS(onClose)();
-    });
+    translateY.value = SHEET_HEIGHT;
+    backdropOpacity.value = 0;
+    onClose();
   }, [onClose]);
 
   const panGesture = useMemo(
@@ -280,12 +280,11 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
             e.translationY > DISMISS_THRESHOLD ||
             e.velocityY > VELOCITY_THRESHOLD
           ) {
-            translateY.value = withSpring(SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
-            backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
-              runOnJS(onClose)();
-            });
+            translateY.value = SHEET_HEIGHT;
+            backdropOpacity.value = 0;
+            runOnJS(onClose)();
           } else {
-            translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
+            translateY.value = 0;
           }
         }),
     [onClose],
@@ -364,7 +363,10 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
         </GestureDetector>
 
       <View style={styles.historyHeader}>
-        <Text style={styles.historyTitle}>{debugPart.length > 0 ? `${debugPart.join(', ')} History` : 'Workout History'}</Text>
+        <View style={{ gap: sw(2) }}>
+          <Text style={styles.historyTitle}>{debugPart.length > 0 ? `${debugPart.join(', ')} History` : 'Workout History'}</Text>
+          <Text style={styles.historySubtitle}>{filtered.length} workout{filtered.length !== 1 ? 's' : ''}</Text>
+        </View>
         {activeFilterCount > 0 && (
           <TouchableOpacity onPress={() => { setTimeFilter('All'); setBodyFilter('All'); setPlanFilter('All'); setOpenFilter(null); }} activeOpacity={0.7}>
             <Text style={styles.filterClearText}>Clear</Text>
@@ -1059,32 +1061,23 @@ function WorkoutHistoryScreen() {
           colors={colors}
           onClose={closeHistory}
           onSelectWorkout={(w) => {
-            closeHistory();
-            setTimeout(() => setSelectedWorkout(w), 350);
+            setSelectedWorkout(w);
           }}
         />
       </Modal>
 
-      <Modal
-        visible={!!selectedWorkout}
-        transparent
-        statusBarTranslucent
-        animationType="none"
-        onRequestClose={() => setSelectedWorkout(null)}
-      >
-        {selectedWorkout && (
-          <WorkoutDetailOverlay
-            workout={selectedWorkout}
-            colors={colors}
-            onDismiss={() => setSelectedWorkout(null)}
-            onDelete={async () => {
-              const id = selectedWorkout.id;
-              setSelectedWorkout(null);
-              await deleteWorkout(id);
-            }}
-          />
-        )}
-      </Modal>
+      {selectedWorkout && (
+        <WorkoutSummaryModal
+          mode="historical"
+          data={selectedWorkout}
+          onDismiss={() => setSelectedWorkout(null)}
+          onDelete={async () => {
+            const id = selectedWorkout.id;
+            setSelectedWorkout(null);
+            await deleteWorkout(id);
+          }}
+        />
+      )}
 
       <Modal
         visible={!!previewRoutine}
@@ -1109,187 +1102,6 @@ function WorkoutHistoryScreen() {
 }
 
 
-/* ─── Workout Detail Overlay (matches RoutineSummaryScreen) ── */
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function fmtDuration(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const h = Math.floor(m / 60);
-  const rm = m % 60;
-  return h > 0 ? `${h}h ${rm}m` : `${m}m`;
-}
-function fmtVol(vol: number): string {
-  return vol >= 1000 ? `${(vol / 1000).toFixed(1)}k kg` : `${vol} kg`;
-}
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return `${DAY_LABELS[d.getDay()]}, ${MONTH_LABELS[d.getMonth()]} ${d.getDate()}`;
-}
-
-const DETAIL_SHEET_HEIGHT = SCREEN_HEIGHT * 0.92;
-
-const WorkoutDetailOverlay = React.memo(function WorkoutDetailOverlay({
-  workout, colors, onDismiss, onDelete,
-}: {
-  workout: WorkoutWithDetails;
-  colors: ThemeColors;
-  onDismiss: () => void;
-  onDelete: () => void;
-}) {
-  const os = useMemo(() => overlayStyles(colors), [colors]);
-
-  const translateY = useSharedValue(DETAIL_SHEET_HEIGHT);
-  const backdropOpacity = useSharedValue(0);
-  const ctx = useSharedValue(0);
-
-  useEffect(() => {
-    translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
-    backdropOpacity.value = withTiming(1, { duration: 250 });
-  }, []);
-
-  const dismiss = useCallback(() => {
-    translateY.value = withSpring(DETAIL_SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
-    backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
-      runOnJS(onDismiss)();
-    });
-  }, [onDismiss]);
-
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: backdropOpacity.value,
-  }));
-
-  const panGesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetY(8)
-        .onStart(() => { ctx.value = translateY.value; })
-        .onUpdate((e) => {
-          translateY.value = Math.max(0, ctx.value + e.translationY);
-        })
-        .onEnd((e) => {
-          if (e.translationY > DISMISS_THRESHOLD || e.velocityY > VELOCITY_THRESHOLD) {
-            translateY.value = withSpring(DETAIL_SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
-            backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
-              runOnJS(onDismiss)();
-            });
-          } else {
-            translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
-          }
-        }),
-    [onDismiss],
-  );
-
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  const totalSets = workout.exercises.reduce((n, ex) => n + ex.sets.length, 0);
-
-  const bodyParts = useMemo(() => {
-    const parts = new Set<string>();
-    for (const ex of workout.exercises) {
-      for (const m of (ex.primary_muscles || [])) parts.add(m);
-    }
-    return [...parts];
-  }, [workout]);
-
-  return (
-    <GestureHandlerRootView style={StyleSheet.absoluteFill}>
-    <View style={os.backdropWrap}>
-      <StatusBar barStyle="light-content" />
-      <TouchableWithoutFeedback onPress={dismiss}>
-        <Animated.View style={[os.backdrop, backdropStyle]} />
-      </TouchableWithoutFeedback>
-      <Animated.View style={[os.sheetContainer, sheetStyle]}>
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={os.handleRow} hitSlop={{ top: 10, bottom: 10 }}>
-            <View style={os.handle} />
-          </Animated.View>
-        </GestureDetector>
-        <ScrollView style={os.scroll} contentContainerStyle={os.scrollContent} showsVerticalScrollIndicator={false}>
-            <View style={os.header}>
-              <View style={os.headerSpacer} />
-              <Text style={os.headerTitle}>Workout Details</Text>
-              <View style={os.headerSpacer} />
-            </View>
-
-            <View style={os.info}>
-              <Text style={os.infoName}>{workout.programName || 'Workout'}</Text>
-              <Text style={os.infoSub}>
-                {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
-                {'  ·  '}{fmtDate(workout.created_at)}
-              </Text>
-            </View>
-
-          {bodyParts.length > 0 && (
-            <View style={os.muscleRow}>
-              {bodyParts.map((p) => (
-                <View key={p} style={os.muscleBadge}>
-                  <Text style={os.muscleBadgeText}>{p}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <View style={os.statsRow}>
-            <View style={os.statItem}>
-              <Text style={os.statValue}>{fmtDuration(workout.duration)}</Text>
-              <Text style={os.statLabel}>Duration</Text>
-            </View>
-            <View style={os.statDivider} />
-            <View style={os.statItem}>
-              <Text style={os.statValue}>{fmtVol(workout.totalVolume)}</Text>
-              <Text style={os.statLabel}>Volume</Text>
-            </View>
-            <View style={os.statDivider} />
-            <View style={os.statItem}>
-              <Text style={os.statValue}>{totalSets}</Text>
-              <Text style={os.statLabel}>Sets</Text>
-            </View>
-          </View>
-
-          {workout.exercises.map((ex, i) => {
-            const reps = ex.sets.map((s) => s.reps);
-            const minR = reps.length > 0 ? Math.min(...reps) : 0;
-            const maxR = reps.length > 0 ? Math.max(...reps) : 0;
-            const repRange = minR === maxR ? `${minR}` : `${minR}-${maxR}`;
-            return (
-              <View key={i} style={os.card}>
-                <Text style={os.exName} numberOfLines={1}>
-                  {ex.name.replace(/\b\w/g, (c: string) => c.toUpperCase())}
-                </Text>
-                <Text style={os.exSub}>{ex.sets.length} sets · {repRange} reps</Text>
-                <View style={os.divider} />
-                <View style={os.colHeaders}>
-                  <Text style={[os.colHeader, os.colSet]}>SET</Text>
-                  <Text style={[os.colHeader, os.colVal]}>KG</Text>
-                  <Text style={[os.colHeader, os.colVal]}>REPS</Text>
-                </View>
-                {ex.sets.map((s, si) => (
-                  <View key={si} style={os.setRow}>
-                    <Text style={[os.setNum, os.colSet]}>{si + 1}</Text>
-                    <Text style={[os.cellVal, os.colVal]}>{s.kg ? s.kg : '—'}</Text>
-                    <Text style={[os.cellVal, os.colVal]}>{s.reps || '—'}</Text>
-                  </View>
-                ))}
-              </View>
-            );
-          })}
-        </ScrollView>
-
-        <View style={os.footer}>
-          <TouchableOpacity style={os.footerBtn} activeOpacity={0.7} onPress={onDelete}>
-            <Ionicons name="trash-outline" size={ms(20)} color={colors.accentRed} />
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-    </View>
-    </GestureHandlerRootView>
-  );
-});
-
 /* ─── Routine Preview Overlay ─────────────────────────── */
 
 const PREVIEW_SHEET_HEIGHT = SCREEN_HEIGHT * 0.92;
@@ -1310,15 +1122,14 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
   const ctx = useSharedValue(0);
 
   useEffect(() => {
-    translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
-    backdropOpacity.value = withTiming(1, { duration: 250 });
+    translateY.value = 0;
+    backdropOpacity.value = 1;
   }, []);
 
   const dismiss = useCallback(() => {
-    translateY.value = withSpring(PREVIEW_SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
-    backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
-      runOnJS(onDismiss)();
-    });
+    translateY.value = PREVIEW_SHEET_HEIGHT;
+    backdropOpacity.value = 0;
+    onDismiss();
   }, [onDismiss]);
 
   const backdropStyle = useAnimatedStyle(() => ({
@@ -1335,12 +1146,11 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
         })
         .onEnd((e) => {
           if (e.translationY > DISMISS_THRESHOLD || e.velocityY > VELOCITY_THRESHOLD) {
-            translateY.value = withSpring(PREVIEW_SHEET_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
-            backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
-              runOnJS(onDismiss)();
-            });
+            translateY.value = PREVIEW_SHEET_HEIGHT;
+            backdropOpacity.value = 0;
+            runOnJS(onDismiss)();
           } else {
-            translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
+            translateY.value = 0;
           }
         }),
     [onDismiss],
@@ -1481,60 +1291,6 @@ const previewStyles = (colors: ThemeColors) => StyleSheet.create({
   cellVal: { color: colors.textPrimary, fontSize: ms(12), fontFamily: Fonts.bold, textAlign: 'center' },
 });
 
-const overlayStyles = (colors: ThemeColors) => StyleSheet.create({
-  backdropWrap: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  sheetContainer: {
-    height: SCREEN_HEIGHT * 0.92,
-    backgroundColor: colors.background,
-    borderTopLeftRadius: sw(20),
-    borderTopRightRadius: sw(20),
-    overflow: 'hidden',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    overflow: 'hidden',
-  },
-  handleRow: { alignItems: 'center', paddingVertical: sw(10) },
-  handle: { width: sw(36), height: sw(4), borderRadius: sw(2), backgroundColor: colors.textTertiary + '60' },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: sw(16), paddingBottom: sw(80) },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: sw(12) },
-  headerTitle: { flex: 1, color: colors.textPrimary, fontSize: ms(18), lineHeight: ms(24), fontFamily: Fonts.bold, textAlign: 'center' },
-  headerSpacer: { width: sw(36), height: sw(36) },
-  info: { marginBottom: sw(16), gap: sw(4) },
-  infoName: { color: colors.textPrimary, fontSize: ms(16), fontFamily: Fonts.bold, lineHeight: ms(22) },
-  infoSub: { color: colors.textTertiary, fontSize: ms(13), fontFamily: Fonts.medium, lineHeight: ms(18) },
-  statsRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: sw(8), marginBottom: sw(16) },
-  statItem: { flex: 1, alignItems: 'center', gap: sw(2) },
-  statValue: { color: colors.textPrimary, fontSize: ms(15), fontFamily: Fonts.bold },
-  statLabel: { color: colors.textTertiary, fontSize: ms(9), fontFamily: Fonts.medium, textTransform: 'uppercase', letterSpacing: 0.5 },
-  statDivider: { width: 1, height: sw(24), backgroundColor: colors.cardBorder },
-  muscleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: sw(6), marginBottom: sw(16) },
-  muscleBadge: { backgroundColor: colors.accent + '20', paddingHorizontal: sw(8), paddingVertical: sw(4), borderRadius: sw(4) },
-  muscleBadgeText: { color: colors.accent, fontSize: ms(10), fontFamily: Fonts.semiBold, textTransform: 'capitalize' },
-  card: { backgroundColor: colors.card, padding: sw(12), marginBottom: sw(10) },
-  exName: { color: colors.textPrimary, fontSize: ms(14), fontFamily: Fonts.bold, lineHeight: ms(18) },
-  exSub: { color: colors.textTertiary, fontSize: ms(11), fontFamily: Fonts.medium, lineHeight: ms(14), marginTop: sw(4) },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.cardBorder, marginVertical: sw(10) },
-  colHeaders: { flexDirection: 'row', alignItems: 'center', paddingVertical: sw(2) },
-  colHeader: { color: colors.textTertiary, fontSize: ms(9), fontFamily: Fonts.semiBold, textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
-  colSet: { width: sw(30) },
-  colVal: { flex: 1 },
-  setRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: sw(4), borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder },
-  setNum: { color: colors.textSecondary, fontSize: ms(10), fontFamily: Fonts.semiBold, textAlign: 'center' },
-  cellVal: { color: colors.textPrimary, fontSize: ms(12), fontFamily: Fonts.bold, textAlign: 'center' },
-  footer: { position: 'absolute', bottom: sw(32), left: 0, right: 0, alignItems: 'center' },
-  footerBtn: { width: sw(52), height: sw(52), borderRadius: sw(26), alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-});
-
 export default React.memo(WorkoutHistoryScreen);
 
 const createStyles = (colors: ThemeColors, mode: string) => {
@@ -1596,7 +1352,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
     sectionDivider: {
       width: '75%',
       height: 0.5,
-      backgroundColor: 'rgba(255,255,255,0.10)',
+      backgroundColor: colors.cardBorder,
       alignSelf: 'center',
       marginVertical: sw(10),
     },
@@ -1640,7 +1396,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       paddingRight: sw(4),
     },
     recoveryTitle: {
-      color: 'rgba(255,255,255,0.50)',
+      color: colors.textTertiary,
       fontSize: ms(11),
       lineHeight: ms(14),
       fontFamily: Fonts.semiBold,
@@ -1671,20 +1427,20 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       paddingHorizontal: sw(8),
       paddingVertical: sw(4),
       borderRadius: sw(8),
-      backgroundColor: 'rgba(255,255,255,0.06)',
+      backgroundColor: colors.surface,
       alignItems: 'center',
     },
     filterChipActive: {
-      backgroundColor: 'rgba(255,255,255,0.2)',
+      backgroundColor: colors.cardBorder,
     },
     filterChipText: {
-      color: '#FFF',
+      color: colors.textPrimary,
       fontSize: ms(10),
       lineHeight: ms(13),
       fontFamily: Fonts.semiBold,
     },
     filterChipSub: {
-      color: 'rgba(255,255,255,0.30)',
+      color: colors.textTertiary,
       fontSize: ms(7),
       lineHeight: ms(10),
       fontFamily: Fonts.medium,
@@ -1938,6 +1694,12 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       lineHeight: ms(25),
       fontFamily: Fonts.bold,
     },
+    historySubtitle: {
+      color: colors.textTertiary,
+      fontSize: ms(12),
+      lineHeight: ms(16),
+      fontFamily: Fonts.medium,
+    },
     filterClearText: {
       color: colors.accent,
       fontSize: ms(12),
@@ -1960,6 +1722,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       gap: sw(4),
       paddingHorizontal: sw(10),
       paddingVertical: sw(6),
+      borderRadius: sw(8),
       backgroundColor: colors.surface,
     },
     fCategoryOpen: {
@@ -1979,6 +1742,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
     fChip: {
       paddingHorizontal: sw(10),
       paddingVertical: sw(6),
+      borderRadius: sw(8),
       backgroundColor: colors.surface,
     },
     fChipActive: {
@@ -1993,8 +1757,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       color: colors.accent,
     },
     historyList: {
-      padding: sw(16),
-      gap: sw(2),
+      paddingHorizontal: sw(20),
     },
     historyEmpty: {
       color: colors.textTertiary,
@@ -2005,47 +1768,47 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       marginTop: sw(40),
     },
     historyRowCard: {
-      marginBottom: sw(8),
-    },
-    historyRowContent: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: sw(14),
+      gap: sw(10),
+      paddingVertical: sw(14),
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.cardBorder,
     },
     historyRowLeft: {
       flex: 1,
-      gap: sw(2),
+      gap: sw(3),
     },
-    historyDate: {
-      color: glassText,
+    historyRowTitle: {
+      color: colors.textPrimary,
       fontSize: ms(14),
-      lineHeight: ms(20),
+      lineHeight: ms(19),
       fontFamily: Fonts.semiBold,
     },
+    historyMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(6),
+    },
     historyMeta: {
-      color: glassTextSub,
+      color: colors.textTertiary,
       fontSize: ms(11),
       lineHeight: ms(15),
       fontFamily: Fonts.medium,
     },
-    historyRowRight: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      gap: sw(3),
-      marginRight: sw(8),
+    historyDot: {
+      width: sw(2.5),
+      height: sw(2.5),
+      borderRadius: sw(1.5),
+      backgroundColor: colors.textTertiary,
+      opacity: 0.4,
     },
     historyVolume: {
-      color: glassText,
-      fontSize: ms(16),
-      lineHeight: ms(22),
-      fontFamily: Fonts.extraBold,
+      color: colors.textPrimary,
+      fontSize: ms(14),
+      lineHeight: ms(18),
+      fontFamily: Fonts.bold,
       letterSpacing: -0.3,
-    },
-    historyVolUnit: {
-      color: glassTextSub,
-      fontSize: ms(11),
-      lineHeight: ms(15),
-      fontFamily: Fonts.medium,
     },
 
     /* ── Most / Least Trained ─────────────────────────── */
@@ -2063,23 +1826,23 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       paddingVertical: sw(6),
       paddingHorizontal: sw(10),
       borderRadius: sw(4),
-      backgroundColor: 'rgba(255,255,255,0.04)',
+      backgroundColor: colors.surface,
     },
     trainedLabel: {
-      color: 'rgba(255,255,255,0.35)',
+      color: colors.textTertiary,
       fontSize: ms(10),
       lineHeight: ms(14),
       fontFamily: Fonts.medium,
     },
     trainedValue: {
-      color: 'rgba(255,255,255,0.85)',
+      color: colors.textPrimary,
       fontSize: ms(11),
       lineHeight: ms(15),
       fontFamily: Fonts.bold,
       flex: 1,
     },
     trainedCount: {
-      color: 'rgba(255,255,255,0.30)',
+      color: colors.textTertiary,
       fontSize: ms(10),
       lineHeight: ms(14),
       fontFamily: Fonts.semiBold,
@@ -2092,12 +1855,12 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       gap: sw(6),
     },
     programCard: {
-      backgroundColor: 'rgba(255,255,255,0.06)',
+      backgroundColor: colors.surface,
       padding: sw(12),
     },
     programCardDivider: {
       height: 0.5,
-      backgroundColor: 'rgba(255,255,255,0.10)',
+      backgroundColor: colors.cardBorder,
       marginVertical: sw(10),
     },
     programCardRow: {
@@ -2154,7 +1917,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       justifyContent: 'center',
       gap: sw(6),
       paddingVertical: sw(12),
-      backgroundColor: 'rgba(255,255,255,0.06)',
+      backgroundColor: colors.surface,
     },
     actionBtnLabel: {
       color: colors.textPrimary,
@@ -2185,7 +1948,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       gap: sw(8),
     },
     calendarHeading: {
-      color: 'rgba(255,255,255,0.40)',
+      color: colors.textTertiary,
       fontSize: ms(9),
       fontFamily: Fonts.bold,
       letterSpacing: 1,
@@ -2196,7 +1959,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       marginBottom: sw(6),
     },
     calendarMonthText: {
-      color: 'rgba(255,255,255,0.50)',
+      color: colors.textTertiary,
       fontSize: ms(11),
       lineHeight: ms(14),
       fontFamily: Fonts.semiBold,
@@ -2213,7 +1976,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
     },
     calDot: {
       borderRadius: sw(2),
-      backgroundColor: 'rgba(255,255,255,0.08)',
+      backgroundColor: colors.surface,
     },
     calDotEmpty: {
       backgroundColor: 'transparent',
@@ -2222,7 +1985,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       backgroundColor: colors.accent,
     },
     calDotToday: {
-      backgroundColor: 'rgba(255,255,255,0.15)',
+      backgroundColor: colors.cardBorder,
       borderWidth: 1.5,
       borderColor: colors.textPrimary,
     },
@@ -2246,7 +2009,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       marginBottom: sw(16),
     },
     recentHeading: {
-      color: 'rgba(255,255,255,0.50)',
+      color: colors.textTertiary,
       fontSize: ms(11),
       lineHeight: ms(14),
       fontFamily: Fonts.semiBold,
@@ -2259,7 +2022,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       alignItems: 'center',
       paddingVertical: sw(10),
       borderBottomWidth: 0.5,
-      borderBottomColor: 'rgba(255,255,255,0.06)',
+      borderBottomColor: colors.cardBorder,
     },
     recentRowLeft: {
       flex: 1,
@@ -2272,7 +2035,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       fontFamily: Fonts.semiBold,
     },
     recentMeta: {
-      color: 'rgba(255,255,255,0.40)',
+      color: colors.textTertiary,
       fontSize: ms(11),
       lineHeight: ms(15),
       fontFamily: Fonts.medium,
@@ -2291,7 +2054,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       letterSpacing: -0.3,
     },
     recentVolUnit: {
-      color: 'rgba(255,255,255,0.40)',
+      color: colors.textTertiary,
       fontSize: ms(10),
       lineHeight: ms(14),
       fontFamily: Fonts.medium,

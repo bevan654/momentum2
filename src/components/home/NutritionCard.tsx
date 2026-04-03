@@ -137,12 +137,13 @@ const createStyles = (colors: ThemeColors) =>
     card: {
       flex: 1,
       backgroundColor: colors.card,
-      borderRadius: sw(14),
+      borderRadius: 0,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
       paddingTop: sw(12),
       paddingBottom: sw(12),
       paddingHorizontal: sw(12),
       alignItems: 'center',
-      ...colors.cardShadow,
     },
     header: {
       flexDirection: 'row',
