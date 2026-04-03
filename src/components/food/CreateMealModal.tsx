@@ -15,8 +15,6 @@ import {
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withTiming,
-  Easing,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -53,10 +51,6 @@ interface Props {
   editMealGroupEntries?: FoodEntry[] | null;
 }
 
-/* ─── Animation configs (hoisted — zero allocation in worklets) */
-
-const FADE_IN = { duration: 200, easing: Easing.out(Easing.cubic) };
-const FADE_OUT = { duration: 150, easing: Easing.in(Easing.cubic) };
 
 /* ─── Meal item row (memoized) ─────────────────────────── */
 
@@ -152,12 +146,11 @@ export default function CreateMealModal({
   const progress = useSharedValue(0);
 
   useEffect(() => {
-    progress.value = withTiming(visible ? 1 : 0, visible ? FADE_IN : FADE_OUT);
+    progress.value = visible ? 1 : 0;
   }, [visible]);
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
-    transform: [{ scale: 0.94 + progress.value * 0.06 }],
   }));
 
   /* ── Store selectors ────────────────────────────────── */

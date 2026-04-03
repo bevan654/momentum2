@@ -5,7 +5,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring, with
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
-import { sw, ms } from '../../theme/responsive';
+import { sw, ms, SCREEN_HEIGHT } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { getMuscleGroupColor } from '../../constants/muscleGroups';
 import MuscleHeatmap from '../body/MuscleHeatmap';
@@ -764,9 +764,32 @@ export default function WorkoutSummaryModal(props: Props) {
   };
 
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
-  const prevMap = useWorkoutStore((s) => s.prevMap);
+  const globalPrevMap = useWorkoutStore((s) => s.prevMap);
+  const allWorkouts = useWorkoutStore((s) => s.workouts);
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
   const userId = useAuthStore((s) => s.user?.id);
+
+  // For just-completed, use the snapshot captured at finish time (immune to background refetches).
+  // For historical mode, compute prev sets from the session *before* this workout.
+  const prevMap = useMemo(() => {
+    if (isJustCompleted) return (data as WorkoutSummary).prevMap ?? globalPrevMap;
+    const viewed = data as WorkoutWithDetails;
+    const viewedDate = new Date(viewed.created_at).getTime();
+    // Find workouts older than the viewed one, newest first (allWorkouts is already sorted desc)
+    const older = allWorkouts.filter((w) => new Date(w.created_at).getTime() < viewedDate);
+    const map: Record<string, { kg: number; reps: number }[]> = {};
+    for (const w of older) {
+      for (const ex of w.exercises) {
+        if (map[ex.name]) continue;
+        const sets = ex.sets
+          .filter((s) => s.completed)
+          .sort((a, b) => a.set_number - b.set_number)
+          .map((s) => ({ kg: Number(s.kg) || 0, reps: Number(s.reps) || 0 }));
+        if (sets.length > 0) map[ex.name] = sets;
+      }
+    }
+    return map;
+  }, [isJustCompleted, data, allWorkouts, globalPrevMap]);
 
   // Resolve workout ID
   const workoutId = isJustCompleted
@@ -791,6 +814,28 @@ export default function WorkoutSummaryModal(props: Props) {
   const displayVolume = savedExercises
     ? Math.round(savedExercises.reduce((v, ex) => v + ex.sets.reduce((sv, s) => sv + s.kg * s.reps, 0), 0))
     : totalVolume;
+
+  // Top set: heaviest weight used across all exercises
+  const topSet = useMemo(() => {
+    const exs = savedExercises ?? (
+      isJustCompleted ? (data as WorkoutSummary).exercises
+        : (data as WorkoutWithDetails).exercises.map((ex) => ({
+            name: ex.name, category: ex.category, exercise_type: ex.exercise_type || 'weighted',
+            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed, set_type: s.set_type || 'working' })),
+          }))
+    );
+    let bestKg = 0;
+    let bestReps = 0;
+    for (const ex of exs) {
+      for (const s of ex.sets) {
+        if (s.completed && s.kg > bestKg) {
+          bestKg = s.kg;
+          bestReps = s.reps;
+        }
+      }
+    }
+    return bestKg > 0 ? { kg: bestKg, reps: bestReps } : null;
+  }, [savedExercises, data, isJustCompleted]);
 
   // ── Edit handlers ────────────────────────────────
 
@@ -1020,6 +1065,15 @@ export default function WorkoutSummaryModal(props: Props) {
         <Text style={styles.statValue}>{formatVolume(displayVolume)}</Text>
         <Text style={styles.statLabel}>Volume</Text>
       </View>
+      {topSet && (
+        <>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{topSet.kg}×{topSet.reps}</Text>
+            <Text style={styles.statLabel}>Top Set</Text>
+          </View>
+        </>
+      )}
       <View style={styles.statDivider} />
       <View style={styles.statItem}>
         <Text style={styles.statValue}>{totalExercises}</Text>
@@ -1157,7 +1211,7 @@ export default function WorkoutSummaryModal(props: Props) {
               <View style={StyleSheet.absoluteFill} />
             </TouchableWithoutFeedback>
           </Animated.View>
-          <Animated.View style={[{ flex: 1, marginTop: insets.top + sw(40) }, contentFadeStyle]}>
+          <Animated.View style={[{ flex: 1, marginTop: SCREEN_HEIGHT * 0.08 }, contentFadeStyle]}>
             <View style={{ flex: 1, borderTopLeftRadius: sw(20), borderTopRightRadius: sw(20), overflow: 'hidden', backgroundColor: colors.background }}>
               {historicalContent}
             </View>
@@ -1263,7 +1317,7 @@ function HistoricalPage({
 
   return (
     <View style={[ps.container, !inline && { paddingTop: insets.top }]}>
-      {/* Dismiss area — drag handle + header */}
+      {/* Drag handle */}
       {!inline && (
         <TouchableOpacity onPress={onDismiss} activeOpacity={0.8}>
           <View style={{ alignSelf: 'center', paddingVertical: sw(10) }}>
@@ -1271,28 +1325,20 @@ function HistoricalPage({
           </View>
         </TouchableOpacity>
       )}
-      <TouchableOpacity
-        onPress={!inline ? onDismiss : undefined}
-        activeOpacity={!inline ? 0.8 : 1}
-        disabled={inline}
-      >
-        <View style={[ps.pageHeader, inline && { paddingVertical: 0 }]}>
-          {!inline && (
-            <View style={ps.backBtn}>
-              <Ionicons name="chevron-down" size={ms(24)} color={colors.textPrimary} />
-            </View>
+      <View style={[ps.pageHeader, inline && { paddingVertical: 0 }]}>
+        <TouchableOpacity onPress={onDismiss} style={ps.backBtn} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={ms(22)} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <View style={ps.pageHeaderCenter}>
+          <Text style={ps.pageTitle} numberOfLines={1}>
+            {editing ? 'Edit Workout' : (data as WorkoutWithDetails).programName || 'Workout'}
+          </Text>
+          {!editing && (
+            <Text style={ps.pageDate}>{formatWorkoutDate(data.created_at)}</Text>
           )}
-          <View style={ps.pageHeaderCenter}>
-            <Text style={ps.pageTitle} numberOfLines={1}>
-              {editing ? 'Edit Workout' : 'Workout Summary'}
-            </Text>
-            {!editing && (
-              <Text style={ps.pageDate}>{formatWorkoutDate(data.created_at)}</Text>
-            )}
-          </View>
-          {!inline && <View style={ps.backBtn} />}
         </View>
-      </TouchableOpacity>
+        <View style={ps.backBtn} />
+      </View>
 
       {/* Scrollable content */}
       <ScrollView
@@ -1316,26 +1362,21 @@ function HistoricalPage({
         {editing ? editFooter : (
           <View style={styles.footerRow}>
             {onDelete && (
-              <TouchableOpacity style={inline ? styles.inlineBtn : styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7} disabled={deleting}>
+              <TouchableOpacity style={styles.inlineBtn} onPress={handleDelete} activeOpacity={0.7} disabled={deleting}>
                 <Ionicons name="trash-outline" size={ms(16)} color={colors.accentRed} />
-                {inline && <Text style={[styles.inlineBtnText, { color: colors.accentRed }]}>Delete</Text>}
+                <Text style={[styles.inlineBtnText, { color: colors.accentRed }]}>Delete</Text>
               </TouchableOpacity>
             )}
             {workoutId && (
-              <TouchableOpacity style={inline ? styles.inlineBtn : styles.editBtn} onPress={startEditing} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.inlineBtn} onPress={startEditing} activeOpacity={0.7}>
                 <Ionicons name="pencil" size={ms(16)} color={colors.accent} />
-                {inline && <Text style={[styles.inlineBtnText, { color: colors.accent }]}>Edit</Text>}
+                <Text style={[styles.inlineBtnText, { color: colors.accent }]}>Edit</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={inline ? styles.inlineBtn : styles.shareBtn} onPress={() => setShowShare(true)} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.inlineBtn} onPress={() => setShowShare(true)} activeOpacity={0.7}>
               <Ionicons name="share-outline" size={ms(16)} color={colors.accentGreen} />
-              {inline && <Text style={[styles.inlineBtnText, { color: colors.accentGreen }]}>Share</Text>}
+              <Text style={[styles.inlineBtnText, { color: colors.accentGreen }]}>Share</Text>
             </TouchableOpacity>
-            {!inline && (
-              <TouchableOpacity style={styles.doneBtn} onPress={onDismiss} activeOpacity={0.8}>
-                <Text style={styles.doneBtnText}>Close</Text>
-              </TouchableOpacity>
-            )}
           </View>
         )}
       </View>
@@ -1803,6 +1844,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     gap: sw(6),
     paddingVertical: sw(12),
+    borderRadius: sw(10),
     backgroundColor: colors.surface,
   },
   inlineBtnText: {

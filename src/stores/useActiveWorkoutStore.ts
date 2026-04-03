@@ -68,6 +68,8 @@ export interface WorkoutSummary {
   prCount: number;
   ghostUserName?: string | null;
   ghostExercises?: GhostExerciseData[];
+  /** Snapshot of prevMap at finish time so background refetches don't overwrite it */
+  prevMap?: Record<string, { kg: number; reps: number }[]>;
 }
 
 // ── Constants ──────────────────────────────────────────
@@ -400,23 +402,6 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       if (!_timerInterval) _timerInterval = setInterval(() => get().tick(), 1000);
     };
 
-    // Only refresh session if token is expired or about to expire
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const expiresAt = sessionData?.session?.expires_at ?? 0;
-      const nowSec = Math.floor(Date.now() / 1000);
-      if (expiresAt > 0 && expiresAt - nowSec < 60) {
-        console.log('[finishWorkout] token expiring soon, refreshing...');
-        await withTimeout(supabase.auth.refreshSession(), 5_000).catch(() => {
-          console.log('[finishWorkout] refresh timed out, proceeding anyway');
-        });
-      } else {
-        console.log('[finishWorkout] token still valid, skipping refresh');
-      }
-    } catch {
-      // getSession is local, shouldn't fail — but just in case
-    }
-
     // Insert workout
     console.log('[finishWorkout] inserting workout...');
     let workout: { id: string } | null = null;
@@ -650,6 +635,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         name: ex.name,
         sets: ex.prevSets.map((s) => ({ kg: s.kg, reps: s.reps })),
       })) : undefined,
+      prevMap: { ...useWorkoutStore.getState().prevMap },
     };
 
     stopWorkoutActivity();

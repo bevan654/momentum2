@@ -10,11 +10,8 @@ import {
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
-  withTiming,
   cancelAnimation,
   runOnJS,
-  Easing,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -23,11 +20,6 @@ import { sw } from '../../theme/responsive';
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const DISMISS_THRESHOLD = 80;
 const VELOCITY_THRESHOLD = 800;
-
-/* ─── Spring / timing configs ─────────────────────────── */
-const OPEN_SPRING = { damping: 26, stiffness: 400, mass: 0.7 };
-const SNAP_SPRING = { damping: 24, stiffness: 350, mass: 0.7 };
-const CLOSE_DURATION = 280;
 
 interface Props {
   visible: boolean;
@@ -103,22 +95,13 @@ export default function BottomSheet({
     if (visible) {
       closingRef.current = false;
       setMounted(true);
-      // Start off-screen so the spring has something to animate from
-      translateY.value = sheetHeight;
       cancelAnimation(translateY);
-      translateY.value = withSpring(0, OPEN_SPRING);
+      translateY.value = 0;
     } else if (mounted && !closingRef.current) {
       closingRef.current = true;
       cancelAnimation(translateY);
-      translateY.value = withTiming(
-        sheetHeight,
-        { duration: CLOSE_DURATION, easing: Easing.in(Easing.cubic) },
-        (finished) => {
-          if (finished) {
-            runOnJS(setMounted)(false);
-          }
-        },
-      );
+      translateY.value = sheetHeight;
+      setMounted(false);
     }
   }, [visible]);
 
@@ -145,17 +128,11 @@ export default function BottomSheet({
       })
       .onEnd((e) => {
         if (e.translationY > DISMISS_THRESHOLD || e.velocityY > VELOCITY_THRESHOLD) {
-          closingRef.current = true;
-          translateY.value = withTiming(
-            sheetHeightSV.value,
-            { duration: CLOSE_DURATION, easing: Easing.in(Easing.cubic) },
-            (finished) => {
-              if (finished) runOnJS(setMounted)(false);
-            },
-          );
+          translateY.value = sheetHeightSV.value;
+          runOnJS(setMounted)(false);
           runOnJS(handleDismiss)();
         } else {
-          translateY.value = withSpring(0, SNAP_SPRING);
+          translateY.value = 0;
         }
       }),
   [handleDismiss]);

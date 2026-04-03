@@ -27,6 +27,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -67,6 +68,36 @@ function muscleColor(muscle: string): string {
 }
 import { useAuthStore } from '../../stores/useAuthStore';
 import CreateCustomExerciseModal from './CreateCustomExerciseModal';
+
+/* ─── External API search ─────────────────────────────── */
+
+const EXERCISEDB_URL = 'https://exercisedb.dev/api/v1/exercises/search';
+
+interface ApiExercise {
+  exerciseId: string;
+  name: string;
+  targetMuscles: string[];
+  bodyParts: string[];
+  equipments: string[];
+  secondaryMuscles: string[];
+}
+
+function mapApiCategory(bodyParts: string[]): string {
+  const bp = (bodyParts[0] || '').toLowerCase();
+  const MAP: Record<string, string> = {
+    chest: 'chest', back: 'back', shoulders: 'shoulders',
+    'upper arms': 'biceps', 'lower arms': 'forearms',
+    'upper legs': 'quadriceps', 'lower legs': 'calves',
+    waist: 'abs', cardio: 'cardio', neck: 'neck',
+  };
+  return MAP[bp] || bp || 'other';
+}
+
+function mapApiExerciseType(equipments: string[]): string {
+  const eq = (equipments[0] || '').toLowerCase();
+  if (eq === 'body weight') return 'bodyweight';
+  return 'weighted';
+}
 
 /* ─── Constants ───────────────────────────────────────── */
 
@@ -446,6 +477,9 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
   const [contentReady, setContentReady] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [reloading, setReloading] = useState(false);
+  const [apiResults, setApiResults] = useState<CatalogEntry[]>([]);
+  const [apiSearching, setApiSearching] = useState(false);
+  const [showApiResults, setShowApiResults] = useState(false);
 
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
 
@@ -466,6 +500,8 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     setContentReady(false);
     setSearch('');
     setSelectedMuscle(null);
+    setApiResults([]);
+    setShowApiResults(false);
   }, []);
 
   /* ─── Open / close lifecycle ────────────────────────── */
@@ -562,6 +598,12 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
   // Base sorted list from cache — O(1) when catalog hasn't changed
   const baseSorted = getCachedSorted(catalogMap, aliasMap, prevMap);
 
+  // Reset API results when search text changes
+  useEffect(() => {
+    setShowApiResults(false);
+    setApiResults([]);
+  }, [debouncedSearch]);
+
   // Muscle filter — maps granular muscles to main groups
   const sortedEntries = useMemo(() => {
     if (!selectedMuscle) return baseSorted;
@@ -570,7 +612,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     );
   }, [baseSorted, selectedMuscle]);
 
-  const exercises = useMemo(() => {
+  const localExercises = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase();
     if (!q) return sortedEntries;
 
@@ -584,6 +626,8 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     return scored;
   }, [sortedEntries, debouncedSearch]);
 
+  const exercises = showApiResults ? apiResults : localExercises;
+
 
   /* ─── Handlers ──────────────────────────────────────── */
 
@@ -593,6 +637,31 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     await fetchExerciseCatalog(userId, true);
     setReloading(false);
   }, [userId, reloading, fetchExerciseCatalog]);
+
+  const searchApi = useCallback(async () => {
+    const q = search.trim();
+    if (!q || apiSearching) return;
+    setApiSearching(true);
+    try {
+      const res = await fetch(`${EXERCISEDB_URL}?q=${encodeURIComponent(q)}&limit=30`);
+      const json = await res.json();
+      const data: ApiExercise[] = json.data || [];
+      const mapped: CatalogEntry[] = data.map((ex) => ({
+        name: ex.name,
+        category: mapApiCategory(ex.bodyParts),
+        exercise_type: mapApiExerciseType(ex.equipments),
+        primary_muscles: ex.targetMuscles || [],
+        secondary_muscles: ex.secondaryMuscles || [],
+        done: false,
+      }));
+      setApiResults(mapped);
+      setShowApiResults(true);
+    } catch {
+      setApiResults([]);
+    } finally {
+      setApiSearching(false);
+    }
+  }, [search, apiSearching]);
 
   const handleSelect = useCallback(
     (name: string, category: string, exerciseType: string) => {
@@ -668,10 +737,12 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
   const listEmptyComponent = useMemo(
     () => (
       <View style={styles.emptySearch}>
-        <Text style={styles.emptySearchText}>No exercises found</Text>
+        <Text style={styles.emptySearchText}>
+          {showApiResults ? 'No online results found' : 'No exercises found'}
+        </Text>
       </View>
     ),
-    [styles],
+    [styles, showApiResults],
   );
 
   /* ─── Render ────────────────────────────────────────── */
@@ -800,7 +871,18 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
             {/* Result count + Create */}
             {contentReady && (
               <View style={styles.subHeaderRow}>
-                {search.trim().length > 0 || selectedMuscle ? (
+                {showApiResults ? (
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: sw(4) }}
+                    onPress={() => { setShowApiResults(false); setApiResults([]); }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="arrow-back" size={ms(14)} color={colors.accent} />
+                    <Text style={[styles.resultCount, { color: colors.accent }]}>
+                      Back to local · {apiResults.length} online result{apiResults.length !== 1 ? 's' : ''}
+                    </Text>
+                  </TouchableOpacity>
+                ) : search.trim().length > 0 || selectedMuscle ? (
                   <Text style={styles.resultCount}>
                     {exercises.length} result{exercises.length !== 1 ? 's' : ''}
                   </Text>
@@ -834,6 +916,25 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
               />
             )}
           </View>
+
+          {/* Floating deep search button */}
+          {contentReady && debouncedSearch.trim().length > 0 && !showApiResults && (
+            <TouchableOpacity
+              style={styles.searchOnlineFloating}
+              onPress={searchApi}
+              activeOpacity={0.7}
+              disabled={apiSearching}
+            >
+              {apiSearching ? (
+                <ActivityIndicator size={ms(16)} color={colors.textOnAccent} />
+              ) : (
+                <Ionicons name="globe-outline" size={ms(16)} color={colors.textOnAccent} />
+              )}
+              <Text style={styles.searchOnlineFloatingText}>
+                {apiSearching ? 'Searching...' : 'Deep Search'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </KeyboardAvoidingView>
       </Animated.View>
 
@@ -1028,5 +1129,21 @@ const createStyles = (colors: ThemeColors) =>
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
+    },
+    searchOnlineFloating: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: sw(6),
+      marginHorizontal: sw(16),
+      marginBottom: sw(4),
+      paddingVertical: sw(10),
+      backgroundColor: colors.accent,
+      borderRadius: sw(10),
+    },
+    searchOnlineFloatingText: {
+      color: colors.textOnAccent,
+      fontSize: ms(13),
+      fontFamily: Fonts.semiBold,
     },
   });

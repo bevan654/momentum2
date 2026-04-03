@@ -1,11 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { sw, ms } from '../../theme/responsive';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useThemeStore, type ThemeMode } from '../../stores/useThemeStore';
+import { useThemeStore, type ThemeMode, type AccentColor, ACCENT_PRESETS } from '../../stores/useThemeStore';
 import AvatarCircle from '../friends/AvatarCircle';
 import { BUILD_VERSION } from '../../constants/buildInfo';
 
@@ -20,11 +21,23 @@ export default function ProfileMainView({ onOpenSettings, onOpenPatchNotes, onCl
   const signOut = useAuthStore((s) => s.signOut);
   const colors = useColors();
   const mode = useThemeStore((s) => s.mode);
+  const accent = useThemeStore((s) => s.accent);
   const setMode = useThemeStore((s) => s.setMode);
+  const setAccent = useThemeStore((s) => s.setAccent);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const username = profile?.username || null;
   const email = profile?.email || '';
+
+  const handleSetMode = useCallback((m: ThemeMode) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMode(m);
+  }, [setMode]);
+
+  const handleSetAccent = useCallback((a: AccentColor) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAccent(a);
+  }, [setAccent]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -55,6 +68,45 @@ export default function ProfileMainView({ onOpenSettings, onOpenPatchNotes, onCl
           <Text style={[styles.rowText, { color: colors.accentRed }]}>Sign Out</Text>
           <Ionicons name="chevron-forward" size={ms(18)} color={colors.textTertiary} />
         </TouchableOpacity>
+      </View>
+
+      {/* Appearance */}
+      <Text style={styles.sectionTitle}>Appearance</Text>
+      <View style={styles.card}>
+        {/* Dark / Light toggle */}
+        <View style={styles.modeRow}>
+          <ModeChip label="Dark" value="dark" current={mode} onPress={handleSetMode} colors={colors} />
+          <ModeChip label="Light" value="light" current={mode} onPress={handleSetMode} colors={colors} />
+        </View>
+
+        {/* Accent color grid */}
+        <View style={styles.colorGrid}>
+          {ACCENT_PRESETS.map((preset) => {
+            const isSelected = preset.hex === accent;
+            const swatchColor = preset.hex ?? (mode === 'dark' ? '#FFFFFF' : '#3A3A3C');
+            const isMono = preset.hex === null;
+            const checkColor = isMono
+              ? (mode === 'dark' ? '#1A1A1A' : '#FFFFFF')
+              : (luminanceQuick(swatchColor) > 0.55 ? '#1A1A1A' : '#FFFFFF');
+            return (
+              <TouchableOpacity
+                key={preset.label}
+                style={[
+                  styles.colorSwatch,
+                  { backgroundColor: swatchColor },
+                  isSelected && styles.colorSwatchSelected,
+                  isSelected && { borderColor: swatchColor },
+                ]}
+                onPress={() => handleSetAccent(preset.hex)}
+                activeOpacity={0.7}
+              >
+                {isSelected && (
+                  <Ionicons name="checkmark" size={ms(16)} color={checkColor} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       {/* Patch Notes + Support rows */}
@@ -101,6 +153,18 @@ export default function ProfileMainView({ onOpenSettings, onOpenPatchNotes, onCl
     </ScrollView>
   );
 }
+
+/* ─── Helpers ──────────────────────────────────────────── */
+
+function luminanceQuick(hex: string): number {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+/* ─── Mode chip ────────────────────────────────────────── */
 
 function ModeChip({
   label,
@@ -152,6 +216,10 @@ const chipStyles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
   },
 });
+
+/* ─── Styles ───────────────────────────────────────────── */
+
+const SWATCH = sw(36);
 
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
@@ -211,6 +279,23 @@ const createStyles = (colors: ThemeColors) =>
     modeRow: {
       flexDirection: 'row',
       gap: sw(8),
+    },
+    colorGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: sw(10),
+    },
+    colorSwatch: {
+      width: SWATCH,
+      height: SWATCH,
+      borderRadius: SWATCH / 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: 'transparent',
+    },
+    colorSwatchSelected: {
+      borderWidth: 2.5,
     },
     row: {
       flexDirection: 'row',

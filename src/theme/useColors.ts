@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
-import { useThemeStore, ThemeMode } from '../stores/useThemeStore';
+import { useThemeStore, type ThemeMode, type AccentColor } from '../stores/useThemeStore';
 
-/** Brand accents — derived from the monochrome app icon */
+/** Brand accents — used when no custom accent is selected (monochrome) */
 const BRAND_ACCENT_DARK = '#FFFFFF';   // White — ring & M highlights
 const BRAND_ACCENT_LIGHT = '#3A3A3C';  // Charcoal — logo background
 
 export interface ThemeColors {
   background: string;
+  navBar: string;
   card: string;
   cardBorder: string;
   surface: string;
@@ -83,6 +84,12 @@ function mix(base: string, tint: string, amount: number): string {
   );
 }
 
+/** Relative luminance (0 = black, 1 = white) */
+function luminance(hex: string): number {
+  const [r, g, b] = hexToRgb(hex);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
 /* ─── Shared semantic colors (theme-independent) ───────── */
 
 const shared = {
@@ -106,6 +113,7 @@ const shared = {
 
 interface BasePalette {
   background: string;
+  navBar: string;
   card: string;
   cardBorder: string;
   surface: string;
@@ -116,6 +124,7 @@ interface BasePalette {
   ringTrack: string;
   /** How strongly the accent tints surfaces (0–1) */
   tintBackground: number;
+  tintNavBar: number;
   tintCard: number;
   tintSurface: number;
   tintBorder: number;
@@ -132,6 +141,7 @@ interface BasePalette {
 
 const darkBase: BasePalette = {
   background: '#000000',
+  navBar: '#080808',
   card: '#0E0E0E',
   cardBorder: '#1C1C1E',
   surface: '#141414',
@@ -141,6 +151,7 @@ const darkBase: BasePalette = {
   tabInactive: '#636366',
   ringTrack: '#1C1C1E',
   tintBackground: 0.00,
+  tintNavBar: 0.01,
   tintCard: 0.02,
   tintSurface: 0.02,
   tintBorder: 0.03,
@@ -155,6 +166,7 @@ const darkBase: BasePalette = {
 
 const lightBase: BasePalette = {
   background: '#F8F6F2',
+  navBar: '#F4F2EE',
   card: '#FFFFFF',
   cardBorder: '#EEECE8',
   surface: '#F0EDE8',
@@ -164,6 +176,7 @@ const lightBase: BasePalette = {
   tabInactive: '#A5A5AA',
   ringTrack: '#EEECE8',
   tintBackground: 0.04,
+  tintNavBar: 0.03,
   tintCard: 0.02,
   tintSurface: 0.05,
   tintBorder: 0.04,
@@ -186,11 +199,12 @@ const bases: Record<ThemeMode, BasePalette> = {
 let _cacheKey = '';
 let _cached: ThemeColors | null = null;
 
-export function getThemeColors(mode: ThemeMode): ThemeColors {
-  if (mode === _cacheKey && _cached) return _cached;
+export function getThemeColors(mode: ThemeMode, customAccent?: AccentColor): ThemeColors {
+  const key = `${mode}|${customAccent ?? 'brand'}`;
+  if (key === _cacheKey && _cached) return _cached;
 
   const b = bases[mode];
-  const accent = mode === 'dark' ? BRAND_ACCENT_DARK : BRAND_ACCENT_LIGHT;
+  const accent = customAccent ?? (mode === 'dark' ? BRAND_ACCENT_DARK : BRAND_ACCENT_LIGHT);
 
   const cardColor = mix(b.card, accent, b.tintCard);
 
@@ -198,6 +212,7 @@ export function getThemeColors(mode: ThemeMode): ThemeColors {
     ...shared,
 
     background: mix(b.background, accent, b.tintBackground),
+    navBar: mix(b.navBar, accent, b.tintNavBar),
     card: cardColor,
     cardBorder: mix(b.cardBorder, accent, b.tintBorder),
     surface: mix(b.surface, accent, b.tintSurface),
@@ -210,7 +225,7 @@ export function getThemeColors(mode: ThemeMode): ThemeColors {
     accent,
     fat: shared.fat,
     accentMuted: mix(b.background, accent, b.accentMutedAmount),
-    textOnAccent: mode === 'dark' ? '#1A1A1A' : '#FFFFFF',
+    textOnAccent: luminance(accent) > 0.55 ? '#1A1A1A' : '#FFFFFF',
     tabActive: accent,
 
     ring: {
@@ -230,7 +245,7 @@ export function getThemeColors(mode: ThemeMode): ThemeColors {
     diaryPage: mode === 'light' ? '#FAF4EB' : '#0A0A08',
   };
 
-  _cacheKey = mode;
+  _cacheKey = key;
   _cached = colors;
   return colors;
 }
@@ -239,5 +254,6 @@ export function getThemeColors(mode: ThemeMode): ThemeColors {
 
 export function useColors(): ThemeColors {
   const mode = useThemeStore((s) => s.mode);
-  return useMemo(() => getThemeColors(mode), [mode]);
+  const accent = useThemeStore((s) => s.accent);
+  return useMemo(() => getThemeColors(mode, accent), [mode, accent]);
 }

@@ -12,10 +12,10 @@ import {
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withTiming,
   withSpring,
-  Easing,
+  withTiming,
   interpolate,
+  Easing,
 } from 'react-native-reanimated';
 import { ScrollView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
@@ -93,11 +93,6 @@ interface Props {
   /** When set, "Add" button adds to meal instead of logging. Hides meal/date selectors. */
   onAddToMeal?: (item: MealItemData) => void;
 }
-
-/* ─── Animation configs (hoisted — zero allocation in worklets) */
-
-const FADE_IN = { duration: 250, easing: Easing.out(Easing.cubic) };
-const FADE_OUT = { duration: 300, easing: Easing.out(Easing.cubic) };
 
 /* ─── Static data ──────────────────────────────────────── */
 
@@ -470,21 +465,17 @@ export default function FoodDetailModal({
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
 
-  /* ── Retain last food so exit animation renders content ── */
-  const foodRef = useRef(food);
-  if (food) foodRef.current = food;
-  const displayFood = foodRef.current;
+  const displayFood = food;
 
-  /* ── Fade + scale animation (pure UI-thread) ──────────── */
+  /* ── Instant show/hide (no animation) ──────────────────── */
   const progress = useSharedValue(0);
 
   useEffect(() => {
-    progress.value = withTiming(visible ? 1 : 0, visible ? FADE_IN : FADE_OUT);
+    progress.value = visible ? 1 : 0;
   }, [visible]);
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
-    transform: [{ scale: 0.94 + progress.value * 0.06 }],
   }));
 
   /* ── Store ─────────────────────────────────────────── */

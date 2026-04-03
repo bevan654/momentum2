@@ -40,6 +40,7 @@ interface Props {
   index: number;
   set: ActiveSet;
   prevSet: { kg: number; reps: number } | null;
+  suggestedSet?: { kg: number; reps: number } | null;
   suggestedKg?: string;
   suggestedReps?: string;
   exerciseType?: ExerciseType;
@@ -75,7 +76,7 @@ const isDuration = (t?: ExerciseType) => t === 'duration';
 
 /* ── Component ─────────────────────────────────────────── */
 
-function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType, onUpdate, onToggle, onCycleSetType, onDelete, onInputFocus, isGhost, ghostResult }: Props) {
+function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps, exerciseType, onUpdate, onToggle, onCycleSetType, onDelete, onInputFocus, isGhost, ghostResult }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -340,6 +341,34 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
             </View>
           )}
 
+          {/* Suggested — hidden in ghost mode */}
+          {!isGhost && (
+            <Pressable
+              style={styles.suggContainer}
+              onPress={() => {
+                if (!completed && suggestedSet) {
+                  if (showKg(exerciseType) && suggestedSet.kg > 0) {
+                    const kgStr = String(suggestedSet.kg);
+                    setLocalKg(kgStr);
+                    onUpdate('kg', kgStr);
+                  }
+                  const repsStr = String(suggestedSet.reps);
+                  setLocalReps(repsStr);
+                  onUpdate('reps', repsStr);
+                  Haptics.selectionAsync();
+                }
+              }}
+              disabled={completed || !suggestedSet}
+            >
+              <Text
+                style={[styles.suggText, completed && styles.suggTextCompleted]}
+                numberOfLines={1}
+              >
+                {suggestedSet ? formatPrev(suggestedSet, exerciseType) : '—'}
+              </Text>
+            </Pressable>
+          )}
+
           {/* KG input — only for weighted / weighted+bodyweight */}
           {showKg(exerciseType) && (
             <View style={[styles.inputContainer, completed && styles.inputContainerCompleted, !localKg && suggestedKg && styles.inputContainerSuggested]}>
@@ -570,6 +599,22 @@ const createStyles = (colors: ThemeColors) =>
     },
     prevTextCompleted: {
       color: colors.textTertiary + '80',
+    },
+
+    /* ── Suggested ───────────────────────────────────── */
+    suggContainer: {
+      width: sw(46),
+      alignItems: 'center',
+    },
+    suggText: {
+      color: colors.accent,
+      fontSize: ms(10),
+      fontFamily: Fonts.medium,
+      lineHeight: ms(14),
+      textAlign: 'center',
+    },
+    suggTextCompleted: {
+      color: colors.accent + '40',
     },
 
     /* ── Inputs ──────────────────────────────────────── */

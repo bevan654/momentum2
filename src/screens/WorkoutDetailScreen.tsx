@@ -5,7 +5,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
@@ -66,16 +66,10 @@ export default function WorkoutDetailScreen() {
         })
         .onEnd((e) => {
           if (e.translationY > 120 || e.velocityY > 800) {
-            translateY.value = withSpring(SCREEN_H, {
-              velocity: e.velocityY,
-              damping: 50,
-              stiffness: 300,
-              mass: 0.8,
-              overshootClamping: true,
-            });
+            translateY.value = SCREEN_H;
             runOnJS(dismiss)();
           } else {
-            translateY.value = withSpring(0, { damping: 20, stiffness: 200 });
+            translateY.value = 0;
           }
         }),
     [dismiss],

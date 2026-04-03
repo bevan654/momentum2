@@ -96,9 +96,10 @@ interface Props {
   onReplace: (exerciseIndex: number) => void;
   onExerciseFocus?: (exerciseIndex: number) => void;
   onInputFocus?: (y: number) => void;
+  onTitlePress?: (exerciseName: string) => void;
 }
 
-function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurrent, overloadTracker, onReplace, onExerciseFocus, onInputFocus }: Props) {
+function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurrent, overloadTracker, onReplace, onExerciseFocus, onInputFocus, onTitlePress }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const addSet = useActiveWorkoutStore((s) => s.addSet);
@@ -182,6 +183,76 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
 
   const summary = `${exercise.sets.length} sets · ${repRange} reps`;
 
+  // Per-set suggestion engine (same logic as ProgressiveOverloadCard)
+  const suggestedSets = useMemo(() => {
+    const prevSets = exercise.prevSets;
+    if (!prevSets || prevSets.length === 0) return exercise.sets.map(() => null);
+
+    const isBodyweight = exercise.exercise_type === 'bodyweight';
+    const isDurationType = exercise.exercise_type === 'duration';
+
+    const prevTotal = prevSets.reduce((sum, s) =>
+      sum + (isBodyweight || isDurationType ? s.reps : s.kg * s.reps), 0);
+    if (prevTotal <= 0) return exercise.sets.map(() => null);
+
+    let completedVol = 0;
+    let lastKg = 0;
+    let lastReps = 0;
+    for (const s of exercise.sets) {
+      if (s.completed) {
+        const kg = parseFloat(s.kg) || 0;
+        const reps = parseInt(s.reps, 10) || 0;
+        completedVol += isBodyweight || isDurationType ? reps : kg * reps;
+        if (kg > 0 || isBodyweight || isDurationType) { lastKg = kg; lastReps = reps; }
+      }
+    }
+
+    const results: ({ kg: number; reps: number } | null)[] = [];
+    let runningVol = completedVol;
+    let uncompleted = exercise.sets.filter(s => !s.completed).length;
+
+    for (let i = 0; i < exercise.sets.length; i++) {
+      if (exercise.sets[i].completed) { results.push(null); continue; }
+
+      const prev = prevSets[Math.min(i, prevSets.length - 1)];
+      const volLeft = Math.max(prevTotal - runningVol + 1, 0);
+
+      if (volLeft <= 0 || uncompleted <= 0) {
+        results.push(prev ? { kg: prev.kg, reps: prev.reps } : null);
+        uncompleted--;
+        continue;
+      }
+
+      if (isBodyweight || isDurationType) {
+        const perSet = Math.ceil(volLeft / uncompleted);
+        const reps = Math.max(perSet, (prev?.reps || 0) + 1);
+        results.push({ kg: 0, reps });
+        runningVol += reps;
+      } else {
+        const baseKg = lastKg > 0 ? lastKg : (prev?.kg || 0);
+        const baseReps = lastKg > 0 ? lastReps : (prev?.reps || 0);
+        if (baseKg <= 0) { results.push(null); uncompleted--; continue; }
+
+        const e1rm = baseKg * (1 + baseReps / 30);
+        const volPerSet = Math.ceil(volLeft / uncompleted);
+        const needed = Math.max(Math.ceil(volPerSet / baseKg), 1);
+        const maxPossible = Math.max(Math.round(30 * (e1rm / baseKg - 1)), 1);
+
+        let suggestReps = Math.min(needed, maxPossible);
+        // Never suggest fewer reps than prev — aim to beat each set
+        if (prev && baseKg <= prev.kg) {
+          suggestReps = Math.max(suggestReps, prev.reps + 1);
+        }
+
+        results.push({ kg: baseKg, reps: suggestReps });
+        runningVol += baseKg * suggestReps;
+      }
+      uncompleted--;
+    }
+
+    return results;
+  }, [exercise.sets, exercise.prevSets, exercise.exercise_type]);
+
   const swipeableRef = React.useRef<Swipeable>(null);
 
   const renderRightActions = useCallback(() => (
@@ -213,9 +284,16 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
       <View style={styles.card}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.name} numberOfLines={1}>
-            {exercise.name.replace(/\b\w/g, (c) => c.toUpperCase())}
-          </Text>
+          <Pressable
+            onPress={() => onTitlePress?.(exercise.name)}
+            style={styles.nameRow}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+          >
+            <Text style={styles.name} numberOfLines={1}>
+              {exercise.name.replace(/\b\w/g, (c) => c.toUpperCase())}
+            </Text>
+            <Ionicons name="chevron-forward" size={ms(11)} color={colors.textTertiary} />
+          </Pressable>
           <View style={{ flex: 1 }} />
           <View style={styles.reorderBtns}>
             <TouchableOpacity
@@ -249,6 +327,9 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
               {!useActiveWorkoutStore.getState().ghostUserName && (
                 <Text style={[styles.colHeader, { width: sw(46) }]}>PREV</Text>
               )}
+              {!useActiveWorkoutStore.getState().ghostUserName && (
+                <Text style={[styles.colHeader, { width: sw(46) }]}>REC</Text>
+              )}
               {(exercise.exercise_type === 'weighted' || exercise.exercise_type === 'weighted+bodyweight') && (
                 <Text style={[styles.colHeader, { flex: 1 }]}>
                   {exercise.exercise_type === 'weighted+bodyweight' ? '+KG' : 'KG'}
@@ -276,9 +357,10 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                 index={setIdx}
                 set={set}
                 prevSet={exercise.prevSets?.[setIdx] || null}
+                suggestedSet={suggestedSets[setIdx]}
                 exerciseType={exercise.exercise_type}
-                suggestedKg={ghostPrev ? String(ghostPrev.kg) : undefined}
-                suggestedReps={ghostPrev ? String(ghostPrev.reps) : undefined}
+                suggestedKg={ghostPrev ? String(ghostPrev.kg) : (suggestedSets[setIdx]?.kg ? String(suggestedSets[setIdx]!.kg) : undefined)}
+                suggestedReps={ghostPrev ? String(ghostPrev.reps) : (suggestedSets[setIdx]?.reps ? String(suggestedSets[setIdx]!.reps) : undefined)}
                 onUpdate={(field, value) => { onExerciseFocus?.(exerciseIndex); updateSet(exerciseIndex, setIdx, field, value); }}
                 onToggle={() => { onExerciseFocus?.(exerciseIndex); toggleSetComplete(exerciseIndex, setIdx); }}
                 onCycleSetType={() => cycleSetType(exerciseIndex, setIdx)}
@@ -343,6 +425,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: sw(8),
+  },
+  nameRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: sw(3),
+    flexShrink: 1,
   },
   name: {
     color: colors.textPrimary,

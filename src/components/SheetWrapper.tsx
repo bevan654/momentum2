@@ -1,6 +1,6 @@
 import React, { useCallback, useRef } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,10 +34,9 @@ export default function SheetWrapper({ children, hasOwnSheet = false }: SheetWra
   const dismiss = useCallback(() => {
     if (dismissing.current) return;
     dismissing.current = true;
-    translateY.value = withSpring(SCREEN_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
-    backdropOpacity.value = withTiming(0, { duration: 250 }, () => {
-      runOnJS(goBack)();
-    });
+    translateY.value = SCREEN_HEIGHT;
+    backdropOpacity.value = 0;
+    goBack();
   }, [goBack]);
 
   const panGesture = Gesture.Pan()
@@ -50,10 +49,11 @@ export default function SheetWrapper({ children, hasOwnSheet = false }: SheetWra
     })
     .onEnd((e) => {
       if (e.translationY > DISMISS_THRESHOLD || e.velocityY > VELOCITY_THRESHOLD) {
-        translateY.value = withSpring(SCREEN_HEIGHT, { damping: 28, stiffness: 280, mass: 0.8 });
-        runOnJS(dismiss)();
+        translateY.value = SCREEN_HEIGHT;
+        backdropOpacity.value = 0;
+        runOnJS(goBack)();
       } else {
-        translateY.value = withSpring(0, { damping: 28, stiffness: 280, mass: 0.8 });
+        translateY.value = 0;
       }
     });
 
