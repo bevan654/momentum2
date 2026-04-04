@@ -644,6 +644,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     setApiSearching(true);
     try {
       const res = await fetch(`${EXERCISEDB_URL}?q=${encodeURIComponent(q)}&limit=30`);
+      if (!res.ok) throw new Error(`API ${res.status}`);
       const json = await res.json();
       const data: ApiExercise[] = json.data || [];
       const mapped: CatalogEntry[] = data.map((ex) => ({
@@ -658,6 +659,11 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
       setShowApiResults(true);
     } catch {
       setApiResults([]);
+      setShowApiResults(false);
+      Alert.alert(
+        'Deep Search Unavailable',
+        'The exercise database is currently offline. Try again later or use the local search.',
+      );
     } finally {
       setApiSearching(false);
     }
