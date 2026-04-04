@@ -478,34 +478,51 @@ async function attachProfilesAndReactions(
   return feedRows.map((r: any, i: number) => {
     const id = r.id ?? r.workout_id ?? `feed-${r.user_id}-${i}`;
 
-    // Use detailed exercise data if available; otherwise build from
-    // the activity feed's denormalized exercise_names + catalog muscles
-    let details = exercisesByWorkout[r.workout_id] || [];
-    if (details.length === 0 && (r.exercise_names || []).length > 0) {
-      const names: string[] = r.exercise_names;
-      const totalSets = r.total_sets || 0;
-      const perExVol = names.length > 0
-        ? Math.round((r.total_volume || 0) / names.length)
-        : 0;
-      const perExSets = names.length > 0
-        ? Math.round(totalSets / names.length)
-        : 0;
-      details = names.map((name: string) => {
-        const cat = catalogMap.get(name);
-        // Estimate per-set kg assuming ~10 reps per set
-        const estKg = perExSets > 0 ? Math.round(perExVol / (perExSets * 10)) : 0;
+    // 1. Prefer denormalized exercise_details from the feed row (always accessible)
+    // 2. Fall back to joined exercises/sets query (may be blocked by RLS)
+    // 3. Last resort: exercise names only
+    const feedDetails: any[] | null = Array.isArray(r.exercise_details) ? r.exercise_details : null;
+    let details: FeedExerciseDetail[];
+
+    if (feedDetails && feedDetails.length > 0) {
+      details = feedDetails.map((fd: any) => {
+        const cat = catalogMap.get(fd.name);
+        const pm = Array.isArray(fd.primary_muscles) && fd.primary_muscles.length > 0
+          ? fd.primary_muscles
+          : cat?.primary_muscles || [];
+        const sm = Array.isArray(fd.secondary_muscles) && fd.secondary_muscles.length > 0
+          ? fd.secondary_muscles
+          : cat?.secondary_muscles || [];
         return {
-          name,
-          sets_count: perExSets,
-          best_kg: estKg,
-          best_reps: 10,
-          total_volume: perExVol,
-          category: cat?.category || null,
-          primary_muscles: cat?.primary_muscles || [],
-          secondary_muscles: cat?.secondary_muscles || [],
-          sets: [],
+          name: fd.name,
+          sets_count: fd.sets_count ?? 0,
+          best_kg: fd.best_kg ?? 0,
+          best_reps: fd.best_reps ?? 0,
+          total_volume: fd.total_volume ?? 0,
+          category: fd.category || cat?.category || null,
+          primary_muscles: pm,
+          secondary_muscles: sm,
+          sets: fd.sets || [],
         };
       });
+    } else {
+      details = exercisesByWorkout[r.workout_id] || [];
+      if (details.length === 0 && (r.exercise_names || []).length > 0) {
+        details = (r.exercise_names as string[]).map((name: string) => {
+          const cat = catalogMap.get(name);
+          return {
+            name,
+            sets_count: 0,
+            best_kg: 0,
+            best_reps: 0,
+            total_volume: 0,
+            category: cat?.category || null,
+            primary_muscles: cat?.primary_muscles || [],
+            secondary_muscles: cat?.secondary_muscles || [],
+            sets: [],
+          };
+        });
+      }
     }
 
     return {

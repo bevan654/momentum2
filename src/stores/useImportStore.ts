@@ -219,6 +219,29 @@ async function insertWorkout(w: ImportedWorkout, userId: string): Promise<void> 
     }
   }
 
+  // Build per-exercise detail snapshot for the feed
+  const { catalogMap } = useWorkoutStore.getState();
+  const exerciseDetailsJson = w.exercises.map((ex) => {
+    let bestKg = 0;
+    let bestReps = 0;
+    let vol = 0;
+    for (const s of ex.sets) {
+      vol += s.kg * s.reps;
+      if (s.kg > bestKg) { bestKg = s.kg; bestReps = s.reps; }
+    }
+    const cat = catalogMap[ex.name];
+    return {
+      name: ex.name,
+      sets_count: ex.sets.length,
+      best_kg: bestKg,
+      best_reps: bestReps,
+      total_volume: Math.round(vol),
+      category: cat?.category || null,
+      primary_muscles: cat?.primary_muscles || [],
+      secondary_muscles: cat?.secondary_muscles || [],
+    };
+  });
+
   // Activity feed entry (fire-and-forget)
   try {
     await supabase.from('activity_feed').insert({
@@ -229,6 +252,7 @@ async function insertWorkout(w: ImportedWorkout, userId: string): Promise<void> 
       exercise_names: exerciseNames,
       total_exercises: w.exercises.length,
       total_sets: totalSets,
+      exercise_details: exerciseDetailsJson,
       created_at: w.created_at,
     });
   } catch {}

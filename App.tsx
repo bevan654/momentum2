@@ -51,6 +51,14 @@ if (Platform.OS === 'android') {
     vibrationPattern: [0, 250, 250, 250],
     sound: 'default',
   });
+  Notifications.setNotificationChannelAsync('rest_timer', {
+    name: 'Rest Timer',
+    description: 'Alerts when your rest period is over',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 300, 150, 300],
+    sound: 'default',
+    bypassDnd: true,
+  });
   Notifications.setNotificationChannelAsync('social', {
     name: 'Social',
     description: 'Friend requests, reactions, live workout invites',

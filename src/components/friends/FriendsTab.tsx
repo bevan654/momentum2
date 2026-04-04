@@ -5,7 +5,6 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -13,15 +12,16 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
 import type { FriendProfile } from '../../lib/friendsDatabase';
 import FriendAvatarBar from './FriendAvatarBar';
-import FriendSearch from './FriendSearch';
+import AddFriendSheet from './AddFriendSheet';
 import NudgeModal from './NudgeModal';
 import NotificationList from './NotificationList';
 import ActivityFeed from './ActivityFeed';
 
-type OverlayMode = 'none' | 'search' | 'notifications';
+type OverlayMode = 'none' | 'notifications';
 
 export default function FriendsTab() {
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
+  const [searchVisible, setSearchVisible] = useState(false);
   const [nudgeTarget, setNudgeTarget] = useState<FriendProfile | null>(null);
   const showProfileSheet = useFriendsStore((s) => s.showProfileSheet);
   const colors = useColors();
@@ -43,7 +43,7 @@ export default function FriendsTab() {
 
   const badgeText = unreadCount > 99 ? '99+' : String(unreadCount);
 
-  /* ─── Overlay switching (search / notifications) ────── */
+  /* ─── Overlay switching (notifications) ────────────── */
 
   const switchOverlay = useCallback(
     (mode: OverlayMode) => {
@@ -68,10 +68,13 @@ export default function FriendsTab() {
   );
 
   const handleOpenSearch = useCallback(() => {
-    switchOverlay('search');
-  }, [switchOverlay]);
+    setSearchVisible(true);
+  }, []);
 
-  const isSearchActive = overlayMode === 'search';
+  const handleCloseSearch = useCallback(() => {
+    setSearchVisible(false);
+  }, []);
+
   const isNotifActive = overlayMode === 'notifications';
 
   const feedMode = useFriendsStore((s) => s.feedMode);
@@ -110,13 +113,6 @@ export default function FriendsTab() {
           <ActivityFeed />
         </View>
 
-        {/* Search overlay */}
-        {overlayMode === 'search' && (
-          <Animated.View style={[styles.overlayLayer, overlayLayerStyle]}>
-            <FriendSearch />
-          </Animated.View>
-        )}
-
         {/* Notifications overlay */}
         {overlayMode === 'notifications' && (
           <Animated.View style={[styles.overlayLayer, overlayLayerStyle]}>
@@ -124,6 +120,9 @@ export default function FriendsTab() {
           </Animated.View>
         )}
       </View>
+
+      {/* Add friend bottom sheet */}
+      <AddFriendSheet visible={searchVisible} onClose={handleCloseSearch} />
 
       {nudgeTarget && (
         <NudgeModal

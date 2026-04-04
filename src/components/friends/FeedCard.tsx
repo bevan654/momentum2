@@ -6,14 +6,13 @@ import type { TapGestureHandlerStateChangeEvent } from 'react-native-gesture-han
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import type { ActivityFeedItem, CommentItem } from '../../lib/friendsDatabase';
+import type { ActivityFeedItem } from '../../lib/friendsDatabase';
 import type { ExerciseWithSets } from '../../stores/useWorkoutStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
 import AvatarCircle from './AvatarCircle';
 import FeedActionRow from './FeedActionRow';
 import HeartBurst from './HeartBurst';
-import CommentPreview from './CommentPreview';
 import MiniBodyMap from '../body/MiniBodyMap';
 
 const MAX_EXERCISES_SHOWN = 6;
@@ -23,12 +22,9 @@ interface Props {
   liked: boolean;
   likeCount: number;
   bookmarked: boolean;
-  commentCount: number;
-  comments: CommentItem[];
   onAddReaction: (activityId: string, emoji: string) => void;
   onToggleLike: (activityId: string, liked: boolean) => void;
   onToggleBookmark: (activityId: string) => void;
-  onOpenComments: (activityId: string) => void;
   onPress: () => void;
 }
 
@@ -37,12 +33,9 @@ function FeedCard({
   liked,
   likeCount,
   bookmarked,
-  commentCount,
-  comments,
   onAddReaction,
   onToggleLike,
   onToggleBookmark,
-  onOpenComments,
   onPress,
 }: Props) {
   const displayName = item.profile.username || item.profile.email;
@@ -116,10 +109,6 @@ function FeedCard({
   const handleBookmarkToggle = useCallback(() => {
     onToggleBookmark(item.id);
   }, [item.id, onToggleBookmark]);
-
-  const handleOpenComments = useCallback(() => {
-    onOpenComments(item.id);
-  }, [item.id, onOpenComments]);
 
   const handleSelectReaction = useCallback(
     (emoji: string) => { onAddReaction(item.id, emoji); },
@@ -270,10 +259,8 @@ function FeedCard({
         liked={liked}
         likeCount={likeCount}
         bookmarked={bookmarked}
-        commentCount={commentCount}
         onToggleLike={handleLikeToggle}
         onToggleBookmark={handleBookmarkToggle}
-        onOpenComments={handleOpenComments}
         onSelectReaction={handleSelectReaction}
       />
 
@@ -282,12 +269,6 @@ function FeedCard({
           {likeCount} {likeCount === 1 ? 'like' : 'likes'}
         </Text>
       )}
-
-      <CommentPreview
-        comments={comments}
-        totalCount={commentCount}
-        onViewAll={handleOpenComments}
-      />
     </View>
   );
 }
