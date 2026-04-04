@@ -73,7 +73,6 @@ export default function FriendSearch() {
           onChangeText={setQuery}
           autoCapitalize="none"
           autoCorrect={false}
-          autoFocus
           returnKeyType="search"
         />
         {query.length > 0 && (

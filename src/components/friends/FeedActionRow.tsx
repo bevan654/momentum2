@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, Share, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -10,7 +10,6 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
-import { Fonts } from '../../theme/typography';
 import EmojiPicker from './EmojiPicker';
 
 interface Props {
@@ -18,10 +17,8 @@ interface Props {
   liked: boolean;
   likeCount: number;
   bookmarked: boolean;
-  commentCount: number;
   onToggleLike: () => void;
   onToggleBookmark: () => void;
-  onOpenComments: () => void;
   onSelectReaction: (emoji: string) => void;
 }
 
@@ -30,10 +27,8 @@ function FeedActionRow({
   liked,
   likeCount,
   bookmarked,
-  commentCount,
   onToggleLike,
   onToggleBookmark,
-  onOpenComments,
   onSelectReaction,
 }: Props) {
   const colors = useColors();
@@ -69,14 +64,6 @@ function FeedActionRow({
     transform: [{ scale: heartScale.value }],
   }));
 
-  const handleShare = useCallback(async () => {
-    try {
-      await Share.share({
-        message: 'Check out this workout on Momentum!',
-      });
-    } catch {}
-  }, []);
-
   return (
     <View style={styles.container}>
       <View style={styles.leftActions}>
@@ -102,29 +89,6 @@ function FeedActionRow({
             <EmojiPicker onSelect={handleEmojiSelect} onClose={handlePickerClose} />
           )}
         </View>
-
-        {/* Comment */}
-        <TouchableOpacity
-          onPress={onOpenComments}
-          activeOpacity={0.6}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <View style={styles.commentBtn}>
-            <Ionicons name="chatbubble-outline" size={ms(20)} color={colors.textPrimary} />
-            {commentCount > 0 && (
-              <Text style={styles.commentCount}>{commentCount}</Text>
-            )}
-          </View>
-        </TouchableOpacity>
-
-        {/* Share */}
-        <TouchableOpacity
-          onPress={handleShare}
-          activeOpacity={0.6}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="paper-plane-outline" size={ms(20)} color={colors.textPrimary} />
-        </TouchableOpacity>
       </View>
 
     </View>
@@ -145,16 +109,5 @@ const createStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: sw(16),
-    },
-    commentBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: sw(4),
-    },
-    commentCount: {
-      color: colors.textSecondary,
-      fontSize: ms(12),
-      fontFamily: Fonts.semiBold,
-      lineHeight: ms(16),
     },
   });

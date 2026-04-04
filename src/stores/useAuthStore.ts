@@ -179,10 +179,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     cleanupNotifications();
-    if (_authSubscription) {
-      _authSubscription.unsubscribe();
-      _authSubscription = null;
-    }
     // Release heavy caches held by stores
     useWorkoutStore.getState().clearCaches();
     await supabase.auth.signOut();

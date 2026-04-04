@@ -215,6 +215,31 @@ function _buildSnapshot(state: Pick<ActiveWorkoutState, 'startTime' | 'exercises
   };
 }
 
+/**
+ * Cancel any pending rest notification, then schedule a new one.
+ * Awaits the cancel so Android doesn't race and kill the new one.
+ * Uses the high-priority 'rest_timer' channel on Android for exact delivery.
+ */
+async function _scheduleRestNotification(seconds: number) {
+  try {
+    await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID);
+  } catch {}
+  Notifications.scheduleNotificationAsync({
+    identifier: REST_NOTIF_ID,
+    content: {
+      title: 'Rest Complete!',
+      body: 'Time for your next set.',
+      sound: 'default',
+      data: { type: 'rest_complete' },
+      ...(Platform.OS === 'android' ? { channelId: 'rest_timer' } : {}),
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds,
+    },
+  }).catch(() => {});
+}
+
 // ── Store ──────────────────────────────────────────────
 
 export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
@@ -559,6 +584,32 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         }
       }
 
+      // Build per-exercise detail snapshot for the feed
+      const { catalogMap } = useWorkoutStore.getState();
+      const exerciseDetailsJson = filteredExercises.map((ex) => {
+        const completedSets = ex.sets.filter((s) => s.kg.trim() !== '' || s.reps.trim() !== '');
+        let bestKg = 0;
+        let bestReps = 0;
+        let vol = 0;
+        for (const s of completedSets) {
+          const kg = parseFloat(s.kg) || 0;
+          const reps = parseInt(s.reps, 10) || 0;
+          vol += kg * reps;
+          if (kg > bestKg) { bestKg = kg; bestReps = reps; }
+        }
+        const cat = catalogMap[ex.name];
+        return {
+          name: ex.name,
+          sets_count: completedSets.length,
+          best_kg: bestKg,
+          best_reps: bestReps,
+          total_volume: Math.round(vol),
+          category: cat?.category || null,
+          primary_muscles: cat?.primary_muscles || [],
+          secondary_muscles: cat?.secondary_muscles || [],
+        };
+      });
+
       const feedPayload = {
         user_id: userId,
         workout_id: workout!.id,
@@ -567,6 +618,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         exercise_names: exerciseNames,
         total_exercises: filteredExercises.length,
         total_sets: totalSets,
+        exercise_details: exerciseDetailsJson,
         ...routineFeedData,
         ...programFeedData,
         ...(ghostUserName ? {
@@ -975,22 +1027,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     set({ isResting: true, restPaused: false, restRemaining: restDuration, restStartedAt: Date.now() });
     updateWorkoutActivity(_buildSnapshot(get()));
 
-    // Cancel any previous rest notification first, then schedule new one
-    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
-    Notifications.scheduleNotificationAsync({
-      identifier: REST_NOTIF_ID,
-      content: {
-        title: 'Rest Complete!',
-        body: 'Time for your next set.',
-        sound: 'default',
-        data: { type: 'rest_complete' },
-        ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: new Date(Date.now() + restDuration * 1000),
-      },
-    }).catch(() => {});
+    // Await cancel before scheduling to avoid race condition on Android
+    _scheduleRestNotification(restDuration);
   },
 
   stopRest: () => {
@@ -1012,21 +1050,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     if (!isResting || !restPaused || restRemaining <= 0) return;
     _restResumeBase = restRemaining;
     set({ restPaused: false, restStartedAt: Date.now() });
-    // Re-schedule notification for remaining time
-    Notifications.scheduleNotificationAsync({
-      identifier: REST_NOTIF_ID,
-      content: {
-        title: 'Rest Complete!',
-        body: 'Time for your next set.',
-        sound: 'default',
-        data: { type: 'rest_complete' },
-        ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: new Date(Date.now() + restRemaining * 1000),
-      },
-    }).catch(() => {});
+    _scheduleRestNotification(restRemaining);
   },
 
   tick: () => {

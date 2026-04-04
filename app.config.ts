@@ -48,6 +48,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: '#0D0D0F',
     },
     edgeToEdgeEnabled: true,
+    permissions: [
+      'SCHEDULE_EXACT_ALARM',
+      'USE_EXACT_ALARM',
+      'VIBRATE',
+      'RECEIVE_BOOT_COMPLETED',
+    ],
   },
   plugins: [
     'expo-secure-store',

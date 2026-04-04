@@ -12,7 +12,6 @@ import type { ActivityFeedItem } from '../../lib/friendsDatabase';
 import FeedCard from './FeedCard';
 import FeedCardSkeleton from './FeedCardSkeleton';
 import FeedWorkoutModal from './FeedWorkoutModal';
-import CommentsSheet from './CommentsSheet';
 import NewPostsPill from './NewPostsPill';
 
 const LIKE_EMOJI = '\u{2764}\u{FE0F}'; // ❤️
@@ -28,15 +27,11 @@ export default function ActivityFeed() {
   const toggleBookmark = useFriendsStore((s) => s.toggleBookmark);
   const addReaction = useFriendsStore((s) => s.addReaction);
   const removeReaction = useFriendsStore((s) => s.removeReaction);
-  const commentsMap = useFriendsStore((s) => s.comments);
-  const commentCounts = useFriendsStore((s) => s.commentCounts);
-  const fetchCommentCounts = useFriendsStore((s) => s.fetchCommentCounts);
   const pendingFeedItems = useFriendsStore((s) => s.pendingFeedItems);
   const flushPendingFeed = useFriendsStore((s) => s.flushPendingFeed);
   const feedMode = useFriendsStore((s) => s.feedMode);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFeedItem, setSelectedFeedItem] = useState<ActivityFeedItem | null>(null);
-  const [commentsActivityId, setCommentsActivityId] = useState<string | null>(null);
   const [newPostCount, setNewPostCount] = useState(0);
   const listRef = useRef<FlashList<ActivityFeedItem>>(null);
   const colors = useColors();
@@ -48,14 +43,6 @@ export default function ActivityFeed() {
       fetchBookmarks(userId);
     }
   }, [userId, feedMode]);
-
-  // Fetch comment counts whenever feed items change
-  useEffect(() => {
-    if (feed.length > 0) {
-      const ids = feed.map((f) => f.id).filter(Boolean);
-      fetchCommentCounts(ids);
-    }
-  }, [feed.length]);
 
   // Realtime subscription for new feed posts
   useEffect(() => {
@@ -129,17 +116,6 @@ export default function ActivityFeed() {
     [userId, toggleBookmark],
   );
 
-  const handleOpenComments = useCallback(
-    (activityId: string) => {
-      setCommentsActivityId(activityId);
-    },
-    [],
-  );
-
-  const handleCloseComments = useCallback(() => {
-    setCommentsActivityId(null);
-  }, []);
-
   const handleCardPress = useCallback(
     (item: ActivityFeedItem) => {
       setSelectedFeedItem(item);
@@ -171,17 +147,14 @@ export default function ActivityFeed() {
           liked={isLiked}
           likeCount={heartCount}
           bookmarked={bookmarkSet.has(item.id)}
-          commentCount={commentCounts[item.id] || 0}
-          comments={commentsMap[item.id] || []}
           onAddReaction={handleAddReaction}
           onToggleLike={handleToggleLike}
           onToggleBookmark={handleToggleBookmark}
-          onOpenComments={handleOpenComments}
           onPress={() => handleCardPress(item)}
         />
       );
     },
-    [handleAddReaction, handleToggleLike, handleToggleBookmark, handleOpenComments, handleCardPress, bookmarkSet, commentCounts, commentsMap],
+    [handleAddReaction, handleToggleLike, handleToggleBookmark, handleCardPress, bookmarkSet],
   );
 
   return (
@@ -212,7 +185,7 @@ export default function ActivityFeed() {
           onEndReachedThreshold={0.5}
           contentContainerStyle={styles.listContent}
           ListFooterComponent={listFooter}
-          extraData={[bookmarkSet, commentCounts]}
+          extraData={bookmarkSet}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -229,14 +202,6 @@ export default function ActivityFeed() {
         item={selectedFeedItem}
         onDismiss={() => setSelectedFeedItem(null)}
       />
-
-      {commentsActivityId && (
-        <CommentsSheet
-          activityId={commentsActivityId}
-          visible={!!commentsActivityId}
-          onClose={handleCloseComments}
-        />
-      )}
     </View>
   );
 }

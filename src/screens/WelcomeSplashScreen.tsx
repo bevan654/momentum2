@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -15,8 +15,17 @@ import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useWorkoutStore } from '../stores/useWorkoutStore';
+import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
+import { useNutritionStore } from '../stores/useNutritionStore';
+import { useSupplementStore } from '../stores/useSupplementStore';
+import { useWeightStore } from '../stores/useWeightStore';
+import { useStreakStore } from '../stores/useStreakStore';
+import { useRankStore } from '../stores/useRankStore';
+import { useProgramStore } from '../stores/useProgramStore';
+import { useRoutineStore } from '../stores/useRoutineStore';
 
-const SPLASH_DURATION = 2500;
+const MIN_SPLASH_MS = 2500;
 
 export default function WelcomeSplashScreen() {
   const insets = useSafeAreaInsets();
@@ -46,6 +55,8 @@ export default function WelcomeSplashScreen() {
   const dot2Style = useAnimatedStyle(() => ({ opacity: dotOpacity2.value }));
   const dot3Style = useAnimatedStyle(() => ({ opacity: dotOpacity3.value }));
 
+  const dismissed = useRef(false);
+
   useEffect(() => {
     // Staggered entrance
     logoOpacity.value = withTiming(1, { duration: 400, easing: easeOut });
@@ -63,10 +74,38 @@ export default function WelcomeSplashScreen() {
     dotOpacity2.value = withDelay(200, withRepeat(pulse(400), -1));
     dotOpacity3.value = withDelay(400, withRepeat(pulse(400), -1));
 
-    // Auto-dismiss
-    const timer = setTimeout(dismissWelcome, SPLASH_DURATION);
+    // Preload all critical data while splash animates
+    const userId = useAuthStore.getState().user?.id;
+    const minTimer = new Promise<void>((r) => setTimeout(r, MIN_SPLASH_MS));
+
+    const dataLoad = userId
+      ? Promise.allSettled([
+          useWorkoutStore.getState().fetchExerciseCatalog(userId),
+          useWorkoutStore.getState().fetchPrevData(userId),
+          useWorkoutStore.getState().fetchWorkoutHistory(userId),
+          useNutritionStore.getState().fetchTodayNutrition(userId),
+          useNutritionStore.getState().fetchNutritionGoals(userId),
+          useSupplementStore.getState().fetchTodaySupplements(userId),
+          useSupplementStore.getState().fetchSupplementGoals(userId),
+          useWeightStore.getState().fetchWeightData(userId),
+          useStreakStore.getState().initStreak(userId),
+          useRankStore.getState().loadRank(userId),
+          useRankStore.getState().computeRank(userId),
+          useProgramStore.getState().fetchPrograms(userId),
+          useRoutineStore.getState().fetchRoutines(userId),
+          useActiveWorkoutStore.getState().restoreWorkout(),
+        ])
+      : Promise.resolve();
+
+    // Dismiss only once both the animation and data are ready
+    Promise.all([minTimer, dataLoad]).then(() => {
+      if (!dismissed.current) {
+        dismissed.current = true;
+        dismissWelcome();
+      }
+    });
+
     return () => {
-      clearTimeout(timer);
       cancelAnimation(dotOpacity1);
       cancelAnimation(dotOpacity2);
       cancelAnimation(dotOpacity3);
