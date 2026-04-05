@@ -6,8 +6,15 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useWorkoutStore, type WorkoutWithDetails } from '../../stores/useWorkoutStore';
 import ShareModal from './ShareModal';
-import WorkoutOverlay, { type WorkoutOverlayData } from '../dev/WorkoutOverlay';
+import WorkoutOverlay, { type WorkoutOverlayData, type CardVariant } from '../dev/WorkoutOverlay';
 import MonthlyOverlay, { type MonthlyOverlayData } from '../dev/MonthlyOverlay';
+
+const VARIANTS: { key: CardVariant; label: string }[] = [
+  { key: 'classic', label: 'Classic' },
+  { key: 'minimal', label: 'Minimal' },
+  { key: 'bold', label: 'Bold' },
+  { key: 'poster', label: 'Poster' },
+];
 
 /* ─── Helpers ───────────────────────────────────────────── */
 
@@ -56,6 +63,7 @@ export default function ShareHub({ visible, onClose, initialWorkout }: Props) {
   const workouts = useWorkoutStore((s) => s.workouts);
 
   const [mode, setMode] = useState<ShareMode>(initialWorkout ? 'workout' : 'overview');
+  const [variant, setVariant] = useState<CardVariant>('classic');
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutWithDetails | null>(initialWorkout ?? null);
   const [showPicker, setShowPicker] = useState(false);
 
@@ -144,6 +152,30 @@ export default function ShareHub({ visible, onClose, initialWorkout }: Props) {
         })}
       </View>
 
+      {/* Variant picker (workout mode only) */}
+      {mode === 'workout' && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.variantRow}
+          style={styles.variantScroll}
+        >
+          {VARIANTS.map((v) => {
+            const active = variant === v.key;
+            return (
+              <TouchableOpacity
+                key={v.key}
+                style={[styles.variantChip, active && styles.variantChipActive]}
+                onPress={() => setVariant(v.key)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.variantChipText, active && styles.variantChipTextActive]}>{v.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
       {/* Mode-specific controls */}
       {mode === 'workout' && (
         <View style={styles.workoutPickerWrap}>
@@ -227,7 +259,7 @@ export default function ShareHub({ visible, onClose, initialWorkout }: Props) {
         </View>
       )}
     </View>
-  ), [mode, selectedWorkout, showPicker, startDate, endDate, workouts, colors, styles, shiftDate]);
+  ), [mode, variant, selectedWorkout, showPicker, startDate, endDate, workouts, colors, styles, shiftDate]);
 
   /* ─── Render ──────────────────────────────────────────── */
 
@@ -243,7 +275,7 @@ export default function ShareHub({ visible, onClose, initialWorkout }: Props) {
               </View>
             );
           }
-          return <WorkoutOverlay backgroundUri={imageUri} data={workoutData} />;
+          return <WorkoutOverlay backgroundUri={imageUri} data={workoutData} variant={variant} />;
         }
         return (
           <MonthlyOverlay
@@ -293,6 +325,33 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textTertiary,
     },
     modeTabTextActive: {
+      color: colors.textOnAccent,
+    },
+
+    /* Variant picker */
+    variantScroll: {
+      marginBottom: sw(10),
+      flexGrow: 0,
+    },
+    variantRow: {
+      flexDirection: 'row',
+      gap: sw(8),
+    },
+    variantChip: {
+      paddingVertical: sw(7),
+      paddingHorizontal: sw(14),
+      borderRadius: sw(10),
+      backgroundColor: colors.surface,
+    },
+    variantChipActive: {
+      backgroundColor: colors.accent,
+    },
+    variantChipText: {
+      fontSize: ms(12),
+      fontFamily: Fonts.semiBold,
+      color: colors.textTertiary,
+    },
+    variantChipTextActive: {
       color: colors.textOnAccent,
     },
 
