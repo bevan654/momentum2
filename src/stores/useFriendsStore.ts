@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   type FriendProfile,
   type ActivityFeedItem,
@@ -35,6 +36,7 @@ import {
 
 const FEED_PAGE_SIZE = 15;
 const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+const FRIENDS_CACHE_KEY = '@momentum_friends_cache';
 const MAX_FEED_ITEMS = 100;
 const MAX_NOTIFICATIONS = 100;
 const MAX_COMMENT_THREADS = 30;
@@ -200,11 +202,32 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
 
     set({ friendsLoading: true });
     try {
+      const { useNetworkStore } = require('./useNetworkStore');
+      if (useNetworkStore.getState().isOffline) throw new Error('offline');
+
       const [friends, friendIds] = await Promise.all([
         getFriendsList(userId),
         getFriendIds(userId),
       ]);
-      set({ friends, friendIds, friendsFetchedAt: Date.now() });
+
+      // Only update if we got real data (not empty from network failure)
+      if (friends.length > 0 || !useNetworkStore.getState().isOffline) {
+        set({ friends, friendIds, friendsFetchedAt: Date.now() });
+        if (friends.length > 0) {
+          AsyncStorage.setItem(FRIENDS_CACHE_KEY, JSON.stringify({ friends, friendIds })).catch(() => {});
+        }
+      }
+    } catch {
+      // Network error — load from cache
+      if (get().friends.length === 0) {
+        try {
+          const raw = await AsyncStorage.getItem(FRIENDS_CACHE_KEY);
+          if (raw) {
+            const data = JSON.parse(raw);
+            set({ friends: data.friends || [], friendIds: data.friendIds || [] });
+          }
+        } catch {}
+      }
     } finally {
       set({ friendsLoading: false });
     }

@@ -11,11 +11,13 @@ import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
 import type { FriendProfile } from '../../lib/friendsDatabase';
+import { Ionicons } from '@expo/vector-icons';
 import FriendAvatarBar from './FriendAvatarBar';
 import AddFriendSheet from './AddFriendSheet';
 import NudgeModal from './NudgeModal';
 import NotificationList from './NotificationList';
 import ActivityFeed from './ActivityFeed';
+import { useNetworkStore } from '../../stores/useNetworkStore';
 
 type OverlayMode = 'none' | 'notifications';
 
@@ -30,6 +32,7 @@ export default function FriendsTab() {
   const overlayOpacity = useSharedValue(0);
 
   const userId = useAuthStore((s) => s.user?.id);
+  const isOffline = useNetworkStore((s) => s.isOffline);
   const unreadCount = useFriendsStore((s) => s.unreadCount);
   const fetchUnreadCount = useFriendsStore((s) => s.fetchUnreadCount);
   const fetchFriends = useFriendsStore((s) => s.fetchFriends);
@@ -110,11 +113,19 @@ export default function FriendsTab() {
         </View>
 
         <View style={styles.feedArea}>
-          <ActivityFeed />
+          {isOffline ? (
+            <View style={styles.offlineState}>
+              <Ionicons name="cloud-offline-outline" size={ms(32)} color={colors.textTertiary} />
+              <Text style={styles.offlineTitle}>No Connection</Text>
+              <Text style={styles.offlineSubtext}>Feed and social features need a connection</Text>
+            </View>
+          ) : (
+            <ActivityFeed />
+          )}
         </View>
 
         {/* Notifications overlay */}
-        {overlayMode === 'notifications' && (
+        {overlayMode === 'notifications' && !isOffline && (
           <Animated.View style={[styles.overlayLayer, overlayLayerStyle]}>
             <NotificationList />
           </Animated.View>
@@ -232,6 +243,25 @@ const createStyles = (colors: ThemeColors) =>
     },
     feedArea: {
       flex: 1,
+    },
+
+    /* Offline */
+    offlineState: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: sw(8),
+      paddingBottom: sw(60),
+    },
+    offlineTitle: {
+      color: colors.textSecondary,
+      fontSize: ms(16),
+      fontFamily: Fonts.semiBold,
+    },
+    offlineSubtext: {
+      color: colors.textTertiary,
+      fontSize: ms(13),
+      fontFamily: Fonts.regular,
     },
 
     /* Overlays */

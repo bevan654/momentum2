@@ -5,6 +5,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useFriendsStore } from '../../stores/useFriendsStore';
+import { useNetworkStore } from '../../stores/useNetworkStore';
 import type { FriendProfile } from '../../lib/friendsDatabase';
 import AvatarCircle from './AvatarCircle';
 
@@ -15,6 +16,7 @@ interface Props {
 
 function FriendAvatarBar({ onOpenProfile, onOpenSearch }: Props) {
   const friends = useFriendsStore((s) => s.friends);
+  const isOffline = useNetworkStore((s) => s.isOffline);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
