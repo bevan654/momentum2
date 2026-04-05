@@ -1,5 +1,8 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+
+const PROGRAMS_CACHE_KEY = '@momentum_programs_cache';
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -163,6 +166,17 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
 
         const activeProgram = programs.find((p) => p.status === 'active') || null;
         set({ programs, activeProgram });
+        AsyncStorage.setItem(PROGRAMS_CACHE_KEY, JSON.stringify(programs)).catch(() => {});
+      } else if (get().programs.length === 0) {
+        // Network error — load from cache
+        try {
+          const raw = await AsyncStorage.getItem(PROGRAMS_CACHE_KEY);
+          if (raw) {
+            const cached: Program[] = JSON.parse(raw);
+            const active = cached.find((p) => p.status === 'active') || null;
+            set({ programs: cached, activeProgram: active });
+          }
+        } catch {}
       }
     } finally {
       set({ loading: false });

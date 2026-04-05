@@ -28,6 +28,7 @@ import ActivityChart from '../components/workouts/ActivityChart';
 import TodayScheduled from '../components/workouts/TodayScheduled';
 import type { Routine, RoutineExercise } from '../stores/useRoutineStore';
 import { navigateWorkoutsStack } from '../lib/navigationBridge';
+import { flushQueue } from '../lib/syncQueue';
 
 function toDateKey(iso: string): string {
   const d = new Date(iso);
@@ -528,7 +529,9 @@ function WorkoutHistoryScreen() {
 
   useEffect(() => {
     if (userId) {
-      fetchExerciseCatalog(userId).then(() => fetchWorkoutHistory(userId));
+      flushQueue().then(() => {
+        fetchExerciseCatalog(userId).then(() => fetchWorkoutHistory(userId));
+      });
     }
   }, [userId]);
 

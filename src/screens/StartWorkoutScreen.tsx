@@ -16,6 +16,7 @@ import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import RoutineCard from '../components/workouts/RoutineCard';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
+import { flushQueue } from '../lib/syncQueue';
 
 const DISMISS_THRESHOLD = 120;
 const VELOCITY_THRESHOLD = 800;
@@ -54,8 +55,10 @@ export default function StartWorkoutScreen() {
 
   useEffect(() => {
     if (userId) {
-      fetchRoutines(userId);
-      fetchPrograms(userId);
+      flushQueue().then(() => {
+        fetchRoutines(userId);
+        fetchPrograms(userId);
+      });
     }
   }, [userId]);
 

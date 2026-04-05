@@ -1,5 +1,8 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+
+const ROUTINES_CACHE_KEY = '@momentum_routines_cache';
 
 export interface RoutineExercise {
   id?: string;
@@ -100,6 +103,13 @@ export const useRoutineStore = create<RoutineState>((set, get) => ({
           updated_at: r.updated_at,
         }));
         set({ routines });
+        AsyncStorage.setItem(ROUTINES_CACHE_KEY, JSON.stringify(routines)).catch(() => {});
+      } else if (get().routines.length === 0) {
+        // Network error — load from cache
+        try {
+          const raw = await AsyncStorage.getItem(ROUTINES_CACHE_KEY);
+          if (raw) set({ routines: JSON.parse(raw) });
+        } catch {}
       }
     } finally {
       set({ loading: false });

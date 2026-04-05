@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 
 const CATALOG_CACHE_KEY = 'exercise_catalog_cache_v3';
 const CATALOG_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const WORKOUTS_CACHE_KEY = '@momentum_workout_history';
+const PREV_MAP_CACHE_KEY = '@momentum_prev_map';
 
 export interface SetData {
   id: string;
@@ -208,8 +210,15 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
           }
         }
       }
+      set({ prevMap: map });
+      AsyncStorage.setItem(PREV_MAP_CACHE_KEY, JSON.stringify(map)).catch(() => {});
+    } else if (Object.keys(get().prevMap).length === 0) {
+      // Network error — load from cache
+      try {
+        const raw = await AsyncStorage.getItem(PREV_MAP_CACHE_KEY);
+        if (raw) set({ prevMap: JSON.parse(raw) });
+      } catch {}
     }
-    set({ prevMap: map });
   },
 
   fetchWorkoutHistory: async (userId: string) => {
@@ -220,9 +229,20 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         .select('id, created_at, duration, total_exercises, total_sets, ghost_username, program_id, programs(name)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .limit(30);
+        .limit(56);
 
-      if (!workoutsData || workoutsData.length === 0) {
+      if (!workoutsData) {
+        // Network error — fall back to cache
+        if (get().workouts.length === 0) {
+          try {
+            const raw = await AsyncStorage.getItem(WORKOUTS_CACHE_KEY);
+            if (raw) set({ workouts: JSON.parse(raw) });
+          } catch {}
+        }
+        set({ loading: false });
+        return;
+      }
+      if (workoutsData.length === 0) {
         set({ workouts: [], loading: false });
         return;
       }
@@ -359,6 +379,15 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       });
 
       set({ workouts });
+      AsyncStorage.setItem(WORKOUTS_CACHE_KEY, JSON.stringify(workouts)).catch(() => {});
+    } catch {
+      // Network error — load from cache
+      if (get().workouts.length === 0) {
+        try {
+          const raw = await AsyncStorage.getItem(WORKOUTS_CACHE_KEY);
+          if (raw) set({ workouts: JSON.parse(raw) });
+        } catch {}
+      }
     } finally {
       set({ loading: false });
     }
@@ -573,6 +602,8 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   clearCaches: () => {
     set({ catalogMap: {}, aliasMap: {}, prevMap: {}, workouts: [] });
     AsyncStorage.removeItem(CATALOG_CACHE_KEY).catch(() => {});
+    AsyncStorage.removeItem(WORKOUTS_CACHE_KEY).catch(() => {});
+    AsyncStorage.removeItem(PREV_MAP_CACHE_KEY).catch(() => {});
   },
 
   deleteWorkout: async (workoutId: string) => {
