@@ -19,6 +19,13 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 // globally: if a non-auth request returns 401, refresh the session
 // once and replay with the new token.
 
+// ── Dev-only: simulate offline ─────────────────────────────
+// Toggle via: import { setForceOffline } from '@/lib/supabase'
+//             setForceOffline(true)
+let _forceOffline = false;
+export const setForceOffline = (v: boolean) => { _forceOffline = v; };
+export const getForceOffline = () => _forceOffline;
+
 let _refreshing: Promise<string | null> | null = null;
 
 function refreshTokenOnce(): Promise<string | null> {
@@ -36,6 +43,10 @@ function refreshTokenOnce(): Promise<string | null> {
 }
 
 const autoRetryFetch: typeof globalThis.fetch = async (input, init) => {
+  if (_forceOffline) {
+    throw new TypeError('Network request failed');
+  }
+
   const res = await fetch(input, init);
 
   // Only retry non-auth endpoints to avoid recursion
