@@ -48,7 +48,9 @@ function refreshTokenOnce(): Promise<string | null> {
 }
 
 const autoRetryFetch: typeof globalThis.fetch = async (input, init) => {
-  if (_forceOffline) {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
+
+  if (_forceOffline && !url.includes('/auth/')) {
     useNetworkStore.getState().setOffline(true);
     throw new TypeError('Network request failed');
   }
@@ -62,7 +64,6 @@ const autoRetryFetch: typeof globalThis.fetch = async (input, init) => {
     }
 
     // Only retry non-auth endpoints to avoid recursion
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
     if (res.status === 401 && !url.includes('/auth/')) {
       const newToken = await refreshTokenOnce();
       if (newToken) {

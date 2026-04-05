@@ -1,8 +1,11 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import { cleanupNotifications } from '../services/notificationService';
 import { useWorkoutStore } from './useWorkoutStore';
+
+const PROFILE_CACHE_KEY = 'momentum_profile_cache';
 
 /** Module-level ref so we can unsubscribe on signOut */
 let _authSubscription: { unsubscribe: () => void } | null = null;
@@ -55,6 +58,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: session.user, session });
         await get().fetchProfile(session.user.id);
       }
+    } catch {
+      // Offline or session expired — try loading cached profile
+      try {
+        const cached = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
+        if (cached) set({ profile: JSON.parse(cached) as Profile });
+      } catch {}
     } finally {
       set({ initialized: true });
     }
@@ -89,15 +98,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       .single();
 
     if (data) {
-      set({
-        profile: {
-          ...data,
-          share_workouts: data.share_workouts ?? true,
-          show_streak: data.show_streak ?? true,
-          notifications_enabled: data.notifications_enabled ?? true,
-          leaderboard_opt_in: data.leaderboard_opt_in ?? true,
-        } as Profile,
-      });
+      const profile: Profile = {
+        ...data,
+        share_workouts: data.share_workouts ?? true,
+        show_streak: data.show_streak ?? true,
+        notifications_enabled: data.notifications_enabled ?? true,
+        leaderboard_opt_in: data.leaderboard_opt_in ?? true,
+      };
+      set({ profile });
+      AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile)).catch(() => {});
+    } else if (!get().profile) {
+      // Network failed or no data — fall back to cached profile
+      try {
+        const cached = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
+        if (cached) set({ profile: JSON.parse(cached) as Profile });
+      } catch {}
     }
   },
 
@@ -181,6 +196,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     cleanupNotifications();
     // Release heavy caches held by stores
     useWorkoutStore.getState().clearCaches();
+    AsyncStorage.removeItem(PROFILE_CACHE_KEY).catch(() => {});
     await supabase.auth.signOut();
     set({ user: null, session: null, profile: null, showWelcome: false, _pendingWelcome: false });
   },

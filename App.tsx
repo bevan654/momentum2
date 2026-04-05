@@ -131,7 +131,7 @@ export default function App() {
       <SafeAreaProvider>
         <NavigationContainer ref={navigationRef} theme={navTheme}>
           <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
-          {session
+          {(session || profile)
             ? showWelcome
               ? <WelcomeSplashScreen />
               : !profile
