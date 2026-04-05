@@ -22,8 +22,13 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 // ── Dev-only: simulate offline ─────────────────────────────
 // Toggle via: import { setForceOffline } from '@/lib/supabase'
 //             setForceOffline(true)
-let _forceOffline = false;
-export const setForceOffline = (v: boolean) => { _forceOffline = v; };
+import { useNetworkStore } from '../stores/useNetworkStore';
+
+let _forceOffline = true;
+export const setForceOffline = (v: boolean) => {
+  _forceOffline = v;
+  useNetworkStore.getState().setOffline(v);
+};
 export const getForceOffline = () => _forceOffline;
 
 let _refreshing: Promise<string | null> | null = null;
@@ -44,24 +49,36 @@ function refreshTokenOnce(): Promise<string | null> {
 
 const autoRetryFetch: typeof globalThis.fetch = async (input, init) => {
   if (_forceOffline) {
+    useNetworkStore.getState().setOffline(true);
     throw new TypeError('Network request failed');
   }
 
-  const res = await fetch(input, init);
+  try {
+    const res = await fetch(input, init);
 
-  // Only retry non-auth endpoints to avoid recursion
-  const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
-  if (res.status === 401 && !url.includes('/auth/')) {
-    const newToken = await refreshTokenOnce();
-    if (newToken) {
-      const headers = new Headers(init?.headers);
-      headers.set('Authorization', `Bearer ${newToken}`);
-      headers.set('apikey', supabaseAnonKey);
-      return fetch(input, { ...init, headers });
+    // Successful fetch — mark as online if we were offline
+    if (useNetworkStore.getState().isOffline) {
+      useNetworkStore.getState().setOffline(false);
     }
-  }
 
-  return res;
+    // Only retry non-auth endpoints to avoid recursion
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
+    if (res.status === 401 && !url.includes('/auth/')) {
+      const newToken = await refreshTokenOnce();
+      if (newToken) {
+        const headers = new Headers(init?.headers);
+        headers.set('Authorization', `Bearer ${newToken}`);
+        headers.set('apikey', supabaseAnonKey);
+        return fetch(input, { ...init, headers });
+      }
+    }
+
+    return res;
+  } catch (err) {
+    // Real network failure — show offline banner
+    useNetworkStore.getState().setOffline(true);
+    throw err;
+  }
 };
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
