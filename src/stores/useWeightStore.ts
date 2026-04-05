@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+import { enqueue } from '../lib/syncQueue';
 
 const CACHE_KEY = '@momentum_weight_cache';
 
@@ -110,15 +111,28 @@ export const useWeightStore = create<WeightState>((set, get) => ({
     const today = new Date();
     const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-    const { error } = await supabase.from('weight_entries').insert({
-      user_id: userId,
-      weight,
-      date,
+    // Optimistic local update
+    const newEntry: WeightEntry = { date, weight };
+    const prev = get().entries;
+    const updated = [...prev.filter((e) => e.date !== date), newEntry].sort((a, b) => a.date.localeCompare(b.date));
+    const emaPoints = computeEma(updated);
+    set({
+      current: weight,
+      trend: emaPoints.length > 0 ? emaPoints[emaPoints.length - 1].value : weight,
+      change: updated.length > 0 ? Math.round((weight - updated[0].weight) * 10) / 10 : 0,
+      entries: updated,
+      emaPoints,
     });
+    AsyncStorage.setItem(CACHE_KEY, JSON.stringify(updated)).catch(() => {});
 
-    if (error) return { error: error.message };
+    const row = { user_id: userId, weight, date };
+    const { error } = await supabase.from('weight_entries').insert(row);
 
-    await get().fetchWeightData(userId, days);
+    if (error) {
+      enqueue({ table: 'weight_entries', type: 'insert', data: row });
+    } else {
+      await get().fetchWeightData(userId, days);
+    }
     return { error: null };
   },
 

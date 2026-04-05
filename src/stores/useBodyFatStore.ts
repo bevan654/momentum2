@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+import { enqueue } from '../lib/syncQueue';
 
 const CACHE_KEY = '@momentum_bodyfat_cache';
 
@@ -127,16 +128,27 @@ export const useBodyFatStore = create<BodyFatState>((set, get) => ({
     const today = new Date();
     const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-    const { error } = await supabase.from('body_fat_entries').insert({
-      user_id: userId,
-      value,
-      method,
-      date,
+    // Optimistic local update
+    const newEntry: BodyFatEntry = { id: `temp-${Date.now()}`, date, value, method };
+    const prev = get().entries;
+    const updated = [...prev, newEntry].sort((a, b) => a.date.localeCompare(b.date));
+    const emaPoints = computeEma(updated);
+    set({
+      current: value,
+      change: updated.length > 1 ? Math.round((value - updated[0].value) * 10) / 10 : 0,
+      entries: updated,
+      emaPoints,
     });
+    saveToCache(method, updated);
 
-    if (error) return { error: error.message };
+    const row = { user_id: userId, value, method, date };
+    const { error } = await supabase.from('body_fat_entries').insert(row);
 
-    await get().fetchBodyFatData(userId, method, days);
+    if (error) {
+      enqueue({ table: 'body_fat_entries', type: 'insert', data: row });
+    } else {
+      await get().fetchBodyFatData(userId, method, days);
+    }
     return { error: null };
   },
 

@@ -11,6 +11,7 @@ import QuickStatsGrid from '../components/lab/QuickStatsGrid';
 import MuscleRadarCard from '../components/lab/MuscleRadarCard';
 import WeeklyVolumeCard from '../components/lab/WeeklyVolumeCard';
 import BodyMetricsPager from '../components/lab/BodyMetricsPager';
+import { flushQueue } from '../lib/syncQueue';
 
 export default function LaboratoryScreen() {
   const user = useAuthStore((s) => s.user);
@@ -28,8 +29,10 @@ export default function LaboratoryScreen() {
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
-        fetchExerciseCatalog(user.id).then(() => {
-          fetchWorkoutHistory(user.id);
+        flushQueue().then(() => {
+          fetchExerciseCatalog(user.id).then(() => {
+            fetchWorkoutHistory(user.id);
+          });
         });
       }
     }, [user?.id])

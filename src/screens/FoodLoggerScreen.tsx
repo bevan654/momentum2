@@ -15,6 +15,7 @@ import CreateMealModal from '../components/food/CreateMealModal';
 import NutritionHero from '../components/food/NutritionHero';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry, MealConfig } from '../stores/useFoodLogStore';
+import { flushQueue } from '../lib/syncQueue';
 
 function FoodLoggerScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -64,16 +65,20 @@ function FoodLoggerScreen() {
   // Initial load
   useEffect(() => {
     if (!userId) return;
-    fetchMealConfigs(userId);
-    fetchGoals(userId);
+    flushQueue().then(() => {
+      fetchMealConfigs(userId);
+      fetchGoals(userId);
+    });
   }, [userId]);
 
   // Fetch entries when date changes
   useEffect(() => {
     if (!userId) return;
     hasScrolledRef.current = false;
-    fetchDayEntries(userId, selectedDate);
-    fetchDateSupplements(userId, selectedDate);
+    flushQueue().then(() => {
+      fetchDayEntries(userId, selectedDate);
+      fetchDateSupplements(userId, selectedDate);
+    });
   }, [userId, selectedDate]);
 
   // Auto-scroll to current time after layout (only for today)
