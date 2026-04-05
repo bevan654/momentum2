@@ -28,22 +28,16 @@ export type WorkoutsStackParamList = {
 
 const Stack = createNativeStackNavigator<WorkoutsStackParamList>();
 
-/* ─── Recovery overlay control (module-level bridge) ── */
-let _setRecoveryVisible: ((v: boolean) => void) | null = null;
-export function showRecoveryOverlay() { _setRecoveryVisible?.(true); }
-export function hideRecoveryOverlay() { _setRecoveryVisible?.(false); }
-
-/* ─── Stack navigation bridge (for navigating from recovery overlay) ── */
-let _workoutsNavRef: any = null;
-export function navigateWorkoutsStack(screen: string, params?: any) {
-  _workoutsNavRef?.navigate(screen, params);
-  setTimeout(() => hideRecoveryOverlay(), 50);
-}
+import {
+  setRecoveryOverlayControl,
+  setWorkoutsNavRef,
+  showRecoveryOverlay,
+} from '../lib/navigationBridge';
 
 // Placeholder root — when stack pops back here, show recovery overlay
 function StackRoot({ navigation }: any) {
   useEffect(() => {
-    _workoutsNavRef = navigation;
+    setWorkoutsNavRef(navigation);
     const unsubscribe = navigation.addListener('focus', () => {
       showRecoveryOverlay();
     });
@@ -80,8 +74,8 @@ export default function WorkoutsNavigator() {
   const [recoveryVisible, setRecoveryVisible] = useState(true);
 
   useEffect(() => {
-    _setRecoveryVisible = setRecoveryVisible;
-    return () => { _setRecoveryVisible = null; };
+    setRecoveryOverlayControl(setRecoveryVisible);
+    return () => { setRecoveryOverlayControl(null); };
   }, []);
 
   return (

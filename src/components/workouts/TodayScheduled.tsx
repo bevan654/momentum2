@@ -8,7 +8,7 @@ import { useRoutineStore, type Routine } from '../../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { useProgramStore, type ProgramDayExercise } from '../../stores/useProgramStore';
-import { hideRecoveryOverlay } from '../../navigation/TabNavigator';
+import { hideRecoveryOverlay } from '../../lib/navigationBridge';
 
 const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 

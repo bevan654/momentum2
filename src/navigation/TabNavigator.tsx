@@ -16,7 +16,6 @@ import LaboratoryScreen from '../screens/LaboratoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { useFriendsStore } from '../stores/useFriendsStore';
 import WorkoutsNavigator from './WorkoutsNavigator';
-import { showRecoveryOverlay } from './WorkoutsNavigator';
 import ActiveWorkoutSheet from '../components/workout-sheet/ActiveWorkoutSheet';
 import GhostFinishScreen from '../components/workout-sheet/GhostFinishScreen';
 import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
@@ -34,15 +33,7 @@ import { initNotifications, cleanupNotifications } from '../services/notificatio
 
 const Tab = createMaterialTopTabNavigator();
 
-/* ─── Profile sheet trigger (called from HomeScreen avatar) ── */
-let _openProfileSheet: (() => void) | null = null;
-export function openProfileSheet() {
-  _openProfileSheet?.();
-}
-
-/* Re-export from WorkoutsNavigator for backward compat */
-export { showRecoveryOverlay } from './WorkoutsNavigator';
-export { hideRecoveryOverlay } from './WorkoutsNavigator';
+import { setOpenProfileSheet, showRecoveryOverlay } from '../lib/navigationBridge';
 
 /* ─── Tab config ────────────────────────────────────────── */
 
@@ -281,8 +272,8 @@ export default function TabNavigator() {
 
   // Expose for external callers (e.g. HomeScreen avatar)
   useEffect(() => {
-    _openProfileSheet = openProfile;
-    return () => { _openProfileSheet = null; };
+    setOpenProfileSheet(openProfile);
+    return () => { setOpenProfileSheet(null); };
   }, [openProfile]);
 
   const handleTabRepress = useCallback((name: string) => {
