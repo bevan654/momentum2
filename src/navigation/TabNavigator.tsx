@@ -15,6 +15,8 @@ import FriendsScreen from '../screens/FriendsScreen';
 import LaboratoryScreen from '../screens/LaboratoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { useFriendsStore } from '../stores/useFriendsStore';
+import { useFoodLogStore } from '../stores/useFoodLogStore';
+import { useSupplementStore } from '../stores/useSupplementStore';
 import WorkoutsNavigator from './WorkoutsNavigator';
 import ActiveWorkoutSheet from '../components/workout-sheet/ActiveWorkoutSheet';
 import GhostFinishScreen from '../components/workout-sheet/GhostFinishScreen';
@@ -255,6 +257,15 @@ export default function TabNavigator() {
       useProgramStore.getState().fetchPrograms(userId);
       useRoutineStore.getState().fetchRoutines(userId);
       initNotifications(userId);
+
+      // Pre-warm stores for lazy tabs (eliminates black flash on first visit)
+      useFoodLogStore.getState().fetchMealConfigs(userId);
+      useFoodLogStore.getState().fetchGoals(userId);
+      useFoodLogStore.getState().fetchDayEntries(userId);
+      useFoodLogStore.getState().fetchDefaultFoods(userId);
+      useSupplementStore.getState().fetchDateSupplements(userId, new Date().toISOString().split('T')[0]);
+      useFriendsStore.getState().fetchFriends(userId);
+      useFriendsStore.getState().fetchUnreadCount(userId);
     }
     return () => {
       cleanupNotifications();
