@@ -13,6 +13,7 @@
 
 import type { CatalogEntry } from '../stores/useWorkoutStore';
 import { toSlug, MUSCLE_SLUGS } from './muscleVolume';
+import { toCanonical, CANONICAL_TO_STRENGTH_GROUP } from '../constants/muscles';
 
 /* ═══════════════════════════════════════════════════════
    Workout-level rank result (per-workout scoring)
@@ -179,55 +180,7 @@ export const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
   'chest', 'back', 'legs', 'shoulders', 'biceps', 'triceps', 'abs', 'calves',
 ];
 
-/* ─── Muscle name → broad group ─────────────────────── */
-
-const MUSCLE_TO_GROUP: Record<string, MuscleGroup> = {
-  // Chest
-  chest: 'chest',
-  'upper chest': 'chest',
-  pectorals: 'chest',
-
-  // Back
-  lats: 'back',
-  'middle back': 'back',
-  'upper back': 'back',
-  'lower back': 'back',
-  traps: 'back',
-  trapezius: 'back',
-  rhomboids: 'back',
-
-  // Legs
-  quadriceps: 'legs',
-  quads: 'legs',
-  hamstrings: 'legs',
-  glutes: 'legs',
-  adductors: 'legs',
-  'hip flexors': 'legs',
-  'hip abductors': 'legs',
-  'tensor fasciae latae': 'legs',
-  gracilis: 'legs',
-
-  // Shoulders
-  shoulders: 'shoulders',
-  'rear delts': 'shoulders',
-  deltoids: 'shoulders',
-
-  // Biceps
-  biceps: 'biceps',
-  brachialis: 'biceps',
-
-  // Triceps
-  triceps: 'triceps',
-  anconeus: 'triceps',
-
-  // Abs
-  abs: 'abs',
-  obliques: 'abs',
-  core: 'abs',
-
-  // Calves
-  calves: 'calves',
-};
+/* ─── Muscle name → broad group (derived from muscles.ts) ── */
 
 /**
  * Explicit mapping: main-lift exercise name → the ONE muscle group it is
@@ -373,7 +326,9 @@ export function calculateExerciseStrengthScore(
 
 /** Map a raw catalog muscle string to one of the 8 broad groups. */
 export function mapToMuscleGroup(muscle: string): MuscleGroup | null {
-  return MUSCLE_TO_GROUP[muscle.toLowerCase().trim()] ?? null;
+  const canonical = toCanonical(muscle);
+  if (!canonical) return null;
+  return CANONICAL_TO_STRENGTH_GROUP[canonical];
 }
 
 /** Return the unique broad groups for an exercise's primary & secondary muscles. */

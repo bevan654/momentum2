@@ -14,8 +14,17 @@
 import type { ExtendedBodyPart } from '../components/BodyHighlighter';
 import type { ExerciseWithSets, CatalogEntry } from '../stores/useWorkoutStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
+import {
+  toCanonical,
+  CANONICAL_MUSCLES,
+  CANONICAL_LABELS,
+  CANONICAL_TO_SVG_SLUG,
+  TARGET_VOLUME,
+  CATEGORY_MUSCLES,
+  type CanonicalMuscle,
+} from '../constants/muscles';
 
-/* ─── Slug types ──────────────────────────────────────── */
+/* ─── SVG Slug types (tied to BodyHighlighter SVG assets) ──── */
 
 export type Slug =
   | 'abs' | 'adductors' | 'ankles' | 'biceps' | 'calves' | 'chest'
@@ -30,74 +39,50 @@ export const ALL_SLUGS: Slug[] = [
   'tibialis', 'trapezius', 'triceps', 'upper-back',
 ];
 
-export const MUSCLE_SLUGS = new Set<string>([
-  'abs', 'adductors', 'biceps', 'calves', 'chest', 'deltoids',
-  'forearm', 'gluteal', 'hamstring', 'lower-back', 'obliques',
-  'quadriceps', 'rear-deltoids', 'tibialis', 'trapezius', 'triceps', 'upper-back',
-]);
+/** SVG slugs that represent actual muscles (subset of ALL_SLUGS). */
+export const MUSCLE_SLUGS = new Set<string>(
+  Object.values(CANONICAL_TO_SVG_SLUG),
+);
 
-export const SLUG_LABELS: Record<string, string> = {
-  abs: 'Abs',
-  adductors: 'Adductors',
-  biceps: 'Biceps',
-  calves: 'Calves',
-  chest: 'Chest',
-  deltoids: 'Deltoids',
-  forearm: 'Forearms',
-  gluteal: 'Glutes',
-  hamstring: 'Hamstrings',
-  'lower-back': 'Lower Back',
-  obliques: 'Obliques',
-  quadriceps: 'Quads',
-  'rear-deltoids': 'Rear Delts',
-  tibialis: 'Tibialis',
-  trapezius: 'Traps',
-  triceps: 'Triceps',
-  'upper-back': 'Upper Back',
-};
+/** Display labels keyed by SVG slug. Derived from canonical labels. */
+export const SLUG_LABELS: Record<string, string> = (() => {
+  const labels: Record<string, string> = {};
+  for (const canonical of CANONICAL_MUSCLES) {
+    const svgSlug = CANONICAL_TO_SVG_SLUG[canonical];
+    // First canonical to claim a slug wins the label (e.g. 'shoulders' → 'deltoids' gets 'Shoulders')
+    if (!labels[svgSlug]) {
+      labels[svgSlug] = CANONICAL_LABELS[canonical];
+    }
+  }
+  return labels;
+})();
 
 /* ─── Slug normalisation ──────────────────────────────── */
 
-const SLUG_ALIASES: Record<string, Slug> = {
-  abs: 'abs', abdominals: 'abs', abdominal: 'abs', core: 'abs',
-  adductors: 'adductors', adductor: 'adductors', gracilis: 'adductors',
-  abductors: 'gluteal', abductor: 'gluteal', 'hip abductors': 'gluteal',
-  biceps: 'biceps', bicep: 'biceps', brachialis: 'biceps',
-  calves: 'calves', calf: 'calves',
-  chest: 'chest', pectorals: 'chest', pecs: 'chest', 'upper chest': 'chest',
-  deltoids: 'deltoids', deltoid: 'deltoids', shoulders: 'deltoids', shoulder: 'deltoids',
-  'rear-deltoids': 'rear-deltoids', 'rear delts': 'rear-deltoids', 'rear deltoids': 'rear-deltoids', 'posterior deltoid': 'rear-deltoids',
-  forearm: 'forearm', forearms: 'forearm',
-  gluteal: 'gluteal', glutes: 'gluteal', gluteus: 'gluteal', glute: 'gluteal',
-  hamstring: 'hamstring', hamstrings: 'hamstring',
-  'lower-back': 'lower-back', 'lower back': 'lower-back', 'erector spinae': 'lower-back',
-  'middle back': 'upper-back',
-  obliques: 'obliques', oblique: 'obliques',
-  quadriceps: 'quadriceps', quads: 'quadriceps', quad: 'quadriceps', 'hip flexors': 'quadriceps',
-  tibialis: 'tibialis',
-  trapezius: 'trapezius', traps: 'trapezius', trap: 'trapezius',
-  triceps: 'triceps', tricep: 'triceps', anconeus: 'triceps',
-  'upper-back': 'upper-back', 'upper back': 'upper-back', lats: 'upper-back', latissimus: 'upper-back', 'latissimus dorsi': 'upper-back', rhomboids: 'upper-back',
-  neck: 'neck',
-};
-
+/**
+ * Normalize any raw muscle string to an SVG-compatible slug.
+ * Uses the canonical alias table, then maps canonical → SVG slug.
+ * Returns null for non-muscle strings (e.g. 'head', 'feet').
+ */
 export function toSlug(raw: string): Slug | null {
-  const key = raw.trim().toLowerCase().replace(/_/g, ' ');
-  return SLUG_ALIASES[key] ?? (MUSCLE_SLUGS.has(key) ? (key as Slug) : null);
+  const canonical = toCanonical(raw);
+  if (!canonical) return null;
+  return CANONICAL_TO_SVG_SLUG[canonical] as Slug;
 }
 
-/* ─── Category fallback ───────────────────────────────── */
+/* ─── Category fallback (derived from muscles.ts) ──────── */
 
-const CATEGORY_TO_SLUGS: Record<string, Slug[]> = {
-  Chest: ['chest'],
-  Back: ['upper-back', 'lower-back', 'trapezius'],
-  Shoulders: ['deltoids', 'rear-deltoids'],
-  Arms: ['biceps', 'triceps', 'forearm'],
-  Legs: ['quadriceps', 'hamstring', 'gluteal', 'calves', 'adductors', 'tibialis'],
-  Core: ['abs', 'obliques'],
-  Cardio: [],
-  Custom: [],
-};
+const CATEGORY_TO_SLUGS: Record<string, Slug[]> = (() => {
+  const result: Record<string, Slug[]> = {};
+  for (const [category, muscles] of Object.entries(CATEGORY_MUSCLES)) {
+    const slugSet = new Set<string>();
+    for (const m of muscles) {
+      slugSet.add(CANONICAL_TO_SVG_SLUG[m]);
+    }
+    result[category] = Array.from(slugSet) as Slug[];
+  }
+  return result;
+})();
 
 /* ─── Intensity constants ─────────────────────────────── */
 
@@ -110,29 +95,20 @@ export const HEAT_MAX = 6;
 export const HEAT_LEVELS = HEAT_MAX - HEAT_MIN + 1; // 5
 
 /**
- * Per-muscle session target volume (kg × reps).
- * When a muscle reaches its target it maxes out the heat scale.
- * Accounts for the fact that isolation muscles use lighter loads.
+ * Per-SVG-slug session target volume (kg × reps).
+ * Derived from canonical TARGET_VOLUME. When multiple canonicals share
+ * an SVG slug (e.g. lats + upper-back → 'upper-back'), volumes add up
+ * and we use the max target.
  */
-const SLUG_TARGET_VOLUME: Record<string, number> = {
-  chest: 2000,
-  'upper-back': 2000,
-  'lower-back': 1200,
-  trapezius: 600,
-  quadriceps: 2500,
-  hamstring: 2000,
-  gluteal: 2500,
-  adductors: 1000,
-  tibialis: 600,
-  deltoids: 1200,
-  'rear-deltoids': 800,
-  biceps: 600,
-  forearm: 400,
-  triceps: 800,
-  abs: 600,
-  obliques: 600,
-  calves: 800,
-};
+const SLUG_TARGET_VOLUME: Record<string, number> = (() => {
+  const targets: Record<string, number> = {};
+  for (const canonical of CANONICAL_MUSCLES) {
+    const svgSlug = CANONICAL_TO_SVG_SLUG[canonical];
+    const vol = TARGET_VOLUME[canonical];
+    targets[svgSlug] = Math.max(targets[svgSlug] ?? 0, vol);
+  }
+  return targets;
+})();
 
 const DEFAULT_TARGET_VOLUME = 800;
 

@@ -38,31 +38,14 @@ const BODY_GAP = sw(4);
 const BODY_W = (SECTION_W - BODY_GAP) / 2;
 const BODY_SCALE = BODY_W / 200;
 
-/* ─── Muscle → Group mapping ─────────────────────────────── */
+/* ─── Muscle → Group mapping (derived from muscles.ts) ────── */
 
-const MUSCLE_TO_GROUP: Record<string, string> = {
-  chest: 'Chest',
-  'upper chest': 'Chest',
-  lats: 'Back',
-  'lower back': 'Back',
-  'middle back': 'Back',
-  'upper back': 'Back',
-  traps: 'Back',
-  trapezius: 'Back',
-  shoulders: 'Shoulders',
-  'rear delts': 'Shoulders',
-  biceps: 'Arms',
-  triceps: 'Arms',
-  forearms: 'Arms',
-  quadriceps: 'Legs',
-  hamstrings: 'Legs',
-  glutes: 'Legs',
-  calves: 'Legs',
-  adductors: 'Legs',
-  abs: 'Core',
-  core: 'Core',
-  obliques: 'Core',
-};
+import { toCanonical, CANONICAL_TO_UI_CATEGORY } from '../../constants/muscles';
+
+function muscleToGroup(raw: string): string | undefined {
+  const canonical = toCanonical(raw);
+  return canonical ? CANONICAL_TO_UI_CATEGORY[canonical] : undefined;
+}
 
 /* ─── Helpers ────────────────────────────────────────────── */
 
@@ -88,7 +71,7 @@ function computeGroupSets(
 
       const counted = new Set<string>();
       for (const muscle of ex.primary_muscles) {
-        const group = MUSCLE_TO_GROUP[muscle.toLowerCase()];
+        const group = muscleToGroup(muscle);
         if (group && !counted.has(group)) {
           counted.add(group);
           counts[group] += completedSets;

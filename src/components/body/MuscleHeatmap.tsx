@@ -43,26 +43,23 @@ const PALETTES = {
 const BORDERS = { dark: '#1C1C1E', light: '#A0A0A4' };
 const HIGHLIGHT_TEXT = { dark: '#FFFFFF', light: '#1A1A1A' };
 
-/* --- Slug → MuscleGroup for recovery lookup --------------- */
+/* --- Slug → MuscleGroup for recovery lookup (derived from muscles.ts) --- */
 
-const SLUG_TO_GROUP: Record<string, MuscleGroup> = {
-  chest: 'chest',
-  'upper-back': 'back',
-  'lower-back': 'back',
-  trapezius: 'back',
-  deltoids: 'shoulders',
-  biceps: 'biceps',
-  triceps: 'triceps',
-  forearm: 'forearms',
-  abs: 'abs',
-  obliques: 'abs',
-  quadriceps: 'quads',
-  tibialis: 'quads',
-  adductors: 'quads',
-  hamstring: 'hamstrings',
-  gluteal: 'glutes',
-  calves: 'calves',
-};
+import {
+  CANONICAL_TO_BODY_GROUP,
+  CANONICAL_TO_SVG_SLUG,
+  CANONICAL_MUSCLES,
+} from '../../constants/muscles';
+
+const SLUG_TO_GROUP: Record<string, MuscleGroup> = (() => {
+  const map: Record<string, MuscleGroup> = {};
+  for (const canonical of CANONICAL_MUSCLES) {
+    const svgSlug = CANONICAL_TO_SVG_SLUG[canonical];
+    const group = CANONICAL_TO_BODY_GROUP[canonical];
+    if (!map[svgSlug]) map[svgSlug] = group as MuscleGroup;
+  }
+  return map;
+})();
 
 /* --- Recovery palette & helpers --------------------------- */
 
