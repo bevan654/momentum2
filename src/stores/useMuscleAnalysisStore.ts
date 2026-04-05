@@ -2,28 +2,18 @@ import { create } from 'zustand';
 import type { WorkoutWithDetails, CatalogEntry } from './useWorkoutStore';
 import { toSlug } from '../utils/muscleVolume';
 import type { MuscleGroup } from '../components/body/musclePathData';
-import { CATEGORY_TO_GROUPS, GROUP_LABELS } from '../components/body/musclePathData';
+import { GROUP_LABELS } from '../components/body/musclePathData';
 import {
-  toCanonical,
-  CANONICAL_TO_BODY_GROUP,
   CANONICAL_TO_SVG_SLUG,
   CATEGORY_MUSCLES,
   RECOVERY_HOURS,
   CANONICAL_MUSCLES,
-  type BodyGraphGroup,
+  SVG_SLUG_TO_BODY_GROUP,
 } from '../constants/muscles';
 
 /* ─── Derived from muscles.ts ─────────────────────────── */
 
-const SLUG_TO_GROUP: Record<string, MuscleGroup> = (() => {
-  const map: Record<string, MuscleGroup> = {};
-  for (const canonical of CANONICAL_MUSCLES) {
-    const svgSlug = CANONICAL_TO_SVG_SLUG[canonical];
-    const group = CANONICAL_TO_BODY_GROUP[canonical];
-    if (!map[svgSlug]) map[svgSlug] = group as MuscleGroup;
-  }
-  return map;
-})();
+const SLUG_TO_GROUP = SVG_SLUG_TO_BODY_GROUP as Record<string, MuscleGroup>;
 
 const ALL_GROUPS: MuscleGroup[] = [
   'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms',

@@ -81,8 +81,6 @@ interface WgerSearchResult {
     base_id: number;
     name: string;
     category: string;
-    image: string | null;
-    image_thumbnail: string | null;
   };
 }
 

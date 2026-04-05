@@ -390,6 +390,17 @@ export const CANONICAL_TO_SVG_SLUG: Record<CanonicalMuscle, string> = {
   calves: 'calves',
 };
 
+/** SVG slug → body graph group. Derived from canonical mappings. */
+export const SVG_SLUG_TO_BODY_GROUP: Record<string, BodyGraphGroup> = (() => {
+  const map: Record<string, BodyGraphGroup> = {};
+  for (const canonical of CANONICAL_MUSCLES) {
+    const svgSlug = CANONICAL_TO_SVG_SLUG[canonical];
+    const group = CANONICAL_TO_BODY_GROUP[canonical];
+    if (!map[svgSlug]) map[svgSlug] = group;
+  }
+  return map;
+})();
+
 // ─── Display Muscles (for custom exercise modal) ─────────────
 
 export const DISPLAY_MUSCLES: { canonical: CanonicalMuscle; label: string }[] = [

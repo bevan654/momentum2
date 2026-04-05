@@ -45,21 +45,9 @@ const HIGHLIGHT_TEXT = { dark: '#FFFFFF', light: '#1A1A1A' };
 
 /* --- Slug → MuscleGroup for recovery lookup (derived from muscles.ts) --- */
 
-import {
-  CANONICAL_TO_BODY_GROUP,
-  CANONICAL_TO_SVG_SLUG,
-  CANONICAL_MUSCLES,
-} from '../../constants/muscles';
+import { SVG_SLUG_TO_BODY_GROUP } from '../../constants/muscles';
 
-const SLUG_TO_GROUP: Record<string, MuscleGroup> = (() => {
-  const map: Record<string, MuscleGroup> = {};
-  for (const canonical of CANONICAL_MUSCLES) {
-    const svgSlug = CANONICAL_TO_SVG_SLUG[canonical];
-    const group = CANONICAL_TO_BODY_GROUP[canonical];
-    if (!map[svgSlug]) map[svgSlug] = group as MuscleGroup;
-  }
-  return map;
-})();
+const SLUG_TO_GROUP = SVG_SLUG_TO_BODY_GROUP as Record<string, MuscleGroup>;
 
 /* --- Recovery palette & helpers --------------------------- */
 
