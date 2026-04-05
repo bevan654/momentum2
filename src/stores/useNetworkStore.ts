@@ -40,7 +40,8 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
       stopCheckTimer();
       // Flush pending sync operations when coming back online
       if (wasOffline) {
-        flushQueue();
+        const { flushPendingWorkouts } = require('../lib/pendingWorkouts');
+        flushPendingWorkouts().then(() => flushQueue());
       }
     }
   },

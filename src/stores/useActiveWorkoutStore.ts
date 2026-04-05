@@ -13,6 +13,8 @@ import { useAuthStore } from './useAuthStore';
 import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity } from '../services/liveActivityManager';
 import { playBeep } from '../utils/beepSound';
 import type { WorkoutActivitySnapshot } from '../services/liveActivityManager';
+import { enqueuePendingWorkout, type PendingWorkout } from '../lib/pendingWorkouts';
+import { checkConnection } from '../lib/supabase';
 
 const REST_NOTIF_ID = 'rest-timer';
 const SUPABASE_TIMEOUT = 20_000; // 20s per request
@@ -423,14 +425,48 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
     const duration = durationOverride ?? elapsedSeconds;
 
+    // Build the pending workout payload (used for offline queue if save fails)
+    const pendingPayload: PendingWorkout = {
+      id: `pending-${Date.now()}`,
+      userId,
+      duration,
+      totalExercises: filteredExercises.length,
+      totalSets,
+      ghostUsername: ghostUserName || null,
+      programId: get().startedFromProgram || null,
+      programWeek: get().programWeek || null,
+      exercises: filteredExercises.map((ex, i) => ({
+        name: ex.name,
+        exercise_order: i + 1,
+        exercise_type: ex.exercise_type,
+        sets: ex.sets.map((s, j) => ({
+          set_number: j + 1,
+          kg: parseFloat(s.kg) || 0,
+          reps: parseInt(s.reps, 10) || 0,
+          completed: s.completed,
+          set_type: s.set_type,
+          parent_set_number: s.parent_set_number,
+        })),
+      })),
+      createdAt: Date.now(),
+    };
+
     const restoreTimer = () => {
       if (!_timerInterval) _timerInterval = setInterval(() => get().tick(), 1000);
     };
 
-    // Insert workout
-    console.log('[finishWorkout] inserting workout...');
+    // Last-chance reconnect attempt before saving
+    const { useNetworkStore } = require('./useNetworkStore');
+    if (useNetworkStore.getState().isOffline) {
+      await checkConnection();
+    }
+
+    // Try the real save
     let workout: { id: string } | null = null;
+    let savedOnline = false;
+
     try {
+      // Insert workout
       const { data, error: workoutErr } = await withTimeout(
         supabase
           .from('workouts')
@@ -445,22 +481,11 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
           .select('id')
           .single()
       );
-      if (workoutErr || !data) {
-        console.error('[finishWorkout] workout insert error:', workoutErr);
-        restoreTimer();
-        return { error: workoutErr?.message || 'Failed to save workout' };
-      }
-      workout = data;
-      console.log('[finishWorkout] workout saved:', workout.id);
-    } catch (e: any) {
-      console.error('[finishWorkout] workout insert threw:', e);
-      restoreTimer();
-      return { error: 'Failed to save workout — check your connection and try again.' };
-    }
 
-    // Bulk-insert exercises
-    console.log('[finishWorkout] inserting exercises...');
-    try {
+      if (workoutErr || !data) throw new Error(workoutErr?.message || 'workout insert failed');
+      workout = data;
+
+      // Bulk-insert exercises
       const exerciseRows = filteredExercises.map((ex, i) => ({
         workout_id: workout!.id,
         name: ex.name,
@@ -469,35 +494,17 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       }));
 
       const { data: exDataArr, error: exErr } = await withTimeout(
-        supabase
-          .from('exercises')
-          .insert(exerciseRows)
-          .select('id, exercise_order')
+        supabase.from('exercises').insert(exerciseRows).select('id, exercise_order')
       );
 
-      if (exErr || !exDataArr || exDataArr.length === 0) {
-        console.error('[finishWorkout] exercises insert error:', exErr);
-        restoreTimer();
-        return { error: exErr?.message || 'Failed to save exercises — please try again.' };
-      }
-
-      console.log('[finishWorkout] exercises saved, inserting sets...');
+      if (exErr || !exDataArr || exDataArr.length === 0) throw new Error(exErr?.message || 'exercises insert failed');
 
       // Map exercise_order → exercise id for set assignment
       const orderToId = new Map<number, string>();
       for (const row of exDataArr) orderToId.set(row.exercise_order, row.id);
 
-      // Build all set rows at once
-      const allSetRows: {
-        exercise_id: string;
-        set_number: number;
-        kg: number;
-        reps: number;
-        completed: boolean;
-        set_type: string;
-        parent_set_number: number | null;
-      }[] = [];
-
+      // Build all set rows
+      const allSetRows: any[] = [];
       for (let i = 0; i < filteredExercises.length; i++) {
         const exId = orderToId.get(i + 1);
         if (!exId) continue;
@@ -516,25 +523,21 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       }
 
       if (allSetRows.length > 0) {
-        const { error: setErr } = await withTimeout(
-          supabase.from('sets').insert(allSetRows)
-        );
-        if (setErr) {
-          console.warn('[finishWorkout] sets insert error:', setErr);
-        } else {
-          console.log('[finishWorkout] sets saved');
-        }
+        const { error: setErr } = await withTimeout(supabase.from('sets').insert(allSetRows));
+        if (setErr) console.warn('[finishWorkout] sets insert error:', setErr);
       }
+
+      savedOnline = true;
     } catch (e: any) {
-      console.error('[finishWorkout] exercises/sets threw:', e);
-      restoreTimer();
-      return { error: 'Failed to save exercises — check your connection and try again.' };
+      console.warn('[finishWorkout] online save failed, queuing for later:', e?.message);
+      // Queue the workout for later sync — the workout MUST survive
+      await enqueuePendingWorkout(pendingPayload);
+      // Use temp ID for summary
+      workout = { id: pendingPayload.id };
     }
 
-    console.log('[finishWorkout] done, showing summary');
-
-    // Non-critical operations — fire and forget, never block summary
-    try {
+    // Non-critical operations — fire and forget, only when saved online
+    if (savedOnline) try {
       let ghostResult: string | null = null;
       if (ghostUserName) {
         let w = 0, l = 0;
@@ -640,12 +643,12 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       console.error('[finishWorkout] feed block crashed:', feedCrash);
     }
 
-    try {
+    if (savedOnline) try {
       const { refreshStreak } = useStreakStore.getState();
       refreshStreak(userId).catch(() => {});
     } catch {}
 
-    try {
+    if (savedOnline) try {
       useRankStore.getState().updateFromWorkout(
         filteredExercises.map((ex) => ({
           name: ex.name,

@@ -19,6 +19,7 @@ import SupplementsCard from '../components/home/SupplementsCard';
 import ActivityCard from '../components/home/ActivityCard';
 import { useNavigation } from '@react-navigation/native';
 import { flushQueue } from '../lib/syncQueue';
+import { flushPendingWorkouts } from '../lib/pendingWorkouts';
 
 function HomeScreen() {
   const user = useAuthStore((s) => s.user);
@@ -39,7 +40,7 @@ function HomeScreen() {
   useEffect(() => {
     if (user?.id) {
       // Flush any pending offline writes before fetching fresh data
-      flushQueue().then(() => {
+      flushPendingWorkouts().then(() => flushQueue()).then(() => {
         fetchTodayNutrition(user.id);
         fetchNutritionGoals(user.id);
         fetchTodaySupplements(user.id);
@@ -54,7 +55,7 @@ function HomeScreen() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && user?.id) {
-        flushQueue().then(() => {
+        flushPendingWorkouts().then(() => flushQueue()).then(() => {
           fetchTodayNutrition(user.id);
           fetchTodaySupplements(user.id);
           useStreakStore.getState().refreshStreak(user.id);
