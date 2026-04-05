@@ -123,71 +123,79 @@ export const useRoutineStore = create<RoutineState>((set, get) => ({
   },
 
   createRoutine: async (userId, name, exercises, days = []) => {
-    const { data: routine, error } = await supabase
-      .from('routines')
-      .insert({ user_id: userId, name, days })
-      .select('id')
-      .single();
+    try {
+      const { data: routine, error } = await supabase
+        .from('routines')
+        .insert({ user_id: userId, name, days })
+        .select('id')
+        .single();
 
-    if (error) return { error: error.message };
+      if (error) return { error: error.message };
 
-    if (exercises.length > 0) {
-      const rows = exercises.map((e) => ({
-        routine_id: routine.id,
-        name: e.name,
-        exercise_order: e.exercise_order,
-        default_sets: e.default_sets,
-        default_reps: e.default_reps,
-        default_rest_seconds: e.default_rest_seconds,
-        set_reps: e.set_reps,
-        set_weights: e.set_weights,
-        exercise_type: e.exercise_type,
-      }));
+      if (exercises.length > 0) {
+        const rows = exercises.map((e) => ({
+          routine_id: routine.id,
+          name: e.name,
+          exercise_order: e.exercise_order,
+          default_sets: e.default_sets,
+          default_reps: e.default_reps,
+          default_rest_seconds: e.default_rest_seconds,
+          set_reps: e.set_reps,
+          set_weights: e.set_weights,
+          exercise_type: e.exercise_type,
+        }));
 
-      const { error: exError } = await supabase
-        .from('routine_exercises')
-        .insert(rows);
+        const { error: exError } = await supabase
+          .from('routine_exercises')
+          .insert(rows);
 
-      if (exError) return { error: exError.message };
+        if (exError) return { error: exError.message };
+      }
+
+      await get().fetchRoutines(userId);
+      return { error: null };
+    } catch (e: any) {
+      return { error: e?.message || 'Network request failed' };
     }
-
-    await get().fetchRoutines(userId);
-    return { error: null };
   },
 
   updateRoutine: async (userId, routineId, name, exercises, days = []) => {
-    const { error } = await supabase
-      .from('routines')
-      .update({ name, days })
-      .eq('id', routineId);
+    try {
+      const { error } = await supabase
+        .from('routines')
+        .update({ name, days })
+        .eq('id', routineId);
 
-    if (error) return { error: error.message };
+      if (error) return { error: error.message };
 
-    // Replace all exercises: delete old, insert new
-    await supabase.from('routine_exercises').delete().eq('routine_id', routineId);
+      // Replace all exercises: delete old, insert new
+      await supabase.from('routine_exercises').delete().eq('routine_id', routineId);
 
-    if (exercises.length > 0) {
-      const rows = exercises.map((e) => ({
-        routine_id: routineId,
-        name: e.name,
-        exercise_order: e.exercise_order,
-        default_sets: e.default_sets,
-        default_reps: e.default_reps,
-        default_rest_seconds: e.default_rest_seconds,
-        set_reps: e.set_reps,
-        set_weights: e.set_weights,
-        exercise_type: e.exercise_type,
-      }));
+      if (exercises.length > 0) {
+        const rows = exercises.map((e) => ({
+          routine_id: routineId,
+          name: e.name,
+          exercise_order: e.exercise_order,
+          default_sets: e.default_sets,
+          default_reps: e.default_reps,
+          default_rest_seconds: e.default_rest_seconds,
+          set_reps: e.set_reps,
+          set_weights: e.set_weights,
+          exercise_type: e.exercise_type,
+        }));
 
-      const { error: exError } = await supabase
-        .from('routine_exercises')
-        .insert(rows);
+        const { error: exError } = await supabase
+          .from('routine_exercises')
+          .insert(rows);
 
-      if (exError) return { error: exError.message };
+        if (exError) return { error: exError.message };
+      }
+
+      await get().fetchRoutines(userId);
+      return { error: null };
+    } catch (e: any) {
+      return { error: e?.message || 'Network request failed' };
     }
-
-    await get().fetchRoutines(userId);
-    return { error: null };
   },
 
   deleteRoutine: async (routineId: string) => {
@@ -195,14 +203,19 @@ export const useRoutineStore = create<RoutineState>((set, get) => ({
     const prev = get().routines;
     set({ routines: prev.filter((r) => r.id !== routineId) });
 
-    // Delete exercises first, then routine
-    await supabase.from('routine_exercises').delete().eq('routine_id', routineId);
-    const { error } = await supabase.from('routines').delete().eq('id', routineId);
+    try {
+      // Delete exercises first, then routine
+      await supabase.from('routine_exercises').delete().eq('routine_id', routineId);
+      const { error } = await supabase.from('routines').delete().eq('id', routineId);
 
-    if (error) {
+      if (error) {
+        set({ routines: prev });
+        return { error: error.message };
+      }
+      return { error: null };
+    } catch (e: any) {
       set({ routines: prev });
-      return { error: error.message };
+      return { error: e?.message || 'Network request failed' };
     }
-    return { error: null };
   },
 }));
