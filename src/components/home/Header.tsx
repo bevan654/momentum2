@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, StyleSheet, ActivityIndicator } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Canvas, Path as SkiaPath, Skia, BlurMask, RadialGradient, vec } from '@shopify/react-native-skia';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -275,10 +275,14 @@ export default function Header({ activeTab }: HeaderProps) {
   const closeNotif = useCallback(() => setNotifOpen(false), []);
 
   const handleReconnect = useCallback(async () => {
+    if (reconnecting) return;
     setReconnecting(true);
-    await checkConnection();
+    await Promise.all([
+      checkConnection(),
+      new Promise((r) => setTimeout(r, 2000)),
+    ]);
     setReconnecting(false);
-  }, []);
+  }, [reconnecting]);
 
   const [calendarOpen, setCalendarOpen] = useState(false);
   const openCal = useCallback(() => setCalendarOpen(true), []);
@@ -308,7 +312,10 @@ export default function Header({ activeTab }: HeaderProps) {
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name={reconnecting ? 'refresh-outline' : 'cloud-offline-outline'} size={ms(12)} color="#fff" />
+            {reconnecting
+              ? <ActivityIndicator size="small" color="#fff" style={{ transform: [{ scale: 0.6 }], width: ms(12), height: ms(12) }} />
+              : <Ionicons name="cloud-offline-outline" size={ms(12)} color="#fff" />
+            }
             <Text style={styles.offlinePillText}>Offline</Text>
           </TouchableOpacity>
         )}
@@ -405,11 +412,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   offlinePill: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: sw(4),
     backgroundColor: '#D32F2F',
     paddingHorizontal: sw(9),
-    paddingVertical: sw(4),
+    height: sw(24),
     borderRadius: sw(10),
+    overflow: 'hidden',
   },
   offlinePillText: {
     color: '#fff',
