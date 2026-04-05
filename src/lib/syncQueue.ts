@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const QUEUE_KEY = '@momentum_sync_queue';
+const MAX_RETRIES = 5;
 
 export interface SyncOp {
   id: string;
@@ -9,6 +10,7 @@ export interface SyncOp {
   data?: Record<string, any>;
   match?: Record<string, any>;
   createdAt: number;
+  retryCount?: number;
 }
 
 let _flushing = false;
@@ -34,6 +36,7 @@ export async function enqueue(op: Omit<SyncOp, 'id' | 'createdAt'>) {
     ...op,
     id: `sync-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: Date.now(),
+    retryCount: 0,
   };
   const queue = await loadQueue();
   queue.push(full);
@@ -81,14 +84,17 @@ export async function flushQueue(): Promise<void> {
             break;
           }
         }
-        // If Supabase returned an error, keep in queue for retry
         if (result.error) {
-          remaining.push(op);
+          const retries = (op.retryCount || 0) + 1;
+          if (retries < MAX_RETRIES) {
+            remaining.push({ ...op, retryCount: retries });
+          }
+          // else: discard — exceeded max retries
         }
       } catch {
-        // Network still down — keep in queue
+        // Network still down — keep in queue unchanged, stop processing
         remaining.push(op);
-        break; // Stop processing, we're still offline
+        break;
       }
     }
 

@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { saveWorkout } from '../utils/workoutStorage';
+import type { ActiveExercise, ActiveSet } from '../stores/useActiveWorkoutStore';
 
 const PENDING_KEY = '@momentum_pending_workouts';
+const MAX_RETRIES = 5;
 
 export interface PendingExercise {
   name: string;
@@ -27,6 +30,7 @@ export interface PendingWorkout {
   programWeek: number | null;
   exercises: PendingExercise[];
   createdAt: number;
+  retryCount?: number;
 }
 
 async function loadPending(): Promise<PendingWorkout[]> {
@@ -44,10 +48,41 @@ async function savePending(list: PendingWorkout[]) {
   } catch {}
 }
 
+/**
+ * Restore a failed pending workout back to the active workout state.
+ * This ensures the user never loses their workout data — they can
+ * re-attempt finishing it manually.
+ */
+function restoreToActiveWorkout(pw: PendingWorkout) {
+  saveWorkout({
+    startTime: pw.createdAt,
+    exercises: pw.exercises.map((ex): ActiveExercise => ({
+      name: ex.name,
+      exercise_type: ex.exercise_type as ActiveExercise['exercise_type'],
+      category: null,
+      sets: ex.sets.map((s): ActiveSet => ({
+        kg: String(s.kg),
+        reps: String(s.reps),
+        completed: s.completed,
+        set_type: s.set_type as ActiveSet['set_type'],
+        parent_set_number: s.parent_set_number,
+      })),
+      prevSets: [],
+      supersetWith: null,
+    })),
+    restDuration: 90,
+    restStartedAt: null,
+    startedFromRoutine: null,
+    startedFromProgram: pw.programId,
+    programWeek: pw.programWeek,
+  });
+  console.warn(`[pendingWorkouts] Workout ${pw.id} exceeded ${MAX_RETRIES} retries — restored to active workout for manual retry`);
+}
+
 /** Queue a workout for later sync */
 export async function enqueuePendingWorkout(workout: PendingWorkout) {
   const list = await loadPending();
-  list.push(workout);
+  list.push({ ...workout, retryCount: 0 });
   await savePending(list);
 }
 
@@ -81,7 +116,13 @@ export async function flushPendingWorkouts(): Promise<void> {
         .single();
 
       if (workoutErr || !workoutData) {
-        remaining.push(pw);
+        const retries = (pw.retryCount || 0) + 1;
+        if (retries < MAX_RETRIES) {
+          remaining.push({ ...pw, retryCount: retries });
+        } else {
+          // Max retries exceeded — restore to active workout so user doesn't lose it
+          restoreToActiveWorkout(pw);
+        }
         continue;
       }
 
@@ -101,7 +142,12 @@ export async function flushPendingWorkouts(): Promise<void> {
       if (exErr || !exData || exData.length === 0) {
         // Workout row exists but exercises failed — clean up
         await supabase.from('workouts').delete().eq('id', workoutData.id);
-        remaining.push(pw);
+        const retries = (pw.retryCount || 0) + 1;
+        if (retries < MAX_RETRIES) {
+          remaining.push({ ...pw, retryCount: retries });
+        } else {
+          restoreToActiveWorkout(pw);
+        }
         continue;
       }
 
