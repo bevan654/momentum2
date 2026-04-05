@@ -2,14 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import { getMuscleGroupColor } from '../../constants/muscleGroups';
+import { getUICategoryColor } from '../../constants/muscles';
 
 interface Props {
   category: string;
 }
 
 export default function MusclePill({ category }: Props) {
-  const color = getMuscleGroupColor(category);
+  const color = getUICategoryColor(category);
 
   return (
     <View style={[styles.pill, { backgroundColor: color + '20' }]}>

@@ -181,14 +181,23 @@ const HistoryRow = React.memo(({ workout, dateStr, durationMin, styles, colors, 
   );
 });
 
-/* ─── Muscle group constants ─────────────────────────── */
+/* ─── Muscle group constants (derived from muscles.ts) ── */
 
-const SLUG_GROUP: Record<string, string> = {
-  chest: 'chest', 'upper-back': 'back', 'lower-back': 'back', trapezius: 'back',
-  deltoids: 'shoulders', 'rear-deltoids': 'shoulders', biceps: 'biceps', triceps: 'triceps',
-  forearm: 'forearms', abs: 'abs', obliques: 'abs', quadriceps: 'quads',
-  tibialis: 'quads', adductors: 'quads', hamstring: 'hamstrings', gluteal: 'glutes', calves: 'calves',
-};
+import {
+  CANONICAL_TO_BODY_GROUP,
+  CANONICAL_TO_SVG_SLUG,
+  CANONICAL_MUSCLES,
+} from '../constants/muscles';
+
+const SLUG_GROUP: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  for (const canonical of CANONICAL_MUSCLES) {
+    const svgSlug = CANONICAL_TO_SVG_SLUG[canonical];
+    const group = CANONICAL_TO_BODY_GROUP[canonical];
+    if (!map[svgSlug]) map[svgSlug] = group;
+  }
+  return map;
+})();
 
 const PART_GROUPS: Record<string, string[]> = {
   Chest: ['chest'],

@@ -32,39 +32,12 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
-/* ─── Muscle color map (matches ProgramDayEditor) ───── */
+import { getMuscleColor, toCanonical, CANONICAL_TO_UI_CATEGORY, UI_CATEGORY_COLORS } from '../../constants/muscles';
 
-const MUSCLE_COLOR_MAP: Record<string, string> = {
-  chest: '#EF4444',
-  back: '#3B82F6',
-  lats: '#3B82F6',
-  'upper back': '#3B82F6',
-  'middle back': '#3B82F6',
-  'lower back': '#3B82F6',
-  traps: '#3B82F6',
-  'rear delts': '#3B82F6',
-  rhomboids: '#3B82F6',
-  shoulders: '#F59E0B',
-  'front delts': '#F59E0B',
-  'side delts': '#F59E0B',
-  delts: '#F59E0B',
-  biceps: '#8B5CF6',
-  triceps: '#8B5CF6',
-  forearms: '#8B5CF6',
-  quadriceps: '#34D399',
-  hamstrings: '#34D399',
-  glutes: '#34D399',
-  calves: '#34D399',
-  adductors: '#34D399',
-  'hip abductors': '#34D399',
-  'hip flexors': '#34D399',
-  abs: '#F97316',
-  obliques: '#F97316',
-  core: '#F97316',
-};
+/* ─── Muscle color (derived from muscles.ts) ─────────── */
 
 function muscleColor(muscle: string): string {
-  return MUSCLE_COLOR_MAP[muscle.toLowerCase()] || '#6B7280';
+  return getMuscleColor(muscle);
 }
 import { useAuthStore } from '../../stores/useAuthStore';
 import CreateCustomExerciseModal from './CreateCustomExerciseModal';
@@ -348,53 +321,11 @@ function getCachedSorted(
 
 const MAIN_MUSCLE_GROUPS = ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core', 'Cardio'];
 
-const GROUP_CHIP_COLORS: Record<string, string> = {
-  Chest: '#EF4444',
-  Back: '#3B82F6',
-  Shoulders: '#F59E0B',
-  Arms: '#8B5CF6',
-  Legs: '#34D399',
-  Core: '#F97316',
-  Cardio: '#EC4899',
-};
-
-const MUSCLE_TO_GROUP: Record<string, string> = {
-  chest: 'Chest',
-  'upper chest': 'Chest',
-  'lower chest': 'Chest',
-  pectorals: 'Chest',
-  lats: 'Back',
-  'upper back': 'Back',
-  'middle back': 'Back',
-  'lower back': 'Back',
-  traps: 'Back',
-  'rear delts': 'Back',
-  rhomboids: 'Back',
-  shoulders: 'Shoulders',
-  'front delts': 'Shoulders',
-  'side delts': 'Shoulders',
-  delts: 'Shoulders',
-  biceps: 'Arms',
-  triceps: 'Arms',
-  forearms: 'Arms',
-  'wrist flexors': 'Arms',
-  'wrist extensors': 'Arms',
-  quadriceps: 'Legs',
-  hamstrings: 'Legs',
-  glutes: 'Legs',
-  calves: 'Legs',
-  adductors: 'Legs',
-  'hip abductors': 'Legs',
-  'hip flexors': 'Legs',
-  abs: 'Core',
-  obliques: 'Core',
-  core: 'Core',
-  'transverse abdominis': 'Core',
-  cardio: 'Cardio',
-};
+const GROUP_CHIP_COLORS: Record<string, string> = UI_CATEGORY_COLORS;
 
 function getMainGroup(muscle: string): string | null {
-  return MUSCLE_TO_GROUP[muscle.toLowerCase()] || null;
+  const canonical = toCanonical(muscle);
+  return canonical ? CANONICAL_TO_UI_CATEGORY[canonical] : null;
 }
 
 /* ── Memoized row component ───────────────────────────── */

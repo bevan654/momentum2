@@ -3,59 +3,44 @@ import type { WorkoutWithDetails, CatalogEntry } from './useWorkoutStore';
 import { toSlug } from '../utils/muscleVolume';
 import type { MuscleGroup } from '../components/body/musclePathData';
 import { CATEGORY_TO_GROUPS, GROUP_LABELS } from '../components/body/musclePathData';
+import {
+  toCanonical,
+  CANONICAL_TO_BODY_GROUP,
+  CANONICAL_TO_SVG_SLUG,
+  CATEGORY_MUSCLES,
+  RECOVERY_HOURS,
+  CANONICAL_MUSCLES,
+  type BodyGraphGroup,
+} from '../constants/muscles';
 
-/* ─── Slug → MuscleGroup mapping ──────────────────────── */
+/* ─── Derived from muscles.ts ─────────────────────────── */
 
-const SLUG_TO_GROUP: Record<string, MuscleGroup> = {
-  chest: 'chest',
-  'upper-back': 'back',
-  'lower-back': 'back',
-  trapezius: 'back',
-  deltoids: 'shoulders',
-  biceps: 'biceps',
-  triceps: 'triceps',
-  forearm: 'forearms',
-  abs: 'abs',
-  obliques: 'abs',
-  quadriceps: 'quads',
-  tibialis: 'quads',
-  adductors: 'quads',
-  hamstring: 'hamstrings',
-  gluteal: 'glutes',
-  calves: 'calves',
-};
+const SLUG_TO_GROUP: Record<string, MuscleGroup> = (() => {
+  const map: Record<string, MuscleGroup> = {};
+  for (const canonical of CANONICAL_MUSCLES) {
+    const svgSlug = CANONICAL_TO_SVG_SLUG[canonical];
+    const group = CANONICAL_TO_BODY_GROUP[canonical];
+    if (!map[svgSlug]) map[svgSlug] = group as MuscleGroup;
+  }
+  return map;
+})();
 
 const ALL_GROUPS: MuscleGroup[] = [
   'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms',
   'abs', 'quads', 'hamstrings', 'glutes', 'calves',
 ];
 
-/* ─── Category fallback for slug resolution ───────────── */
+const CATEGORY_TO_SLUGS: Record<string, string[]> = (() => {
+  const result: Record<string, string[]> = {};
+  for (const [category, muscles] of Object.entries(CATEGORY_MUSCLES)) {
+    const slugSet = new Set<string>();
+    for (const m of muscles) slugSet.add(CANONICAL_TO_SVG_SLUG[m]);
+    result[category] = Array.from(slugSet);
+  }
+  return result;
+})();
 
-const CATEGORY_TO_SLUGS: Record<string, string[]> = {
-  Chest: ['chest'],
-  Back: ['upper-back', 'lower-back', 'trapezius'],
-  Shoulders: ['deltoids'],
-  Arms: ['biceps', 'triceps', 'forearm'],
-  Legs: ['quadriceps', 'hamstring', 'gluteal', 'calves', 'adductors', 'tibialis'],
-  Core: ['abs', 'obliques'],
-};
-
-/* ─── Fixed recovery time per group (hours) ──────────── */
-
-const GROUP_RECOVERY_HOURS: Record<MuscleGroup, number> = {
-  chest: 72,       // 3 days
-  back: 72,        // 3 days
-  shoulders: 48,   // 2 days
-  biceps: 48,      // 2 days
-  triceps: 48,     // 2 days
-  forearms: 36,    // 1.5 days
-  abs: 36,         // 1.5 days
-  quads: 72,       // 3 days
-  hamstrings: 72,  // 3 days
-  glutes: 72,      // 3 days
-  calves: 48,      // 2 days
-};
+const GROUP_RECOVERY_HOURS = RECOVERY_HOURS as Record<MuscleGroup, number>;
 
 /* ─── Types ───────────────────────────────────────────── */
 

@@ -60,23 +60,10 @@ function titleCase(str: string): string {
   return str.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const MUSCLE_COLOR_MAP: Record<string, string> = {
-  chest: '#EF4444',
-  back: '#3B82F6',
-  traps: '#3B82F6',
-  shoulders: '#F59E0B',
-  biceps: '#8B5CF6',
-  triceps: '#8B5CF6',
-  forearms: '#8B5CF6',
-  quadriceps: '#34D399',
-  hamstrings: '#34D399',
-  glutes: '#34D399',
-  calves: '#34D399',
-  abs: '#F97316',
-};
+import { getMuscleColor } from '../constants/muscles';
 
 function muscleColor(muscle: string): string {
-  return MUSCLE_COLOR_MAP[muscle] || '#6B7280';
+  return getMuscleColor(muscle);
 }
 
 /* ─── Memoised exercise row for inline list ──────────── */

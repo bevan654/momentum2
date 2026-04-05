@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms, SCREEN_HEIGHT } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import { getMuscleGroupColor } from '../../constants/muscleGroups';
+import { getUICategoryColor } from '../../constants/muscles';
 import MuscleHeatmap from '../body/MuscleHeatmap';
 import DurationPickerModal from './DurationPickerModal';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
@@ -65,7 +65,7 @@ function formatWorkoutDate(isoString: string): string {
 }
 
 function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercise: ExerciseWithSets; colors: ThemeColors; styles: ReturnType<typeof createStyles>; prevSets?: { kg: number; reps: number }[] }) {
-  const catColor = exercise.category ? getMuscleGroupColor(exercise.category) : colors.textTertiary;
+  const catColor = exercise.category ? getUICategoryColor(exercise.category) : colors.textTertiary;
   const completedSets = exercise.sets.filter((s) => s.completed);
   const timed = isTimedType(exercise.exercise_type);
   const hasKg = showsKg(exercise.exercise_type);
@@ -175,7 +175,7 @@ function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercis
 }
 
 function SummaryExerciseSection({ exercise, colors, styles, prevSets }: { exercise: SummaryExercise; colors: ThemeColors; styles: ReturnType<typeof createStyles>; prevSets?: { kg: number; reps: number }[] }) {
-  const catColor = exercise.category ? getMuscleGroupColor(exercise.category) : colors.textTertiary;
+  const catColor = exercise.category ? getUICategoryColor(exercise.category) : colors.textTertiary;
   const completedSets = exercise.sets.filter((s) => s.completed);
   const timed = isTimedType(exercise.exercise_type);
   const hasKg = showsKg(exercise.exercise_type);
@@ -304,7 +304,7 @@ function EditableExerciseSection({
   onAddSet: (exIdx: number) => void;
   onRemoveExercise: (exIdx: number) => void;
 }) {
-  const catColor = exercise.category ? getMuscleGroupColor(exercise.category) : colors.textTertiary;
+  const catColor = exercise.category ? getUICategoryColor(exercise.category) : colors.textTertiary;
 
   const SET_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
     warmup: { label: 'W', color: colors.accentOrange },

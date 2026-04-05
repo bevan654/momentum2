@@ -13,10 +13,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import { MUSCLE_GROUP_COLORS } from '../../constants/muscleGroups';
+import {
+  UI_CATEGORY_COLORS,
+  DISPLAY_MUSCLES,
+  CATEGORY_MUSCLES,
+  CANONICAL_TO_UI_CATEGORY,
+  MUSCLE_COLORS,
+  type CanonicalMuscle,
+} from '../../constants/muscles';
 import BottomSheet from './BottomSheet';
 
-const CATEGORIES = Object.keys(MUSCLE_GROUP_COLORS).filter((k) => k !== 'Custom');
+const CATEGORIES = Object.keys(UI_CATEGORY_COLORS).filter((k) => k !== 'Custom' && k !== 'Cardio');
 
 const EXERCISE_TYPES = [
   { key: 'weighted', label: 'Weighted', icon: 'barbell-outline' as const },
@@ -25,43 +32,27 @@ const EXERCISE_TYPES = [
   { key: 'weighted+bodyweight', label: 'Weighted+BW', icon: 'fitness-outline' as const },
 ];
 
-const MUSCLES = [
-  'Chest', 'Lats', 'Upper Back', 'Traps', 'Front Delts', 'Side Delts',
-  'Rear Delts', 'Biceps', 'Triceps', 'Forearms', 'Quads', 'Hamstrings',
-  'Glutes', 'Calves', 'Abs', 'Obliques', 'Lower Back',
-] as const;
-
 const EQUIPMENT = [
   'Barbell', 'Dumbbell', 'Cable', 'Machine', 'Bodyweight',
   'Band', 'Kettlebell', 'Smith Machine', 'EZ Bar', 'Plate',
 ] as const;
 
-/* ── Category → suggested primary muscles ─────────────── */
+/* ── Category → suggested primary muscles (canonical) ��─── */
 
-const CATEGORY_MUSCLES: Record<string, string[]> = {
-  Chest: ['Chest'],
-  Back: ['Lats', 'Upper Back'],
-  Shoulders: ['Front Delts', 'Side Delts'],
-  Arms: ['Biceps', 'Triceps'],
-  Legs: ['Quads', 'Hamstrings', 'Glutes'],
-  Core: ['Abs'],
+const CATEGORY_SUGGESTED: Record<string, CanonicalMuscle[]> = {
+  Chest: CATEGORY_MUSCLES.Chest,
+  Back: CATEGORY_MUSCLES.Back,
+  Shoulders: CATEGORY_MUSCLES.Shoulders,
+  Arms: CATEGORY_MUSCLES.Arms,
+  Legs: CATEGORY_MUSCLES.Legs,
+  Core: CATEGORY_MUSCLES.Core,
   Cardio: [],
 };
 
-/* ── Muscle → color (based on category group) ─────────── */
+/* ── Muscle chip color (from canonical) ──────────────── */
 
-const MUSCLE_CATEGORY: Record<string, string> = {
-  Chest: 'Chest',
-  Lats: 'Back', 'Upper Back': 'Back', Traps: 'Back', 'Rear Delts': 'Back', 'Lower Back': 'Back',
-  'Front Delts': 'Shoulders', 'Side Delts': 'Shoulders',
-  Biceps: 'Arms', Triceps: 'Arms', Forearms: 'Arms',
-  Quads: 'Legs', Hamstrings: 'Legs', Glutes: 'Legs', Calves: 'Legs',
-  Abs: 'Core', Obliques: 'Core',
-};
-
-function getMuscleChipColor(muscle: string): string {
-  const cat = MUSCLE_CATEGORY[muscle];
-  return cat ? (MUSCLE_GROUP_COLORS[cat] || '#6B7280') : '#6B7280';
+function getMuscleChipColor(canonical: string): string {
+  return MUSCLE_COLORS[canonical as CanonicalMuscle] ?? '#6B7280';
 }
 
 /* ── Form state (single dispatch = single re-render) ── */
@@ -102,13 +93,13 @@ function formReducer(state: FormState, action: FormAction): FormState {
     case 'SET_NAME':
       return { ...state, name: action.value };
     case 'SET_CATEGORY': {
-      const suggested = CATEGORY_MUSCLES[action.value] || [];
+      const suggested = CATEGORY_SUGGESTED[action.value] || [];
       return {
         ...state,
         category: action.value,
         // Auto-populate primary muscles, remove them from secondary if overlapping
         primaryMuscles: suggested,
-        secondaryMuscles: state.secondaryMuscles.filter((m) => !suggested.includes(m)),
+        secondaryMuscles: state.secondaryMuscles.filter((m) => !(suggested as string[]).includes(m)),
       };
     }
     case 'SET_TYPE':
@@ -242,7 +233,7 @@ export default function CreateCustomExerciseModal({
             <Text style={styles.sectionLabel}>MUSCLE GROUP</Text>
             <View style={styles.chipGrid}>
               {CATEGORIES.map((cat) => {
-                const color = MUSCLE_GROUP_COLORS[cat];
+                const color = UI_CATEGORY_COLORS[cat as keyof typeof UI_CATEGORY_COLORS] ?? '#6B7280';
                 const active = category === cat;
                 return (
                   <TouchableOpacity
@@ -300,22 +291,22 @@ export default function CreateCustomExerciseModal({
               )}
             </View>
             <View style={styles.chipGrid}>
-              {MUSCLES.map((m) => {
-                const active = primaryMuscles.includes(m);
-                const mColor = getMuscleChipColor(m);
+              {DISPLAY_MUSCLES.map(({ canonical, label }) => {
+                const active = primaryMuscles.includes(canonical);
+                const mColor = getMuscleChipColor(canonical);
                 return (
                   <TouchableOpacity
-                    key={m}
+                    key={canonical}
                     style={[
                       styles.muscleChip,
                       active && { backgroundColor: mColor + '20', borderColor: mColor },
                     ]}
-                    onPress={() => dispatch({ type: 'TOGGLE_PRIMARY', value: m })}
+                    onPress={() => dispatch({ type: 'TOGGLE_PRIMARY', value: canonical })}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.chipDot, { backgroundColor: active ? mColor : colors.textTertiary + '40' }]} />
                     <Text style={[styles.muscleChipText, active && { color: mColor }]}>
-                      {m}
+                      {label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -332,19 +323,19 @@ export default function CreateCustomExerciseModal({
               )}
             </View>
             <View style={styles.chipGrid}>
-              {MUSCLES.map((m) => {
-                const active = secondaryMuscles.includes(m);
-                const isPrimary = primaryMuscles.includes(m);
-                const mColor = getMuscleChipColor(m);
+              {DISPLAY_MUSCLES.map(({ canonical, label }) => {
+                const active = secondaryMuscles.includes(canonical);
+                const isPrimary = primaryMuscles.includes(canonical);
+                const mColor = getMuscleChipColor(canonical);
                 return (
                   <TouchableOpacity
-                    key={m}
+                    key={canonical}
                     style={[
                       styles.muscleChip,
                       isPrimary && styles.muscleChipDisabled,
                       active && { backgroundColor: mColor + '15', borderColor: mColor + '80' },
                     ]}
-                    onPress={() => { if (!isPrimary) dispatch({ type: 'TOGGLE_SECONDARY', value: m }); }}
+                    onPress={() => { if (!isPrimary) dispatch({ type: 'TOGGLE_SECONDARY', value: canonical }); }}
                     activeOpacity={isPrimary ? 1 : 0.7}
                   >
                     <View style={[styles.chipDot, { backgroundColor: active ? mColor + '80' : isPrimary ? colors.textTertiary + '20' : colors.textTertiary + '40' }]} />
@@ -353,7 +344,7 @@ export default function CreateCustomExerciseModal({
                       isPrimary && { color: colors.textTertiary + '40' },
                       active && { color: mColor },
                     ]}>
-                      {m}
+                      {label}
                     </Text>
                   </TouchableOpacity>
                 );
