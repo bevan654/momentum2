@@ -78,11 +78,19 @@ interface WgerSearchResult {
   value: string;  // exercise name
   data: {
     id: number;
-    category: { id: number; name: string };
-    muscles: { id: number; name: string; name_en: string }[];
-    muscles_secondary: { id: number; name: string; name_en: string }[];
-    equipment: { id: number; name: string }[];
+    base_id: number;
+    name: string;
+    category: string;
+    image: string | null;
+    image_thumbnail: string | null;
   };
+}
+
+interface WgerExerciseInfo {
+  muscles: { id: number; name_en: string }[];
+  muscles_secondary: { id: number; name_en: string }[];
+  equipment: { id: number; name: string }[];
+  category: { id: number; name: string };
 }
 
 /* ─── Constants ───────────────────────────────────────── */
@@ -587,16 +595,41 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     if (!q || apiSearching) return;
     setApiSearching(true);
     try {
+      // 1. Search for exercise names
       const res = await fetch(`${WGER_SEARCH_URL}&term=${encodeURIComponent(q)}`);
       if (!res.ok) throw new Error(`API ${res.status}`);
       const json = await res.json();
       const suggestions: WgerSearchResult[] = json.suggestions || [];
-      const mapped: CatalogEntry[] = suggestions.map((s) => {
-        const d = s.data;
-        const primary = d.muscles?.map((m) => WGER_MUSCLE_MAP[m.id] || '').filter(Boolean) || [];
-        const secondary = d.muscles_secondary?.map((m) => WGER_MUSCLE_MAP[m.id] || '').filter(Boolean) || [];
-        const category = d.category ? (WGER_CATEGORY_MAP[d.category.id] || d.category.name || 'Custom') : 'Custom';
-        const isBw = d.equipment?.some((e) => WGER_BW_EQUIPMENT.has(e.id)) && d.equipment.length === 1;
+
+      // Deduplicate by name, keep first occurrence (with base_id for muscle lookup)
+      const seen = new Set<string>();
+      const unique = suggestions.filter((s) => {
+        const key = s.value.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      // 2. Fetch muscle data for each unique exercise (parallel, capped at 10)
+      const toFetch = unique.slice(0, 10);
+      const infoResults = await Promise.allSettled(
+        toFetch.map(async (s) => {
+          const infoRes = await fetch(
+            `https://wger.de/api/v2/exerciseinfo/${s.data.base_id}/?format=json`,
+          );
+          if (!infoRes.ok) return null;
+          return infoRes.json() as Promise<WgerExerciseInfo>;
+        }),
+      );
+
+      // 3. Merge search results with muscle data
+      const mapped: CatalogEntry[] = toFetch.map((s, i) => {
+        const info = infoResults[i].status === 'fulfilled' ? infoResults[i].value : null;
+        const primary = info?.muscles?.map((m) => WGER_MUSCLE_MAP[m.id] || '').filter(Boolean) || [];
+        const secondary = info?.muscles_secondary?.map((m) => WGER_MUSCLE_MAP[m.id] || '').filter(Boolean) || [];
+        const catId = info?.category?.id;
+        const category = catId ? (WGER_CATEGORY_MAP[catId] || info?.category?.name || s.data.category || 'Custom') : (s.data.category || 'Custom');
+        const isBw = info?.equipment?.length === 1 && info.equipment.some((e) => WGER_BW_EQUIPMENT.has(e.id));
         return {
           name: s.value,
           category,
@@ -606,6 +639,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
           done: false,
         };
       });
+
       setApiResults(mapped);
       setShowApiResults(true);
     } catch {
@@ -708,7 +742,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     [handleSelect, styles],
   );
 
-  const keyExtractor = useCallback((item: any) => item.name, []);
+  const keyExtractor = useCallback((item: any, index: number) => `${item.name}-${index}`, []);
 
   const listEmptyComponent = useMemo(
     () => (
