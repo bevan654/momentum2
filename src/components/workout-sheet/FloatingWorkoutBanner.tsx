@@ -14,47 +14,60 @@ function formatElapsed(seconds: number): string {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function FloatingWorkoutBanner() {
+function FloatingWorkoutBanner() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
-  const sheetVisible = useActiveWorkoutStore((s) => s.sheetVisible);
   const elapsedSeconds = useActiveWorkoutStore((s) => s.elapsedSeconds);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
 
-  const shouldShow = isActive && !sheetVisible;
+  // Drive show/hide animation from a store subscription → shared values,
+  // so toggling sheetVisible does NOT cause a React re-render here.
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(20);
-  const wasVisible = useRef(false);
+  const shouldShowRef = useRef(false);
+
+  useEffect(() => {
+    // Compute initial value
+    const initial = isActive && !useActiveWorkoutStore.getState().sheetVisible;
+    if (initial) {
+      shouldShowRef.current = true;
+      opacity.value = 1;
+      translateY.value = 0;
+    }
+
+    // Listen for changes without triggering React re-render
+    const unsub = useActiveWorkoutStore.subscribe((state) => {
+      const show = state.isActive && !state.sheetVisible;
+      if (show === shouldShowRef.current) return;
+      shouldShowRef.current = show;
+      if (show) {
+        translateY.value = withTiming(0, { duration: 200 });
+        opacity.value = withTiming(1, { duration: 150 });
+      } else {
+        translateY.value = withTiming(20, { duration: 150 });
+        opacity.value = withTiming(0, { duration: 150 });
+      }
+    });
+    return unsub;
+  }, [isActive]);
 
   const bannerStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
     transform: [{ translateY: translateY.value }],
   }));
 
-  useEffect(() => {
-    if (shouldShow && !wasVisible.current) {
-      wasVisible.current = true;
-      translateY.value = withTiming(0, { duration: 200 });
-      opacity.value = withTiming(1, { duration: 150 });
-    } else if (!shouldShow && wasVisible.current) {
-      wasVisible.current = false;
-      translateY.value = withTiming(20, { duration: 150 });
-      opacity.value = withTiming(0, { duration: 150 });
-    }
-  }, [shouldShow]);
-
   if (!isActive) return null;
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    showSheet(); // opens sheet immediately — banner hides via shouldShow flipping false
+    showSheet();
   };
 
   return (
     <Animated.View
       style={[styles.wrapper, bannerStyle]}
-      pointerEvents={shouldShow ? 'auto' : 'none'}
+      pointerEvents={shouldShowRef.current ? 'auto' : 'none'}
     >
       <TouchableOpacity style={styles.banner} onPress={handlePress} activeOpacity={0.85}>
         <View style={styles.pulse} />
@@ -66,6 +79,8 @@ export default function FloatingWorkoutBanner() {
     </Animated.View>
   );
 }
+
+export default React.memo(FloatingWorkoutBanner);
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   wrapper: {

@@ -401,7 +401,6 @@ const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
 
 export default function ActiveWorkoutSheet() {
   const isActive = useActiveWorkoutStore((s) => s.isActive);
-  const sheetVisible = useActiveWorkoutStore((s) => s.sheetVisible);
   const showSummary = useActiveWorkoutStore((s) => s.showSummary);
   const summaryData = useActiveWorkoutStore((s) => s.summaryData);
   const dismissSummary = useActiveWorkoutStore((s) => s.dismissSummary);
@@ -449,11 +448,12 @@ export default function ActiveWorkoutSheet() {
   /* Use a plain absolute-positioned View instead of <Modal>.
      RN Modal creates a new native window which causes gesture handler
      root conflicts (nested GestureHandlerRootView) and Reanimated
-     worklet registration races — both lead to an unresponsive sheet. */
-  if (!sheetVisible) return null;
-
+     worklet registration races — both lead to an unresponsive sheet.
+     Keep mounted when hidden (sheetVisible=false) so reopening is instant.
+     pointerEvents="box-none" lets touches pass through this wrapper;
+     SheetOverlay manages its own pointerEvents based on sheetVisible. */
   return (
-    <View style={sheetWrapperStyle}>
+    <View style={sheetWrapperStyle} pointerEvents="box-none">
       <SheetOverlay
         onOpenAdd={handleOpenAdd}
         onOpenReplace={handleOpenReplace}
@@ -489,6 +489,13 @@ export default function ActiveWorkoutSheet() {
    SheetOverlay to re-render.
    ═══════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════
+   SheetAnimationWrapper — thin layer that owns the open/close
+   animation, gesture, and backdrop.  Subscribes to sheetVisible
+   so that toggling visibility does NOT re-render the heavy
+   SheetContent below.
+   ═══════════════════════════════════════════════════════════ */
+
 interface OverlayProps {
   onOpenAdd: () => void;
   onOpenReplace: (idx: number) => void;
@@ -501,59 +508,19 @@ const SheetOverlay = React.memo(function SheetOverlay({
   onExerciseTitlePress,
 }: OverlayProps) {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
-
-  /* ─── Store slices (minimal — no rest-timer state) ──── */
 
   const sheetVisible = useActiveWorkoutStore((s) => s.sheetVisible);
   const hideSheet = useActiveWorkoutStore((s) => s.hideSheet);
-  const exercises = useActiveWorkoutStore((s) => s.exercises);
-
-  /* ─── Focused exercise tracking ────────────────────── */
-
-  const [focusedIndex, setFocusedIndex] = useState(-1);
-
-  // Auto-default: first exercise with incomplete sets
-  const defaultIndex = useMemo(
-    () => {
-      const idx = exercises.findIndex((ex) => ex.sets.some((s) => !s.completed));
-      return idx >= 0 ? idx : exercises.length - 1;
-    },
-    [exercises],
-  );
-
-  const activeIndex = focusedIndex >= 0 && focusedIndex < exercises.length ? focusedIndex : defaultIndex;
-  const currentExercise = exercises[activeIndex] ?? null;
-
-  const exerciseYRef = useRef<Record<number, number>>({});
-
-  const handleExerciseFocus = useCallback((idx: number) => {
-    setFocusedIndex(idx);
-  }, []);
-
-  /* ─── Refs ──────────────────────────────────────────── */
-
   const hideSheetRef = useRef(hideSheet);
   hideSheetRef.current = hideSheet;
+
   const openRef = useRef(false);
   const gestureClosingRef = useRef(false);
-  const scrollRef = useRef<ScrollView>(null);
-
-  // Auto-scroll selected exercise to top when user taps a different card
-  useEffect(() => {
-    if (focusedIndex < 0) return;
-    const y = exerciseYRef.current[focusedIndex];
-    if (y != null && scrollRef.current) {
-      scrollRef.current.scrollTo({ y: Math.max(0, y - sw(8)), animated: true });
-    }
-  }, [focusedIndex]);
-  const scrollOffsetRef = useRef(0);
-  const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ─── Animation (UI thread) ─────────────────────────── */
 
-  const translateY = useSharedValue(0);
+  const translateY = useSharedValue(sheetVisible ? 0 : SHEET_H);
   const ctx = useSharedValue(0);
 
   useEffect(() => {
@@ -561,7 +528,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
       openRef.current = true;
       gestureClosingRef.current = false;
       cancelAnimation(translateY);
-      translateY.value = 0;
+      translateY.value = withSpring(0, OPEN_SPRING);
     } else if (openRef.current) {
       openRef.current = false;
       if (!gestureClosingRef.current) {
@@ -574,15 +541,12 @@ const SheetOverlay = React.memo(function SheetOverlay({
 
   useEffect(() => () => cancelAnimation(translateY), []);
 
-  /* Backdrop: instant on open, follows drag on close */
   const backdropStyle = useAnimatedStyle(() => {
     'worklet';
     const progress = 1 - translateY.value / SHEET_H;
-    // Clamp higher so backdrop is fully opaque even when sheet is still animating in
     return { opacity: progress > 0.05 ? BACKDROP_MAX : 0 };
   });
 
-  /* Sheet: transform derived from translateY on UI thread */
   const sheetStyle = useAnimatedStyle(() => {
     'worklet';
     return { transform: [{ translateY: Math.max(0, translateY.value) }] };
@@ -599,23 +563,12 @@ const SheetOverlay = React.memo(function SheetOverlay({
     () =>
       Gesture.Pan()
         .activeOffsetY(8)
-        .onStart(() => {
-          ctx.value = translateY.value;
-        })
-        .onUpdate((e) => {
-          translateY.value = Math.max(0, ctx.value + e.translationY);
-        })
+        .onStart(() => { ctx.value = translateY.value; })
+        .onUpdate((e) => { translateY.value = Math.max(0, ctx.value + e.translationY); })
         .onEnd((e) => {
-          if (
-            e.translationY > DISMISS_THRESHOLD ||
-            e.velocityY > VELOCITY_THRESHOLD
-          ) {
+          if (e.translationY > DISMISS_THRESHOLD || e.velocityY > VELOCITY_THRESHOLD) {
             translateY.value = withSpring(SHEET_H, {
-              velocity: e.velocityY,
-              damping: 50,
-              stiffness: 300,
-              mass: 0.8,
-              overshootClamping: true,
+              velocity: e.velocityY, damping: 50, stiffness: 300, mass: 0.8, overshootClamping: true,
             });
             runOnJS(handleDismiss)();
           } else {
@@ -624,6 +577,86 @@ const SheetOverlay = React.memo(function SheetOverlay({
         }),
     [handleDismiss],
   );
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents={sheetVisible ? 'auto' : 'none'}>
+      {/* Backdrop */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={() => hideSheetRef.current()}>
+        <Animated.View style={[styles.backdrop, backdropStyle]} />
+      </Pressable>
+
+      {/* Sheet */}
+      <Animated.View style={[styles.sheet, sheetStyle]} renderToHardwareTextureAndroid>
+        {/* Drag handle */}
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={[styles.handleRow, { paddingTop: sw(12) }]}>
+            <View style={styles.handle} />
+          </Animated.View>
+        </GestureDetector>
+
+        {/* Content — does NOT subscribe to sheetVisible, never re-renders on toggle */}
+        <SheetContent
+          onOpenAdd={onOpenAdd}
+          onOpenReplace={onOpenReplace}
+          onExerciseTitlePress={onExerciseTitlePress}
+        />
+      </Animated.View>
+    </View>
+  );
+});
+
+/* ═══════════════════════════════════════════════════════════
+   SheetContent — the heavy exercise list + keyboard handling.
+   Subscribes only to exercises, NOT sheetVisible.
+   ═══════════════════════════════════════════════════════════ */
+
+interface ContentProps {
+  onOpenAdd: () => void;
+  onOpenReplace: (idx: number) => void;
+  onExerciseTitlePress: (name: string) => void;
+}
+
+const SheetContent = React.memo(function SheetContent({
+  onOpenAdd,
+  onOpenReplace,
+  onExerciseTitlePress,
+}: ContentProps) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const exercises = useActiveWorkoutStore((s) => s.exercises);
+
+  /* ─── Focused exercise tracking ────────────────────── */
+
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+
+  const defaultIndex = useMemo(
+    () => {
+      const idx = exercises.findIndex((ex) => ex.sets.some((s) => !s.completed));
+      return idx >= 0 ? idx : exercises.length - 1;
+    },
+    [exercises],
+  );
+
+  const activeIndex = focusedIndex >= 0 && focusedIndex < exercises.length ? focusedIndex : defaultIndex;
+
+  const exerciseYRef = useRef<Record<number, number>>({});
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollOffsetRef = useRef(0);
+  const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleExerciseFocus = useCallback((idx: number) => {
+    setFocusedIndex(idx);
+  }, []);
+
+  useEffect(() => {
+    if (focusedIndex < 0) return;
+    const y = exerciseYRef.current[focusedIndex];
+    if (y != null && scrollRef.current) {
+      scrollRef.current.scrollTo({ y: Math.max(0, y - sw(8)), animated: true });
+    }
+  }, [focusedIndex]);
 
   /* ─── Keyboard ──────────────────────────────────────── */
 
@@ -635,25 +668,17 @@ const SheetOverlay = React.memo(function SheetOverlay({
       setIosKb(e.endCoordinates.height),
     );
     const h = Keyboard.addListener('keyboardWillHide', () => setIosKb(0));
-    return () => {
-      s.remove();
-      h.remove();
-    };
+    return () => { s.remove(); h.remove(); };
   }, []);
 
   const { height: winH } = useWindowDimensions();
   const maxWinH = useRef(winH);
   if (winH > maxWinH.current) maxWinH.current = winH;
-  const androidKb =
-    Platform.OS === 'android' ? Math.max(0, maxWinH.current - winH) : 0;
-
+  const androidKb = Platform.OS === 'android' ? Math.max(0, maxWinH.current - winH) : 0;
   const kbHeight = Platform.OS === 'ios' ? iosKb : androidKb;
   const kbOpen = Platform.OS === 'ios' ? iosKb > 0 : androidKb > 100;
 
-  /* Auto-scroll to focused input */
-  useEffect(() => () => {
-    if (inputTimerRef.current) clearTimeout(inputTimerRef.current);
-  }, []);
+  useEffect(() => () => { if (inputTimerRef.current) clearTimeout(inputTimerRef.current); }, []);
 
   const handleScroll = useCallback((e: any) => {
     scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
@@ -665,8 +690,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
       const delay = Platform.OS === 'android' ? 300 : 100;
       inputTimerRef.current = setTimeout(() => {
         const screenH = Dimensions.get('window').height;
-        const visibleBottom =
-          Platform.OS === 'ios' ? screenH - (kbHeight || 300) : screenH;
+        const visibleBottom = Platform.OS === 'ios' ? screenH - (kbHeight || 300) : screenH;
         const inputBottom = pageY + 50;
         if (inputBottom > visibleBottom - 40) {
           scrollRef.current?.scrollTo({
@@ -682,106 +706,64 @@ const SheetOverlay = React.memo(function SheetOverlay({
   /* ─── Render ────────────────────────────────────────── */
 
   return (
-    <View
-      style={StyleSheet.absoluteFill}
-      pointerEvents={sheetVisible ? 'auto' : 'none'}
-    >
-      {/* Backdrop */}
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={() => hideSheetRef.current()}
+    <>
+      <WorkoutHeader />
+      <RestTimerBar />
+      <GhostTally exercises={exercises} />
+
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, kbOpen && { paddingBottom: kbHeight }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        removeClippedSubviews={Platform.OS === 'android'}
       >
-        <Animated.View style={[styles.backdrop, backdropStyle]} />
-      </Pressable>
+        {exercises.map((ex, i) => (
+          <View
+            key={`${ex.name}-${i}`}
+            onLayout={(e) => { exerciseYRef.current[i] = e.nativeEvent.layout.y; }}
+          >
+            <ExerciseCard
+              exercise={ex}
+              exerciseIndex={i}
+              isLast={i === exercises.length - 1}
+              totalExercises={exercises.length}
+              isCurrent={i === activeIndex}
+              overloadTracker={i === activeIndex ? <ProgressiveOverloadCard exercises={[ex]} /> : undefined}
+              onReplace={onOpenReplace}
+              onExerciseFocus={handleExerciseFocus}
+              onInputFocus={handleInputFocus}
+              onTitlePress={onExerciseTitlePress}
+            />
+            {ex.supersetWith === i + 1 && (
+              <View style={styles.supersetConnector}>
+                <View style={styles.connectorLine} />
+                <Text style={styles.supersetLabel}>SUPERSET</Text>
+                <View style={styles.connectorLine} />
+              </View>
+            )}
+          </View>
+        ))}
 
-      {/* Sheet — GPU rasterization during animation */}
-      <Animated.View
-        style={[styles.sheet, sheetStyle]}
-        renderToHardwareTextureAndroid
-      >
-        {/* Drag handle — swipe down to dismiss */}
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.handleRow, { paddingTop: sw(12) }]}>
-            <View style={styles.handle} />
-          </Animated.View>
-        </GestureDetector>
-
-        <WorkoutHeader />
-
-        {/* Self-contained: reads from store, never causes SheetOverlay re-render */}
-        <RestTimerBar />
-
-        {/* Ghost mode: exercise win/loss tally */}
-        <GhostTally exercises={exercises} />
-
-        <ScrollView
-          ref={scrollRef}
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            kbOpen && { paddingBottom: kbHeight },
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          removeClippedSubviews={Platform.OS === 'android'}
-        >
-          {exercises.map((ex, i) => (
-            <View
-              key={`${ex.name}-${i}`}
-              onLayout={(e) => { exerciseYRef.current[i] = e.nativeEvent.layout.y; }}
-            >
-              <ExerciseCard
-                exercise={ex}
-                exerciseIndex={i}
-                isLast={i === exercises.length - 1}
-                totalExercises={exercises.length}
-                isCurrent={i === activeIndex}
-                overloadTracker={i === activeIndex ? <ProgressiveOverloadCard exercises={[ex]} /> : undefined}
-                onReplace={onOpenReplace}
-                onExerciseFocus={handleExerciseFocus}
-                onInputFocus={handleInputFocus}
-                onTitlePress={onExerciseTitlePress}
-              />
-              {ex.supersetWith === i + 1 && (
-                <View style={styles.supersetConnector}>
-                  <View style={styles.connectorLine} />
-                  <Text style={styles.supersetLabel}>SUPERSET</Text>
-                  <View style={styles.connectorLine} />
-                </View>
-              )}
-            </View>
-          ))}
-
-          {exercises.length === 0 && (
-            <View style={styles.emptyState}>
-              <Ionicons
-                name="barbell-outline"
-                size={ms(36)}
-                color={colors.textTertiary}
-              />
-              <Text style={styles.emptyText}>
-                Add an exercise to get started
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Add Exercise button — hidden when keyboard is open */}
-        {!kbOpen && (
-          <View style={[styles.footer, { paddingBottom: insets.bottom + sw(10) }]}>
-            <TouchableOpacity
-              style={styles.addBtn}
-              onPress={onOpenAdd}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="add" size={ms(28)} color={colors.textOnAccent} />
-            </TouchableOpacity>
+        {exercises.length === 0 && (
+          <View style={styles.emptyState}>
+            <Ionicons name="barbell-outline" size={ms(36)} color={colors.textTertiary} />
+            <Text style={styles.emptyText}>Add an exercise to get started</Text>
           </View>
         )}
-      </Animated.View>
-    </View>
+      </ScrollView>
+
+      {!kbOpen && (
+        <View style={[styles.footer, { paddingBottom: insets.bottom + sw(10) }]}>
+          <TouchableOpacity style={styles.addBtn} onPress={onOpenAdd} activeOpacity={0.7}>
+            <Ionicons name="add" size={ms(28)} color={colors.textOnAccent} />
+          </TouchableOpacity>
+        </View>
+      )}
+    </>
   );
 });
 
