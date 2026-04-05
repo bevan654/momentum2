@@ -1,5 +1,8 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+
+const CACHE_KEY = '@momentum_bodyfat_cache';
 
 export type BodyFatMethod = 'tape' | 'calipers' | 'bia' | 'bod_pod' | 'dexa';
 
@@ -43,6 +46,23 @@ function computeEma(entries: BodyFatEntry[], alpha = 0.2): EmaPoint[] {
   return emaPoints;
 }
 
+async function loadCache(): Promise<Record<string, BodyFatEntry[]>> {
+  try {
+    const raw = await AsyncStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveToCache(method: string, entries: BodyFatEntry[]) {
+  try {
+    const cache = await loadCache();
+    cache[method] = entries;
+    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  } catch {}
+}
+
 export const useBodyFatStore = create<BodyFatState>((set, get) => ({
   current: null,
   change: null,
@@ -79,8 +99,24 @@ export const useBodyFatStore = create<BodyFatState>((set, get) => ({
         const change = Math.round((current - firstValue) * 10) / 10;
 
         set({ current, change, entries, emaPoints });
-      } else {
+        if (days >= 365) saveToCache(method, entries);
+      } else if (data) {
         set({ current: null, change: null, entries: [], emaPoints: [] });
+      } else {
+        // Network error — load from cache and filter to requested range
+        const cache = await loadCache();
+        const cached = cache[method];
+        if (cached && cached.length > 0) {
+          const entries = cached.filter((e) => e.date >= fromDate);
+          if (entries.length > 0) {
+            const emaPoints = computeEma(entries);
+            const current = entries[entries.length - 1].value;
+            const change = Math.round((current - entries[0].value) * 10) / 10;
+            set({ current, change, entries, emaPoints });
+          } else {
+            set({ current: null, change: null, entries: [], emaPoints: [] });
+          }
+        }
       }
     } finally {
       set({ loading: false });

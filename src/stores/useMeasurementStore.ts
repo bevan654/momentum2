@@ -1,5 +1,8 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+
+const CACHE_KEY = '@momentum_measurement_cache';
 
 export type PumpState = 'no_pump' | 'pumped';
 
@@ -65,6 +68,27 @@ function computeEma(entries: MeasurementEntry[], alpha = 0.2): EmaPoint[] {
   return emaPoints;
 }
 
+function cacheKey(bodyPart: string, side: string | null, pumpState: PumpState): string {
+  return `${bodyPart}|${side || 'none'}|${pumpState}`;
+}
+
+async function loadCache(): Promise<Record<string, MeasurementEntry[]>> {
+  try {
+    const raw = await AsyncStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveToCache(key: string, entries: MeasurementEntry[]) {
+  try {
+    const cache = await loadCache();
+    cache[key] = entries;
+    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  } catch {}
+}
+
 export const useMeasurementStore = create<MeasurementState>((set, get) => ({
   current: null,
   change: null,
@@ -77,7 +101,7 @@ export const useMeasurementStore = create<MeasurementState>((set, get) => ({
     bodyPart: string,
     side: string | null,
     pumpState: PumpState,
-    days = 30,
+    days = 365,
   ) => {
     set({ loading: true });
     try {
@@ -118,8 +142,24 @@ export const useMeasurementStore = create<MeasurementState>((set, get) => ({
         const change = Math.round((current - firstValue) * 10) / 10;
 
         set({ current, change, entries, emaPoints });
-      } else {
+        if (days >= 365) saveToCache(cacheKey(bodyPart, side, pumpState), entries);
+      } else if (data) {
         set({ current: null, change: null, entries: [], emaPoints: [] });
+      } else {
+        // Network error — load from cache and filter to requested range
+        const cache = await loadCache();
+        const cached = cache[cacheKey(bodyPart, side, pumpState)];
+        if (cached && cached.length > 0) {
+          const entries = cached.filter((e) => e.date >= fromDate);
+          if (entries.length > 0) {
+            const emaPoints = computeEma(entries);
+            const current = entries[entries.length - 1].value;
+            const change = Math.round((current - entries[0].value) * 10) / 10;
+            set({ current, change, entries, emaPoints });
+          } else {
+            set({ current: null, change: null, entries: [], emaPoints: [] });
+          }
+        }
       }
     } finally {
       set({ loading: false });
@@ -132,7 +172,7 @@ export const useMeasurementStore = create<MeasurementState>((set, get) => ({
     bodyPart: string,
     side: string | null,
     pumpState: PumpState,
-    days = 30,
+    days = 365,
   ) => {
     const today = new Date();
     const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -158,7 +198,7 @@ export const useMeasurementStore = create<MeasurementState>((set, get) => ({
     bodyPart: string,
     side: string | null,
     pumpState: PumpState,
-    days = 30,
+    days = 365,
   ) => {
     const prev = get().entries;
     set({ entries: prev.filter((e) => e.id !== entryId) });

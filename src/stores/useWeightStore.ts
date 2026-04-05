@@ -1,5 +1,8 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+
+const CACHE_KEY = '@momentum_weight_cache';
 
 export interface WeightEntry {
   date: string;
@@ -48,7 +51,7 @@ export const useWeightStore = create<WeightState>((set, get) => ({
   emaPoints: [],
   loading: false,
 
-  fetchWeightData: async (userId: string, days = 30) => {
+  fetchWeightData: async (userId: string, days = 365) => {
     set({ loading: true });
     try {
       const cutoff = new Date();
@@ -75,15 +78,35 @@ export const useWeightStore = create<WeightState>((set, get) => ({
         const change = Math.round((current - firstWeight) * 10) / 10;
 
         set({ current, trend, change, entries, emaPoints });
-      } else {
+        // Always cache the widest dataset we've fetched
+        if (days >= 365) AsyncStorage.setItem(CACHE_KEY, JSON.stringify(entries)).catch(() => {});
+      } else if (data) {
         set({ current: null, trend: null, change: null, entries: [], emaPoints: [] });
+      } else {
+        // Network error — load from cache and filter to requested range
+        try {
+          const raw = await AsyncStorage.getItem(CACHE_KEY);
+          if (raw) {
+            const all: WeightEntry[] = JSON.parse(raw);
+            const entries = all.filter((e) => e.date >= fromDate);
+            if (entries.length > 0) {
+              const emaPoints = computeEma(entries);
+              const current = entries[entries.length - 1].weight;
+              const trend = emaPoints[emaPoints.length - 1].value;
+              const change = Math.round((current - entries[0].weight) * 10) / 10;
+              set({ current, trend, change, entries, emaPoints });
+            } else {
+              set({ current: null, trend: null, change: null, entries: [], emaPoints: [] });
+            }
+          }
+        } catch {}
       }
     } finally {
       set({ loading: false });
     }
   },
 
-  logWeight: async (userId: string, weight: number, days = 30) => {
+  logWeight: async (userId: string, weight: number, days = 365) => {
     const today = new Date();
     const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
@@ -99,7 +122,7 @@ export const useWeightStore = create<WeightState>((set, get) => ({
     return { error: null };
   },
 
-  deleteWeight: async (userId: string, date: string, days = 30) => {
+  deleteWeight: async (userId: string, date: string, days = 365) => {
     // Optimistic update
     const prev = get().entries;
     set({ entries: prev.filter((e) => e.date !== date) });
