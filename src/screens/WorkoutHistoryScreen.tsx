@@ -27,7 +27,7 @@ import ShareHub from '../components/share/ShareHub';
 import ActivityChart from '../components/workouts/ActivityChart';
 import TodayScheduled from '../components/workouts/TodayScheduled';
 import type { Routine, RoutineExercise } from '../stores/useRoutineStore';
-import { navigateWorkoutsStack } from '../navigation/WorkoutsNavigator';
+import { navigateWorkoutsStack } from '../lib/navigationBridge';
 
 function toDateKey(iso: string): string {
   const d = new Date(iso);
@@ -482,10 +482,7 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
   );
 });
 
-/* ─── Share hub trigger (module-level, like openProfileSheet) ── */
-
-let _openShareHub: (() => void) | null = null;
-export function openShareHub() { _openShareHub?.(); }
+import { setOpenShareHub } from '../lib/navigationBridge';
 
 /* ─── Main screen ────────────────────────────────────── */
 
@@ -601,8 +598,8 @@ function WorkoutHistoryScreen() {
   // Share hub
   const [shareVisible, setShareVisible] = useState(false);
   useEffect(() => {
-    _openShareHub = () => setShareVisible(true);
-    return () => { _openShareHub = null; };
+    setOpenShareHub(() => setShareVisible(true));
+    return () => { setOpenShareHub(null); };
   }, []);
 
   const dateLabel = useMemo(() => {

@@ -13,8 +13,7 @@ import { useStreakStore } from '../../stores/useStreakStore';
 import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
 import AvatarCircle from '../friends/AvatarCircle';
-import { openProfileSheet } from '../../navigation/TabNavigator';
-import { openShareHub } from '../../screens/WorkoutHistoryScreen';
+import { openProfileSheet, openShareHub } from '../../lib/navigationBridge';
 import NotificationList from '../friends/NotificationList';
 import BottomSheet from '../workout-sheet/BottomSheet';
 

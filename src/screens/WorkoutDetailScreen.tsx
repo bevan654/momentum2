@@ -9,7 +9,7 @@ import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-nativ
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
-import { showRecoveryOverlay } from '../navigation/WorkoutsNavigator';
+import { showRecoveryOverlay } from '../lib/navigationBridge';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 
