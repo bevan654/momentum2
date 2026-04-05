@@ -16,7 +16,7 @@ import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import RoutineCard from '../components/workouts/RoutineCard';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
-import { flushQueue } from '../lib/syncQueue';
+import { onReconnect } from '../stores/useNetworkStore';
 
 const DISMISS_THRESHOLD = 120;
 const VELOCITY_THRESHOLD = 800;
@@ -53,13 +53,18 @@ export default function StartWorkoutScreen() {
     backdropOpacity.value = 1;
   }, []);
 
+  const loadPlans = useCallback((uid: string) => {
+    fetchRoutines(uid);
+    fetchPrograms(uid);
+  }, []);
+
   useEffect(() => {
-    if (userId) {
-      flushQueue().then(() => {
-        fetchRoutines(userId);
-        fetchPrograms(userId);
-      });
-    }
+    if (userId) loadPlans(userId);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    return onReconnect(() => loadPlans(userId));
   }, [userId]);
 
   const goBack = useCallback(() => {

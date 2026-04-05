@@ -11,7 +11,7 @@ import QuickStatsGrid from '../components/lab/QuickStatsGrid';
 import MuscleRadarCard from '../components/lab/MuscleRadarCard';
 import WeeklyVolumeCard from '../components/lab/WeeklyVolumeCard';
 import BodyMetricsPager from '../components/lab/BodyMetricsPager';
-import { flushQueue } from '../lib/syncQueue';
+import { onReconnect } from '../stores/useNetworkStore';
 
 export default function LaboratoryScreen() {
   const user = useAuthStore((s) => s.user);
@@ -26,17 +26,21 @@ export default function LaboratoryScreen() {
     if (!initialized) useProfileSettingsStore.getState().loadSettings();
   }, []);
 
+  const loadLabData = useCallback((uid: string) => {
+    fetchExerciseCatalog(uid).then(() => fetchWorkoutHistory(uid));
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      if (user?.id) {
-        flushQueue().then(() => {
-          fetchExerciseCatalog(user.id).then(() => {
-            fetchWorkoutHistory(user.id);
-          });
-        });
-      }
+      if (user?.id) loadLabData(user.id);
     }, [user?.id])
   );
+
+  // Auto-refresh when coming back online
+  useEffect(() => {
+    if (!user?.id) return;
+    return onReconnect(() => loadLabData(user.id));
+  }, [user?.id]);
 
   return (
     <ScrollView

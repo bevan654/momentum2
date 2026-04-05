@@ -17,7 +17,7 @@ import AddFriendSheet from './AddFriendSheet';
 import NudgeModal from './NudgeModal';
 import NotificationList from './NotificationList';
 import ActivityFeed from './ActivityFeed';
-import { useNetworkStore } from '../../stores/useNetworkStore';
+import { useNetworkStore, onReconnect } from '../../stores/useNetworkStore';
 
 type OverlayMode = 'none' | 'notifications';
 
@@ -42,6 +42,15 @@ export default function FriendsTab() {
       fetchUnreadCount(userId);
       fetchFriends(userId);
     }
+  }, [userId]);
+
+  // Auto-refresh when coming back online
+  useEffect(() => {
+    if (!userId) return;
+    return onReconnect(() => {
+      fetchUnreadCount(userId);
+      fetchFriends(userId, true);
+    });
   }, [userId]);
 
   const badgeText = unreadCount > 99 ? '99+' : String(unreadCount);

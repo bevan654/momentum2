@@ -18,11 +18,13 @@ import MotivationCard from '../components/home/MotivationCard';
 import SupplementsCard from '../components/home/SupplementsCard';
 import ActivityCard from '../components/home/ActivityCard';
 import { useNavigation } from '@react-navigation/native';
+import { useNetworkStore, onReconnect } from '../stores/useNetworkStore';
 import { flushQueue } from '../lib/syncQueue';
 import { flushPendingWorkouts } from '../lib/pendingWorkouts';
 
 function HomeScreen() {
   const user = useAuthStore((s) => s.user);
+  const isOffline = useNetworkStore((s) => s.isOffline);
   const fetchTodayNutrition = useNutritionStore((s) => s.fetchTodayNutrition);
   const fetchNutritionGoals = useNutritionStore((s) => s.fetchNutritionGoals);
   const fetchTodaySupplements = useSupplementStore((s) => s.fetchTodaySupplements);
@@ -37,29 +39,36 @@ function HomeScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  const refreshAll = useCallback((uid: string) => {
+    fetchTodayNutrition(uid);
+    fetchNutritionGoals(uid);
+    fetchTodaySupplements(uid);
+    fetchSupplementGoals(uid);
+    fetchExerciseCatalog(uid).then(() => fetchWorkoutHistory(uid));
+    fetchWeightData(uid);
+    initStreak(uid);
+  }, []);
+
+  // Initial load — flush pending offline writes first, then fetch fresh data
   useEffect(() => {
     if (user?.id) {
-      // Flush any pending offline writes before fetching fresh data
-      flushPendingWorkouts().then(() => flushQueue()).then(() => {
-        fetchTodayNutrition(user.id);
-        fetchNutritionGoals(user.id);
-        fetchTodaySupplements(user.id);
-        fetchSupplementGoals(user.id);
-        fetchExerciseCatalog(user.id).then(() => fetchWorkoutHistory(user.id));
-        fetchWeightData(user.id);
-        initStreak(user.id);
-      });
+      Promise.all([flushPendingWorkouts(), flushQueue()]).then(() => refreshAll(user.id));
     }
   }, [user?.id]);
 
+  // Auto-refresh when coming back online
+  useEffect(() => {
+    if (!user?.id) return;
+    return onReconnect(() => refreshAll(user.id));
+  }, [user?.id]);
+
+  // Foreground refresh
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && user?.id) {
-        flushPendingWorkouts().then(() => flushQueue()).then(() => {
-          fetchTodayNutrition(user.id);
-          fetchTodaySupplements(user.id);
-          useStreakStore.getState().refreshStreak(user.id);
-        });
+        fetchTodayNutrition(user.id);
+        fetchTodaySupplements(user.id);
+        useStreakStore.getState().refreshStreak(user.id);
       }
     });
     return () => sub.remove();

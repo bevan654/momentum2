@@ -28,7 +28,7 @@ import ActivityChart from '../components/workouts/ActivityChart';
 import TodayScheduled from '../components/workouts/TodayScheduled';
 import type { Routine, RoutineExercise } from '../stores/useRoutineStore';
 import { navigateWorkoutsStack } from '../lib/navigationBridge';
-import { flushQueue } from '../lib/syncQueue';
+import { onReconnect } from '../stores/useNetworkStore';
 
 function toDateKey(iso: string): string {
   const d = new Date(iso);
@@ -527,12 +527,18 @@ function WorkoutHistoryScreen() {
   const [bodyMapSize, setBodyMapSize] = useState({ w: 0, h: 0 });
   const [startBtnSize, setStartBtnSize] = useState({ w: 0, h: 0 });
 
+  const loadWorkouts = useCallback((uid: string) => {
+    fetchExerciseCatalog(uid).then(() => fetchWorkoutHistory(uid));
+  }, []);
+
   useEffect(() => {
-    if (userId) {
-      flushQueue().then(() => {
-        fetchExerciseCatalog(userId).then(() => fetchWorkoutHistory(userId));
-      });
-    }
+    if (userId) loadWorkouts(userId);
+  }, [userId]);
+
+  // Auto-refresh when coming back online
+  useEffect(() => {
+    if (!userId) return;
+    return onReconnect(() => loadWorkouts(userId));
   }, [userId]);
 
   // Recompute recovery data when workouts change

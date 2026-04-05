@@ -11,6 +11,7 @@ import type { NotificationItem } from '../../lib/friendsDatabase';
 import { getFriendshipBetween } from '../../lib/friendsDatabase';
 import NotificationRow from './NotificationRow';
 import { setViewingNotifications } from '../../services/notificationService';
+import { useNetworkStore } from '../../stores/useNetworkStore';
 
 export default function NotificationList() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -23,6 +24,7 @@ export default function NotificationList() {
   const deleteAllNotifications = useFriendsStore((s) => s.deleteAllNotifications);
   const acceptRequest = useFriendsStore((s) => s.acceptRequest);
   const declineRequest = useFriendsStore((s) => s.declineRequest);
+  const isOffline = useNetworkStore((s) => s.isOffline);
   const [refreshing, setRefreshing] = useState(false);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -122,10 +124,10 @@ export default function NotificationList() {
             if (!item.read) markNotificationRead(item.id);
           }}
           onAccept={
-            isActionable && userId ? () => handleAccept(item) : undefined
+            isActionable && userId && !isOffline ? () => handleAccept(item) : undefined
           }
           onDecline={
-            isActionable ? () => handleDecline(item) : undefined
+            isActionable && !isOffline ? () => handleDecline(item) : undefined
           }
           responded={respondedMap[item.id] ?? null}
         />
@@ -138,12 +140,21 @@ export default function NotificationList() {
     <View style={styles.container}>
       {/* Actions row */}
       <View style={styles.actionsRow}>
-        <TouchableOpacity onPress={handleMarkAllRead} activeOpacity={0.7}>
-          <Text style={styles.actionText}>Mark all read</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleDeleteAll} activeOpacity={0.7}>
-          <Text style={[styles.actionText, { color: colors.accentRed }]}>Delete all</Text>
-        </TouchableOpacity>
+        {isOffline ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: sw(4) }}>
+            <Ionicons name="cloud-offline-outline" size={ms(12)} color={colors.textTertiary} />
+            <Text style={[styles.actionText, { color: colors.textTertiary }]}>Showing cached notifications</Text>
+          </View>
+        ) : (
+          <>
+            <TouchableOpacity onPress={handleMarkAllRead} activeOpacity={0.7}>
+              <Text style={styles.actionText}>Mark all read</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleDeleteAll} activeOpacity={0.7}>
+              <Text style={[styles.actionText, { color: colors.accentRed }]}>Delete all</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       {/* List */}

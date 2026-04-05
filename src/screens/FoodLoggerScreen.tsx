@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, AppState } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
@@ -15,7 +15,7 @@ import CreateMealModal from '../components/food/CreateMealModal';
 import NutritionHero from '../components/food/NutritionHero';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry, MealConfig } from '../stores/useFoodLogStore';
-import { flushQueue } from '../lib/syncQueue';
+import { onReconnect } from '../stores/useNetworkStore';
 
 function FoodLoggerScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -65,20 +65,38 @@ function FoodLoggerScreen() {
   // Initial load
   useEffect(() => {
     if (!userId) return;
-    flushQueue().then(() => {
-      fetchMealConfigs(userId);
-      fetchGoals(userId);
-    });
+    fetchMealConfigs(userId);
+    fetchGoals(userId);
   }, [userId]);
 
   // Fetch entries when date changes
   useEffect(() => {
     if (!userId) return;
     hasScrolledRef.current = false;
-    flushQueue().then(() => {
+    fetchDayEntries(userId, selectedDate);
+    fetchDateSupplements(userId, selectedDate);
+  }, [userId, selectedDate]);
+
+  // Auto-refresh when coming back online
+  useEffect(() => {
+    if (!userId) return;
+    return onReconnect(() => {
+      fetchMealConfigs(userId);
+      fetchGoals(userId);
       fetchDayEntries(userId, selectedDate);
       fetchDateSupplements(userId, selectedDate);
     });
+  }, [userId, selectedDate]);
+
+  // Foreground refresh — re-fetch entries when app resumes
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && userId) {
+        fetchDayEntries(userId, selectedDate);
+        fetchDateSupplements(userId, selectedDate);
+      }
+    });
+    return () => sub.remove();
   }, [userId, selectedDate]);
 
   // Auto-scroll to current time after layout (only for today)

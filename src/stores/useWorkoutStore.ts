@@ -6,6 +6,8 @@ const CATALOG_CACHE_KEY = 'exercise_catalog_cache_v3';
 const CATALOG_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const WORKOUTS_CACHE_KEY = '@momentum_workout_history';
 const PREV_MAP_CACHE_KEY = '@momentum_prev_map';
+const FETCH_DEDUP_MS = 5_000; // Skip re-fetch if called within 5 seconds
+let _lastWorkoutFetch = 0;
 
 export interface SetData {
   id: string;
@@ -183,6 +185,18 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       }
     } catch (err) {
       console.error('[catalog] fetch failed:', err);
+      // If force refresh failed and we have no data, try cache as last resort
+      if (Object.keys(get().catalogMap).length === 0) {
+        try {
+          const raw = await AsyncStorage.getItem(CATALOG_CACHE_KEY);
+          if (raw) {
+            const cached = JSON.parse(raw);
+            if (cached.map && Object.keys(cached.map).length > 0) {
+              set({ catalogMap: cached.map, aliasMap: cached.aliasMap || {} });
+            }
+          }
+        } catch {}
+      }
     }
   },
 
@@ -222,6 +236,11 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   },
 
   fetchWorkoutHistory: async (userId: string) => {
+    // Dedup: skip if fetched within last 5 seconds (e.g. tab switch)
+    const now = Date.now();
+    if (now - _lastWorkoutFetch < FETCH_DEDUP_MS && get().workouts.length > 0) return;
+    _lastWorkoutFetch = now;
+
     set({ loading: true });
     try {
       const { data: workoutsData } = await supabase
