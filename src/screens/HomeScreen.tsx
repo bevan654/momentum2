@@ -18,6 +18,7 @@ import MotivationCard from '../components/home/MotivationCard';
 import SupplementsCard from '../components/home/SupplementsCard';
 import ActivityCard from '../components/home/ActivityCard';
 import { useNavigation } from '@react-navigation/native';
+import { flushQueue } from '../lib/syncQueue';
 
 function HomeScreen() {
   const user = useAuthStore((s) => s.user);
@@ -37,22 +38,27 @@ function HomeScreen() {
 
   useEffect(() => {
     if (user?.id) {
-      fetchTodayNutrition(user.id);
-      fetchNutritionGoals(user.id);
-      fetchTodaySupplements(user.id);
-      fetchSupplementGoals(user.id);
-      fetchExerciseCatalog(user.id).then(() => fetchWorkoutHistory(user.id));
-      fetchWeightData(user.id);
-      initStreak(user.id);
+      // Flush any pending offline writes before fetching fresh data
+      flushQueue().then(() => {
+        fetchTodayNutrition(user.id);
+        fetchNutritionGoals(user.id);
+        fetchTodaySupplements(user.id);
+        fetchSupplementGoals(user.id);
+        fetchExerciseCatalog(user.id).then(() => fetchWorkoutHistory(user.id));
+        fetchWeightData(user.id);
+        initStreak(user.id);
+      });
     }
   }, [user?.id]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && user?.id) {
-        fetchTodayNutrition(user.id);
-        fetchTodaySupplements(user.id);
-        useStreakStore.getState().refreshStreak(user.id);
+        flushQueue().then(() => {
+          fetchTodayNutrition(user.id);
+          fetchTodaySupplements(user.id);
+          useStreakStore.getState().refreshStreak(user.id);
+        });
       }
     });
     return () => sub.remove();
