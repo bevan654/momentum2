@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { enqueue } from '../lib/syncQueue';
 
 const CONFIGS_KEY = '@momentum_supplement_configs';
+const TOTALS_CACHE_KEY = '@momentum_supplement_totals';
 
 export interface SupplementEntry {
   id: string;
@@ -83,6 +85,10 @@ function configToRow(userId: string, config: SupplementConfig, sortOrder: number
 
 async function cacheConfigs(configs: SupplementConfig[]) {
   try { await AsyncStorage.setItem(CONFIGS_KEY, JSON.stringify(configs)); } catch {}
+}
+
+function cacheTotals(water: number, waterGoal: number, totals: Record<string, number>) {
+  AsyncStorage.setItem(TOTALS_CACHE_KEY, JSON.stringify({ water, waterGoal, totals, date: todayDate() })).catch(() => {});
 }
 
 export function nameToKey(name: string): string {
@@ -188,22 +194,25 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     const configs = [...get().supplementConfigs, config];
     set({ supplementConfigs: configs });
     await cacheConfigs(configs);
-    try {
-      await supabase.from('user_supplements').insert(configToRow(userId, config, configs.length - 1));
-    } catch {}
+    const row = configToRow(userId, config, configs.length - 1);
+    const { error } = await supabase.from('user_supplements').insert(row);
+    if (error) {
+      enqueue({ table: 'user_supplements', type: 'insert', data: row });
+    }
   },
 
   removeSupplementConfig: async (userId: string, key: string) => {
     const configs = get().supplementConfigs.filter((c) => c.key !== key);
     set({ supplementConfigs: configs });
     await cacheConfigs(configs);
-    try {
-      await supabase
-        .from('user_supplements')
-        .delete()
-        .eq('user_id', userId)
-        .eq('key', key);
-    } catch {}
+    const { error } = await supabase
+      .from('user_supplements')
+      .delete()
+      .eq('user_id', userId)
+      .eq('key', key);
+    if (error) {
+      enqueue({ table: 'user_supplements', type: 'delete', match: { user_id: userId, key } });
+    }
   },
 
   updateSupplementConfig: async (userId: string, key: string, updates: Partial<SupplementConfig>) => {
@@ -219,13 +228,14 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     if (updates.color != null) dbUpdates.color = updates.color;
     if (updates.increments != null) dbUpdates.increments = updates.increments;
 
-    try {
-      await supabase
-        .from('user_supplements')
-        .update(dbUpdates)
-        .eq('user_id', userId)
-        .eq('key', key);
-    } catch {}
+    const { error } = await supabase
+      .from('user_supplements')
+      .update(dbUpdates)
+      .eq('user_id', userId)
+      .eq('key', key);
+    if (error) {
+      enqueue({ table: 'user_supplements', type: 'update', data: dbUpdates, match: { user_id: userId, key } });
+    }
   },
 
   /* ─── Data fetching ─────────────────────────────────── */
@@ -251,8 +261,18 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       }
 
       set({ water, supplementTotals: totals });
+      cacheTotals(water, get().waterGoal, totals);
     } else {
-      set({ water: 0, supplementTotals: {} });
+      // Network error — load from cache
+      try {
+        const raw = await AsyncStorage.getItem(TOTALS_CACHE_KEY);
+        if (raw) {
+          const cached = JSON.parse(raw);
+          if (cached.date === todayDate()) {
+            set({ water: cached.water, waterGoal: cached.waterGoal, supplementTotals: cached.totals });
+          }
+        }
+      } catch {}
     }
   },
 
@@ -267,6 +287,16 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
     if (data) {
       set({ waterGoal: Number(data.water_goal) });
+      cacheTotals(get().water, Number(data.water_goal), get().supplementTotals);
+    } else {
+      // Network error — try cache for water goal
+      try {
+        const raw = await AsyncStorage.getItem(TOTALS_CACHE_KEY);
+        if (raw) {
+          const cached = JSON.parse(raw);
+          if (cached.waterGoal) set({ waterGoal: cached.waterGoal });
+        }
+      } catch {}
     }
   },
 
@@ -285,16 +315,14 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
   addWater: async (userId: string, ml: number) => {
     set((s) => ({ water: s.water + ml }));
+    cacheTotals(get().water, get().waterGoal, get().supplementTotals);
 
-    const { error } = await supabase.from('supplement_entries').insert({
-      user_id: userId,
-      type: 'water',
-      amount: ml,
-      date: todayDate(),
-    });
+    const row = { user_id: userId, type: 'water', amount: ml, date: todayDate() };
+    const { error } = await supabase.from('supplement_entries').insert(row);
 
     if (error) {
-      set((s) => ({ water: s.water - ml }));
+      // Keep local state, queue for later
+      enqueue({ table: 'supplement_entries', type: 'insert', data: row });
     } else {
       get().fetchDateSupplements(userId, todayDate());
     }
@@ -316,6 +344,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
     const amount = Number(data.amount);
     set((s) => ({ water: Math.max(0, s.water - amount) }));
+    cacheTotals(get().water, get().waterGoal, get().supplementTotals);
 
     const { error } = await supabase
       .from('supplement_entries')
@@ -324,6 +353,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
     if (error) {
       set((s) => ({ water: s.water + amount }));
+      cacheTotals(get().water, get().waterGoal, get().supplementTotals);
     } else {
       get().fetchDateSupplements(userId, todayDate());
     }
@@ -338,21 +368,13 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
         [key]: (s.supplementTotals[key] || 0) + amount,
       },
     }));
+    cacheTotals(get().water, get().waterGoal, get().supplementTotals);
 
-    const { error } = await supabase.from('supplement_entries').insert({
-      user_id: userId,
-      type: key,
-      amount,
-      date: todayDate(),
-    });
+    const row = { user_id: userId, type: key, amount, date: todayDate() };
+    const { error } = await supabase.from('supplement_entries').insert(row);
 
     if (error) {
-      set((s) => ({
-        supplementTotals: {
-          ...s.supplementTotals,
-          [key]: Math.max(0, (s.supplementTotals[key] || 0) - amount),
-        },
-      }));
+      enqueue({ table: 'supplement_entries', type: 'insert', data: row });
     } else {
       get().fetchDateSupplements(userId, todayDate());
     }
@@ -363,6 +385,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     set((s) => ({
       supplementTotals: { ...s.supplementTotals, [key]: 0 },
     }));
+    cacheTotals(get().water, get().waterGoal, get().supplementTotals);
 
     const { error } = await supabase
       .from('supplement_entries')
@@ -372,9 +395,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .eq('type', key);
 
     if (error) {
-      set((s) => ({
-        supplementTotals: { ...s.supplementTotals, [key]: prev },
-      }));
+      enqueue({ table: 'supplement_entries', type: 'delete', match: { user_id: userId, date: todayDate(), type: key } });
     } else {
       get().fetchDateSupplements(userId, todayDate());
     }
@@ -393,6 +414,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
             },
           }),
     }));
+    cacheTotals(get().water, get().waterGoal, get().supplementTotals);
 
     const { error } = await supabase
       .from('supplement_entries')
@@ -400,6 +422,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .eq('id', entry.id);
 
     if (error) {
+      // Rollback — can't queue a delete for an entry that may not exist on server
       set((s) => ({
         dateEntries: prev,
         ...(entry.type === 'water'
@@ -411,6 +434,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
               },
             }),
       }));
+      cacheTotals(get().water, get().waterGoal, get().supplementTotals);
     }
   },
 
@@ -420,6 +444,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     const prevWater = get().waterGoal;
 
     if (goals.water_goal != null) set({ waterGoal: goals.water_goal });
+    cacheTotals(get().water, get().waterGoal, get().supplementTotals);
 
     const { error } = await supabase
       .from('supplement_goals')
@@ -427,7 +452,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .eq('user_id', userId);
 
     if (error) {
-      if (goals.water_goal != null) set({ waterGoal: prevWater });
+      enqueue({ table: 'supplement_goals', type: 'update', data: goals, match: { user_id: userId } });
     }
   },
 }));

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+import { enqueue } from '../lib/syncQueue';
 import { useNutritionStore } from './useNutritionStore';
 
 /* ─── Types ────────────────────────────────────────────── */
@@ -102,6 +104,12 @@ const DEFAULT_MEALS: MealConfig[] = [
   { id: 'default-snack', slot: 'snack', label: 'Snacks', icon: 'cafe-outline', time_start: '15:00', enabled: true, sort_order: 3 },
 ];
 
+/* ─── Cache keys ──────────────────────────────────────── */
+
+const ENTRIES_CACHE_KEY = '@momentum_food_entries';
+const GOALS_CACHE_KEY = '@momentum_food_goals';
+const MEALS_CACHE_KEY = '@momentum_meal_configs';
+
 /* ─── Helpers ──────────────────────────────────────────── */
 
 function toDateString(date: Date): string {
@@ -113,6 +121,18 @@ function dateRange(dateStr: string) {
   const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
   const end = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).toISOString();
   return { start, end };
+}
+
+function cacheEntries(date: string, entries: FoodEntry[]) {
+  AsyncStorage.setItem(ENTRIES_CACHE_KEY, JSON.stringify({ date, entries })).catch(() => {});
+}
+
+function cacheGoals(goals: NutritionGoals) {
+  AsyncStorage.setItem(GOALS_CACHE_KEY, JSON.stringify(goals)).catch(() => {});
+}
+
+function cacheMealConfigs(configs: MealConfig[]) {
+  AsyncStorage.setItem(MEALS_CACHE_KEY, JSON.stringify(configs)).catch(() => {});
 }
 
 /**
@@ -160,6 +180,30 @@ async function saveUserCreatedFood(
 /** Fire-and-forget: re-fetch today's nutrition so HomeScreen updates instantly */
 function syncNutrition(userId: string) {
   useNutritionStore.getState().fetchTodayNutrition(userId);
+}
+
+/** Recompute nutrition totals from local entries (used when offline) */
+function syncNutritionFromEntries(entries: FoodEntry[]) {
+  const today = toDateString(new Date());
+  const todayEntries = entries.filter((e) => {
+    const d = new Date(e.created_at);
+    return toDateString(d) === today;
+  });
+  const totals = todayEntries.reduce(
+    (acc, e) => ({
+      calories: acc.calories + Number(e.calories || 0),
+      protein: acc.protein + Number(e.protein || 0),
+      carbs: acc.carbs + Number(e.carbs || 0),
+      fat: acc.fat + Number(e.fat || 0),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+  useNutritionStore.setState({
+    calories: Math.round(totals.calories),
+    protein: Math.round(totals.protein * 10) / 10,
+    carbs: Math.round(totals.carbs * 10) / 10,
+    fat: Math.round(totals.fat * 10) / 10,
+  });
 }
 
 /* ─── Store ────────────────────────────────────────────── */
@@ -253,19 +297,29 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .order('created_at', { ascending: true });
 
     if (!error && data) {
-      set({
-        entries: data.map((d) => ({
-          ...d,
-          calories: Number(d.calories || 0),
-          protein: Number(d.protein || 0),
-          carbs: Number(d.carbs || 0),
-          fat: Number(d.fat || 0),
-          quantity: Number(d.quantity || 1),
-          is_planned: Boolean(d.is_planned),
-        })),
-        loading: false,
-      });
+      const entries = data.map((d) => ({
+        ...d,
+        calories: Number(d.calories || 0),
+        protein: Number(d.protein || 0),
+        carbs: Number(d.carbs || 0),
+        fat: Number(d.fat || 0),
+        quantity: Number(d.quantity || 1),
+        is_planned: Boolean(d.is_planned),
+      }));
+      set({ entries, loading: false });
+      cacheEntries(dateStr, entries);
     } else {
+      // Network error — load from cache
+      try {
+        const raw = await AsyncStorage.getItem(ENTRIES_CACHE_KEY);
+        if (raw) {
+          const cached = JSON.parse(raw);
+          if (cached.date === dateStr) {
+            set({ entries: cached.entries, loading: false });
+            return;
+          }
+        }
+      } catch {}
       set({ loading: false });
     }
   },
@@ -278,17 +332,23 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .order('sort_order', { ascending: true });
 
     if (data && data.length > 0) {
-      set({
-        mealConfigs: data.map((d) => ({
-          id: d.id,
-          slot: d.slot,
-          label: d.label,
-          icon: d.icon,
-          time_start: d.time_start,
-          enabled: d.enabled,
-          sort_order: d.sort_order,
-        })),
-      });
+      const configs = data.map((d) => ({
+        id: d.id,
+        slot: d.slot,
+        label: d.label,
+        icon: d.icon,
+        time_start: d.time_start,
+        enabled: d.enabled,
+        sort_order: d.sort_order,
+      }));
+      set({ mealConfigs: configs });
+      cacheMealConfigs(configs);
+    } else if (!data) {
+      // Network error — load from cache
+      try {
+        const raw = await AsyncStorage.getItem(MEALS_CACHE_KEY);
+        if (raw) set({ mealConfigs: JSON.parse(raw) });
+      } catch {}
     }
   },
 
@@ -300,14 +360,20 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .single();
 
     if (data) {
-      set({
-        goals: {
-          calorie_goal: Number(data.calorie_goal),
-          protein_goal: Number(data.protein_goal),
-          carbs_goal: Number(data.carbs_goal),
-          fat_goal: Number(data.fat_goal),
-        },
-      });
+      const goals = {
+        calorie_goal: Number(data.calorie_goal),
+        protein_goal: Number(data.protein_goal),
+        carbs_goal: Number(data.carbs_goal),
+        fat_goal: Number(data.fat_goal),
+      };
+      set({ goals });
+      cacheGoals(goals);
+    } else {
+      // Network error — load from cache
+      try {
+        const raw = await AsyncStorage.getItem(GOALS_CACHE_KEY);
+        if (raw) set({ goals: JSON.parse(raw) });
+      } catch {}
     }
   },
 
@@ -387,7 +453,10 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
 
       if (showOptimistic) {
         if (error || !data) {
-          set((s) => ({ entries: s.entries.filter((e) => e.id !== tempId) }));
+          // Keep local entry, queue for later sync
+          cacheEntries(get().selectedDate, get().entries);
+          enqueue({ table: 'food_entries', type: 'insert', data: insertData });
+          syncNutritionFromEntries(get().entries);
         } else {
           set((s) => ({
             entries: s.entries.map((e) =>
@@ -404,12 +473,20 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
                 : e,
             ),
           }));
+          cacheEntries(get().selectedDate, get().entries);
+          syncNutrition(userId);
         }
+      } else if (!error) {
+        syncNutrition(userId);
+      } else {
+        enqueue({ table: 'food_entries', type: 'insert', data: insertData });
       }
-      if (!error) syncNutrition(userId);
     } catch {
       if (showOptimistic) {
-        set((s) => ({ entries: s.entries.filter((e) => e.id !== tempId) }));
+        // Keep local entry, queue for later
+        cacheEntries(get().selectedDate, get().entries);
+        enqueue({ table: 'food_entries', type: 'insert', data: insertData });
+        syncNutritionFromEntries(get().entries);
       }
     }
   },
@@ -422,6 +499,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         e.id === entryId ? { ...e, ...updates } : e,
       ),
     }));
+    cacheEntries(get().selectedDate, get().entries);
 
     const { error } = await supabase
       .from('food_entries')
@@ -429,7 +507,13 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .eq('id', entryId);
 
     if (error) {
-      set({ entries: prev });
+      if (entryId.startsWith('temp-')) {
+        // Can't update a temp entry on server — it'll sync on flush
+        syncNutritionFromEntries(get().entries);
+      } else {
+        enqueue({ table: 'food_entries', type: 'update', data: updates, match: { id: entryId } });
+        syncNutritionFromEntries(get().entries);
+      }
     } else {
       const uid = prev.find((e) => e.id === entryId)?.user_id;
       if (uid) syncNutrition(uid);
@@ -451,14 +535,15 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         e.id === entryId ? { ...e, created_at: newCreatedAt } : e,
       ),
     }));
+    cacheEntries(get().selectedDate, get().entries);
 
     const { error } = await supabase
       .from('food_entries')
       .update({ created_at: newCreatedAt })
       .eq('id', entryId);
 
-    if (error) {
-      set({ entries: prev });
+    if (error && !entryId.startsWith('temp-')) {
+      enqueue({ table: 'food_entries', type: 'update', data: { created_at: newCreatedAt }, match: { id: entryId } });
     }
   },
 
@@ -466,6 +551,13 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const prev = get().entries;
     // Optimistic delete
     set((s) => ({ entries: s.entries.filter((e) => e.id !== entryId) }));
+    cacheEntries(get().selectedDate, get().entries);
+
+    if (entryId.startsWith('temp-')) {
+      // Never reached server — just update local nutrition
+      syncNutritionFromEntries(get().entries);
+      return;
+    }
 
     const { error } = await supabase
       .from('food_entries')
@@ -473,8 +565,8 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .eq('id', entryId);
 
     if (error) {
-      // Rollback
-      set({ entries: prev });
+      enqueue({ table: 'food_entries', type: 'delete', match: { id: entryId } });
+      syncNutritionFromEntries(get().entries);
     } else {
       const uid = prev.find((e) => e.id === entryId)?.user_id;
       if (uid) syncNutrition(uid);
@@ -492,6 +584,9 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         e.id === entryId ? { ...e, is_planned: newPlanned } : e,
       ),
     }));
+    cacheEntries(get().selectedDate, get().entries);
+
+    if (entryId.startsWith('temp-')) return;
 
     const { error } = await supabase
       .from('food_entries')
@@ -499,11 +594,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .eq('id', entryId);
 
     if (error) {
-      set((s) => ({
-        entries: s.entries.map((e) =>
-          e.id === entryId ? { ...e, is_planned: !newPlanned } : e,
-        ),
-      }));
+      enqueue({ table: 'food_entries', type: 'update', data: { is_planned: newPlanned }, match: { id: entryId } });
     }
   },
 
@@ -520,6 +611,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const prev = get().goals;
     const merged = { ...prev, ...goals };
     set({ goals: merged });
+    cacheGoals(merged);
 
     // Sync to useNutritionStore so HomeScreen reflects changes instantly
     useNutritionStore.setState({
@@ -535,14 +627,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .eq('user_id', userId);
 
     if (error) {
-      set({ goals: prev });
-      // Rollback nutrition store too
-      useNutritionStore.setState({
-        calorieGoal: prev.calorie_goal,
-        proteinGoal: prev.protein_goal,
-        carbsGoal: prev.carbs_goal,
-        fatGoal: prev.fat_goal,
-      });
+      enqueue({ table: 'nutrition_goals', type: 'update', data: goals, match: { user_id: userId } });
     }
   },
 
@@ -550,6 +635,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const tempId = `temp-${Date.now()}`;
     const optimistic: MealConfig = { ...meal, id: tempId };
     set((s) => ({ mealConfigs: [...s.mealConfigs, optimistic] }));
+    cacheMealConfigs(get().mealConfigs);
 
     const { data, error } = await supabase
       .from('meal_config')
@@ -558,19 +644,22 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .single();
 
     if (error || !data) {
-      set((s) => ({ mealConfigs: s.mealConfigs.filter((m) => m.id !== tempId) }));
+      enqueue({ table: 'meal_config', type: 'insert', data: { user_id: userId, ...meal } });
     } else {
       set((s) => ({
         mealConfigs: s.mealConfigs.map((m) => (m.id === tempId ? { ...m, id: data.id } : m)),
       }));
+      cacheMealConfigs(get().mealConfigs);
     }
   },
 
   updateMealConfig: async (mealId: string, updates: Partial<Omit<MealConfig, 'id'>>) => {
-    const prev = get().mealConfigs;
     set((s) => ({
       mealConfigs: s.mealConfigs.map((m) => (m.id === mealId ? { ...m, ...updates } : m)),
     }));
+    cacheMealConfigs(get().mealConfigs);
+
+    if (mealId.startsWith('temp-')) return;
 
     const { error } = await supabase
       .from('meal_config')
@@ -578,13 +667,15 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .eq('id', mealId);
 
     if (error) {
-      set({ mealConfigs: prev });
+      enqueue({ table: 'meal_config', type: 'update', data: updates, match: { id: mealId } });
     }
   },
 
   deleteMealConfig: async (mealId: string) => {
-    const prev = get().mealConfigs;
     set((s) => ({ mealConfigs: s.mealConfigs.filter((m) => m.id !== mealId) }));
+    cacheMealConfigs(get().mealConfigs);
+
+    if (mealId.startsWith('temp-')) return;
 
     const { error } = await supabase
       .from('meal_config')
@@ -592,7 +683,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .eq('id', mealId);
 
     if (error) {
-      set({ mealConfigs: prev });
+      enqueue({ table: 'meal_config', type: 'delete', match: { id: mealId } });
     }
   },
 
@@ -600,6 +691,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const prev = get().entries;
     // Optimistic delete all entries in this meal group
     set((s) => ({ entries: s.entries.filter((e) => e.meal_group_id !== mealGroupId) }));
+    cacheEntries(get().selectedDate, get().entries);
 
     const { error } = await supabase
       .from('food_entries')
@@ -607,7 +699,8 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .eq('meal_group_id', mealGroupId);
 
     if (error) {
-      set({ entries: prev });
+      enqueue({ table: 'food_entries', type: 'delete', match: { meal_group_id: mealGroupId } });
+      syncNutritionFromEntries(get().entries);
     } else {
       const uid = prev[0]?.user_id;
       if (uid) syncNutrition(uid);

@@ -1,5 +1,20 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+
+const CACHE_KEY = '@momentum_nutrition_cache';
+
+interface NutritionCache {
+  calories: number;
+  calorieGoal: number;
+  protein: number;
+  proteinGoal: number;
+  carbs: number;
+  carbsGoal: number;
+  fat: number;
+  fatGoal: number;
+  date: string;
+}
 
 interface NutritionState {
   calories: number;
@@ -24,7 +39,27 @@ function todayRange() {
   return { start, end };
 }
 
-export const useNutritionStore = create<NutritionState>((set) => ({
+function todayDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function cacheState(state: NutritionState) {
+  const data: NutritionCache = {
+    calories: state.calories,
+    calorieGoal: state.calorieGoal,
+    protein: state.protein,
+    proteinGoal: state.proteinGoal,
+    carbs: state.carbs,
+    carbsGoal: state.carbsGoal,
+    fat: state.fat,
+    fatGoal: state.fatGoal,
+    date: todayDate(),
+  };
+  AsyncStorage.setItem(CACHE_KEY, JSON.stringify(data)).catch(() => {});
+}
+
+export const useNutritionStore = create<NutritionState>((set, get) => ({
   calories: 0,
   calorieGoal: 2000,
   protein: 0,
@@ -62,8 +97,30 @@ export const useNutritionStore = create<NutritionState>((set) => ({
         carbs: Math.round(totals.carbs * 10) / 10,
         fat: Math.round(totals.fat * 10) / 10,
       });
-    } else {
+      cacheState(get());
+    } else if (data) {
       set({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+      cacheState(get());
+    } else {
+      // Supabase returned null (network error) — load from cache
+      try {
+        const raw = await AsyncStorage.getItem(CACHE_KEY);
+        if (raw) {
+          const cached: NutritionCache = JSON.parse(raw);
+          if (cached.date === todayDate()) {
+            set({
+              calories: cached.calories,
+              protein: cached.protein,
+              carbs: cached.carbs,
+              fat: cached.fat,
+              calorieGoal: cached.calorieGoal,
+              proteinGoal: cached.proteinGoal,
+              carbsGoal: cached.carbsGoal,
+              fatGoal: cached.fatGoal,
+            });
+          }
+        }
+      } catch {}
     }
   },
 
@@ -81,6 +138,21 @@ export const useNutritionStore = create<NutritionState>((set) => ({
         carbsGoal: Number(data.carbs_goal),
         fatGoal: Number(data.fat_goal),
       });
+      cacheState(get());
+    } else {
+      // Network error — goals may be in cache already (loaded via fetchTodayNutrition)
+      try {
+        const raw = await AsyncStorage.getItem(CACHE_KEY);
+        if (raw) {
+          const cached: NutritionCache = JSON.parse(raw);
+          set({
+            calorieGoal: cached.calorieGoal,
+            proteinGoal: cached.proteinGoal,
+            carbsGoal: cached.carbsGoal,
+            fatGoal: cached.fatGoal,
+          });
+        }
+      } catch {}
     }
   },
 }));
