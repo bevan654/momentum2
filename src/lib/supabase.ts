@@ -24,7 +24,7 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 //             setForceOffline(true)
 import { useNetworkStore } from '../stores/useNetworkStore';
 
-let _forceOffline = true;
+let _forceOffline = false;
 export const setForceOffline = (v: boolean) => {
   _forceOffline = v;
   useNetworkStore.getState().setOffline(v);

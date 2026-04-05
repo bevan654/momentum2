@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, ScrollView, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,9 +8,7 @@ import { sw, ms } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNutritionStore } from '../stores/useNutritionStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
-import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
-import { useWeightStore } from '../stores/useWeightStore';
 import { useStreakStore } from '../stores/useStreakStore';
 import NutritionCard from '../components/home/NutritionCard';
 import WaterCard from '../components/home/WaterCard';
@@ -18,51 +16,19 @@ import MotivationCard from '../components/home/MotivationCard';
 import SupplementsCard from '../components/home/SupplementsCard';
 import ActivityCard from '../components/home/ActivityCard';
 import { useNavigation } from '@react-navigation/native';
-import { useNetworkStore, onReconnect } from '../stores/useNetworkStore';
-import { flushQueue } from '../lib/syncQueue';
-import { flushPendingWorkouts } from '../lib/pendingWorkouts';
+
 
 function HomeScreen() {
   const user = useAuthStore((s) => s.user);
-  const isOffline = useNetworkStore((s) => s.isOffline);
   const fetchTodayNutrition = useNutritionStore((s) => s.fetchTodayNutrition);
-  const fetchNutritionGoals = useNutritionStore((s) => s.fetchNutritionGoals);
   const fetchTodaySupplements = useSupplementStore((s) => s.fetchTodaySupplements);
-  const fetchSupplementGoals = useSupplementStore((s) => s.fetchSupplementGoals);
-  const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
-  const fetchExerciseCatalog = useWorkoutStore((s) => s.fetchExerciseCatalog);
-  const fetchWeightData = useWeightStore((s) => s.fetchWeightData);
-  const initStreak = useStreakStore((s) => s.initStreak);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
   const navigation = useNavigation<any>();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const refreshAll = useCallback((uid: string) => {
-    fetchTodayNutrition(uid);
-    fetchNutritionGoals(uid);
-    fetchTodaySupplements(uid);
-    fetchSupplementGoals(uid);
-    fetchExerciseCatalog(uid).then(() => fetchWorkoutHistory(uid));
-    fetchWeightData(uid);
-    initStreak(uid);
-  }, []);
-
-  // Initial load — flush pending offline writes first, then fetch fresh data
-  useEffect(() => {
-    if (user?.id) {
-      Promise.all([flushPendingWorkouts(), flushQueue()]).then(() => refreshAll(user.id));
-    }
-  }, [user?.id]);
-
-  // Auto-refresh when coming back online
-  useEffect(() => {
-    if (!user?.id) return;
-    return onReconnect(() => refreshAll(user.id));
-  }, [user?.id]);
-
-  // Foreground refresh
+  // Foreground refresh (light — just today's volatile data)
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && user?.id) {

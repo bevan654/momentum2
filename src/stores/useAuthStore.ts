@@ -52,19 +52,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   _pendingWelcome: false,
 
   initialize: async () => {
+    // Load cached profile immediately so UI can render while network fetches
+    try {
+      const cached = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
+      if (cached) set({ profile: JSON.parse(cached) as Profile });
+    } catch {}
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        set({ user: session.user, session });
-        await get().fetchProfile(session.user.id);
+        set({ user: session.user, session, initialized: true });
+        // Refresh profile from network in background
+        get().fetchProfile(session.user.id);
+      } else {
+        set({ initialized: true });
       }
     } catch {
-      // Offline or session expired — try loading cached profile
-      try {
-        const cached = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
-        if (cached) set({ profile: JSON.parse(cached) as Profile });
-      } catch {}
-    } finally {
+      // Offline or session expired — cached profile already loaded above
       set({ initialized: true });
     }
 

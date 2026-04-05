@@ -31,7 +31,12 @@ import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useRankStore } from '../stores/useRankStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import { useRoutineStore } from '../stores/useRoutineStore';
+import { useNutritionStore } from '../stores/useNutritionStore';
+import { useWeightStore } from '../stores/useWeightStore';
+import { useStreakStore } from '../stores/useStreakStore';
 import { initNotifications, cleanupNotifications } from '../services/notificationService';
+import { flushQueue } from '../lib/syncQueue';
+import { flushPendingWorkouts } from '../lib/pendingWorkouts';
 
 const Tab = createMaterialTopTabNavigator();
 
@@ -245,20 +250,32 @@ export default function TabNavigator() {
   const [activeTab, setActiveTab] = useState('Home');
   const colors = useColors();
   const insets = useSafeAreaInsets();
+
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
     if (userId) {
+      // Restore local state immediately (no network)
       useActiveWorkoutStore.getState().restoreWorkout();
-      useWorkoutStore.getState().fetchExerciseCatalog(userId);
+
+      // Flush offline queue in background (doesn't block reads)
+      flushPendingWorkouts();
+      flushQueue();
+
+      // Fetch everything in parallel immediately
+      useWorkoutStore.getState().fetchExerciseCatalog(userId)
+        .then(() => useWorkoutStore.getState().fetchWorkoutHistory(userId));
       useWorkoutStore.getState().fetchPrevData(userId);
+      useNutritionStore.getState().fetchTodayNutrition(userId);
+      useNutritionStore.getState().fetchNutritionGoals(userId);
+      useSupplementStore.getState().fetchTodaySupplements(userId);
+      useSupplementStore.getState().fetchSupplementGoals(userId);
+      useWeightStore.getState().fetchWeightData(userId);
+      useStreakStore.getState().initStreak(userId);
       useRankStore.getState().loadRank(userId);
       useRankStore.getState().computeRank(userId);
       useProgramStore.getState().fetchPrograms(userId);
       useRoutineStore.getState().fetchRoutines(userId);
-      initNotifications(userId);
-
-      // Pre-warm stores for lazy tabs (eliminates black flash on first visit)
       useFoodLogStore.getState().fetchMealConfigs(userId);
       useFoodLogStore.getState().fetchGoals(userId);
       useFoodLogStore.getState().fetchDayEntries(userId);
@@ -266,6 +283,8 @@ export default function TabNavigator() {
       useSupplementStore.getState().fetchDateSupplements(userId, new Date().toISOString().split('T')[0]);
       useFriendsStore.getState().fetchFriends(userId);
       useFriendsStore.getState().fetchUnreadCount(userId);
+
+      initNotifications(userId);
     }
     return () => {
       cleanupNotifications();
@@ -309,7 +328,7 @@ export default function TabNavigator() {
           screenOptions={{
             swipeEnabled: true,
             animationEnabled: true,
-            lazy: true,
+            lazy: false,
             freezeOnBlur: true,
           }}
         >
