@@ -308,10 +308,8 @@ export default function Header({ activeTab }: HeaderProps) {
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="cloud-offline-outline" size={ms(12)} color="#fff" />
-            <Text style={styles.offlinePillText}>
-              {reconnecting ? 'Checking…' : 'Offline'}
-            </Text>
+            <Ionicons name={reconnecting ? 'refresh-outline' : 'cloud-offline-outline'} size={ms(12)} color="#fff" />
+            <Text style={styles.offlinePillText}>Offline</Text>
           </TouchableOpacity>
         )}
 
