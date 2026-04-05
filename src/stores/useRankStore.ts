@@ -5,6 +5,9 @@ import { useWorkoutStore } from './useWorkoutStore';
 import { useWeightStore } from './useWeightStore';
 
 const RANK_CACHE_KEY = '@momentum_rank_cache';
+const DEDUP_MS = 5_000;
+let _lastComputeRank = 0;
+let _lastLoadRank = 0;
 import {
   estimateOneRepMax,
   effectiveLoad,
@@ -119,6 +122,10 @@ export const useRankStore = create<RankState>((set, get) => ({
   /* ─── Full computation ─────────────────────────────── */
 
   computeRank: async (userId: string) => {
+    const now = Date.now();
+    if (now - _lastComputeRank < DEDUP_MS) return;
+    _lastComputeRank = now;
+
     set({ loading: true });
 
     try {
@@ -330,6 +337,10 @@ export const useRankStore = create<RankState>((set, get) => ({
   /* ─── Load cached rank from DB ──────────────────────── */
 
   loadRank: async (userId: string) => {
+    const now = Date.now();
+    if (now - _lastLoadRank < DEDUP_MS && get().overallRank) return;
+    _lastLoadRank = now;
+
     try {
       const { data } = await supabase
         .from('user_ranks')

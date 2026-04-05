@@ -4,6 +4,13 @@ import { supabase } from '../lib/supabase';
 import { enqueue } from '../lib/syncQueue';
 import { useNutritionStore } from './useNutritionStore';
 
+const DEDUP_MS = 5_000;
+let _lastDayFetch = '';
+let _lastDayFetchTs = 0;
+let _lastMealConfigFetch = 0;
+let _lastGoalsFetch = 0;
+let _lastDefaultFoodsFetch = 0;
+
 /* ─── Types ────────────────────────────────────────────── */
 
 export interface FoodEntry {
@@ -297,6 +304,11 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
 
   fetchDayEntries: async (userId: string, date?: string) => {
     const dateStr = date || get().selectedDate;
+    const now = Date.now();
+    if (dateStr === _lastDayFetch && now - _lastDayFetchTs < DEDUP_MS) return;
+    _lastDayFetch = dateStr;
+    _lastDayFetchTs = now;
+
     set({ loading: true });
 
     const { start, end } = dateRange(dateStr);
@@ -337,6 +349,10 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   fetchMealConfigs: async (userId: string) => {
+    const now = Date.now();
+    if (now - _lastMealConfigFetch < DEDUP_MS && get().mealConfigs.length > 0) return;
+    _lastMealConfigFetch = now;
+
     const { data } = await supabase
       .from('meal_config')
       .select('*')
@@ -365,6 +381,10 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   fetchGoals: async (userId: string) => {
+    const now = Date.now();
+    if (now - _lastGoalsFetch < DEDUP_MS && get().goals) return;
+    _lastGoalsFetch = now;
+
     const { data } = await supabase
       .from('nutrition_goals')
       .select('calorie_goal, protein_goal, carbs_goal, fat_goal')
@@ -820,6 +840,10 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   fetchDefaultFoods: async (userId: string) => {
+    const now = Date.now();
+    if (now - _lastDefaultFoodsFetch < DEDUP_MS && get().defaultFoods.length > 0) return;
+    _lastDefaultFoodsFetch = now;
+
     const [recentRes, popularRes] = await Promise.all([
       supabase
         .from('food_entries')

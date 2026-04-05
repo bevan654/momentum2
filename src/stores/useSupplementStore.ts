@@ -6,6 +6,13 @@ import { enqueue } from '../lib/syncQueue';
 const CONFIGS_KEY = '@momentum_supplement_configs';
 const TOTALS_CACHE_KEY = '@momentum_supplement_totals';
 
+const DEDUP_MS = 5_000;
+let _hydratedFromCache = false;
+let _lastTodayFetch = 0;
+let _lastGoalsFetch = 0;
+let _lastDateFetch = '';
+let _lastDateFetchTs = 0;
+
 export interface SupplementEntry {
   id: string;
   type: string;
@@ -241,6 +248,27 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   /* ─── Data fetching ─────────────────────────────────── */
 
   fetchTodaySupplements: async (userId: string) => {
+    // Hydrate from cache on first call so Home screen shows data instantly
+    // (skip if bootstrap.ts already populated the store)
+    if (!_hydratedFromCache) {
+      _hydratedFromCache = true;
+      if (get().water === 0) {
+        try {
+          const raw = await AsyncStorage.getItem(TOTALS_CACHE_KEY);
+          if (raw) {
+            const cached = JSON.parse(raw);
+            if (cached.date === todayDate()) {
+              set({ water: cached.water, waterGoal: cached.waterGoal, supplementTotals: cached.totals || {} });
+            }
+          }
+        } catch {}
+      }
+    }
+
+    const now = Date.now();
+    if (now - _lastTodayFetch < DEDUP_MS) return;
+    _lastTodayFetch = now;
+
     const date = todayDate();
     const { data } = await supabase
       .from('supplement_entries')
@@ -277,6 +305,10 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   },
 
   fetchSupplementGoals: async (userId: string) => {
+    const now = Date.now();
+    if (now - _lastGoalsFetch < DEDUP_MS && get().waterGoal > 0) return;
+    _lastGoalsFetch = now;
+
     await get().loadSupplementConfigs(userId);
 
     const { data } = await supabase
@@ -301,6 +333,11 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   },
 
   fetchDateSupplements: async (userId: string, date: string) => {
+    const now = Date.now();
+    if (date === _lastDateFetch && now - _lastDateFetchTs < DEDUP_MS) return;
+    _lastDateFetch = date;
+    _lastDateFetchTs = now;
+
     const { data } = await supabase
       .from('supplement_entries')
       .select('id, type, amount, created_at')

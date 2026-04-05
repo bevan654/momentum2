@@ -11,7 +11,7 @@ import * as Updates from 'expo-updates';
  *   'silent'  — download + auto-reload (no user interaction)
  *   'prompt'  — show alert asking user to restart when update is ready
  */
-export function useAppUpdates(mode: 'silent' | 'prompt' = 'silent') {
+export function useAppUpdates(mode: 'silent' | 'prompt' = 'silent', initialDelayMs = 0) {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const checkForUpdate = useCallback(async () => {
@@ -48,14 +48,19 @@ export function useAppUpdates(mode: 'silent' | 'prompt' = 'silent') {
   }, [mode]);
 
   useEffect(() => {
-    checkForUpdate();
+    const timer = initialDelayMs > 0
+      ? setTimeout(checkForUpdate, initialDelayMs)
+      : (checkForUpdate(), null);
 
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') checkForUpdate();
     });
 
-    return () => sub.remove();
-  }, [checkForUpdate]);
+    return () => {
+      if (timer) clearTimeout(timer);
+      sub.remove();
+    };
+  }, [checkForUpdate, initialDelayMs]);
 
   return { isUpdating, checkForUpdate };
 }

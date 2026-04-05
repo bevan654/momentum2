@@ -25,6 +25,7 @@ import WelcomeSplashScreen from './src/screens/WelcomeSplashScreen';
 import ChangelogModal from './src/components/home/ChangelogModal';
 import { Fonts } from './src/theme/typography';
 import { getThemeColors } from './src/theme/useColors';
+import { bootstrapFromCache } from './src/lib/bootstrap';
 
 // Foreground handler — show notifications as banners
 Notifications.setNotificationHandler({
@@ -85,8 +86,8 @@ export default function App() {
     Inter_800ExtraBold,
   });
 
-  // EAS Updates — change to 'prompt' to show restart alert, or 'silent' for background
-  useAppUpdates('silent');
+  // EAS Updates — deferred 5s to avoid competing with boot network calls
+  useAppUpdates('silent', 5000);
 
   const colors = useMemo(() => getThemeColors(mode, accentColor), [mode, accentColor]);
 
@@ -112,9 +113,14 @@ export default function App() {
   );
 
   useEffect(() => {
-    initialize();
-    useThemeStore.getState().loadTheme();
-    useChangelogStore.getState().check();
+    // Single multiGet hydrates both auth (cached profile) and theme stores,
+    // then kick off the network session check + theme fallback in parallel
+    bootstrapFromCache().then(() => {
+      initialize();
+      useThemeStore.getState().loadTheme();
+    });
+    // Changelog check deferred — only needed for ChangelogModal after app is interactive
+    setTimeout(() => useChangelogStore.getState().check(), 2000);
   }, []);
 
   if (!fontsLoaded || !initialized || !themeReady) {

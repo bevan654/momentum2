@@ -58,6 +58,9 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   loadTheme: async () => {
+    // bootstrap.ts may have already hydrated theme from cache
+    if (get().initialized) return;
+
     // Try new key first, fall back to older keys for migration
     let raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) raw = await AsyncStorage.getItem('theme_settings_v4');

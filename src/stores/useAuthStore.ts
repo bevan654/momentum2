@@ -52,24 +52,45 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   _pendingWelcome: false,
 
   initialize: async () => {
-    // Load cached profile immediately so UI can render while network fetches
-    try {
-      const cached = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
-      if (cached) set({ profile: JSON.parse(cached) as Profile });
-    } catch {}
+    // bootstrap.ts may have already hydrated profile + initialized from cache
+    let hasCachedProfile = !!get().profile;
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        set({ user: session.user, session, initialized: true });
-        // Refresh profile from network in background
-        get().fetchProfile(session.user.id);
-      } else {
+    // If bootstrap didn't run, fall back to individual cache read
+    if (!hasCachedProfile) {
+      try {
+        const cached = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
+        if (cached) {
+          const profile = JSON.parse(cached) as Profile;
+          set({ profile, initialized: true });
+          hasCachedProfile = true;
+        }
+      } catch {}
+    }
+
+    // Session check: runs in background if we already unblocked from cache
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          set({ user: session.user, session, initialized: true });
+          // Refresh profile from network in background
+          get().fetchProfile(session.user.id);
+        } else {
+          // No valid session — clear cached profile (user was signed out)
+          if (hasCachedProfile) set({ profile: null });
+          set({ initialized: true });
+        }
+      } catch {
+        // Offline or session expired — cached profile already loaded above
         set({ initialized: true });
       }
-    } catch {
-      // Offline or session expired — cached profile already loaded above
-      set({ initialized: true });
+    };
+
+    // Don't await if we already unblocked — let it run in background
+    if (hasCachedProfile) {
+      checkSession();
+    } else {
+      await checkSession();
     }
 
     // Unsubscribe previous listener if re-initializing

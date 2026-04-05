@@ -4,6 +4,10 @@ import { supabase } from '../lib/supabase';
 
 const CACHE_KEY = '@momentum_nutrition_cache';
 
+const DEDUP_MS = 5_000;
+let _lastNutritionFetch = 0;
+let _lastGoalsFetch = 0;
+
 interface NutritionCache {
   calories: number;
   calorieGoal: number;
@@ -59,6 +63,8 @@ function cacheState(state: NutritionState) {
   AsyncStorage.setItem(CACHE_KEY, JSON.stringify(data)).catch(() => {});
 }
 
+let _hydratedFromCache = false;
+
 export const useNutritionStore = create<NutritionState>((set, get) => ({
   calories: 0,
   calorieGoal: 2000,
@@ -73,6 +79,36 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
   loading: false,
 
   fetchTodayNutrition: async (userId: string) => {
+    // Hydrate from cache on first call so Home screen shows data instantly
+    // (skip if bootstrap.ts already populated the store)
+    if (!_hydratedFromCache) {
+      _hydratedFromCache = true;
+      if (get().calories === 0 && get().protein === 0) {
+        try {
+          const raw = await AsyncStorage.getItem(CACHE_KEY);
+          if (raw) {
+            const cached: NutritionCache = JSON.parse(raw);
+            if (cached.date === todayDate()) {
+              set({
+                calories: cached.calories,
+                protein: cached.protein,
+                carbs: cached.carbs,
+                fat: cached.fat,
+                calorieGoal: cached.calorieGoal,
+                proteinGoal: cached.proteinGoal,
+                carbsGoal: cached.carbsGoal,
+                fatGoal: cached.fatGoal,
+              });
+            }
+          }
+        } catch {}
+      }
+    }
+
+    const now = Date.now();
+    if (now - _lastNutritionFetch < DEDUP_MS) return;
+    _lastNutritionFetch = now;
+
     const { start, end } = todayRange();
     const { data } = await supabase
       .from('food_entries')
@@ -125,6 +161,10 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
   },
 
   fetchNutritionGoals: async (userId: string) => {
+    const now = Date.now();
+    if (now - _lastGoalsFetch < DEDUP_MS && get().calorieGoal > 0) return;
+    _lastGoalsFetch = now;
+
     const { data } = await supabase
       .from('nutrition_goals')
       .select('calorie_goal, protein_goal, carbs_goal, fat_goal')

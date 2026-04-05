@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 
 const PROGRAMS_CACHE_KEY = '@momentum_programs_cache';
+const DEDUP_MS = 5_000;
+let _lastProgramFetch = 0;
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -124,6 +126,10 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
   /* ─── Fetch all programs ───────────────────────────── */
 
   fetchPrograms: async (userId: string) => {
+    const now = Date.now();
+    if (now - _lastProgramFetch < DEDUP_MS && get().programs.length > 0) return;
+    _lastProgramFetch = now;
+
     set({ loading: true });
     try {
       const { data } = await supabase

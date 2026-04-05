@@ -254,39 +254,43 @@ export default function TabNavigator() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
-    if (userId) {
-      // Restore local state immediately (no network)
-      useActiveWorkoutStore.getState().restoreWorkout();
+    if (!userId) return;
 
-      // Flush offline queue in background (doesn't block reads)
-      flushPendingWorkouts();
-      flushQueue();
+    // ── Tier 1: Immediate — Home screen visible data ──
+    useActiveWorkoutStore.getState().restoreWorkout();
+    useNutritionStore.getState().fetchTodayNutrition(userId);
+    useNutritionStore.getState().fetchNutritionGoals(userId);
+    useSupplementStore.getState().fetchTodaySupplements(userId);
+    useSupplementStore.getState().fetchSupplementGoals(userId);
+    useStreakStore.getState().initStreak(userId);
+    useWeightStore.getState().fetchWeightData(userId);
 
-      // Fetch everything in parallel immediately
+    // ── Tier 2: 500ms — adjacent tab data ──
+    const t2 = setTimeout(() => {
       useWorkoutStore.getState().fetchExerciseCatalog(userId)
         .then(() => useWorkoutStore.getState().fetchWorkoutHistory(userId));
       useWorkoutStore.getState().fetchPrevData(userId);
-      useNutritionStore.getState().fetchTodayNutrition(userId);
-      useNutritionStore.getState().fetchNutritionGoals(userId);
-      useSupplementStore.getState().fetchTodaySupplements(userId);
-      useSupplementStore.getState().fetchSupplementGoals(userId);
-      useWeightStore.getState().fetchWeightData(userId);
-      useStreakStore.getState().initStreak(userId);
-      useRankStore.getState().loadRank(userId);
-      useRankStore.getState().computeRank(userId);
-      useProgramStore.getState().fetchPrograms(userId);
-      useRoutineStore.getState().fetchRoutines(userId);
       useFoodLogStore.getState().fetchMealConfigs(userId);
       useFoodLogStore.getState().fetchGoals(userId);
       useFoodLogStore.getState().fetchDayEntries(userId);
+    }, 500);
+
+    // ── Tier 3: 1500ms — background / non-visible ──
+    const t3 = setTimeout(() => {
+      useRankStore.getState().loadRank(userId);
+      useProgramStore.getState().fetchPrograms(userId);
+      useRoutineStore.getState().fetchRoutines(userId);
       useFoodLogStore.getState().fetchDefaultFoods(userId);
-      useSupplementStore.getState().fetchDateSupplements(userId, new Date().toISOString().split('T')[0]);
       useFriendsStore.getState().fetchFriends(userId);
       useFriendsStore.getState().fetchUnreadCount(userId);
-
       initNotifications(userId);
-    }
+      flushPendingWorkouts();
+      flushQueue();
+    }, 1500);
+
     return () => {
+      clearTimeout(t2);
+      clearTimeout(t3);
       cleanupNotifications();
     };
   }, [userId]);

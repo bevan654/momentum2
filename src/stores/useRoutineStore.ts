@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 
 const ROUTINES_CACHE_KEY = '@momentum_routines_cache';
+const DEDUP_MS = 5_000;
+let _lastRoutineFetch = 0;
 
 export interface RoutineExercise {
   id?: string;
@@ -66,6 +68,10 @@ export const useRoutineStore = create<RoutineState>((set, get) => ({
   loading: false,
 
   fetchRoutines: async (userId: string) => {
+    const now = Date.now();
+    if (now - _lastRoutineFetch < DEDUP_MS && get().routines.length > 0) return;
+    _lastRoutineFetch = now;
+
     set({ loading: true });
     try {
       const { data } = await supabase
