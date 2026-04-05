@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   Text,
   Pressable,
-  Modal,
   StyleSheet,
   Keyboard,
   Platform,
@@ -23,7 +22,7 @@ import Animated, {
   runOnJS,
   Easing,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -52,6 +51,13 @@ const BACKDROP_MAX = 0.6;
 const OPEN_SPRING = { damping: 28, stiffness: 280, mass: 0.8 };
 const SNAP_SPRING = { damping: 24, stiffness: 350, mass: 0.7 };
 const CLOSE_CFG = { duration: 250, easing: Easing.in(Easing.cubic) };
+
+/* Full-screen overlay wrapper — sits above Header (zIndex 10) and tab bar */
+const sheetWrapperStyle = {
+  ...StyleSheet.absoluteFillObject,
+  zIndex: 100,
+  elevation: 100,
+} as const;
 
 /* ─── Ghost set comparison logic ─────────────────────────── */
 
@@ -440,29 +446,33 @@ export default function ActiveWorkoutSheet() {
   /* Guard — nothing to render if no active workout & no summary */
   if (!isActive && !showSummary) return null;
 
+  /* Use a plain absolute-positioned View instead of <Modal>.
+     RN Modal creates a new native window which causes gesture handler
+     root conflicts (nested GestureHandlerRootView) and Reanimated
+     worklet registration races — both lead to an unresponsive sheet. */
+  if (!sheetVisible) return null;
+
   return (
-    <Modal visible={sheetVisible} transparent statusBarTranslucent animationType="none">
-      <GestureHandlerRootView style={StyleSheet.absoluteFill}>
-        <SheetOverlay
-          onOpenAdd={handleOpenAdd}
-          onOpenReplace={handleOpenReplace}
-          onExerciseTitlePress={handleExerciseTitlePress}
-        />
+    <View style={sheetWrapperStyle}>
+      <SheetOverlay
+        onOpenAdd={handleOpenAdd}
+        onOpenReplace={handleOpenReplace}
+        onExerciseTitlePress={handleExerciseTitlePress}
+      />
 
-        <ExercisePicker
-          visible={pickerVisible}
-          onClose={() => setPickerVisible(false)}
-          onSelect={handlePickerSelect}
-          mode={pickerMode}
-        />
+      <ExercisePicker
+        visible={pickerVisible}
+        onClose={() => setPickerVisible(false)}
+        onSelect={handlePickerSelect}
+        mode={pickerMode}
+      />
 
-        <ExerciseHistoryModal
-          exerciseName={historyExerciseName}
-          visible={historyExerciseName !== null}
-          onClose={() => setHistoryExerciseName(null)}
-        />
-      </GestureHandlerRootView>
-    </Modal>
+      <ExerciseHistoryModal
+        exerciseName={historyExerciseName}
+        visible={historyExerciseName !== null}
+        onClose={() => setHistoryExerciseName(null)}
+      />
+    </View>
   );
 }
 
@@ -543,7 +553,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
 
   /* ─── Animation (UI thread) ─────────────────────────── */
 
-  const translateY = useSharedValue(SHEET_H);
+  const translateY = useSharedValue(0);
   const ctx = useSharedValue(0);
 
   useEffect(() => {
@@ -551,7 +561,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
       openRef.current = true;
       gestureClosingRef.current = false;
       cancelAnimation(translateY);
-      translateY.value = 0; // instant open, no animation
+      translateY.value = 0;
     } else if (openRef.current) {
       openRef.current = false;
       if (!gestureClosingRef.current) {

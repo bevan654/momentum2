@@ -333,9 +333,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       showSummary: false,
       summaryData: null,
     });
-
     _timerInterval = setInterval(() => get().tick(), 1000);
-    // Defer heavy async work so the sheet mounts instantly
     setTimeout(() => {
       get()._persist();
       startWorkoutActivity(_buildSnapshot(get()));
