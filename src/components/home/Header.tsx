@@ -16,6 +16,8 @@ import AvatarCircle from '../friends/AvatarCircle';
 import { openProfileSheet, openShareHub } from '../../lib/navigationBridge';
 import NotificationList from '../friends/NotificationList';
 import BottomSheet from '../workout-sheet/BottomSheet';
+import { useNetworkStore } from '../../stores/useNetworkStore';
+import { checkConnection } from '../../lib/supabase';
 
 /* ─── Date helpers ──────────────────────────────────────── */
 
@@ -252,6 +254,8 @@ export default function Header({ activeTab }: HeaderProps) {
 
   const selectedDate = useFoodLogStore((s) => s.selectedDate);
   const setDate = useFoodLogStore((s) => s.setDate);
+  const isOffline = useNetworkStore((s) => s.isOffline);
+  const [reconnecting, setReconnecting] = useState(false);
 
   const isWorkouts = activeTab === 'Workouts';
   const showDateNav = activeTab === 'Nutrition';
@@ -269,6 +273,12 @@ export default function Header({ activeTab }: HeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const openNotif = useCallback(() => setNotifOpen(true), []);
   const closeNotif = useCallback(() => setNotifOpen(false), []);
+
+  const handleReconnect = useCallback(async () => {
+    setReconnecting(true);
+    await checkConnection();
+    setReconnecting(false);
+  }, []);
 
   const [calendarOpen, setCalendarOpen] = useState(false);
   const openCal = useCallback(() => setCalendarOpen(true), []);
@@ -288,6 +298,22 @@ export default function Header({ activeTab }: HeaderProps) {
         </View>
 
         <View style={styles.spacer} />
+
+        {/* Offline pill */}
+        {isOffline && (
+          <TouchableOpacity
+            style={styles.offlinePill}
+            onPress={handleReconnect}
+            disabled={reconnecting}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="cloud-offline-outline" size={ms(12)} color="#fff" />
+            <Text style={styles.offlinePillText}>
+              {reconnecting ? 'Checking…' : 'Offline'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Date label */}
         {showDateNav && (
@@ -377,6 +403,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(18),
     fontFamily: Fonts.bold,
     lineHeight: ms(21),
+  },
+  offlinePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(4),
+    backgroundColor: '#D32F2F',
+    paddingHorizontal: sw(9),
+    paddingVertical: sw(4),
+    borderRadius: sw(10),
+  },
+  offlinePillText: {
+    color: '#fff',
+    fontSize: ms(11),
+    fontFamily: Fonts.semiBold,
   },
   streakBadge: {
     flexDirection: 'row',

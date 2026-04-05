@@ -23,7 +23,6 @@ import AuthNavigator from './src/navigation/AuthNavigator';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import WelcomeSplashScreen from './src/screens/WelcomeSplashScreen';
 import ChangelogModal from './src/components/home/ChangelogModal';
-import OfflineBanner from './src/components/OfflineBanner';
 import { Fonts } from './src/theme/typography';
 import { getThemeColors } from './src/theme/useColors';
 
@@ -150,7 +149,6 @@ export default function App() {
             : <AuthNavigator />
           }
         </NavigationContainer>
-        <OfflineBanner />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

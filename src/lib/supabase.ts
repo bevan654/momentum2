@@ -50,7 +50,8 @@ function refreshTokenOnce(): Promise<string | null> {
 const autoRetryFetch: typeof globalThis.fetch = async (input, init) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
 
-  if (_forceOffline && !url.includes('/auth/')) {
+  // Block non-auth requests when offline (saves battery — no wasted requests)
+  if ((_forceOffline || useNetworkStore.getState().isOffline) && !url.includes('/auth/')) {
     useNetworkStore.getState().setOffline(true);
     throw new TypeError('Network request failed');
   }
@@ -81,6 +82,30 @@ const autoRetryFetch: typeof globalThis.fetch = async (input, init) => {
     throw err;
   }
 };
+
+/**
+ * Lightweight connectivity check — bypasses the offline block.
+ * Uses raw fetch with a short timeout to ping the Supabase REST endpoint.
+ * Returns true if online.
+ */
+export async function checkConnection(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${supabaseUrl}/rest/v1/`, {
+      method: 'HEAD',
+      headers: { apikey: supabaseAnonKey },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (res.ok || res.status === 400) {
+      // Any response means the server is reachable
+      useNetworkStore.getState().setOffline(false);
+      return true;
+    }
+  } catch {}
+  return false;
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
