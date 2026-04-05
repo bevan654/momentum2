@@ -26,6 +26,7 @@ import CreateMealModal from './CreateMealModal';
 import QuickAddModal from './QuickAddModal';
 import BottomSheet from '../workout-sheet/BottomSheet';
 import { supabase } from '../../lib/supabase';
+import { useNetworkStore } from '../../stores/useNetworkStore';
 
 /* ─── Gemini AI Deep Search ───────────────────────────── */
 
@@ -111,6 +112,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const s = useMemo(() => createStyles(colors), [colors]);
 
   /* ── Store selectors ───────────────────────────────── */
+  const isOffline = useNetworkStore((s) => s.isOffline);
   const userId = useAuthStore((s) => s.user?.id);
   const [deepSearchEnabled, setDeepSearchEnabled] = useState(false);
   const catalogResults = useFoodLogStore((s) => s.catalogResults);
@@ -445,11 +447,18 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
               <Text style={s.actionBtnText}>Make A Meal</Text>
               <Ionicons name="chevron-forward" size={ms(12)} color={colors.textTertiary} />
             </TouchableOpacity>
-            <TouchableOpacity style={s.actionBtn} onPress={handleOpenScanner} activeOpacity={0.7}>
-              <Ionicons name="camera-outline" size={ms(16)} color={colors.accent} />
-              <Text style={s.actionBtnText}>Scan a meal</Text>
-              <Ionicons name="chevron-forward" size={ms(12)} color={colors.textTertiary} />
-            </TouchableOpacity>
+            {isOffline ? (
+              <View style={[s.actionBtn, s.actionBtnDisabled]}>
+                <Ionicons name="cloud-offline-outline" size={ms(16)} color={colors.textTertiary} />
+                <Text style={[s.actionBtnText, { color: colors.textTertiary }]}>Scan a meal</Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={s.actionBtn} onPress={handleOpenScanner} activeOpacity={0.7}>
+                <Ionicons name="camera-outline" size={ms(16)} color={colors.accent} />
+                <Text style={s.actionBtnText}>Scan a meal</Text>
+                <Ionicons name="chevron-forward" size={ms(12)} color={colors.textTertiary} />
+              </TouchableOpacity>
+            )}
           </View>
           <View style={s.actionRow}>
             <TouchableOpacity style={s.actionBtn} onPress={handleOpenQuickAdd} activeOpacity={0.7}>
@@ -464,16 +473,17 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
           </View>
 
           {/* Search bar */}
-          <View style={s.searchRow}>
-            <Ionicons name="search" size={ms(14)} color={colors.textTertiary + '80'} />
+          <View style={[s.searchRow, isOffline && { opacity: 0.5 }]}>
+            <Ionicons name={isOffline ? 'cloud-offline-outline' : 'search'} size={ms(14)} color={colors.textTertiary + '80'} />
             <TextInput
               style={s.searchText}
-              placeholder="Search foods, brands, recipes..."
+              placeholder={isOffline ? 'Search requires connection' : 'Search foods, brands, recipes...'}
               placeholderTextColor={colors.textTertiary + '50'}
               value={query}
               onChangeText={handleSearch}
               autoFocus={false}
               returnKeyType="search"
+              editable={!isOffline}
             />
             {query.length > 0 && (
               <TouchableOpacity onPress={() => { setQuery(''); clearSearch(); }} hitSlop={8} style={s.searchClearBtn}>
@@ -575,7 +585,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
                           ))}
                         </>
                       )}
-                      {hasPopular && (
+                      {hasPopular && !isOffline && (
                         <>
                           <Text style={s.sectionLabel}>Popular</Text>
                           {popularFoods.map((item) => (
@@ -583,7 +593,16 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
                           ))}
                         </>
                       )}
-                      {!hasRecent && !hasPopular && (
+                      {isOffline && (
+                        <>
+                          <Text style={s.sectionLabel}>Popular</Text>
+                          <View style={s.offlineHint}>
+                            <Ionicons name="cloud-offline-outline" size={ms(16)} color={colors.textTertiary} />
+                            <Text style={s.offlineHintText}>Needs a connection</Text>
+                          </View>
+                        </>
+                      )}
+                      {!hasRecent && !hasPopular && !isOffline && (
                         <View style={s.tabEmptyState}>
                           <Text style={s.emptyText}>No recent or popular foods yet</Text>
                         </View>
@@ -824,6 +843,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   tabEmptyState: {
     alignItems: 'center',
     paddingVertical: sw(24),
+  },
+  offlineHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(6),
+    paddingVertical: sw(16),
+    paddingHorizontal: sw(4),
+  },
+  offlineHintText: {
+    color: colors.textTertiary,
+    fontSize: ms(13),
+    fontFamily: Fonts.medium,
   },
   /* Not-found banner */
   notFoundBanner: {

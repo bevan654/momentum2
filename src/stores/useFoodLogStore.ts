@@ -109,6 +109,7 @@ const DEFAULT_MEALS: MealConfig[] = [
 const ENTRIES_CACHE_KEY = '@momentum_food_entries';
 const GOALS_CACHE_KEY = '@momentum_food_goals';
 const MEALS_CACHE_KEY = '@momentum_meal_configs';
+const RECENT_FOODS_CACHE_KEY = '@momentum_recent_foods';
 
 /* ─── Helpers ──────────────────────────────────────────── */
 
@@ -123,8 +124,19 @@ function dateRange(dateStr: string) {
   return { start, end };
 }
 
-function cacheEntries(date: string, entries: FoodEntry[]) {
-  AsyncStorage.setItem(ENTRIES_CACHE_KEY, JSON.stringify({ date, entries })).catch(() => {});
+async function cacheEntries(date: string, entries: FoodEntry[]) {
+  try {
+    const raw = await AsyncStorage.getItem(ENTRIES_CACHE_KEY);
+    const cache: Record<string, FoodEntry[]> = raw ? JSON.parse(raw) : {};
+    cache[date] = entries;
+
+    // Keep only last 7 days
+    const dates = Object.keys(cache).sort().reverse();
+    const trimmed: Record<string, FoodEntry[]> = {};
+    for (const d of dates.slice(0, 7)) trimmed[d] = cache[d];
+
+    await AsyncStorage.setItem(ENTRIES_CACHE_KEY, JSON.stringify(trimmed));
+  } catch {}
 }
 
 function cacheGoals(goals: NutritionGoals) {
@@ -313,14 +325,14 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       try {
         const raw = await AsyncStorage.getItem(ENTRIES_CACHE_KEY);
         if (raw) {
-          const cached = JSON.parse(raw);
-          if (cached.date === dateStr) {
-            set({ entries: cached.entries, loading: false });
+          const cache: Record<string, FoodEntry[]> = JSON.parse(raw);
+          if (cache[dateStr]) {
+            set({ entries: cache[dateStr], loading: false });
             return;
           }
         }
       } catch {}
-      set({ loading: false });
+      set({ entries: [], loading: false });
     }
   },
 
@@ -875,6 +887,17 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       serving_size: Number(d.serving_size || 100),
     }));
 
-    set({ recentFoods, popularFoods });
+    if (recentFoods.length > 0) {
+      set({ recentFoods, popularFoods });
+      AsyncStorage.setItem(RECENT_FOODS_CACHE_KEY, JSON.stringify(recentFoods)).catch(() => {});
+    } else if (!recentRes.data) {
+      // Offline — load recents from cache
+      try {
+        const raw = await AsyncStorage.getItem(RECENT_FOODS_CACHE_KEY);
+        if (raw) set({ recentFoods: JSON.parse(raw) });
+      } catch {}
+    } else {
+      set({ recentFoods, popularFoods });
+    }
   },
 }));
