@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabase';
 
 const QUEUE_KEY = '@momentum_sync_queue';
 
@@ -52,6 +51,9 @@ export async function flushQueue(): Promise<void> {
   try {
     const queue = await loadQueue();
     if (queue.length === 0) return;
+
+    // Lazy import to avoid circular dependency
+    const { supabase } = require('./supabase');
 
     const remaining: SyncOp[] = [];
 
