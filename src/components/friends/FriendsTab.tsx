@@ -125,7 +125,7 @@ export default function FriendsTab() {
         </View>
 
         {/* Notifications overlay */}
-        {overlayMode === 'notifications' && !isOffline && (
+        {overlayMode === 'notifications' && (
           <Animated.View style={[styles.overlayLayer, overlayLayerStyle]}>
             <NotificationList />
           </Animated.View>

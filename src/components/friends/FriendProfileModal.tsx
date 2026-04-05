@@ -11,6 +11,7 @@ import { getFriendStats, getFriendshipBetween } from '../../lib/friendsDatabase'
 import { globalNavigate } from '../../navigation/navigationRef';
 import BottomSheet from '../workout-sheet/BottomSheet';
 import AvatarCircle from './AvatarCircle';
+import { useNetworkStore } from '../../stores/useNetworkStore';
 
 export default function FriendProfileModal() {
   const friend = useFriendsStore((s) => s.profileSheetFriend);
@@ -18,6 +19,7 @@ export default function FriendProfileModal() {
   const hideProfileSheet = useFriendsStore((s) => s.hideProfileSheet);
   const userId = useAuthStore((s) => s.user?.id);
   const removeFriend = useFriendsStore((s) => s.removeFriend);
+  const isOffline = useNetworkStore((s) => s.isOffline);
   const [stats, setStats] = useState<{ workoutCount: number; totalVolume: number; streak: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const colors = useColors();
@@ -98,7 +100,12 @@ export default function FriendProfileModal() {
       </View>
 
       {/* Stats */}
-      {loading ? (
+      {isOffline ? (
+        <View style={styles.offlineHint}>
+          <Ionicons name="cloud-offline-outline" size={ms(20)} color={colors.textTertiary} />
+          <Text style={styles.offlineHintText}>Stats unavailable offline</Text>
+        </View>
+      ) : loading ? (
         <ActivityIndicator color={colors.textSecondary} style={styles.loader} />
       ) : stats ? (
         <View style={styles.statsRow}>
@@ -121,22 +128,37 @@ export default function FriendProfileModal() {
 
       {/* Actions */}
       <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.messageBtn}
-          onPress={handleMessage}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chatbubble-outline" size={ms(16)} color={colors.accent} />
-          <Text style={styles.messageBtnText}>Message</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.removeBtn}
-          onPress={handleRemove}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="person-remove-outline" size={ms(16)} color={colors.accentRed} />
-          <Text style={styles.removeBtnText}>Remove Friend</Text>
-        </TouchableOpacity>
+        {isOffline ? (
+          <>
+            <View style={[styles.messageBtn, { opacity: 0.4 }]}>
+              <Ionicons name="cloud-offline-outline" size={ms(16)} color={colors.textTertiary} />
+              <Text style={[styles.messageBtnText, { color: colors.textTertiary }]}>Message</Text>
+            </View>
+            <View style={[styles.removeBtn, { opacity: 0.4 }]}>
+              <Ionicons name="cloud-offline-outline" size={ms(16)} color={colors.textTertiary} />
+              <Text style={[styles.removeBtnText, { color: colors.textTertiary }]}>Remove Friend</Text>
+            </View>
+          </>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={styles.messageBtn}
+              onPress={handleMessage}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="chatbubble-outline" size={ms(16)} color={colors.accent} />
+              <Text style={styles.messageBtnText}>Message</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.removeBtn}
+              onPress={handleRemove}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="person-remove-outline" size={ms(16)} color={colors.accentRed} />
+              <Text style={styles.removeBtnText}>Remove Friend</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </BottomSheet>
   );
@@ -175,6 +197,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   loader: {
     marginVertical: sw(20),
+  },
+  offlineHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(8),
+    paddingVertical: sw(20),
+    marginHorizontal: sw(16),
+  },
+  offlineHintText: {
+    color: colors.textTertiary,
+    fontSize: ms(14),
+    fontFamily: Fonts.medium,
   },
   statsRow: {
     flexDirection: 'row',

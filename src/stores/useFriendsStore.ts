@@ -37,6 +37,8 @@ import {
 const FEED_PAGE_SIZE = 15;
 const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 const FRIENDS_CACHE_KEY = '@momentum_friends_cache';
+const NOTIF_CACHE_KEY = '@momentum_notifications_cache';
+const NOTIF_CACHE_LIMIT = 20;
 const MAX_FEED_ITEMS = 100;
 const MAX_NOTIFICATIONS = 100;
 const MAX_COMMENT_THREADS = 30;
@@ -305,21 +307,41 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
 
     set({ notificationsLoading: true });
     try {
+      const { useNetworkStore } = require('./useNetworkStore');
+      if (useNetworkStore.getState().isOffline) throw new Error('offline');
+
       const items = await dbGetNotifications(userId, FEED_PAGE_SIZE, offset);
       const merged = reset ? items : [...get().notifications, ...items];
+      const capped = merged.slice(0, MAX_NOTIFICATIONS);
       set({
-        notifications: merged.slice(0, MAX_NOTIFICATIONS),
+        notifications: capped,
         notifPage: page + 1,
         notifHasMore: items.length === FEED_PAGE_SIZE,
       });
+      // Cache a small batch for offline
+      if (reset && capped.length > 0) {
+        AsyncStorage.setItem(NOTIF_CACHE_KEY, JSON.stringify(capped.slice(0, NOTIF_CACHE_LIMIT))).catch(() => {});
+      }
+    } catch {
+      // Network error — load from cache
+      if (get().notifications.length === 0) {
+        try {
+          const raw = await AsyncStorage.getItem(NOTIF_CACHE_KEY);
+          if (raw) set({ notifications: JSON.parse(raw), notifHasMore: false });
+        } catch {}
+      }
     } finally {
       set({ notificationsLoading: false });
     }
   },
 
   fetchUnreadCount: async (userId) => {
-    const count = await dbGetUnreadCount(userId);
-    set({ unreadCount: count });
+    try {
+      const count = await dbGetUnreadCount(userId);
+      set({ unreadCount: count });
+    } catch {
+      // Keep existing count when offline
+    }
   },
 
   markNotificationRead: async (notificationId) => {

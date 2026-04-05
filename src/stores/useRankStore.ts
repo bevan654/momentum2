@@ -1,7 +1,10 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useWeightStore } from './useWeightStore';
+
+const RANK_CACHE_KEY = '@momentum_rank_cache';
 import {
   estimateOneRepMax,
   effectiveLoad,
@@ -222,8 +225,35 @@ export const useRankStore = create<RankState>((set, get) => ({
         lastComputed: Date.now(),
       });
 
+      // Cache locally + persist to DB
+      AsyncStorage.setItem(RANK_CACHE_KEY, JSON.stringify({
+        bestSets, muscleScores: result.muscleScores, slugScores: result.slugScores,
+        overallScore: result.overallScore, rank: result.rank,
+        diversityBonus: result.diversityBonus, totalWorkouts, isProvisional: result.isProvisional,
+      })).catch(() => {});
+
       get()._persistRank(userId);
     } catch {
+      // Network error — load from local cache
+      if (get().lastComputed === null) {
+        try {
+          const raw = await AsyncStorage.getItem(RANK_CACHE_KEY);
+          if (raw) {
+            const cached = JSON.parse(raw);
+            set({
+              bestSets: cached.bestSets || {},
+              muscleScores: cached.muscleScores || {},
+              slugScores: cached.slugScores || {},
+              overallScore: cached.overallScore || 0,
+              rank: cached.rank || DEFAULT_RANK,
+              diversityBonus: cached.diversityBonus || 0,
+              totalWorkouts: cached.totalWorkouts || 0,
+              isProvisional: cached.isProvisional ?? true,
+              lastComputed: Date.now(),
+            });
+          }
+        } catch {}
+      }
       set({ loading: false });
     }
   },
@@ -307,24 +337,41 @@ export const useRankStore = create<RankState>((set, get) => ({
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (!data) return;
+      if (data) {
+        set({
+          bestSets: (data.best_sets as Record<string, BestSetEntry>) || {},
+          muscleScores: (data.muscle_scores as Partial<Record<MuscleGroup, MuscleScoreDetail>>) || {},
+          slugScores: (data.slug_scores as Partial<Record<string, SlugScoreDetail>>) || {},
+          overallScore: Number(data.overall_score) || 0,
+          rank: {
+            ...getOverallRank(Number(data.overall_score) || 0),
+            progress: Number(data.rank_progress) || 0,
+          },
+          diversityBonus: Number(data.diversity_bonus) || 0,
+          totalWorkouts: data.total_workouts ?? 0,
+          isProvisional: data.is_provisional ?? true,
+        });
+        return;
+      }
+    } catch {}
 
-      set({
-        bestSets: (data.best_sets as Record<string, BestSetEntry>) || {},
-        muscleScores: (data.muscle_scores as Partial<Record<MuscleGroup, MuscleScoreDetail>>) || {},
-        slugScores: (data.slug_scores as Partial<Record<string, SlugScoreDetail>>) || {},
-        overallScore: Number(data.overall_score) || 0,
-        rank: {
-          ...getOverallRank(Number(data.overall_score) || 0),
-          progress: Number(data.rank_progress) || 0,
-        },
-        diversityBonus: Number(data.diversity_bonus) || 0,
-        totalWorkouts: data.total_workouts ?? 0,
-        isProvisional: data.is_provisional ?? true,
-      });
-    } catch {
-      // Silently fail — computeRank will overwrite shortly
-    }
+    // DB unavailable — try local cache
+    try {
+      const raw = await AsyncStorage.getItem(RANK_CACHE_KEY);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        set({
+          bestSets: cached.bestSets || {},
+          muscleScores: cached.muscleScores || {},
+          slugScores: cached.slugScores || {},
+          overallScore: cached.overallScore || 0,
+          rank: cached.rank || DEFAULT_RANK,
+          diversityBonus: cached.diversityBonus || 0,
+          totalWorkouts: cached.totalWorkouts || 0,
+          isProvisional: cached.isProvisional ?? true,
+        });
+      }
+    } catch {}
   },
 
   /* ─── Persist rank to DB (fire-and-forget) ──────────── */
