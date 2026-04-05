@@ -8,7 +8,6 @@ import { useRoutineStore, type Routine } from '../../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { useProgramStore, type ProgramDayExercise } from '../../stores/useProgramStore';
-import { hideRecoveryOverlay } from '../../lib/navigationBridge';
 
 const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -140,7 +139,6 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
                     exercise_type: e.exercise_type,
                   })),
                 };
-                hideRecoveryOverlay();
                 startFromProgram(pseudoRoutine, catalogMap, prevMap, activeProgram.id, week);
               }}
             >
@@ -195,7 +193,6 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
               style={styles.todayStartBtn}
               activeOpacity={0.7}
               onPress={() => {
-                hideRecoveryOverlay();
                 startFromRoutine(routine, catalogMap, prevMap);
               }}
             >
