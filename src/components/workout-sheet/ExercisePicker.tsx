@@ -42,34 +42,47 @@ function muscleColor(muscle: string): string {
 import { useAuthStore } from '../../stores/useAuthStore';
 import CreateCustomExerciseModal from './CreateCustomExerciseModal';
 
-/* ─── External API search ─────────────────────────────── */
+/* ─── External API search (wger.de) ──────────────────── */
 
-const EXERCISEDB_URL = 'https://exercisedb.dev/api/v1/exercises/search';
+const WGER_SEARCH_URL = 'https://wger.de/api/v2/exercise/search/?language=2&format=json';
 
-interface ApiExercise {
-  exerciseId: string;
-  name: string;
-  targetMuscles: string[];
-  bodyParts: string[];
-  equipments: string[];
-  secondaryMuscles: string[];
-}
+/** Wger muscle IDs → canonical muscle names */
+const WGER_MUSCLE_MAP: Record<number, string> = {
+  1: 'biceps',        // Biceps brachii
+  2: 'shoulders',     // Anterior deltoid
+  3: 'abs',           // Serratus anterior
+  4: 'chest',         // Pectoralis major
+  5: 'triceps',       // Triceps brachii
+  6: 'abs',           // Rectus abdominis
+  7: 'calves',        // Gastrocnemius
+  8: 'glutes',        // Gluteus maximus
+  9: 'traps',         // Trapezius
+  10: 'quads',        // Quadriceps femoris
+  11: 'hamstrings',   // Biceps femoris
+  12: 'lats',         // Latissimus dorsi
+  13: 'biceps',       // Brachialis
+  14: 'obliques',     // Obliquus externus abdominis
+  15: 'calves',       // Soleus
+};
 
-function mapApiCategory(bodyParts: string[]): string {
-  const bp = (bodyParts[0] || '').toLowerCase();
-  const MAP: Record<string, string> = {
-    chest: 'chest', back: 'back', shoulders: 'shoulders',
-    'upper arms': 'biceps', 'lower arms': 'forearms',
-    'upper legs': 'quadriceps', 'lower legs': 'calves',
-    waist: 'abs', cardio: 'cardio', neck: 'neck',
+/** Wger category IDs → UI category strings */
+const WGER_CATEGORY_MAP: Record<number, string> = {
+  8: 'Arms', 9: 'Legs', 10: 'Core', 11: 'Chest',
+  12: 'Back', 13: 'Shoulders', 14: 'Legs', 15: 'Cardio',
+};
+
+/** Wger equipment IDs → exercise type */
+const WGER_BW_EQUIPMENT = new Set([7]); // 7 = "none (bodyweight)"
+
+interface WgerSearchResult {
+  value: string;  // exercise name
+  data: {
+    id: number;
+    category: { id: number; name: string };
+    muscles: { id: number; name: string; name_en: string }[];
+    muscles_secondary: { id: number; name: string; name_en: string }[];
+    equipment: { id: number; name: string }[];
   };
-  return MAP[bp] || bp || 'other';
-}
-
-function mapApiExerciseType(equipments: string[]): string {
-  const eq = (equipments[0] || '').toLowerCase();
-  if (eq === 'body weight') return 'bodyweight';
-  return 'weighted';
 }
 
 /* ─── Constants ───────────────────────────────────────── */
@@ -574,18 +587,25 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     if (!q || apiSearching) return;
     setApiSearching(true);
     try {
-      const res = await fetch(`${EXERCISEDB_URL}?q=${encodeURIComponent(q)}&limit=30`);
+      const res = await fetch(`${WGER_SEARCH_URL}&term=${encodeURIComponent(q)}`);
       if (!res.ok) throw new Error(`API ${res.status}`);
       const json = await res.json();
-      const data: ApiExercise[] = json.data || [];
-      const mapped: CatalogEntry[] = data.map((ex) => ({
-        name: ex.name,
-        category: mapApiCategory(ex.bodyParts),
-        exercise_type: mapApiExerciseType(ex.equipments),
-        primary_muscles: ex.targetMuscles || [],
-        secondary_muscles: ex.secondaryMuscles || [],
-        done: false,
-      }));
+      const suggestions: WgerSearchResult[] = json.suggestions || [];
+      const mapped: CatalogEntry[] = suggestions.map((s) => {
+        const d = s.data;
+        const primary = d.muscles?.map((m) => WGER_MUSCLE_MAP[m.id] || '').filter(Boolean) || [];
+        const secondary = d.muscles_secondary?.map((m) => WGER_MUSCLE_MAP[m.id] || '').filter(Boolean) || [];
+        const category = d.category ? (WGER_CATEGORY_MAP[d.category.id] || d.category.name || 'Custom') : 'Custom';
+        const isBw = d.equipment?.some((e) => WGER_BW_EQUIPMENT.has(e.id)) && d.equipment.length === 1;
+        return {
+          name: s.value,
+          category,
+          exercise_type: isBw ? 'bodyweight' : 'weighted',
+          primary_muscles: primary,
+          secondary_muscles: secondary,
+          done: false,
+        };
+      });
       setApiResults(mapped);
       setShowApiResults(true);
     } catch {
@@ -601,12 +621,31 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
   }, [search, apiSearching]);
 
   const handleSelect = useCallback(
-    (name: string, category: string, exerciseType: string) => {
+    async (name: string, category: string, exerciseType: string) => {
+      // If selected from API results, auto-save as user exercise with muscle data
+      if (showApiResults && userId) {
+        const apiEntry = apiResults.find((e) => e.name === name);
+        if (apiEntry && !catalogMap[name]) {
+          try {
+            await createUserExercise({
+              userId,
+              name: apiEntry.name,
+              category: apiEntry.category || 'Custom',
+              exerciseType: apiEntry.exercise_type,
+              primaryMuscles: apiEntry.primary_muscles,
+              secondaryMuscles: apiEntry.secondary_muscles,
+              equipment: [],
+            });
+          } catch {
+            // Duplicate or error — still allow selection, catalog lookup will handle it
+          }
+        }
+      }
       onSelect(name, exerciseType, category);
       setSearch('');
       onClose();
     },
-    [onSelect, onClose],
+    [onSelect, onClose, showApiResults, apiResults, userId, catalogMap, createUserExercise],
   );
 
   const handleOpenCreateModal = useCallback(() => {
