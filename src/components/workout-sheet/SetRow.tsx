@@ -47,6 +47,7 @@ interface Props {
   onUpdate: (field: 'kg' | 'reps', value: string) => void;
   onToggle: () => void;
   onCycleSetType: () => void;
+  onBadgeLongPress?: (pageY: number) => void;
   onDelete: (() => void) | null;
   onInputFocus?: (y: number) => void;
   isGhost?: boolean;
@@ -78,7 +79,7 @@ const isDuration = (t?: ExerciseType) => t === 'duration';
 
 /* ── Component ─────────────────────────────────────────── */
 
-function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps, exerciseType, onUpdate, onToggle, onCycleSetType, onDelete, onInputFocus, isGhost, ghostResult, isDropSet, dropIndex }: Props) {
+function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps, exerciseType, onUpdate, onToggle, onCycleSetType, onBadgeLongPress, onDelete, onInputFocus, isGhost, ghostResult, isDropSet, dropIndex }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -176,6 +177,16 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
     Haptics.selectionAsync();
     onCycleSetType();
   }, [onCycleSetType]);
+
+  const badgeRef = useRef<View>(null);
+  const handleBadgeLongPress = useCallback(() => {
+    if (onBadgeLongPress) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      badgeRef.current?.measureInWindow((_x, y, _w, h) => {
+        onBadgeLongPress(y + h / 2);
+      });
+    }
+  }, [onBadgeLongPress]);
 
   /* ── JS-thread callbacks for gestures ─────────────── */
 
@@ -323,7 +334,9 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
 
           {/* Set number / type badge */}
           <Pressable
+            ref={badgeRef}
             onPress={handleCycleType}
+            onLongPress={handleBadgeLongPress}
             style={({ pressed }) => [
               styles.setNumBadge,
               { backgroundColor: typeConfig.bg },
