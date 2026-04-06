@@ -258,7 +258,7 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
   const SET_TYPE_CONFIG: Record<string, { bg: string; color: string; label: string | null }> = {
     working: { bg: colors.surface, color: colors.textSecondary, label: null },
     warmup: { bg: colors.accentOrange + '18', color: colors.accentOrange, label: 'W' },
-    drop: { bg: colors.accentPink + '18', color: colors.accentPink, label: 'D' },
+    drop: { bg: colors.accentBabyBlue + '18', color: colors.accentBabyBlue, label: 'D' },
     failure: { bg: colors.accentRed + '18', color: colors.accentRed, label: 'F' },
   };
 
@@ -547,7 +547,7 @@ const createStyles = (colors: ThemeColors) =>
       top: 0,
       bottom: 0,
       width: 2,
-      backgroundColor: colors.accentPink + '30',
+      backgroundColor: colors.accentBabyBlue + '30',
       borderRadius: 1,
     },
 
