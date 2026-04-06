@@ -24,12 +24,7 @@ const CARD_PAD = sw(12);
 
 /* ─── Component ──────────────────────────────────────────── */
 
-type Props = {
-  expanded?: boolean;
-  onToggle?: () => void;
-};
-
-export default function AiHeroCard({ expanded, onToggle }: Props) {
+export default function AiHeroCard() {
   const colors = useColors();
   const profile = useAuthStore((s) => s.profile);
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -37,8 +32,8 @@ export default function AiHeroCard({ expanded, onToggle }: Props) {
   const firstName = profile?.username?.split(' ')[0] ?? 'there';
 
   return (
-    <View style={[styles.card, expanded && styles.cardExpanded]}>
-      {/* Greeting + expand toggle */}
+    <View style={styles.card}>
+      {/* Greeting */}
       <View style={styles.greetingRow}>
         <View style={[styles.sparkleWrap, { backgroundColor: colors.accent + '15' }]}>
           <Ionicons name="sparkles" size={ms(14)} color={colors.accent} />
@@ -47,13 +42,6 @@ export default function AiHeroCard({ expanded, onToggle }: Props) {
           <Text style={styles.greeting}>Hey {firstName}</Text>
           <Text style={styles.subGreeting}>AI assistant</Text>
         </View>
-        <Pressable onPress={onToggle} style={styles.expandBtn}>
-          <Ionicons
-            name={expanded ? 'chevron-back' : 'chevron-forward'}
-            size={ms(14)}
-            color={colors.textTertiary}
-          />
-        </Pressable>
       </View>
 
       {/* Fake chat messages */}
@@ -115,7 +103,6 @@ export default function AiHeroCard({ expanded, onToggle }: Props) {
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     card: {
-      flex: 65,
       backgroundColor: colors.card,
       borderRadius: 0,
       borderWidth: 1,
@@ -126,10 +113,6 @@ const createStyles = (colors: ThemeColors) =>
       ...colors.cardShadow,
     },
 
-    cardExpanded: {
-      flex: 1,
-    },
-
     /* Greeting */
     greetingRow: {
       flexDirection: 'row',
@@ -138,16 +121,6 @@ const createStyles = (colors: ThemeColors) =>
     },
     greetingText: {
       flex: 1,
-    },
-    expandBtn: {
-      width: sw(26),
-      height: sw(26),
-      borderRadius: sw(13),
-      backgroundColor: colors.surface,
-      borderWidth: 0.5,
-      borderColor: colors.cardBorder,
-      alignItems: 'center',
-      justifyContent: 'center',
     },
     sparkleWrap: {
       width: sw(28),
