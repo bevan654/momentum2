@@ -111,6 +111,7 @@ export default function ShareHub({ visible, onClose, initialWorkout }: Props) {
           reps: s.reps,
           completed: s.completed,
           set_type: s.set_type || 'working',
+          parent_set_number: s.parent_set_number ?? null,
         })),
       })),
       duration: selectedWorkout.duration,

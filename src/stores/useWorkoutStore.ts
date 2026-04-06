@@ -12,6 +12,7 @@ export interface SetData {
   reps: number;
   completed: boolean;
   set_type: string | null;
+  parent_set_number: number | null;
   isPR: boolean;
 }
 
@@ -231,7 +232,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
 
       const { data: exercisesData } = await supabase
         .from('exercises')
-        .select('id, workout_id, name, exercise_order, exercise_type, sets(id, set_number, kg, reps, completed, set_type)')
+        .select('id, workout_id, name, exercise_order, exercise_type, sets(id, set_number, kg, reps, completed, set_type, parent_set_number)')
         .in('workout_id', workoutIds)
         .order('exercise_order', { ascending: true });
 
@@ -324,6 +325,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
               reps,
               completed: s.completed,
               set_type: s.set_type,
+              parent_set_number: s.parent_set_number ?? null,
               isPR,
             };
           });
@@ -380,7 +382,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       // Fetch exercises for this workout
       const { data: exercisesData } = await supabase
         .from('exercises')
-        .select('id, workout_id, name, exercise_order, exercise_type, sets(id, set_number, kg, reps, completed, set_type)')
+        .select('id, workout_id, name, exercise_order, exercise_type, sets(id, set_number, kg, reps, completed, set_type, parent_set_number)')
         .eq('workout_id', workoutId)
         .order('exercise_order', { ascending: true });
 
@@ -487,6 +489,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
             reps,
             completed: s.completed,
             set_type: s.set_type,
+            parent_set_number: s.parent_set_number ?? null,
             isPR,
           };
         });
