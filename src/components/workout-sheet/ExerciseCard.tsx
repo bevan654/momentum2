@@ -1,10 +1,11 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   Pressable,
   StyleSheet,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -113,6 +114,15 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const themeMode = useThemeStore((s) => s.mode);
   const isGhost = !!useActiveWorkoutStore((s) => s.ghostUserName);
+
+  // Long-press context menu state
+  const [contextMenu, setContextMenu] = useState<{ setIdx: number; y: number } | null>(null);
+
+  const handleBadgeLongPress = useCallback((setIdx: number, pageY: number) => {
+    setContextMenu({ setIdx, y: pageY });
+  }, []);
+
+  const dismissContextMenu = useCallback(() => setContextMenu(null), []);
 
   // Build body highlight data + focus region
   const { bodyData, focusY, bodySide, hasMuscles } = useMemo(() => {
@@ -378,6 +388,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                   onUpdate={(field, value) => { onExerciseFocus?.(exerciseIndex); updateSet(exerciseIndex, setIdx, field, value); }}
                   onToggle={() => { onExerciseFocus?.(exerciseIndex); toggleSetComplete(exerciseIndex, setIdx); }}
                   onCycleSetType={() => cycleSetType(exerciseIndex, setIdx)}
+                  onBadgeLongPress={!isGhost && !isDropSetRow ? (pageY: number) => handleBadgeLongPress(setIdx, pageY) : undefined}
                   onDelete={exercise.sets.length > 1 && !isGhost ? () => removeSet(exerciseIndex, setIdx) : null}
                   onInputFocus={(y) => { onExerciseFocus?.(exerciseIndex); onInputFocus?.(y); }}
                   isGhost={isGhost}
@@ -427,6 +438,36 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
             )}
       </View>
     </Swipeable>
+
+      {/* Long-press context menu */}
+      {contextMenu && (
+        <Modal transparent animationType="fade" onRequestClose={dismissContextMenu}>
+          <Pressable style={styles.menuOverlay} onPress={dismissContextMenu}>
+            <View style={[styles.menuContainer, { top: contextMenu.y - sw(44) }]}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                activeOpacity={0.7}
+                onPress={() => {
+                  addDropSet(exerciseIndex, contextMenu.setIdx);
+                  dismissContextMenu();
+                }}
+              >
+                <Ionicons name="arrow-down" size={ms(15)} color={colors.accentPink} />
+                <Text style={[styles.menuItemText, { color: colors.accentPink }]}>Add Drop Set</Text>
+              </TouchableOpacity>
+              <View style={styles.menuDivider} />
+              <TouchableOpacity
+                style={[styles.menuItem, styles.actionBtnDisabled]}
+                activeOpacity={0.7}
+                disabled
+              >
+                <Ionicons name="git-compare-outline" size={ms(15)} color={colors.textSecondary} />
+                <Text style={[styles.menuItemText, { color: colors.textSecondary }]}>Add Superset</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
     </Pressable>
   );
 }
@@ -552,5 +593,42 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(11),
     fontFamily: Fonts.semiBold,
     lineHeight: ms(14),
+  },
+
+  // Context menu
+  menuOverlay: {
+    flex: 1,
+  },
+  menuContainer: {
+    position: 'absolute',
+    left: sw(40),
+    backgroundColor: colors.card,
+    borderRadius: sw(10),
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    paddingVertical: sw(4),
+    minWidth: sw(160),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: sw(10),
+    paddingHorizontal: sw(14),
+    gap: sw(8),
+  },
+  menuItemText: {
+    fontSize: ms(13),
+    fontFamily: Fonts.semiBold,
+    lineHeight: ms(16),
+  },
+  menuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.cardBorder,
+    marginHorizontal: sw(10),
   },
 });
