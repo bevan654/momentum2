@@ -155,9 +155,22 @@ function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercis
       {/* Set rows */}
       {completedSets.map((s, i) => {
         const prev = prevSets?.[i];
+        const isDropRow = s.set_type === 'drop' && s.parent_set_number != null;
+        let dropLabel: string | null = null;
+        if (isDropRow) {
+          let count = 0;
+          for (let j = 0; j < i; j++) {
+            if (completedSets[j].set_type === 'drop' && completedSets[j].parent_set_number === s.parent_set_number) count++;
+          }
+          dropLabel = `D${count + 1}`;
+        }
         return (
-          <View key={s.id} style={styles.summarySetRow}>
-            <Text style={[styles.summarySetNum, styles.colSet]}>{i + 1}</Text>
+          <View key={s.id} style={[styles.summarySetRow, isDropRow && { marginLeft: sw(12) }]}>
+            {isDropRow ? (
+              <Text style={[styles.summarySetNum, styles.colSet, { color: colors.accentPink }]}>{dropLabel}</Text>
+            ) : (
+              <Text style={[styles.summarySetNum, styles.colSet]}>{i + 1}</Text>
+            )}
             <Text style={[styles.summaryPrevText, styles.colPrev]}>
               {prev
                 ? timed ? formatTimeSecs(prev.reps)
@@ -262,9 +275,23 @@ function SummaryExerciseSection({ exercise, colors, styles, prevSets }: { exerci
       {/* Set rows */}
       {completedSets.map((s, i) => {
         const prev = prevSets?.[i];
+        const isDropRow = s.set_type === 'drop' && s.parent_set_number != null;
+        // Compute drop ordinal
+        let dropLabel: string | null = null;
+        if (isDropRow) {
+          let count = 0;
+          for (let j = 0; j < i; j++) {
+            if (completedSets[j].set_type === 'drop' && completedSets[j].parent_set_number === s.parent_set_number) count++;
+          }
+          dropLabel = `D${count + 1}`;
+        }
         return (
-          <View key={i} style={styles.summarySetRow}>
-            <Text style={[styles.summarySetNum, styles.colSet]}>{i + 1}</Text>
+          <View key={i} style={[styles.summarySetRow, isDropRow && { marginLeft: sw(12) }]}>
+            {isDropRow ? (
+              <Text style={[styles.summarySetNum, styles.colSet, { color: colors.accentPink }]}>{dropLabel}</Text>
+            ) : (
+              <Text style={[styles.summarySetNum, styles.colSet]}>{i + 1}</Text>
+            )}
             <Text style={[styles.summaryPrevText, styles.colPrev]}>
               {prev
                 ? timed ? formatTimeSecs(prev.reps)
@@ -821,7 +848,7 @@ export default function WorkoutSummaryModal(props: Props) {
       isJustCompleted ? (data as WorkoutSummary).exercises
         : (data as WorkoutWithDetails).exercises.map((ex) => ({
             name: ex.name, category: ex.category, exercise_type: ex.exercise_type || 'weighted',
-            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed, set_type: s.set_type || 'working' })),
+            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed, set_type: s.set_type || 'working', parent_set_number: s.parent_set_number ?? null })),
           }))
     );
     let bestKg = 0;
@@ -1012,6 +1039,7 @@ export default function WorkoutSummaryModal(props: Props) {
           reps: parseInt(s.reps, 10) || 0,
           completed: s.completed,
           set_type: s.set_type,
+          parent_set_number: null,
         })),
       }));
 
@@ -1141,7 +1169,7 @@ export default function WorkoutSummaryModal(props: Props) {
             name: ex.name,
             category: ex.category,
             exercise_type: ex.exercise_type || 'weighted',
-            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed, set_type: s.set_type || 'working' })),
+            sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed, set_type: s.set_type || 'working', parent_set_number: s.parent_set_number ?? null })),
           }))
     ),
     duration: displayDuration,

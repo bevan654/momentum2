@@ -49,7 +49,7 @@ export interface SummaryExercise {
   name: string;
   category: string | null;
   exercise_type: string;
-  sets: { kg: number; reps: number; completed: boolean; set_type: string }[];
+  sets: { kg: number; reps: number; completed: boolean; set_type: string; parent_set_number: number | null }[];
 }
 
 export interface GhostExerciseData {
@@ -165,6 +165,7 @@ interface ActiveWorkoutState {
 
   // Set management
   addSet: (exerciseIndex: number) => void;
+  addDropSet: (exerciseIndex: number, parentSetIndex: number) => void;
   removeSet: (exerciseIndex: number, setIndex: number) => void;
   updateSet: (exerciseIndex: number, setIndex: number, field: 'kg' | 'reps', value: string) => void;
   toggleSetComplete: (exerciseIndex: number, setIndex: number) => void;
@@ -670,6 +671,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         reps: parseInt(s.reps, 10) || 0,
         completed: s.completed,
         set_type: s.set_type,
+        parent_set_number: s.parent_set_number,
       })),
     }));
 
@@ -921,12 +923,78 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     get()._persist();
   },
 
+  addDropSet: (exerciseIndex, parentSetIndex) => {
+    set((s) => {
+      const exercises = [...s.exercises];
+      const ex = { ...exercises[exerciseIndex] };
+      const sets = [...ex.sets];
+      const parentSetNumber = parentSetIndex + 1; // 1-indexed
+      // Find insertion point: after the last consecutive drop child of this parent
+      let insertAt = parentSetIndex + 1;
+      while (
+        insertAt < sets.length &&
+        sets[insertAt].set_type === 'drop' &&
+        sets[insertAt].parent_set_number === parentSetNumber
+      ) {
+        insertAt++;
+      }
+      const dropSet: ActiveSet = {
+        kg: '',
+        reps: '',
+        completed: false,
+        set_type: 'drop',
+        parent_set_number: parentSetNumber,
+      };
+      sets.splice(insertAt, 0, dropSet);
+      ex.sets = sets;
+      exercises[exerciseIndex] = ex;
+      return { exercises };
+    });
+    get()._persist();
+  },
+
   removeSet: (exerciseIndex, setIndex) => {
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
-      if (ex.sets.length <= 1) return s;
-      ex.sets = ex.sets.filter((_, i) => i !== setIndex);
+      const oldSets = ex.sets;
+      const deletedSet = oldSets[setIndex];
+
+      // Build set of indices to remove
+      const removeIndices = new Set<number>([setIndex]);
+      if (deletedSet.set_type !== 'drop') {
+        // Cascade-remove drop children of this parent
+        const parentSetNumber = setIndex + 1;
+        for (let i = 0; i < oldSets.length; i++) {
+          if (oldSets[i].set_type === 'drop' && oldSets[i].parent_set_number === parentSetNumber) {
+            removeIndices.add(i);
+          }
+        }
+      }
+
+      const newSets = oldSets.filter((_, i) => !removeIndices.has(i));
+      if (newSets.length === 0) return s; // Keep at least one set
+
+      // Reindex: map old 1-indexed positions to new for surviving non-drop sets
+      const posMap = new Map<number, number>();
+      let newPos = 0;
+      for (let i = 0; i < oldSets.length; i++) {
+        if (!removeIndices.has(i)) {
+          newPos++;
+          if (oldSets[i].set_type !== 'drop') {
+            posMap.set(i + 1, newPos);
+          }
+        }
+      }
+
+      ex.sets = newSets.map((st) => {
+        if (st.set_type === 'drop' && st.parent_set_number !== null) {
+          const newParent = posMap.get(st.parent_set_number);
+          return { ...st, parent_set_number: newParent ?? null };
+        }
+        return st;
+      });
+
       exercises[exerciseIndex] = ex;
       return { exercises };
     });
@@ -971,11 +1039,30 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       const ex = { ...exercises[exerciseIndex] };
       const sets = [...ex.sets];
       const current = sets[setIndex].set_type;
-      const next = (SET_TYPE_CYCLE[current] || 'working') as ActiveSet['set_type'];
+      let next = (SET_TYPE_CYCLE[current] || 'working') as ActiveSet['set_type'];
+
+      // When cycling to 'drop', find nearest preceding working set as parent
+      let parentSetNumber: number | null = null;
+      if (next === 'drop') {
+        for (let i = setIndex - 1; i >= 0; i--) {
+          if (sets[i].set_type === 'working' || sets[i].set_type === 'warmup' || sets[i].set_type === 'failure') {
+            // Use the nearest non-drop set as parent (typically a working set)
+            if (sets[i].set_type === 'working') {
+              parentSetNumber = i + 1; // 1-indexed
+              break;
+            }
+          }
+        }
+        // No valid parent found — skip 'drop', go to 'failure'
+        if (parentSetNumber === null) {
+          next = 'failure';
+        }
+      }
+
       sets[setIndex] = {
         ...sets[setIndex],
         set_type: next,
-        parent_set_number: next === 'drop' ? setIndex : null,
+        parent_set_number: next === 'drop' ? parentSetNumber : null,
       };
       ex.sets = sets;
       exercises[exerciseIndex] = ex;
