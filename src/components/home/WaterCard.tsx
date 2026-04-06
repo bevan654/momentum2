@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -15,6 +15,9 @@ export default function WaterCard() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [expanded, setExpanded] = useState(false);
+  const [showCustom, setShowCustom] = useState(false);
+  const [customAmount, setCustomAmount] = useState('');
+  const customInputRef = useRef<TextInput>(null);
 
   const handleAdd = (ml: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -26,6 +29,16 @@ export default function WaterCard() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     undoLastWater(userId);
   }, [userId, water, undoLastWater]);
+
+  const handleCustomAdd = useCallback(() => {
+    const ml = parseInt(customAmount, 10);
+    if (!isNaN(ml) && ml > 0 && userId) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      addWater(userId, ml);
+      setCustomAmount('');
+      setShowCustom(false);
+    }
+  }, [customAmount, userId, addWater]);
 
   const isOver = water > waterGoal && waterGoal > 0;
   const remaining = Math.max(0, waterGoal - water);
@@ -69,7 +82,13 @@ export default function WaterCard() {
       </TouchableOpacity>
 
       {/* Detail modal */}
-      <Modal visible={expanded} transparent animationType="fade" onRequestClose={() => setExpanded(false)}>
+      <Modal
+        visible={expanded}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setExpanded(false)}
+        onDismiss={() => { setShowCustom(false); setCustomAmount(''); }}
+      >
         <Pressable style={styles.backdrop} onPress={() => setExpanded(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -116,6 +135,40 @@ export default function WaterCard() {
                     <Text style={styles.sheetAddBtnText}>+{ml}ml</Text>
                   </TouchableOpacity>
                 ))}
+                {!showCustom ? (
+                  <TouchableOpacity
+                    style={[styles.sheetAddBtn, styles.sheetCustomBtn]}
+                    onPress={() => {
+                      setShowCustom(true);
+                      setTimeout(() => customInputRef.current?.focus(), 100);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="pencil-outline" size={ms(13)} color={colors.water} style={{ marginRight: sw(4) }} />
+                    <Text style={styles.sheetAddBtnText}>Custom</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={[styles.sheetAddBtn, styles.sheetCustomInputRow]}>
+                    <TextInput
+                      ref={customInputRef}
+                      style={styles.customInput}
+                      value={customAmount}
+                      onChangeText={setCustomAmount}
+                      keyboardType="number-pad"
+                      placeholder="ml"
+                      placeholderTextColor={colors.textTertiary}
+                      onSubmitEditing={handleCustomAdd}
+                      returnKeyType="done"
+                    />
+                    <TouchableOpacity
+                      style={[styles.customAddBtn, (!customAmount || parseInt(customAmount, 10) <= 0) && { opacity: 0.4 }]}
+                      onPress={handleCustomAdd}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="add" size={ms(16)} color={colors.textOnAccent} />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
 
               {/* Undo + Close */}
@@ -329,6 +382,37 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(14),
     lineHeight: ms(18),
     fontFamily: Fonts.bold,
+  },
+
+  /* Custom add */
+  sheetCustomBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetCustomInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 0,
+    paddingHorizontal: sw(4),
+    gap: sw(6),
+  },
+  customInput: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: ms(14),
+    lineHeight: ms(18),
+    fontFamily: Fonts.bold,
+    textAlign: 'center',
+    paddingVertical: sw(10),
+  },
+  customAddBtn: {
+    backgroundColor: colors.water,
+    borderRadius: sw(8),
+    width: sw(30),
+    height: sw(30),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   /* Footer */
