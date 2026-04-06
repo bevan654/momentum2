@@ -852,8 +852,8 @@ function WorkoutHistoryScreen() {
               onPress={() => { setDebugParts([]); setExpandedSection(null); }}
               style={[styles.filterChip, debugParts.length === 0 && styles.filterChipActive]}
             >
-              <Text style={styles.filterChipText}>Whole</Text>
-              <Text style={styles.filterChipSub}>{getLastLabel(
+              <Text style={[styles.filterChipText, debugParts.length === 0 && styles.filterChipTextActive]}>Whole</Text>
+              <Text style={[styles.filterChipSub, debugParts.length === 0 && styles.filterChipSubActive]}>{getLastLabel(
                 workouts.length > 0 ? new Date(workouts[0].created_at) : null
               )}</Text>
             </TouchableOpacity>
@@ -868,8 +868,8 @@ function WorkoutHistoryScreen() {
                 }}
                 style={[styles.filterChip, debugParts.includes(part) && styles.filterChipActive]}
               >
-                <Text style={styles.filterChipText}>{part}</Text>
-                <Text style={styles.filterChipSub}>{getLastLabel(lastTrainedMap[part])}</Text>
+                <Text style={[styles.filterChipText, debugParts.includes(part) && styles.filterChipTextActive]}>{part}</Text>
+                <Text style={[styles.filterChipSub, debugParts.includes(part) && styles.filterChipSubActive]}>{getLastLabel(lastTrainedMap[part])}</Text>
               </TouchableOpacity>
             ))}
             <TouchableOpacity
@@ -887,8 +887,8 @@ function WorkoutHistoryScreen() {
               }}
               style={[styles.filterChip, debugParts.some((p) => ['Arms', 'Shoulders', 'Biceps', 'Triceps'].includes(p)) && styles.filterChipActive]}
             >
-              <Text style={styles.filterChipText}>Arms</Text>
-              <Text style={styles.filterChipSub}>{getLastLabel(
+              <Text style={[styles.filterChipText, debugParts.some((p) => ['Arms', 'Shoulders', 'Biceps', 'Triceps'].includes(p)) && styles.filterChipTextActive]}>Arms</Text>
+              <Text style={[styles.filterChipSub, debugParts.some((p) => ['Arms', 'Shoulders', 'Biceps', 'Triceps'].includes(p)) && styles.filterChipSubActive]}>{getLastLabel(
                 ['Shoulders', 'Biceps', 'Triceps'].reduce<Date | null>((best, k) => {
                   const d = lastTrainedMap[k];
                   return d && (!best || d > best) ? d : best;
@@ -910,8 +910,8 @@ function WorkoutHistoryScreen() {
               }}
               style={[styles.filterChip, debugParts.some((p) => ['Legs', 'Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(p)) && styles.filterChipActive]}
             >
-              <Text style={styles.filterChipText}>Legs</Text>
-              <Text style={styles.filterChipSub}>{getLastLabel(
+              <Text style={[styles.filterChipText, debugParts.some((p) => ['Legs', 'Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(p)) && styles.filterChipTextActive]}>Legs</Text>
+              <Text style={[styles.filterChipSub, debugParts.some((p) => ['Legs', 'Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(p)) && styles.filterChipSubActive]}>{getLastLabel(
                 ['Quads', 'Hamstrings', 'Glutes', 'Calves'].reduce<Date | null>((best, k) => {
                   const d = lastTrainedMap[k];
                   return d && (!best || d > best) ? d : best;
@@ -927,8 +927,8 @@ function WorkoutHistoryScreen() {
                 const lastLabel = getLastLabel(lastTrainedMap[label]);
                 return (
                   <TouchableOpacity key={label} onPress={() => setDebugParts((prev) => prev.includes(label) ? prev.filter((p) => p !== label) : [...prev, label])} style={[styles.filterChip, isActive && styles.filterChipActive]}>
-                    <Text style={styles.filterChipText}>{label}</Text>
-                    <Text style={styles.filterChipSub}>{lastLabel}</Text>
+                    <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>{label}</Text>
+                    <Text style={[styles.filterChipSub, isActive && styles.filterChipSubActive]}>{lastLabel}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -941,8 +941,8 @@ function WorkoutHistoryScreen() {
                 const lastLabel = getLastLabel(lastTrainedMap[label]);
                 return (
                   <TouchableOpacity key={label} onPress={() => setDebugParts((prev) => prev.includes(label) ? prev.filter((p) => p !== label) : [...prev, label])} style={[styles.filterChip, isActive && styles.filterChipActive]}>
-                    <Text style={styles.filterChipText}>{label}</Text>
-                    <Text style={styles.filterChipSub}>{lastLabel}</Text>
+                    <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>{label}</Text>
+                    <Text style={[styles.filterChipSub, isActive && styles.filterChipSubActive]}>{lastLabel}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -1443,7 +1443,7 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       alignItems: 'center',
     },
     filterChipActive: {
-      backgroundColor: colors.cardBorder,
+      backgroundColor: colors.accent,
     },
     filterChipText: {
       color: colors.textPrimary,
@@ -1451,11 +1451,17 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       lineHeight: ms(13),
       fontFamily: Fonts.semiBold,
     },
+    filterChipTextActive: {
+      color: colors.textOnAccent,
+    },
     filterChipSub: {
       color: colors.textTertiary,
       fontSize: ms(7),
       lineHeight: ms(10),
       fontFamily: Fonts.medium,
+    },
+    filterChipSubActive: {
+      color: colors.textOnAccent + 'BB',
     },
 
     bodyMapSection: {
