@@ -413,8 +413,8 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                   }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="arrow-down" size={ms(13)} color={colors.accentPink} />
-                  <Text style={[styles.actionBtnText, { color: colors.accentPink }]}>Drop</Text>
+                  <Ionicons name="arrow-down" size={ms(13)} color={colors.accentBabyBlue} />
+                  <Text style={[styles.actionBtnText, { color: colors.accentBabyBlue }]}>Drop</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -452,8 +452,8 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                   dismissContextMenu();
                 }}
               >
-                <Ionicons name="arrow-down" size={ms(15)} color={colors.accentPink} />
-                <Text style={[styles.menuItemText, { color: colors.accentPink }]}>Add Drop Set</Text>
+                <Ionicons name="arrow-down" size={ms(15)} color={colors.accentBabyBlue} />
+                <Text style={[styles.menuItemText, { color: colors.accentBabyBlue }]}>Add Drop Set</Text>
               </TouchableOpacity>
               <View style={styles.menuDivider} />
               <TouchableOpacity

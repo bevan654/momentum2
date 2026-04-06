@@ -23,6 +23,7 @@ export interface ThemeColors {
   accentOrange: string;
   accentRed: string;
   accentPink: string;
+  accentBabyBlue: string;
 
   protein: string;
   carbs: string;
@@ -98,6 +99,7 @@ const shared = {
   accentOrange: '#F59E0B',
   accentRed: '#EF4444',
   accentPink: '#D946EF',
+  accentBabyBlue: '#7EC8E3',
 
   protein: '#86EFAC',
   carbs: '#93C5FD',

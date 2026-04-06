@@ -167,7 +167,7 @@ function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercis
         return (
           <View key={s.id} style={[styles.summarySetRow, isDropRow && { marginLeft: sw(12) }]}>
             {isDropRow ? (
-              <Text style={[styles.summarySetNum, styles.colSet, { color: colors.accentPink }]}>{dropLabel}</Text>
+              <Text style={[styles.summarySetNum, styles.colSet, { color: colors.accentBabyBlue }]}>{dropLabel}</Text>
             ) : (
               <Text style={[styles.summarySetNum, styles.colSet]}>{i + 1}</Text>
             )}
@@ -288,7 +288,7 @@ function SummaryExerciseSection({ exercise, colors, styles, prevSets }: { exerci
         return (
           <View key={i} style={[styles.summarySetRow, isDropRow && { marginLeft: sw(12) }]}>
             {isDropRow ? (
-              <Text style={[styles.summarySetNum, styles.colSet, { color: colors.accentPink }]}>{dropLabel}</Text>
+              <Text style={[styles.summarySetNum, styles.colSet, { color: colors.accentBabyBlue }]}>{dropLabel}</Text>
             ) : (
               <Text style={[styles.summarySetNum, styles.colSet]}>{i + 1}</Text>
             )}
@@ -335,7 +335,7 @@ function EditableExerciseSection({
 
   const SET_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
     warmup: { label: 'W', color: colors.accentOrange },
-    drop: { label: 'D', color: colors.accentPink },
+    drop: { label: 'D', color: colors.accentBabyBlue },
     failure: { label: 'F', color: colors.accentRed },
   };
 

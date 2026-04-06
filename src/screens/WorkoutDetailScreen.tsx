@@ -181,7 +181,7 @@ export default function WorkoutDetailScreen() {
                 return (
                   <View key={si} style={[styles.setRow, isDropRow && { marginLeft: sw(12) }]}>
                     {isDropRow ? (
-                      <Text style={[styles.setNum, styles.colSet, { color: colors.accentPink }]}>{dropLabel}</Text>
+                      <Text style={[styles.setNum, styles.colSet, { color: colors.accentBabyBlue }]}>{dropLabel}</Text>
                     ) : (
                       <Text style={[styles.setNum, styles.colSet]}>{si + 1}</Text>
                     )}

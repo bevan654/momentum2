@@ -13,6 +13,7 @@ export const Colors = {
   accentOrange: '#F59E0B',
   accentRed: '#EF4444',
   accentPink: '#D946EF',
+  accentBabyBlue: '#7EC8E3',
 
   // Macro colors
   protein: '#3B82F6',
