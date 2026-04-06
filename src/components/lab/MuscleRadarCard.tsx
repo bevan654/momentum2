@@ -186,6 +186,10 @@ export default function MuscleRadarCard() {
 
   return (
     <View style={styles.card}>
+      <View style={styles.header}>
+        <View style={styles.accentDot} />
+        <Text style={styles.title}>30 Day Training Balance</Text>
+      </View>
       <View style={styles.contentRow}>
         {/* Radar section */}
         <View style={styles.radarSection}>
@@ -301,6 +305,24 @@ const createStyles = (colors: ThemeColors) =>
       borderColor: colors.cardBorder,
       padding: CARD_PAD,
       ...colors.cardShadow,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(8),
+      marginBottom: sw(8),
+    },
+    accentDot: {
+      width: sw(4),
+      height: sw(16),
+      borderRadius: sw(2),
+      backgroundColor: colors.accent,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: ms(15),
+      lineHeight: ms(21),
+      fontFamily: Fonts.bold,
     },
     contentRow: {
       flexDirection: 'row',
