@@ -23,7 +23,6 @@ import type { ExtendedBodyPart } from '../components/BodyHighlighter';
 import RankBadge from '../components/workouts/RankBadge';
 import { computeWorkoutRank } from '../utils/strengthScore';
 import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
-import ShareHub from '../components/share/ShareHub';
 import ActivityChart from '../components/workouts/ActivityChart';
 import TodayScheduled from '../components/workouts/TodayScheduled';
 import type { Routine, RoutineExercise } from '../stores/useRoutineStore';
@@ -482,7 +481,6 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
   );
 });
 
-import { setOpenShareHub } from '../lib/navigationBridge';
 
 /* ─── Main screen ────────────────────────────────────── */
 
@@ -595,12 +593,6 @@ function WorkoutHistoryScreen() {
   const isToday = selectedDate === todayStr;
   const isFuture = selectedDate > todayStr;
 
-  // Share hub
-  const [shareVisible, setShareVisible] = useState(false);
-  useEffect(() => {
-    setOpenShareHub(() => setShareVisible(true));
-    return () => { setOpenShareHub(null); };
-  }, []);
 
   const dateLabel = useMemo(() => {
     const d = new Date(selectedDate + 'T12:00:00');
@@ -1117,10 +1109,6 @@ function WorkoutHistoryScreen() {
         )}
       </Modal>
 
-      <ShareHub
-        visible={shareVisible}
-        onClose={() => setShareVisible(false)}
-      />
 
     </View>
   );
