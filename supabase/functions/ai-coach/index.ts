@@ -275,6 +275,15 @@ Deno.serve(async (req: Request) => {
   const userId = await verifyUser(token);
   if (!userId) return json({ error: "Invalid auth" }, 401);
 
+  const { data: flagRow } = await admin
+    .from("profiles")
+    .select("ai_coach_enabled")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!flagRow?.ai_coach_enabled) {
+    return json({ error: "AI coach is not enabled for this account" }, 403);
+  }
+
   let messages: ChatMessage[];
   try {
     const body = await req.json();

@@ -20,6 +20,7 @@ interface Profile {
   show_streak: boolean;
   notifications_enabled: boolean;
   leaderboard_opt_in: boolean;
+  ai_coach_enabled: boolean;
 }
 
 interface AuthState {
@@ -84,7 +85,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   fetchProfile: async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, email, username, height, age, gender, starting_weight, goal_weight, share_workouts, show_streak, notifications_enabled, leaderboard_opt_in')
+      .select('id, email, username, height, age, gender, starting_weight, goal_weight, share_workouts, show_streak, notifications_enabled, leaderboard_opt_in, ai_coach_enabled')
       .eq('id', userId)
       .single();
 
@@ -96,6 +97,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           show_streak: data.show_streak ?? true,
           notifications_enabled: data.notifications_enabled ?? true,
           leaderboard_opt_in: data.leaderboard_opt_in ?? true,
+          ai_coach_enabled: data.ai_coach_enabled ?? false,
         } as Profile,
       });
     }

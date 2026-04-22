@@ -29,12 +29,32 @@ const STARTERS = [
   'Compare this week to last week',
 ];
 
+const PLACEHOLDER_MESSAGES: ChatMessage[] = [
+  { role: 'user', content: 'What should I train tomorrow?' },
+  {
+    role: 'assistant',
+    content:
+      "Legs — you haven't hit quads in 5 days. Squats 4×6 @ 100kg, RDLs 3×10, finish with leg press.",
+  },
+  { role: 'user', content: 'Should I deload soon?' },
+  {
+    role: 'assistant',
+    content: 'Week 5 is the right time. RPE is creeping but PRs are still landing.',
+  },
+  { role: 'user', content: 'Compare this week to last' },
+  {
+    role: 'assistant',
+    content: '4 sessions, 18.2k kg volume — up 12% from last week. Bench e1RM hit a new PR.',
+  },
+];
+
 const CARD_PAD = sw(12);
 
 export default function AiHeroCard() {
   const colors = useColors();
   const profile = useAuthStore((s) => s.profile);
   const userId = useAuthStore((s) => s.user?.id);
+  const aiCoachEnabled = useAuthStore((s) => s.profile?.ai_coach_enabled ?? false);
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors, insets.top, insets.bottom), [colors, insets.top, insets.bottom]);
 
@@ -78,6 +98,19 @@ export default function AiHeroCard() {
       const next: ChatMessage[] = [...messages, { role: 'user', content: trimmed }];
       setMessages(next);
       setInput('');
+
+      if (!aiCoachEnabled) {
+        setMessages([
+          ...next,
+          {
+            role: 'assistant',
+            content:
+              "AI coach isn't enabled for your account yet. Reach out to the Momentum team to request early access.",
+          },
+        ]);
+        return;
+      }
+
       setLoading(true);
 
       if (userId) {
@@ -144,7 +177,7 @@ export default function AiHeroCard() {
         setLoading(false);
       }
     },
-    [messages, loading, userId],
+    [messages, loading, userId, aiCoachEnabled],
   );
 
   useEffect(() => {
@@ -171,37 +204,36 @@ export default function AiHeroCard() {
           </View>
         </View>
 
-        <View style={styles.previewArea}>
-          {messages.length > 0 ? (
-            messages.slice(-3).map((m, i) => (
-              <View
-                key={i}
+        <View
+          style={[
+            styles.previewArea,
+            messages.length === 0 && styles.previewAreaPlaceholder,
+          ]}
+        >
+          {(messages.length > 0 ? messages.slice(-8) : PLACEHOLDER_MESSAGES).map((m, i) => (
+            <View
+              key={i}
+              style={[
+                styles.previewBubble,
+                m.role === 'user' ? styles.previewBubbleUser : styles.previewBubbleAi,
+                m.role === 'user'
+                  ? { backgroundColor: colors.accent }
+                  : { backgroundColor: colors.surface },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.previewBubble,
-                  m.role === 'user' ? styles.previewBubbleUser : styles.previewBubbleAi,
+                  styles.previewBubbleText,
                   m.role === 'user'
-                    ? { backgroundColor: colors.accent }
-                    : { backgroundColor: colors.surface },
+                    ? { color: colors.textOnAccent }
+                    : { color: colors.textPrimary },
                 ]}
+                numberOfLines={2}
               >
-                <Text
-                  style={[
-                    styles.previewBubbleText,
-                    m.role === 'user'
-                      ? { color: colors.textOnAccent }
-                      : { color: colors.textPrimary },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {m.content}
-                </Text>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.hintText}>
-              Ask about your training, programming, recovery — tap to chat.
-            </Text>
-          )}
+                {m.content}
+              </Text>
+            </View>
+          ))}
         </View>
 
         <View style={styles.tapCta}>
@@ -384,6 +416,9 @@ const createStyles = (colors: ThemeColors, insetTop: number, insetBottom: number
       justifyContent: 'flex-end',
       gap: sw(3),
       overflow: 'hidden',
+    },
+    previewAreaPlaceholder: {
+      opacity: 0.55,
     },
     hintText: {
       color: colors.textTertiary,
