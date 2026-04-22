@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.34',
+    date: '2026-04-22',
+    title: "What's New",
+    items: [
+      'AI coach in the Lab tab — chat about your training, programming, and recovery with context pulled from your recent workouts',
+      'Chat history saves across sessions and syncs to your account',
+      'New app logo',
+    ],
+  },
+  {
     version: '1.0.33',
     date: '2026-04-03',
     title: "What's New",

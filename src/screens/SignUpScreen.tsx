@@ -84,7 +84,7 @@ export default function SignUpScreen({ navigation }: Props) {
 
         {/* Branding */}
         <View style={styles.brandSection}>
-          <Image source={require('../../assets/icon.png')} style={styles.logoIcon} />
+          <Image source={require('../../assets/logo.png')} style={styles.logoIcon} />
           <Text style={styles.title}>Create your account</Text>
         </View>
 

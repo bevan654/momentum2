@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useColors, type ThemeColors } from '../theme/useColors';
@@ -17,7 +17,6 @@ export default function LaboratoryScreen() {
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
   const fetchExerciseCatalog = useWorkoutStore((s) => s.fetchExerciseCatalog);
   const initialized = useProfileSettingsStore((s) => s.initialized);
-  const [aiExpanded, setAiExpanded] = useState(false);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -43,8 +42,8 @@ export default function LaboratoryScreen() {
     >
       <View style={styles.cardsSection}>
         <View style={styles.heroRow}>
-          <AiHeroCard expanded={aiExpanded} onToggle={() => setAiExpanded(!aiExpanded)} />
-          {!aiExpanded && <QuickStatsGrid />}
+          <AiHeroCard />
+          <QuickStatsGrid />
         </View>
         <MuscleRadarCard />
         <WeeklyVolumeCard />

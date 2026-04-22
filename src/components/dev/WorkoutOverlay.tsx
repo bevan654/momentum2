@@ -171,7 +171,7 @@ function ClassicVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }
           <Text style={styles.dateText}>{dateStr}</Text>
           <Text style={styles.workoutLabel}>{label}</Text>
         </View>
-        <Image source={require('../../../assets/icon.png')} style={styles.logoImage} />
+        <Image source={require('../../../assets/logo.png')} style={styles.logoImage} />
       </View>
 
       <View style={{ flex: 1 }} />
@@ -256,7 +256,7 @@ function MinimalVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }
 
       {/* Top: logo + wordmark */}
       <View style={styles.topRow}>
-        <Image source={require('../../../assets/icon.png')} style={styles.topLogo} />
+        <Image source={require('../../../assets/logo.png')} style={styles.topLogo} />
         <Text style={styles.topWordmark}>MOMENTUM</Text>
       </View>
 
@@ -328,7 +328,7 @@ function BoldVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }: {
           <Text style={styles.dateText}>{dateStr}</Text>
           <Text style={styles.label}>{label}</Text>
         </View>
-        <Image source={require('../../../assets/icon.png')} style={styles.logoImage} />
+        <Image source={require('../../../assets/logo.png')} style={styles.logoImage} />
       </View>
 
       {/* Stat blocks row */}
@@ -408,7 +408,7 @@ function PosterVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }:
 
       {/* Top bar */}
       <View style={styles.topBar}>
-        <Image source={require('../../../assets/icon.png')} style={styles.logoImage} />
+        <Image source={require('../../../assets/logo.png')} style={styles.logoImage} />
         <Text style={styles.dateText}>{dateStr}</Text>
       </View>
 

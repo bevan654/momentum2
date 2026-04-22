@@ -19,19 +19,27 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 // globally: if a non-auth request returns 401, refresh the session
 // once and replay with the new token.
 
+const REFRESH_TIMEOUT_MS = 8_000;
+
 let _refreshing: Promise<string | null> | null = null;
 
 function refreshTokenOnce(): Promise<string | null> {
   if (_refreshing) return _refreshing;
-  _refreshing = supabase.auth.refreshSession()
-    .then(({ data }) => {
+
+  const refresh = supabase.auth
+    .refreshSession()
+    .then(({ data }) => data.session?.access_token ?? null);
+
+  const timeout = new Promise<null>((resolve) =>
+    setTimeout(() => resolve(null), REFRESH_TIMEOUT_MS),
+  );
+
+  _refreshing = Promise.race([refresh, timeout])
+    .catch(() => null)
+    .finally(() => {
       _refreshing = null;
-      return data.session?.access_token ?? null;
-    })
-    .catch(() => {
-      _refreshing = null;
-      return null;
     });
+
   return _refreshing;
 }
 
@@ -69,6 +77,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 AppState.addEventListener('change', (state) => {
   if (state === 'active') {
     supabase.auth.startAutoRefresh();
+    // Force a refresh immediately so the next user action doesn't hit
+    // an expired JWT and get wedged waiting on autoRetryFetch's lazy retry.
+    refreshTokenOnce();
   } else {
     supabase.auth.stopAutoRefresh();
   }
