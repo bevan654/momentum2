@@ -6,21 +6,22 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import type { WorkoutWithDetails } from '../../stores/useWorkoutStore';
+import { useLabTimeRangeStore } from '../../stores/useLabTimeRangeStore';
 
 /* ─── Stats helper ───────────────────────────────────────── */
 
-function computeWeekStats(workouts: WorkoutWithDetails[]) {
+function computeWindowStats(workouts: WorkoutWithDetails[], days: number) {
   const now = new Date();
-  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-  weekStart.setHours(0, 0, 0, 0);
-  const weekMs = weekStart.getTime();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1));
+  start.setHours(0, 0, 0, 0);
+  const startMs = start.getTime();
 
   let sessions = 0;
   let totalDuration = 0;
 
   for (const w of workouts) {
     const t = new Date(w.created_at).getTime();
-    if (t < weekMs) continue;
+    if (t < startMs) continue;
     sessions++;
     totalDuration += w.duration || 0;
   }
@@ -40,9 +41,10 @@ const CELL_GAP = sw(6);
 export default function QuickStatsGrid() {
   const colors = useColors();
   const workouts = useWorkoutStore((s) => s.workouts);
+  const rangeDays = useLabTimeRangeStore((s) => s.rangeDays);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const stats = useMemo(() => computeWeekStats(workouts), [workouts]);
+  const stats = useMemo(() => computeWindowStats(workouts, rangeDays), [workouts, rangeDays]);
 
   const statItems = useMemo(() => [
     { label: 'Sessions', value: String(stats.sessions), icon: 'barbell-outline' as const },

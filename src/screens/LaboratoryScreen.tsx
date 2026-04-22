@@ -11,6 +11,7 @@ import QuickStatsGrid from '../components/lab/QuickStatsGrid';
 import MuscleRadarCard from '../components/lab/MuscleRadarCard';
 import WeeklyVolumeCard from '../components/lab/WeeklyVolumeCard';
 import BodyMetricsPager from '../components/lab/BodyMetricsPager';
+import LabTimeRangeBar from '../components/lab/LabTimeRangeBar';
 
 export default function LaboratoryScreen() {
   const user = useAuthStore((s) => s.user);
@@ -41,6 +42,7 @@ export default function LaboratoryScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.cardsSection}>
+        <LabTimeRangeBar />
         <View style={styles.heroRow}>
           <AiHeroCard />
           <QuickStatsGrid />

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -16,6 +16,7 @@ import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import type { WorkoutWithDetails } from '../../stores/useWorkoutStore';
+import { useLabTimeRangeStore, nearestRangeOption } from '../../stores/useLabTimeRangeStore';
 
 /* ─── Config ─────────────────────────────────────────────── */
 
@@ -28,6 +29,11 @@ const REF_LINE_W = sw(1);
 
 type Period = '7D' | '1M' | '3M';
 const PERIODS: Period[] = ['7D', '1M', '3M'];
+const PERIOD_DAYS: { label: Period; days: number }[] = [
+  { label: '7D', days: 7 },
+  { label: '1M', days: 30 },
+  { label: '3M', days: 90 },
+];
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -202,6 +208,15 @@ export default function WeeklyVolumeCard() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [period, setPeriod] = useState<Period>('7D');
   const [offset, setOffset] = useState(0);
+
+  // Sync to global Lab time range
+  const globalRangeDays = useLabTimeRangeStore((s) => s.rangeDays);
+  const globalVersion = useLabTimeRangeStore((s) => s.version);
+  useEffect(() => {
+    const nearest = nearestRangeOption(globalRangeDays, PERIOD_DAYS);
+    setPeriod(nearest.label);
+    setOffset(0);
+  }, [globalVersion]);
 
   const slots = useMemo(() => buildSlots(workouts, period, offset), [workouts, period, offset]);
 

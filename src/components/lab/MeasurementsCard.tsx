@@ -19,6 +19,7 @@ import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { useMeasurementStore, type PumpState, type MeasurementEntry } from '../../stores/useMeasurementStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
+import { useLabTimeRangeStore, nearestRangeOption } from '../../stores/useLabTimeRangeStore';
 import BottomSheet from '../workout-sheet/BottomSheet';
 import MeasurementLogModal from './MeasurementLogModal';
 
@@ -111,6 +112,14 @@ export default function MeasurementsCard({ pageIndicator }: Props) {
   const [showPicker, setShowPicker] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
+
+  // Sync to global Lab time range
+  const globalRangeDays = useLabTimeRangeStore((s) => s.rangeDays);
+  const globalVersion = useLabTimeRangeStore((s) => s.version);
+  useEffect(() => {
+    const nearest = nearestRangeOption(globalRangeDays, RANGES);
+    setMeasRange(nearest.label);
+  }, [globalVersion]);
 
   const partDef = BODY_PARTS.find((p) => p.key === selectedPart)!;
   const side = partDef.hasSides ? selectedSide : null;

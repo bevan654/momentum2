@@ -19,6 +19,7 @@ import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { useBodyFatStore, type BodyFatMethod, type BodyFatEntry } from '../../stores/useBodyFatStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
+import { useLabTimeRangeStore, nearestRangeOption } from '../../stores/useLabTimeRangeStore';
 import BottomSheet from '../workout-sheet/BottomSheet';
 import BodyFatLogModal from './BodyFatLogModal';
 
@@ -99,6 +100,14 @@ export default function BodyFatCard({ pageIndicator }: Props) {
   const [showPicker, setShowPicker] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
+
+  // Sync to global Lab time range
+  const globalRangeDays = useLabTimeRangeStore((s) => s.rangeDays);
+  const globalVersion = useLabTimeRangeStore((s) => s.version);
+  useEffect(() => {
+    const nearest = nearestRangeOption(globalRangeDays, RANGES);
+    setSelectedRange(nearest.label);
+  }, [globalVersion]);
 
   const selectedDays = RANGES.find((r) => r.label === selectedRange)!.days;
   const rangeIndex = RANGES.findIndex((r) => r.label === selectedRange);
