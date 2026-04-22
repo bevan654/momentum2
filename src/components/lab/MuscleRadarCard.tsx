@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, type ViewStyle } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Canvas,
   Path,
@@ -13,6 +14,7 @@ import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import type { WorkoutWithDetails } from '../../stores/useWorkoutStore';
+import { useLabTimeRangeStore, LAB_RANGE_OPTIONS, nearestRangeOption } from '../../stores/useLabTimeRangeStore';
 import MiniBodyMap from '../body/MiniBodyMap';
 import { calculateMuscleVolume, ALL_SLUGS } from '../../utils/muscleVolume';
 import type { ExtendedBodyPart } from '../BodyHighlighter';
@@ -83,9 +85,9 @@ function computeGroupSets(
   return counts;
 }
 
-function compute30dBodyData(workouts: WorkoutWithDetails[]): ExtendedBodyPart[] {
+function computeBodyData(workouts: WorkoutWithDetails[], days: number): ExtendedBodyPart[] {
   const now = new Date();
-  const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+  const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
   cutoff.setHours(0, 0, 0, 0);
   const cutoffMs = cutoff.getTime();
 
@@ -124,16 +126,42 @@ export default function MuscleRadarCard() {
   const workouts = useWorkoutStore((s) => s.workouts);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const groupSets = useMemo(() => computeGroupSets(workouts, 30), [workouts]);
-  const bodyData = useMemo(() => compute30dBodyData(workouts), [workouts]);
+  const globalRangeDays = useLabTimeRangeStore((s) => s.rangeDays);
+  const globalVersion = useLabTimeRangeStore((s) => s.version);
+  const [localOverrideDays, setLocalOverrideDays] = useState<number | null>(null);
+
+  // Reset local override when the global bar is tapped
+  useEffect(() => {
+    setLocalOverrideDays(null);
+  }, [globalVersion]);
+
+  const effectiveDays = localOverrideDays ?? globalRangeDays;
+  const currentOption = nearestRangeOption(effectiveDays, LAB_RANGE_OPTIONS);
+  const rangeIndex = LAB_RANGE_OPTIONS.findIndex((o) => o.days === currentOption.days);
+
+  const goShorter = useCallback(() => {
+    if (rangeIndex > 0) setLocalOverrideDays(LAB_RANGE_OPTIONS[rangeIndex - 1].days);
+  }, [rangeIndex]);
+  const goLonger = useCallback(() => {
+    if (rangeIndex < LAB_RANGE_OPTIONS.length - 1) setLocalOverrideDays(LAB_RANGE_OPTIONS[rangeIndex + 1].days);
+  }, [rangeIndex]);
+
+  const groupSets = useMemo(
+    () => computeGroupSets(workouts, effectiveDays),
+    [workouts, effectiveDays],
+  );
+  const bodyData = useMemo(
+    () => computeBodyData(workouts, effectiveDays),
+    [workouts, effectiveDays],
+  );
 
   const dateRangeLabel = useMemo(() => {
     const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - effectiveDays);
     const fmt = (d: Date) =>
       d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     return `${fmt(start)} – ${fmt(now)}`;
-  }, []);
+  }, [effectiveDays]);
 
   const maxSets = useMemo(() => {
     const vals = GROUPS.map((g) => groupSets[g]);
@@ -197,7 +225,41 @@ export default function MuscleRadarCard() {
       <View style={styles.header}>
         <View style={styles.accentDot} />
         <Text style={styles.title}>Training Balance</Text>
-        <Text style={styles.dateRange}>{dateRangeLabel}</Text>
+        <View style={styles.headerRight}>
+          <Text style={styles.dateRange}>{dateRangeLabel}</Text>
+          <View style={styles.periodSelector}>
+            <Pressable
+              onPress={goShorter}
+              style={[styles.arrowBtn, rangeIndex === 0 && styles.arrowDisabled] as ViewStyle[]}
+              hitSlop={8}
+            >
+              <Ionicons
+                name="chevron-back"
+                size={ms(12)}
+                color={rangeIndex === 0 ? colors.textTertiary + '40' : colors.textSecondary}
+              />
+            </Pressable>
+            <Text style={styles.periodLabel}>{currentOption.label}</Text>
+            <Pressable
+              onPress={goLonger}
+              style={[
+                styles.arrowBtn,
+                rangeIndex === LAB_RANGE_OPTIONS.length - 1 && styles.arrowDisabled,
+              ] as ViewStyle[]}
+              hitSlop={8}
+            >
+              <Ionicons
+                name="chevron-forward"
+                size={ms(12)}
+                color={
+                  rangeIndex === LAB_RANGE_OPTIONS.length - 1
+                    ? colors.textTertiary + '40'
+                    : colors.textSecondary
+                }
+              />
+            </Pressable>
+          </View>
+        </View>
       </View>
       <View style={styles.contentRow}>
         {/* Radar section */}
@@ -333,12 +395,35 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(21),
       fontFamily: Fonts.bold,
     },
+    headerRight: {
+      marginLeft: 'auto',
+      alignItems: 'flex-end',
+      gap: sw(2),
+    },
     dateRange: {
       color: colors.textTertiary,
-      fontSize: ms(11),
-      lineHeight: ms(15),
+      fontSize: ms(10),
+      lineHeight: ms(13),
       fontFamily: Fonts.medium,
-      marginLeft: 'auto',
+    },
+    periodSelector: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(4),
+    },
+    arrowBtn: {
+      paddingHorizontal: sw(2),
+    },
+    arrowDisabled: {
+      opacity: 0.4,
+    },
+    periodLabel: {
+      color: colors.textPrimary,
+      fontSize: ms(11),
+      lineHeight: ms(14),
+      fontFamily: Fonts.bold,
+      minWidth: sw(28),
+      textAlign: 'center',
     },
     contentRow: {
       flexDirection: 'row',
