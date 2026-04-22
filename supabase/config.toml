@@ -1,0 +1,7 @@
+project_id = "mckuaytsjvjuvobtxaou"
+
+[functions.gemini-food-search]
+verify_jwt = false
+
+[functions.ai-coach]
+verify_jwt = false

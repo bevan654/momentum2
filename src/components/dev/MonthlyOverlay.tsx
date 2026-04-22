@@ -147,7 +147,7 @@ export default function MonthlyOverlay({ backgroundUri, data, startDate, endDate
           <Text style={styles.subLabel}>Training Overview</Text>
           <Text style={styles.monthLabel}>{headerRange}</Text>
         </View>
-        <Image source={require('../../../assets/icon.png')} style={styles.logoImage} />
+        <Image source={require('../../../assets/logo.png')} style={styles.logoImage} />
       </View>
 
       <View style={styles.imageSpacer} />

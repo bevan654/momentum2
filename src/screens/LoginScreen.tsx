@@ -69,7 +69,7 @@ export default function LoginScreen({ navigation }: Props) {
 
         {/* Branding */}
         <View style={styles.brandSection}>
-          <Image source={require('../../assets/icon.png')} style={styles.logoIcon} />
+          <Image source={require('../../assets/logo.png')} style={styles.logoIcon} />
           <Text style={styles.title}>Welcome back</Text>
         </View>
 

@@ -27,17 +27,6 @@ import QuickAddModal from './QuickAddModal';
 import BottomSheet from '../workout-sheet/BottomSheet';
 import { supabase } from '../../lib/supabase';
 
-/* ─── Gemini AI Deep Search ───────────────────────────── */
-
-const GEMINI_KEY = 'AIzaSyB0Z6K4MU7JfjAdjMGNNKY81epuW2K8hjc';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${GEMINI_KEY}`;
-
-function buildFoodPrompt(query: string): string {
-  return `You are a nutrition database. For the food query "${query}", return a JSON array of 5-8 matching food items. Each item must have exactly these fields:
-{ "name": string, "brand": string|null, "calories": number, "protein": number, "carbs": number, "fat": number, "fiber": number|null, "sugar": number|null, "serving_size": number, "serving_unit": string, "vitamin_a": number|null, "vitamin_c": number|null, "vitamin_d": number|null, "vitamin_e": number|null, "vitamin_k": number|null, "vitamin_b6": number|null, "vitamin_b12": number|null, "folate": number|null, "calcium": number|null, "iron": number|null, "magnesium": number|null, "potassium": number|null, "zinc": number|null, "sodium": number|null }
-IMPORTANT: Use realistic serving sizes. For branded/restaurant items (e.g. KFC Zinger Fillet, Big Mac), use the actual item size as one serving (e.g. 1 burger, 1 piece). For raw ingredients (e.g. chicken breast, rice), use a typical serving size in grams. All nutritional values must match the serving_size. Calories in kcal, macros in grams, micronutrients in standard units (mcg/mg as appropriate). Return ONLY the JSON array, no markdown, no explanation.`;
-}
-
 /* ─── Props ──────────────────────────────────────────── */
 
 interface Props {
@@ -285,19 +274,50 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
         }
       } catch {}
 
-      // 2. Cache miss — call Gemini
-      const res = await fetch(GEMINI_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: buildFoodPrompt(q) }] }],
-        }),
-      });
-      const json = await res.json();
-      console.log('[DeepSearch] status:', res.status, 'response:', JSON.stringify(json).slice(0, 500));
-      const raw = json.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]';
-      const cleaned = raw.replace(/```(?:json)?\s*/g, '').replace(/```\s*/g, '').trim();
-      const items: any[] = JSON.parse(cleaned);
+      // 2. Cache miss — call edge function (Gemini proxy) via plain fetch
+      // We bypass supabase.functions.invoke to avoid the custom fetch wrapper
+      // in src/lib/supabase.ts, which can stall when refreshing large sessions.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData?.session;
+      if (!session?.access_token) {
+        console.log('[DeepSearch] no session — cannot call edge fn');
+        setAiResults([]);
+        return;
+      }
+
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+      const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
+      let items: any[] = [];
+      try {
+        const res = await fetch(`${supabaseUrl}/functions/v1/gemini-food-search`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({ query: q }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (!res.ok) {
+          const errText = await res.text();
+          console.log('[DeepSearch] edge fn HTTP', res.status, errText.slice(0, 200));
+          setAiResults([]);
+          return;
+        }
+        const payload = await res.json();
+        items = Array.isArray(payload?.items) ? payload.items : [];
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        console.log('[DeepSearch] fetch failed:', err?.message || err);
+        setAiResults([]);
+        return;
+      }
+
       console.log('[DeepSearch] parsed items:', items.length);
       const mapped = items.map(mapRow);
 

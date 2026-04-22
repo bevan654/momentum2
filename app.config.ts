@@ -8,7 +8,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   owner: 'shajanbevan',
   version: '1.0.2',
   orientation: 'portrait',
-  icon: './assets/icon.png',
+  icon: './assets/logo.png',
   userInterfaceStyle: 'dark',
   newArchEnabled: true,
   runtimeVersion: {
@@ -23,7 +23,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   splash: {
-    image: './assets/splash-icon.png',
+    image: './assets/logo.png',
     resizeMode: 'contain',
     backgroundColor: '#0D0D0F',
   },
@@ -44,7 +44,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     minSdkVersion: 24,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
-      foregroundImage: './assets/adaptive-icon.png',
+      foregroundImage: './assets/logo.png',
       backgroundColor: '#0D0D0F',
     },
     edgeToEdgeEnabled: true,

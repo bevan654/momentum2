@@ -119,7 +119,7 @@ export default function WelcomeSplashScreen() {
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Logo */}
       <Animated.View style={[styles.logoWrap, logoStyle]}>
-        <Image source={require('../../assets/icon.png')} style={styles.logoIcon} />
+        <Image source={require('../../assets/logo.png')} style={styles.logoIcon} />
       </Animated.View>
 
       {/* Welcome text */}
