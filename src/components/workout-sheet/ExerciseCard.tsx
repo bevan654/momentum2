@@ -1,10 +1,11 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   Pressable,
   StyleSheet,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -103,6 +104,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const addSet = useActiveWorkoutStore((s) => s.addSet);
+  const addDropSet = useActiveWorkoutStore((s) => s.addDropSet);
   const removeExercise = useActiveWorkoutStore((s) => s.removeExercise);
   const moveExercise = useActiveWorkoutStore((s) => s.moveExercise);
   const removeSet = useActiveWorkoutStore((s) => s.removeSet);
@@ -111,7 +113,16 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   const cycleSetType = useActiveWorkoutStore((s) => s.cycleSetType);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const themeMode = useThemeStore((s) => s.mode);
+  const isGhost = !!useActiveWorkoutStore((s) => s.ghostUserName);
 
+  // Long-press context menu state
+  const [contextMenu, setContextMenu] = useState<{ setIdx: number; y: number } | null>(null);
+
+  const handleBadgeLongPress = useCallback((setIdx: number, pageY: number) => {
+    setContextMenu({ setIdx, y: pageY });
+  }, []);
+
+  const dismissContextMenu = useCallback(() => setContextMenu(null), []);
 
   // Build body highlight data + focus region
   const { bodyData, focusY, bodySide, hasMuscles } = useMemo(() => {
@@ -276,8 +287,8 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
     >
     <Swipeable
       ref={swipeableRef}
-      renderRightActions={useActiveWorkoutStore.getState().ghostUserName ? undefined : renderRightActions}
-      enabled={!useActiveWorkoutStore.getState().ghostUserName}
+      renderRightActions={isGhost ? undefined : renderRightActions}
+      enabled={!isGhost}
       overshootRight={false}
       friction={2}
     >
@@ -324,10 +335,10 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
             {/* Column headers */}
             <View style={styles.colHeaders}>
               <Text style={[styles.colHeader, { width: sw(28) }]}>SET</Text>
-              {!useActiveWorkoutStore.getState().ghostUserName && (
+              {!isGhost && (
                 <Text style={[styles.colHeader, { width: sw(46) }]}>PREV</Text>
               )}
-              {!useActiveWorkoutStore.getState().ghostUserName && (
+              {!isGhost && (
                 <Text style={[styles.colHeader, { width: sw(46) }]}>REC</Text>
               )}
               {(exercise.exercise_type === 'weighted' || exercise.exercise_type === 'weighted+bodyweight') && (
@@ -343,7 +354,6 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
 
             {/* Sets */}
             {exercise.sets.map((set, setIdx) => {
-              const isGhost = !!useActiveWorkoutStore.getState().ghostUserName;
               const ghostPrev = isGhost ? (exercise.prevSets?.[setIdx] || null) : null;
               const ghostResult = (isGhost && set.completed && ghostPrev)
                 ? compareGhostSet(
@@ -351,40 +361,113 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                     ghostPrev.kg, ghostPrev.reps,
                   )
                 : null;
+
+              const isDropSetRow = set.set_type === 'drop' && set.parent_set_number != null;
+              // Compute drop ordinal: count preceding drops with the same parent
+              let dropIdx: number | null = null;
+              if (isDropSetRow) {
+                let count = 0;
+                for (let i = 0; i < setIdx; i++) {
+                  if (exercise.sets[i].set_type === 'drop' && exercise.sets[i].parent_set_number === set.parent_set_number) {
+                    count++;
+                  }
+                }
+                dropIdx = count;
+              }
+
               return (
-              <SetRow
-                key={`${set.id}-${setIdx}`}
-                index={setIdx}
-                set={set}
-                prevSet={exercise.prevSets?.[setIdx] || null}
-                suggestedSet={suggestedSets[setIdx]}
-                exerciseType={exercise.exercise_type}
-                suggestedKg={ghostPrev ? String(ghostPrev.kg) : (suggestedSets[setIdx]?.kg ? String(suggestedSets[setIdx]!.kg) : undefined)}
-                suggestedReps={ghostPrev ? String(ghostPrev.reps) : (suggestedSets[setIdx]?.reps ? String(suggestedSets[setIdx]!.reps) : undefined)}
-                onUpdate={(field, value) => { onExerciseFocus?.(exerciseIndex); updateSet(exerciseIndex, setIdx, field, value); }}
-                onToggle={() => { onExerciseFocus?.(exerciseIndex); toggleSetComplete(exerciseIndex, setIdx); }}
-                onCycleSetType={() => cycleSetType(exerciseIndex, setIdx)}
-                onDelete={exercise.sets.length > 1 && !isGhost ? () => removeSet(exerciseIndex, setIdx) : null}
-                onInputFocus={(y) => { onExerciseFocus?.(exerciseIndex); onInputFocus?.(y); }}
-                isGhost={isGhost}
-                ghostResult={ghostResult}
-              />
-            );
+                <SetRow
+                  key={`set-${setIdx}`}
+                  index={setIdx}
+                  set={set}
+                  prevSet={exercise.prevSets?.[setIdx] || null}
+                  suggestedSet={suggestedSets[setIdx]}
+                  exerciseType={exercise.exercise_type}
+                  suggestedKg={ghostPrev ? String(ghostPrev.kg) : (suggestedSets[setIdx]?.kg ? String(suggestedSets[setIdx]!.kg) : undefined)}
+                  suggestedReps={ghostPrev ? String(ghostPrev.reps) : (suggestedSets[setIdx]?.reps ? String(suggestedSets[setIdx]!.reps) : undefined)}
+                  onUpdate={(field, value) => { onExerciseFocus?.(exerciseIndex); updateSet(exerciseIndex, setIdx, field, value); }}
+                  onToggle={() => { onExerciseFocus?.(exerciseIndex); toggleSetComplete(exerciseIndex, setIdx); }}
+                  onCycleSetType={() => cycleSetType(exerciseIndex, setIdx)}
+                  onBadgeLongPress={!isGhost && !isDropSetRow ? (pageY: number) => handleBadgeLongPress(setIdx, pageY) : undefined}
+                  onDelete={exercise.sets.length > 1 && !isGhost ? () => removeSet(exerciseIndex, setIdx) : null}
+                  onInputFocus={(y) => { onExerciseFocus?.(exerciseIndex); onInputFocus?.(y); }}
+                  isGhost={isGhost}
+                  ghostResult={ghostResult}
+                  isDropSet={isDropSetRow}
+                  dropIndex={dropIdx}
+                />
+              );
             })}
 
-            {/* Add Set button — hidden in ghost mode */}
-            {!useActiveWorkoutStore.getState().ghostUserName && (
-              <TouchableOpacity
-                style={styles.addSetBtn}
-                onPress={() => addSet(exerciseIndex)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="add" size={ms(14)} color={colors.accent} />
-                <Text style={styles.addSetText}>Add Set</Text>
-              </TouchableOpacity>
+            {/* Action buttons — hidden in ghost mode */}
+            {!isGhost && (
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={() => {
+                    let lastWorkingIdx = -1;
+                    for (let i = exercise.sets.length - 1; i >= 0; i--) {
+                      if (exercise.sets[i].set_type === 'working') { lastWorkingIdx = i; break; }
+                    }
+                    if (lastWorkingIdx >= 0) addDropSet(exerciseIndex, lastWorkingIdx);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="arrow-down" size={ms(13)} color={colors.accentBabyBlue} />
+                  <Text style={[styles.actionBtnText, { color: colors.accentBabyBlue }]}>Drop</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={() => addSet(exerciseIndex)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="add" size={ms(13)} color={colors.accent} />
+                  <Text style={[styles.actionBtnText, { color: colors.accent }]}>Set</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnDisabled]}
+                  activeOpacity={0.7}
+                  disabled
+                >
+                  <Ionicons name="git-compare-outline" size={ms(13)} color={colors.textSecondary} />
+                  <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Superset</Text>
+                </TouchableOpacity>
+              </View>
             )}
       </View>
     </Swipeable>
+
+      {/* Long-press context menu */}
+      {contextMenu && (
+        <Modal transparent animationType="fade" onRequestClose={dismissContextMenu}>
+          <Pressable style={styles.menuOverlay} onPress={dismissContextMenu}>
+            <View style={[styles.menuContainer, { top: contextMenu.y - sw(44) }]}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                activeOpacity={0.7}
+                onPress={() => {
+                  addDropSet(exerciseIndex, contextMenu.setIdx);
+                  dismissContextMenu();
+                }}
+              >
+                <Ionicons name="arrow-down" size={ms(15)} color={colors.accentBabyBlue} />
+                <Text style={[styles.menuItemText, { color: colors.accentBabyBlue }]}>Add Drop Set</Text>
+              </TouchableOpacity>
+              <View style={styles.menuDivider} />
+              <TouchableOpacity
+                style={[styles.menuItem, styles.actionBtnDisabled]}
+                activeOpacity={0.7}
+                disabled
+              >
+                <Ionicons name="git-compare-outline" size={ms(15)} color={colors.textSecondary} />
+                <Text style={[styles.menuItemText, { color: colors.textSecondary }]}>Add Superset</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
     </Pressable>
   );
 }
@@ -487,19 +570,65 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Add Set
-  addSetBtn: {
+  // Action buttons row
+  actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: sw(7),
-    marginTop: sw(3),
-    gap: sw(4),
+    justifyContent: 'space-evenly',
+    marginTop: sw(6),
   },
-  addSetText: {
-    color: colors.accent,
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: sw(5),
+    paddingHorizontal: sw(10),
+    gap: sw(3),
+    borderRadius: sw(6),
+    backgroundColor: colors.surface,
+  },
+  actionBtnDisabled: {
+    opacity: 0.4,
+  },
+  actionBtnText: {
     fontSize: ms(11),
     fontFamily: Fonts.semiBold,
     lineHeight: ms(14),
+  },
+
+  // Context menu
+  menuOverlay: {
+    flex: 1,
+  },
+  menuContainer: {
+    position: 'absolute',
+    left: sw(40),
+    backgroundColor: colors.card,
+    borderRadius: sw(10),
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    paddingVertical: sw(4),
+    minWidth: sw(160),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: sw(10),
+    paddingHorizontal: sw(14),
+    gap: sw(8),
+  },
+  menuItemText: {
+    fontSize: ms(13),
+    fontFamily: Fonts.semiBold,
+    lineHeight: ms(16),
+  },
+  menuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.cardBorder,
+    marginHorizontal: sw(10),
   },
 });

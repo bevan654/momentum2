@@ -46,6 +46,7 @@ function toBodyMapExercises(exercises: SummaryExercise[], catalogMap?: Record<st
       reps: s.reps,
       completed: s.completed,
       set_type: s.set_type,
+      parent_set_number: s.parent_set_number ?? null,
       isPR: false,
     })),
   }));
@@ -104,11 +105,11 @@ interface Props {
 
 const MOCK_DATA: WorkoutOverlayData = {
   exercises: [
-    { name: 'Bench Press', category: 'chest', exercise_type: 'weighted', sets: [{ kg: 100, reps: 8, completed: true, set_type: 'working' }, { kg: 110, reps: 6, completed: true, set_type: 'working' }] },
-    { name: 'Incline Dumbbell Press', category: 'chest', exercise_type: 'weighted', sets: [{ kg: 36, reps: 10, completed: true, set_type: 'working' }] },
-    { name: 'Cable Flyes', category: 'chest', exercise_type: 'weighted', sets: [{ kg: 15, reps: 12, completed: true, set_type: 'working' }] },
-    { name: 'Tricep Pushdowns', category: 'arms', exercise_type: 'weighted', sets: [{ kg: 30, reps: 12, completed: true, set_type: 'working' }] },
-    { name: 'Lateral Raises', category: 'shoulders', exercise_type: 'weighted', sets: [{ kg: 14, reps: 15, completed: true, set_type: 'working' }] },
+    { name: 'Bench Press', category: 'chest', exercise_type: 'weighted', sets: [{ kg: 100, reps: 8, completed: true, set_type: 'working', parent_set_number: null }, { kg: 110, reps: 6, completed: true, set_type: 'working', parent_set_number: null }] },
+    { name: 'Incline Dumbbell Press', category: 'chest', exercise_type: 'weighted', sets: [{ kg: 36, reps: 10, completed: true, set_type: 'working', parent_set_number: null }] },
+    { name: 'Cable Flyes', category: 'chest', exercise_type: 'weighted', sets: [{ kg: 15, reps: 12, completed: true, set_type: 'working', parent_set_number: null }] },
+    { name: 'Tricep Pushdowns', category: 'arms', exercise_type: 'weighted', sets: [{ kg: 30, reps: 12, completed: true, set_type: 'working', parent_set_number: null }] },
+    { name: 'Lateral Raises', category: 'shoulders', exercise_type: 'weighted', sets: [{ kg: 14, reps: 15, completed: true, set_type: 'working', parent_set_number: null }] },
   ],
   duration: 4320,
   workoutName: null,

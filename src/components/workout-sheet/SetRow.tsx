@@ -47,10 +47,13 @@ interface Props {
   onUpdate: (field: 'kg' | 'reps', value: string) => void;
   onToggle: () => void;
   onCycleSetType: () => void;
+  onBadgeLongPress?: (pageY: number) => void;
   onDelete: (() => void) | null;
   onInputFocus?: (y: number) => void;
   isGhost?: boolean;
   ghostResult?: 'win' | 'loss' | 'tie' | null;
+  isDropSet?: boolean;
+  dropIndex?: number | null;
 }
 
 /* ── Helpers ───────────────────────────────────────────── */
@@ -76,7 +79,7 @@ const isDuration = (t?: ExerciseType) => t === 'duration';
 
 /* ── Component ─────────────────────────────────────────── */
 
-function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps, exerciseType, onUpdate, onToggle, onCycleSetType, onDelete, onInputFocus, isGhost, ghostResult }: Props) {
+function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps, exerciseType, onUpdate, onToggle, onCycleSetType, onBadgeLongPress, onDelete, onInputFocus, isGhost, ghostResult, isDropSet, dropIndex }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -175,6 +178,16 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
     onCycleSetType();
   }, [onCycleSetType]);
 
+  const badgeRef = useRef<View>(null);
+  const handleBadgeLongPress = useCallback(() => {
+    if (onBadgeLongPress) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      badgeRef.current?.measureInWindow((_x, y, _w, h) => {
+        onBadgeLongPress(y + h / 2);
+      });
+    }
+  }, [onBadgeLongPress]);
+
   /* ── JS-thread callbacks for gestures ─────────────── */
 
   const suggestedKgRef = useRef(suggestedKg);
@@ -245,7 +258,7 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
   const SET_TYPE_CONFIG: Record<string, { bg: string; color: string; label: string | null }> = {
     working: { bg: colors.surface, color: colors.textSecondary, label: null },
     warmup: { bg: colors.accentOrange + '18', color: colors.accentOrange, label: 'W' },
-    drop: { bg: colors.accentPink + '18', color: colors.accentPink, label: 'D' },
+    drop: { bg: colors.accentBabyBlue + '18', color: colors.accentBabyBlue, label: 'D' },
     failure: { bg: colors.accentRed + '18', color: colors.accentRed, label: 'F' },
   };
 
@@ -253,8 +266,12 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
 
   /* ── Render ────────────────────────────────────────── */
 
+  const badgeLabel = isDropSet && dropIndex != null ? `D${dropIndex + 1}` : `S${index + 1}`;
+
   return (
-    <Animated.View style={[styles.wrapper, wrapperStyle]}>
+    <Animated.View style={[styles.wrapper, wrapperStyle, isDropSet && styles.wrapperDrop]}>
+      {/* Drop set connecting line */}
+      {isDropSet && <View style={styles.dropLine} />}
       {/* Background actions */}
       <View style={styles.actionsContainer}>
         {/* Left: complete */}
@@ -317,7 +334,9 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
 
           {/* Set number / type badge */}
           <Pressable
+            ref={badgeRef}
             onPress={handleCycleType}
+            onLongPress={handleBadgeLongPress}
             style={({ pressed }) => [
               styles.setNumBadge,
               { backgroundColor: typeConfig.bg },
@@ -325,7 +344,7 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
             ]}
           >
             <Text style={[styles.setNumText, { color: completed ? (isGhost && ghostResult ? (ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) : colors.accentGreen) : typeConfig.color }]}>
-              {`S${index + 1}`}
+              {badgeLabel}
             </Text>
           </Pressable>
 
@@ -518,6 +537,18 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     wrapper: {
       borderRadius: sw(10),
+    },
+    wrapperDrop: {
+      marginLeft: sw(16),
+    },
+    dropLine: {
+      position: 'absolute' as const,
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 2,
+      backgroundColor: colors.accentBabyBlue + '30',
+      borderRadius: 1,
     },
 
     /* ── Background actions ──────────────────────────── */

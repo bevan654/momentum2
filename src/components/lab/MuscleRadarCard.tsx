@@ -127,6 +127,14 @@ export default function MuscleRadarCard() {
   const groupSets = useMemo(() => computeGroupSets(workouts, 30), [workouts]);
   const bodyData = useMemo(() => compute30dBodyData(workouts), [workouts]);
 
+  const dateRangeLabel = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${fmt(start)} – ${fmt(now)}`;
+  }, []);
+
   const maxSets = useMemo(() => {
     const vals = GROUPS.map((g) => groupSets[g]);
     const m = Math.max(...vals, 0);
@@ -186,6 +194,11 @@ export default function MuscleRadarCard() {
 
   return (
     <View style={styles.card}>
+      <View style={styles.header}>
+        <View style={styles.accentDot} />
+        <Text style={styles.title}>Training Balance</Text>
+        <Text style={styles.dateRange}>{dateRangeLabel}</Text>
+      </View>
       <View style={styles.contentRow}>
         {/* Radar section */}
         <View style={styles.radarSection}>
@@ -301,6 +314,31 @@ const createStyles = (colors: ThemeColors) =>
       borderColor: colors.cardBorder,
       padding: CARD_PAD,
       ...colors.cardShadow,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(8),
+      marginBottom: sw(8),
+    },
+    accentDot: {
+      width: sw(4),
+      height: sw(16),
+      borderRadius: sw(2),
+      backgroundColor: colors.accent,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: ms(15),
+      lineHeight: ms(21),
+      fontFamily: Fonts.bold,
+    },
+    dateRange: {
+      color: colors.textTertiary,
+      fontSize: ms(11),
+      lineHeight: ms(15),
+      fontFamily: Fonts.medium,
+      marginLeft: 'auto',
     },
     contentRow: {
       flexDirection: 'row',

@@ -168,15 +168,30 @@ export default function WorkoutDetailScreen() {
               </View>
 
               {/* Set rows */}
-              {ex.sets.map((s, si) => (
-                <View key={si} style={styles.setRow}>
-                  <Text style={[styles.setNum, styles.colSet]}>{si + 1}</Text>
-                  <Text style={[styles.cellVal, styles.colVal]}>
-                    {s.kg ? s.kg : '—'}
-                  </Text>
-                  <Text style={[styles.cellVal, styles.colVal]}>{s.reps || '—'}</Text>
-                </View>
-              ))}
+              {ex.sets.map((s, si) => {
+                const isDropRow = s.set_type === 'drop' && s.parent_set_number != null;
+                let dropLabel: string | null = null;
+                if (isDropRow) {
+                  let count = 0;
+                  for (let j = 0; j < si; j++) {
+                    if (ex.sets[j].set_type === 'drop' && ex.sets[j].parent_set_number === s.parent_set_number) count++;
+                  }
+                  dropLabel = `D${count + 1}`;
+                }
+                return (
+                  <View key={si} style={[styles.setRow, isDropRow && { marginLeft: sw(12) }]}>
+                    {isDropRow ? (
+                      <Text style={[styles.setNum, styles.colSet, { color: colors.accentBabyBlue }]}>{dropLabel}</Text>
+                    ) : (
+                      <Text style={[styles.setNum, styles.colSet]}>{si + 1}</Text>
+                    )}
+                    <Text style={[styles.cellVal, styles.colVal]}>
+                      {s.kg ? s.kg : '—'}
+                    </Text>
+                    <Text style={[styles.cellVal, styles.colVal]}>{s.reps || '—'}</Text>
+                  </View>
+                );
+              })}
             </View>
           );
         })}
