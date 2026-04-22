@@ -5,7 +5,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -192,6 +192,12 @@ Style:
 - If the user asks something you genuinely can't answer from the data, say exactly what's missing and ask for it. Don't pad with generic advice.
 - When giving programming recommendations, be concrete: exercise, sets × reps, weight if calculable from e1RM.
 
+Accuracy rules (CRITICAL):
+- Before ever claiming the user "hasn't trained X" or "hasn't hit X in N days", scan the DETAILED LOG for X. If it appears anywhere in the window they asked about, the claim is wrong — do not make it.
+- Do not contradict your own context. If you cite "last benched April 17", you cannot also say "haven't trained chest recently" — April 17 IS recent.
+- When recommending a session, open by acknowledging what was recently trained ("Your last chest day was April 17 — time for legs today") rather than fabricating an absence.
+- If the user asks "when did I last do X?", scan the DETAILED LOG for X and answer with the actual date. If it's not in the log, say "Not in the last 6 weeks of data."
+
 Completeness rules:
 - When asked for multi-part content (e.g. "3-day plan", "full week", "all my exercises", "a list of 10..."), deliver EVERY part in ONE response. Never say "Let me know if you want Day 2" or stop partway — finish the whole thing.
 - If the user asks for N items/days/weeks, produce N items/days/weeks fully detailed. Don't summarise remaining parts.
@@ -275,13 +281,36 @@ Deno.serve(async (req: Request) => {
   const userId = await verifyUser(token);
   if (!userId) return json({ error: "Invalid auth" }, 401);
 
-  const { data: flagRow } = await admin
+  const { data: profileRow } = await admin
     .from("profiles")
-    .select("ai_coach_enabled")
+    .select("ai_coach_enabled, ai_coach_daily_limit")
     .eq("id", userId)
     .maybeSingle();
-  if (!flagRow?.ai_coach_enabled) {
+  if (!profileRow?.ai_coach_enabled) {
     return json({ error: "AI coach is not enabled for this account" }, 403);
+  }
+
+  const userLimit = profileRow.ai_coach_daily_limit;
+  if (userLimit !== null && userLimit !== undefined && userLimit > 0) {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: userMsgCount } = await admin
+      .from("ai_coach_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("role", "user")
+      .gte("created_at", since);
+
+    if ((userMsgCount ?? 0) >= userLimit) {
+      console.log(`[ai-coach] rate limit: user ${userId} at ${userMsgCount}/${userLimit}`);
+      return json(
+        {
+          error: `You've hit the daily limit of ${userLimit} AI coach messages. Resets in 24 hours.`,
+          limit: userLimit,
+          used: userMsgCount,
+        },
+        429,
+      );
+    }
   }
 
   let messages: ChatMessage[];
