@@ -75,6 +75,7 @@
     "babel-preset-expo": "^54.0.10",
     "claude": "^0.1.1",
     "eas": "^0.1.0",
+    "eas-cli": "^18.7.0",
     "supabase": "^2.93.0",
     "typescript": "~5.9.2"
   },
