@@ -19,6 +19,7 @@ import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { useWeightStore } from '../../stores/useWeightStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
+import { useLabTimeRangeStore, nearestRangeOption } from '../../stores/useLabTimeRangeStore';
 import WeightLogModal from '../home/WeightLogModal';
 import WeightHistoryModal from '../home/WeightHistoryModal';
 
@@ -32,6 +33,10 @@ const EMA_COLOR = '#3B82F6';
 const GOAL_COLOR = '#10B981';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Placeholder curve shown when the user has no weight entries yet.
+// Normalised 0..1 (0 = top of chart, 1 = bottom). Gentle downward trend with some noise.
+const PLACEHOLDER_CURVE = [0.18, 0.22, 0.30, 0.28, 0.38, 0.45, 0.42, 0.52, 0.60, 0.58, 0.66, 0.72];
 
 const RANGES = [
   { label: '1W', days: 7 },
@@ -95,6 +100,14 @@ export default function WeightCard({ pageIndicator }: Props) {
   const [selectedRange, setSelectedRange] = useState<RangeLabel>(defaultRange as RangeLabel);
   const [showLogModal, setShowLogModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Sync to global Lab time range when user taps the global bar
+  const globalRangeDays = useLabTimeRangeStore((s) => s.rangeDays);
+  const globalVersion = useLabTimeRangeStore((s) => s.version);
+  useEffect(() => {
+    const nearest = nearestRangeOption(globalRangeDays, RANGES);
+    setSelectedRange(nearest.label);
+  }, [globalVersion]);
   const selectedDays = RANGES.find((r) => r.label === selectedRange)!.days;
   const rangeIndex = RANGES.findIndex((r) => r.label === selectedRange);
 
@@ -438,9 +451,69 @@ export default function WeightCard({ pageIndicator }: Props) {
           </View>
         </Pressable>
       ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>Log your weight to see trends</Text>
-        </View>
+        <Pressable onPress={() => setShowLogModal(true)} style={styles.emptyWrap}>
+          <View style={{ height: CHART_H }}>
+            {/* Faint Y-axis labels (no real values) */}
+            {Array.from({ length: GRID_STEPS + 1 }).map((_, i) => (
+              <View
+                key={i}
+                style={{
+                  position: 'absolute',
+                  top: (i / GRID_STEPS) * CHART_H - ms(6),
+                  left: 0,
+                  width: Y_LABEL_W - sw(4),
+                  height: ms(10),
+                }}
+              />
+            ))}
+
+            <Canvas
+              style={{ position: 'absolute', left: 0, top: 0, width: cardInnerW, height: CHART_H }}
+            >
+              {/* Grid */}
+              {Array.from({ length: GRID_STEPS + 1 }).map((_, i) => {
+                const y = (i / GRID_STEPS) * CHART_H;
+                return (
+                  <SkiaLine
+                    key={i}
+                    p1={vec(Y_LABEL_W, y)}
+                    p2={vec(cardInnerW, y)}
+                    color={colors.cardBorder + '80'}
+                    strokeWidth={0.5}
+                  />
+                );
+              })}
+
+              {/* Ghosted line path */}
+              {(() => {
+                const chartW = cardInnerW - Y_LABEL_W;
+                const stepX = chartW / (PLACEHOLDER_CURVE.length - 1);
+                const path = Skia.Path.Make();
+                PLACEHOLDER_CURVE.forEach((v, i) => {
+                  const x = Y_LABEL_W + i * stepX;
+                  const y = v * CHART_H;
+                  if (i === 0) path.moveTo(x, y);
+                  else {
+                    const prev = PLACEHOLDER_CURVE[i - 1];
+                    const prevX = Y_LABEL_W + (i - 1) * stepX;
+                    const prevY = prev * CHART_H;
+                    const cpX = (prevX + x) / 2;
+                    path.cubicTo(cpX, prevY, cpX, y, x, y);
+                  }
+                });
+                return <Path path={path} style="stroke" strokeWidth={2} color={EMA_COLOR + '55'} />;
+              })()}
+            </Canvas>
+          </View>
+
+          <View style={styles.emptyOverlay}>
+            <View style={[styles.emptyBadge, { backgroundColor: colors.accent + '15' }]}>
+              <Ionicons name="add-circle" size={ms(14)} color={colors.accent} />
+              <Text style={[styles.emptyBadgeText, { color: colors.accent }]}>Log your first weight</Text>
+            </View>
+            <Text style={styles.emptyCaption}>Track trends, projections, and goal pace</Text>
+          </View>
+        </Pressable>
       )}
 
       {/* Modals */}
@@ -608,6 +681,38 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textTertiary,
       fontSize: ms(10),
       lineHeight: ms(14),
+      fontFamily: Fonts.medium,
+    },
+    emptyWrap: {
+      position: 'relative',
+    },
+    emptyOverlay: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: sw(6),
+    },
+    emptyBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(6),
+      paddingHorizontal: sw(12),
+      paddingVertical: sw(8),
+      borderRadius: sw(16),
+    },
+    emptyBadgeText: {
+      fontSize: ms(12),
+      lineHeight: ms(15),
+      fontFamily: Fonts.semiBold,
+    },
+    emptyCaption: {
+      color: colors.textTertiary,
+      fontSize: ms(10),
+      lineHeight: ms(13),
       fontFamily: Fonts.medium,
     },
     emptyState: {
