@@ -33,7 +33,8 @@ import { initNotifications, cleanupNotifications } from '../services/notificatio
 
 const Tab = createMaterialTopTabNavigator();
 
-import { setOpenProfileSheet, showRecoveryOverlay } from '../lib/navigationBridge';
+import { setOpenProfileSheet, setOpenShareHub, showRecoveryOverlay } from '../lib/navigationBridge';
+import ShareHub from '../components/share/ShareHub';
 
 /* ─── Tab config ────────────────────────────────────────── */
 
@@ -270,6 +271,13 @@ export default function TabNavigator() {
   const openProfile = useCallback(() => setProfileVisible(true), []);
   const closeProfile = useCallback(() => setProfileVisible(false), []);
 
+  // Share hub — lives here so it's available before lazy tabs mount
+  const [shareVisible, setShareVisible] = useState(false);
+  useEffect(() => {
+    setOpenShareHub(() => setShareVisible(true));
+    return () => { setOpenShareHub(null); };
+  }, []);
+
   // Expose for external callers (e.g. HomeScreen avatar)
   useEffect(() => {
     setOpenProfileSheet(openProfile);
@@ -315,6 +323,10 @@ export default function TabNavigator() {
       </BottomSheet>
       <ActiveWorkoutSheet />
       <FriendProfileModal />
+      <ShareHub
+        visible={shareVisible}
+        onClose={() => setShareVisible(false)}
+      />
       {showSummary && summaryData && !isGhostSummary && (
         <WorkoutSummaryModal
           mode="just-completed"

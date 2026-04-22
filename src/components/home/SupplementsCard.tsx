@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -38,55 +38,146 @@ const SupplementCell = React.memo(function SupplementCell({
   const styles = useMemo(() => createStyles(colors), [colors]);
   const progress = config.dailyGoal > 0 ? Math.min(total / config.dailyGoal, 1) : 0;
   const complete = total >= config.dailyGoal;
+  const [expanded, setExpanded] = useState(false);
+
+  const isOver = total > config.dailyGoal && config.dailyGoal > 0;
+  const remaining = Math.max(0, config.dailyGoal - total);
+  const overAmount = Math.max(0, total - config.dailyGoal);
+  const pct = config.dailyGoal > 0 ? Math.round((total / config.dailyGoal) * 100) : 0;
+
+  // Build quick-add amounts from increments + some common fractions
+  const quickAmounts = useMemo(() => {
+    const amounts = new Set<number>();
+    for (const inc of config.increments) {
+      amounts.add(inc);
+      if (inc > 1) {
+        const half = Math.round(inc / 2);
+        if (half > 0 && half !== inc) amounts.add(half);
+        const double = inc * 2;
+        amounts.add(double);
+      }
+    }
+    return Array.from(amounts).sort((a, b) => a - b);
+  }, [config.increments]);
 
   return (
-    <View style={embedded ? styles.cellEmbedded : styles.cell}>
-      {/* Header */}
-      <View style={styles.cellHeader}>
-        <View style={[styles.iconWrap, { backgroundColor: config.color + '15' }]}>
-          <Ionicons name={config.icon as any} size={ms(12)} color={config.color} />
-        </View>
-        <Text style={styles.cellName} numberOfLines={1}>{config.name}</Text>
-        {total > 0 && (
-          <TouchableOpacity onPress={() => onReset(config.key)} hitSlop={8}>
-            <Ionicons name="arrow-undo" size={ms(12)} color={colors.textTertiary} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Value */}
-      <View style={styles.cellValueRow}>
-        <Text style={styles.cellCurrent}>{total}</Text>
-        <Text style={styles.cellGoal}>/{config.dailyGoal}{config.unit}</Text>
-        {complete && (
-          <Ionicons name="checkmark-circle" size={ms(14)} color={config.color} style={{ marginLeft: sw(4) }} />
-        )}
-      </View>
-
-      {/* Progress */}
-      <View style={styles.progressTrack}>
-        <View
-          style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: config.color }]}
-        />
-      </View>
-
-      {/* Buttons */}
-      {!complete && (
-        <View style={styles.cellButtons}>
-          {config.increments.map((inc) => (
-            <TouchableOpacity
-              key={inc}
-              style={styles.cellAddBtn}
-              onPress={() => onAdd(config.key, inc)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cellAddBtnText}>+{formatIncrement(inc)}</Text>
+      <TouchableOpacity
+        style={embedded ? styles.cellEmbedded : styles.cell}
+        onPress={() => setExpanded(true)}
+        activeOpacity={0.7}
+      >
+        {/* Header */}
+        <View style={styles.cellHeader}>
+          <View style={[styles.iconWrap, { backgroundColor: config.color + '15' }]}>
+            <Ionicons name={config.icon as any} size={ms(12)} color={config.color} />
+          </View>
+          <Text style={styles.cellName} numberOfLines={1}>{config.name}</Text>
+          {total > 0 && (
+            <TouchableOpacity onPress={() => onReset(config.key)} hitSlop={8}>
+              <Ionicons name="arrow-undo" size={ms(12)} color={colors.textTertiary} />
             </TouchableOpacity>
-          ))}
+          )}
         </View>
-      )}
-    </View>
-  );
+
+        {/* Value */}
+        <View style={styles.cellValueRow}>
+          <Text style={styles.cellCurrent}>{total}</Text>
+          <Text style={styles.cellGoal}>/{config.dailyGoal}{config.unit}</Text>
+          {complete && (
+            <Ionicons name="checkmark-circle" size={ms(14)} color={config.color} style={{ marginLeft: sw(4) }} />
+          )}
+        </View>
+
+        {/* Progress */}
+        <View style={styles.progressTrack}>
+          <View
+            style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: config.color }]}
+          />
+        </View>
+
+        {/* Buttons */}
+        {!complete && (
+          <View style={styles.cellButtons}>
+            {config.increments.map((inc) => (
+              <TouchableOpacity
+                key={inc}
+                style={styles.cellAddBtn}
+                onPress={() => onAdd(config.key, inc)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cellAddBtnText}>+{formatIncrement(inc)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        {/* Detail modal */}
+        <Modal visible={expanded} transparent animationType="fade" onRequestClose={() => setExpanded(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setExpanded(false)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Hero */}
+              <View style={styles.modalHeroRow}>
+                <View>
+                  <Text style={[styles.modalHeroNumber, isOver && { color: config.color }]}>
+                    {total}
+                    <Text style={styles.modalHeroUnit}> {config.unit}</Text>
+                  </Text>
+                  <Text style={styles.modalHeroLabel}>
+                    {isOver ? `${overAmount}${config.unit} over goal` : `${remaining}${config.unit} remaining`}
+                  </Text>
+                </View>
+                <View style={styles.modalHeroRight}>
+                  <View style={styles.modalStatItem}>
+                    <Text style={styles.modalStatValue}>{config.dailyGoal}</Text>
+                    <Text style={styles.modalStatLabel}>Goal</Text>
+                  </View>
+                  <View style={styles.modalStatDivider} />
+                  <View style={styles.modalStatItem}>
+                    <Text style={styles.modalStatValue}>{pct}%</Text>
+                    <Text style={styles.modalStatLabel}>Done</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Progress bar */}
+              <Text style={styles.modalSectionLabel}>{config.name}</Text>
+              <View style={styles.modalBarTrack}>
+                <View style={[styles.modalBarFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: config.color }]} />
+              </View>
+
+              {/* Quick add buttons */}
+              <Text style={[styles.modalSectionLabel, { marginTop: sw(16) }]}>Quick Add</Text>
+              <View style={styles.modalButtons}>
+                {quickAmounts.map((amount) => (
+                  <TouchableOpacity
+                    key={amount}
+                    style={styles.modalAddBtn}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onAdd(config.key, amount); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.modalAddBtnText, { color: config.color }]}>+{formatIncrement(amount)}{config.unit}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Undo + Close */}
+              <View style={styles.modalFooter}>
+                {total > 0 && (
+                  <TouchableOpacity style={styles.modalUndoBtn} onPress={() => onReset(config.key)} activeOpacity={0.7}>
+                    <Ionicons name="arrow-undo" size={ms(14)} color={colors.textSecondary} />
+                    <Text style={styles.modalUndoBtnText}>Undo</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={[styles.modalCloseBtn, { flex: 1 }]} onPress={() => setExpanded(false)} activeOpacity={0.7}>
+                  <Text style={styles.modalCloseBtnText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+        </Modal>
+      </TouchableOpacity>
+    );
 });
 
 /* ─── Supplements Card ────────────────────────────────── */
@@ -170,18 +261,19 @@ export default function SupplementsCard() {
     );
   }
 
-  // 2 supplements → normal grid, no add button
+  // 2+ supplements → normal grid, no add button
   return (
     <>
       <View style={gridStyles.grid}>
         {configs.map((config) => (
-          <SupplementCell
-            key={config.key}
-            config={config}
-            total={totals[config.key] || 0}
-            onAdd={handleAdd}
-            onReset={handleReset}
-          />
+          <View key={config.key} style={{ width: CELL_WIDTH }}>
+            <SupplementCell
+              config={config}
+              total={totals[config.key] || 0}
+              onAdd={handleAdd}
+              onReset={handleReset}
+            />
+          </View>
         ))}
       </View>
 
@@ -266,7 +358,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
 
   /* Cell (standalone half-width card) */
   cell: {
-    width: CELL_WIDTH,
+    flex: 1,
     backgroundColor: colors.card,
     borderRadius: 0,
     borderWidth: 1,
@@ -342,6 +434,146 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textSecondary,
     fontSize: ms(12),
     lineHeight: ms(16),
+    fontFamily: Fonts.semiBold,
+  },
+
+  /* ─── Modal ──────────────────────────────────────────── */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    paddingHorizontal: sw(20),
+  },
+  modalSheet: {
+    backgroundColor: colors.card,
+    borderRadius: sw(16),
+    padding: sw(20),
+    gap: sw(16),
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    maxHeight: '80%',
+  },
+  modalHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: sw(16),
+  },
+  modalHeroNumber: {
+    color: colors.textPrimary,
+    fontSize: ms(42),
+    lineHeight: ms(46),
+    fontFamily: Fonts.extraBold,
+    letterSpacing: -1.5,
+  },
+  modalHeroUnit: {
+    fontSize: ms(18),
+    fontFamily: Fonts.medium,
+    color: colors.textTertiary,
+  },
+  modalHeroLabel: {
+    color: colors.textTertiary,
+    fontSize: ms(12),
+    lineHeight: ms(16),
+    fontFamily: Fonts.medium,
+    marginTop: sw(-2),
+  },
+  modalHeroRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(12),
+    marginBottom: sw(4),
+  },
+  modalStatItem: {
+    alignItems: 'flex-end',
+  },
+  modalStatValue: {
+    color: colors.textPrimary,
+    fontSize: ms(16),
+    lineHeight: ms(22),
+    fontFamily: Fonts.bold,
+    letterSpacing: -0.3,
+  },
+  modalStatLabel: {
+    color: colors.textTertiary,
+    fontSize: ms(10),
+    lineHeight: ms(14),
+    fontFamily: Fonts.medium,
+  },
+  modalStatDivider: {
+    width: sw(1),
+    height: sw(26),
+    backgroundColor: colors.surface,
+  },
+  modalSectionLabel: {
+    color: colors.textTertiary,
+    fontSize: ms(10),
+    lineHeight: ms(14),
+    fontFamily: Fonts.semiBold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: sw(8),
+  },
+  modalBarTrack: {
+    height: sw(6),
+    borderRadius: sw(3),
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  modalBarFill: {
+    height: '100%',
+    borderRadius: sw(3),
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: sw(8),
+    justifyContent: 'center',
+  },
+  modalAddBtn: {
+    flex: 1,
+    minWidth: '28%',
+    backgroundColor: colors.surface,
+    borderRadius: sw(10),
+    paddingVertical: sw(12),
+    alignItems: 'center',
+  },
+  modalAddBtnText: {
+    fontSize: ms(14),
+    lineHeight: ms(18),
+    fontFamily: Fonts.bold,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: sw(8),
+    marginTop: sw(4),
+  },
+  modalUndoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(6),
+    backgroundColor: colors.surface,
+    borderRadius: sw(10),
+    paddingVertical: sw(12),
+    paddingHorizontal: sw(16),
+  },
+  modalUndoBtnText: {
+    color: colors.textSecondary,
+    fontSize: ms(14),
+    lineHeight: ms(20),
+    fontFamily: Fonts.semiBold,
+  },
+  modalCloseBtn: {
+    backgroundColor: colors.surface,
+    borderRadius: sw(10),
+    paddingVertical: sw(12),
+    alignItems: 'center',
+  },
+  modalCloseBtnText: {
+    color: colors.textPrimary,
+    fontSize: ms(14),
+    lineHeight: ms(20),
     fontFamily: Fonts.semiBold,
   },
 });

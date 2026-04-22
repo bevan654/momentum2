@@ -75,7 +75,7 @@ function FeedCard({
         exercise_type: 'weighted',
         sets:
           ex.total_volume > 0
-            ? [{ id: `${item.id}-${i}-0`, set_number: 1, kg: ex.total_volume, reps: 1, completed: true, set_type: null, isPR: false }]
+            ? [{ id: `${item.id}-${i}-0`, set_number: 1, kg: ex.total_volume, reps: 1, completed: true, set_type: null, parent_set_number: null, isPR: false }]
             : [],
         hasPR: false,
         category: ex.category,
