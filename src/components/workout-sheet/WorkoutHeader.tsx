@@ -88,29 +88,10 @@ function WorkoutHeader() {
   const doFinish = async (durationOverride?: number) => {
     if (!userId) return;
     setFinishing(true);
-
-    // Absolute ceiling so the spinner cannot hang forever, even if
-    // Supabase internals deadlock (e.g. stale network after device idle).
-    const HARD_TIMEOUT_MS = 60_000;
-    let timedOut = false;
-    const timeout = new Promise<{ error: string }>((resolve) => {
-      setTimeout(() => {
-        timedOut = true;
-        resolve({
-          error:
-            "Saving is taking longer than expected. Your workout may still save — pull down to refresh history. If not, try again.",
-        });
-      }, HARD_TIMEOUT_MS);
-    });
-
     try {
-      const result = await Promise.race([
-        finishWorkout(userId, durationOverride),
-        timeout,
-      ]);
-      const { error } = result as { error: string | null };
+      const { error } = await finishWorkout(userId, durationOverride);
       if (error) {
-        Alert.alert(timedOut ? 'Timed out' : 'Error', error);
+        Alert.alert('Error', error);
         return;
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
