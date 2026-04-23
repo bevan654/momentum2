@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { supabase, rawSupabaseInsert } from '../lib/supabase';
 import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference } from '../utils/workoutStorage';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useStreakStore } from './useStreakStore';
@@ -15,7 +15,9 @@ import { playBeep } from '../utils/beepSound';
 import type { WorkoutActivitySnapshot } from '../services/liveActivityManager';
 
 const REST_NOTIF_ID = 'rest-timer';
-const SUPABASE_TIMEOUT = 20_000; // 20s per request
+const SUPABASE_TIMEOUT = 7_000; // 7s per attempt
+const RETRY_ATTEMPTS = 3;
+const RETRY_BACKOFFS_MS = [0, 2000, 4000]; // cumulative network-recovery headroom
 
 /** Race a promise against a timeout — rejects with an error if it takes too long */
 function withTimeout<T>(promise: PromiseLike<T>, ms: number = SUPABASE_TIMEOUT): Promise<T> {
@@ -24,6 +26,43 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number = SUPABASE_TIMEOUT):
     id = setTimeout(() => reject(new Error('Request timed out')), ms);
   });
   return Promise.race([Promise.resolve(promise), timer]).finally(() => clearTimeout(id));
+}
+
+/**
+ * Retry a network-backed Supabase call. Re-invokes `factory` (which produces
+ * a fresh PromiseLike each time, since Supabase builders are single-use) up
+ * to RETRY_ATTEMPTS times, with increasing backoff between tries.
+ *
+ * Treats a result whose `.error` has `code` or a Postgres-style shape as
+ * "application-level error" — we don't retry those, since it's the server
+ * rejecting our payload (not a network blip). Only connection/timeout
+ * failures get retried.
+ */
+async function withRetry<T extends { error: any }>(
+  factory: () => PromiseLike<T>,
+  label: string,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < RETRY_ATTEMPTS; i++) {
+    if (RETRY_BACKOFFS_MS[i] > 0) {
+      await new Promise((r) => setTimeout(r, RETRY_BACKOFFS_MS[i]));
+    }
+    try {
+      const result = await withTimeout(factory());
+      // Application-level error from Postgrest → surface directly, don't retry
+      if (result?.error && (result.error as any).code) {
+        return result;
+      }
+      // No error or non-coded error → success
+      if (!result?.error) return result;
+      lastErr = result.error;
+      console.warn(`[${label}] attempt ${i + 1} failed:`, result.error);
+    } catch (e) {
+      lastErr = e;
+      console.warn(`[${label}] attempt ${i + 1} threw:`, e);
+    }
+  }
+  throw lastErr ?? new Error(`${label} failed after ${RETRY_ATTEMPTS} attempts`);
 }
 
 // ── Types ──────────────────────────────────────────────
@@ -371,16 +410,39 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   finishWorkout: async (userId: string, durationOverride?: number) => {
-    // Debug: check Supabase connectivity
-    console.log('[finishWorkout] supabase URL:', process.env.EXPO_PUBLIC_SUPABASE_URL);
-    console.log('[finishWorkout] userId:', userId);
+    console.log('[finishWorkout] start, userId:', userId);
+
+    // Warm up the session AND the network socket in a bounded window.
+    // After device idle, SecureStore can stall auth ops and iOS keeps
+    // stale TCP sockets that cause the first real request to hang.
+    // Doing a cheap read here pays the cold-start cost on a non-critical
+    // call before we attempt the actual workout insert. 6s cap — if the
+    // probe doesn't finish, inserts will still retry on their own.
+    const warmupStart = Date.now();
     try {
-      const { data: sess } = await supabase.auth.getSession();
-      console.log('[finishWorkout] session exists:', !!sess?.session);
-      console.log('[finishWorkout] token expires at:', sess?.session?.expires_at ? new Date(sess.session.expires_at * 1000).toISOString() : 'N/A');
+      await Promise.race([
+        (async () => {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            console.log('[finishWorkout] warmup: no session');
+            return;
+          }
+          const expiresAt = session.expires_at ?? 0;
+          const secondsLeft = expiresAt - Math.floor(Date.now() / 1000);
+          if (secondsLeft < 120) {
+            console.log('[finishWorkout] warmup: refreshing session');
+            await supabase.auth.refreshSession();
+          }
+          // Cheap network probe — forces a fresh TCP/TLS handshake now,
+          // so subsequent inserts hit a warm socket.
+          await supabase.from('profiles').select('id').eq('id', userId).limit(1);
+        })(),
+        new Promise<void>((resolve) => setTimeout(resolve, 6000)),
+      ]);
     } catch (e) {
-      console.error('[finishWorkout] getSession failed:', e);
+      console.warn('[finishWorkout] warmup threw:', e);
     }
+    console.log('[finishWorkout] warmup done in', Date.now() - warmupStart, 'ms');
 
     const { exercises, elapsedSeconds, ghostUserName } = get();
     if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
@@ -428,23 +490,25 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       if (!_timerInterval) _timerInterval = setInterval(() => get().tick(), 1000);
     };
 
-    // Insert workout
-    console.log('[finishWorkout] inserting workout...');
+    // Insert workout — use raw REST to bypass supabase-js auth mutex
+    console.log('[finishWorkout] inserting workout (raw)...');
     let workout: { id: string } | null = null;
     try {
-      const { data, error: workoutErr } = await withTimeout(
-        supabase
-          .from('workouts')
-          .insert({
-            user_id: userId,
-            duration,
-            total_exercises: filteredExercises.length,
-            total_sets: totalSets,
-            ...(ghostUserName ? { ghost_username: ghostUserName } : {}),
-            ...(get().startedFromProgram ? { program_id: get().startedFromProgram, program_week: get().programWeek } : {}),
-          })
-          .select('id')
-          .single()
+      const { data, error: workoutErr } = await withRetry(
+        () =>
+          rawSupabaseInsert<{ id: string }>(
+            'workouts',
+            {
+              user_id: userId,
+              duration,
+              total_exercises: filteredExercises.length,
+              total_sets: totalSets,
+              ...(ghostUserName ? { ghost_username: ghostUserName } : {}),
+              ...(get().startedFromProgram ? { program_id: get().startedFromProgram, program_week: get().programWeek } : {}),
+            },
+            { select: 'id', single: true, timeoutMs: SUPABASE_TIMEOUT },
+          ),
+        'finishWorkout.workoutInsert',
       );
       if (workoutErr || !data) {
         console.error('[finishWorkout] workout insert error:', workoutErr);
@@ -469,11 +533,14 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         exercise_type: ex.exercise_type,
       }));
 
-      const { data: exDataArr, error: exErr } = await withTimeout(
-        supabase
-          .from('exercises')
-          .insert(exerciseRows)
-          .select('id, exercise_order')
+      const { data: exDataArr, error: exErr } = await withRetry(
+        () =>
+          rawSupabaseInsert<Array<{ id: string; exercise_order: number }>>(
+            'exercises',
+            exerciseRows,
+            { select: 'id,exercise_order', timeoutMs: SUPABASE_TIMEOUT },
+          ),
+        'finishWorkout.exercisesInsert',
       );
 
       if (exErr || !exDataArr || exDataArr.length === 0) {
@@ -517,13 +584,18 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       }
 
       if (allSetRows.length > 0) {
-        const { error: setErr } = await withTimeout(
-          supabase.from('sets').insert(allSetRows)
-        );
-        if (setErr) {
-          console.warn('[finishWorkout] sets insert error:', setErr);
-        } else {
-          console.log('[finishWorkout] sets saved');
+        try {
+          const { error: setErr } = await withRetry(
+            () => rawSupabaseInsert('sets', allSetRows, { timeoutMs: SUPABASE_TIMEOUT }),
+            'finishWorkout.setsInsert',
+          );
+          if (setErr) {
+            console.warn('[finishWorkout] sets insert error:', setErr);
+          } else {
+            console.log('[finishWorkout] sets saved');
+          }
+        } catch (e) {
+          console.warn('[finishWorkout] sets insert failed after retries:', e);
         }
       }
     } catch (e: any) {
