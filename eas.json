@@ -31,7 +31,6 @@
     "production": {
       "distribution": "store",
       "channel": "production",
-      "autoIncrement": true,
       "ios": {
         "cache": {
           "disabled": true

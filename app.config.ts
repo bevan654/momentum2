@@ -30,6 +30,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'com.momentum.fitnessapp',
+    buildNumber: '12',
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
