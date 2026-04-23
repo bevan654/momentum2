@@ -129,10 +129,6 @@ interface ActiveWorkoutState {
   programWeek: number | null;
   ghostUserName: string | null;
 
-  // Stubs: HealthKit
-  heartRate: number | null;
-  activeCalories: number | null;
-
   // Workout lifecycle
   startWorkout: () => void;
   startFromRoutine: (
@@ -182,9 +178,6 @@ interface ActiveWorkoutState {
   pauseRest: () => void;
   resumeRest: () => void;
   tick: () => void;
-
-  // Stubs
-  pollHealthKit: () => void;
 
   // Internal
   _persist: () => void;
@@ -263,8 +256,6 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   startedFromProgram: null,
   programWeek: null,
   ghostUserName: null,
-  heartRate: null,
-  activeCalories: null,
 
   // ── Workout lifecycle ─────────────────────────────
 
@@ -1171,10 +1162,6 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     // Single batched set() — one render cycle instead of two
     if (Object.keys(patch).length > 0) set(patch);
   },
-
-  // ── Stubs ─────────────────────────────────────────
-
-  pollHealthKit: () => { /* TODO: Query HealthKit for heart rate + active calories */ },
 
   // ── Internal ──────────────────────────────────────
 
