@@ -13,6 +13,14 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.35',
+    date: '2026-04-23',
+    title: 'Bug Fix',
+    items: [
+      'Fixed an issue where workouts, food entries, and other data would not load after restarting the app',
+    ],
+  },
+  {
     version: '1.0.34',
     date: '2026-04-22',
     title: "What's New",
