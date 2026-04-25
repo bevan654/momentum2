@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import { cleanupNotifications } from '../services/notificationService';
 import { useWorkoutStore } from './useWorkoutStore';
+import { clearWorkout as clearStoredWorkout } from '../utils/workoutStorage';
 
 /** Module-level ref so we can unsubscribe on signOut */
 let _authSubscription: { unsubscribe: () => void } | null = null;
@@ -35,6 +36,7 @@ interface AuthState {
   signUp: (email: string, password: string, username: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  deleteAccount: (password: string) => Promise<{ error: string | null }>;
   fetchProfile: (userId: string) => Promise<void>;
   updateProfile: (updates: Partial<Omit<Profile, 'id' | 'email'>>) => Promise<void>;
   dismissWelcome: () => void;
@@ -185,6 +187,47 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     useWorkoutStore.getState().clearCaches();
     await supabase.auth.signOut();
     set({ user: null, session: null, profile: null, showWelcome: false, _pendingWelcome: false });
+  },
+
+  deleteAccount: async (password) => {
+    const { profile, user } = get();
+    if (!profile?.email || !user) {
+      return { error: 'You must be signed in to delete your account.' };
+    }
+
+    // Re-authenticate to prove identity before destructive action.
+    // signInWithPassword returns an error if the password is wrong; the existing
+    // session stays valid either way, so a wrong guess just shows an error.
+    const { error: reauthError } = await supabase.auth.signInWithPassword({
+      email: profile.email,
+      password,
+    });
+    if (reauthError) {
+      return { error: 'Incorrect password. Please try again.' };
+    }
+
+    // Server-side deletion via Edge Function (uses service role + admin API).
+    // The function reads the user_id from the JWT — we don't pass it.
+    const { data, error: fnError } = await supabase.functions.invoke('delete-account', {
+      body: {},
+    });
+    if (fnError || (data && data.error)) {
+      return { error: (data && data.error) || fnError?.message || 'Failed to delete account.' };
+    }
+
+    // Local cleanup. The auth user is gone server-side, so any token use will
+    // 401 — clear caches + stored workout state so nothing leaks if a different
+    // user signs in on this device.
+    cleanupNotifications();
+    useWorkoutStore.getState().clearCaches();
+    try {
+      clearStoredWorkout();
+    } catch {
+      // best-effort
+    }
+    await supabase.auth.signOut();
+    set({ user: null, session: null, profile: null, showWelcome: false, _pendingWelcome: false });
+    return { error: null };
   },
 
   dismissWelcome: () => {
