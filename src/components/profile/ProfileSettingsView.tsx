@@ -16,6 +16,7 @@ import SupplementConfigEditor from './SupplementConfigEditor';
 import BottomSheet from '../workout-sheet/BottomSheet';
 import MacroGoalEditor from './MacroGoalEditor';
 import MicroGoalEditor from './MicroGoalEditor';
+import DeleteAccountModal from './DeleteAccountModal';
 
 interface Props {
   onBack: () => void;
@@ -25,6 +26,13 @@ export default function ProfileSettingsView({ onBack }: Props) {
   const profile = useAuthStore((s) => s.profile);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [deleteVisible, setDeleteVisible] = useState(false);
+
+  const openDelete = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setDeleteVisible(true);
+  }, []);
+  const closeDelete = useCallback(() => setDeleteVisible(false), []);
 
   return (
     <KeyboardAvoidingView
@@ -98,8 +106,24 @@ export default function ProfileSettingsView({ onBack }: Props) {
           <LinkRow label="Contact Us" url="mailto:support@momentum.app" last />
         </View>
 
+        {/* 8. Danger Zone — account deletion (App Store 5.1.1(v)) */}
+        <SectionHeader title="Danger Zone" />
+        <TouchableOpacity
+          style={[styles.card, styles.dangerRow, { borderColor: colors.accentRed + '55' }]}
+          onPress={openDelete}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="trash-outline" size={ms(20)} color={colors.accentRed} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.fieldLabel, { color: colors.accentRed }]}>Delete Account</Text>
+            <Text style={styles.dangerHint}>Permanently delete your account and data</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={ms(18)} color={colors.textTertiary} />
+        </TouchableOpacity>
+
         <View style={{ height: sw(40) }} />
       </ScrollView>
+      <DeleteAccountModal visible={deleteVisible} onClose={closeDelete} />
     </KeyboardAvoidingView>
   );
 }
@@ -990,6 +1014,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(10),
     lineHeight: ms(14),
     fontFamily: Fonts.medium,
+    marginTop: sw(2),
+  },
+  dangerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(12),
+  },
+  dangerHint: {
+    color: colors.textSecondary,
+    fontSize: ms(12),
+    lineHeight: ms(16),
+    fontFamily: Fonts.regular,
     marginTop: sw(2),
   },
 });
