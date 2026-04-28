@@ -9,6 +9,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Alert,
   ScrollView as RNScrollView,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -19,6 +20,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { supabase } from '../../lib/supabase';
+import ReportSheet from '../friends/ReportSheet';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
@@ -63,6 +65,27 @@ export default function AiHeroCard() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<RNScrollView | null>(null);
+  const [reportTarget, setReportTarget] = useState<{ id: string; content: string } | null>(null);
+
+  const handleReportAi = useCallback((content: string) => {
+    Alert.alert(
+      'Report this response?',
+      'Tell us why this AI response was harmful or inappropriate. We review every report and act within 24 hours.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: () => {
+            // Synthetic UUID — AI messages aren't tracked individually in client state.
+            // The actual content goes into the report's details field via ReportSheet.
+            const id = makeUuid();
+            setReportTarget({ id, content });
+          },
+        },
+      ],
+    );
+  }, []);
 
   const firstName = profile?.username?.split(' ')[0] ?? 'there';
   const latestMsg = messages[messages.length - 1];
@@ -264,6 +287,15 @@ export default function AiHeroCard() {
             </Pressable>
           </View>
 
+          <View style={styles.disclaimerBar}>
+            <Ionicons name="information-circle-outline" size={ms(13)} color={colors.textTertiary} />
+            <Text style={styles.disclaimerText}>
+              AI Coach is informational only — not medical, dietetic, or professional fitness advice.
+              Consult a qualified professional before changing your training, diet, or supplementation.
+              Long-press any response to report it.
+            </Text>
+          </View>
+
           <KeyboardAvoidingView
             style={styles.modalBody}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -291,30 +323,41 @@ export default function AiHeroCard() {
                 </View>
               ) : null}
 
-              {messages.map((msg, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.bubble,
-                    msg.role === 'user' ? styles.bubbleUser : styles.bubbleAi,
-                    msg.role === 'user'
-                      ? { backgroundColor: colors.accent }
-                      : { backgroundColor: colors.surface },
-                  ]}
-                >
-                  <Text
+              {messages.map((msg, i) => {
+                const bubble = (
+                  <View
                     style={[
-                      styles.bubbleText,
+                      styles.bubble,
+                      msg.role === 'user' ? styles.bubbleUser : styles.bubbleAi,
                       msg.role === 'user'
-                        ? { color: colors.textOnAccent }
-                        : { color: colors.textPrimary },
+                        ? { backgroundColor: colors.accent }
+                        : { backgroundColor: colors.surface },
                     ]}
-                    selectable
                   >
-                    {msg.content}
-                  </Text>
-                </View>
-              ))}
+                    <Text
+                      style={[
+                        styles.bubbleText,
+                        msg.role === 'user'
+                          ? { color: colors.textOnAccent }
+                          : { color: colors.textPrimary },
+                      ]}
+                      selectable
+                    >
+                      {msg.content}
+                    </Text>
+                  </View>
+                );
+                if (msg.role !== 'assistant') return <View key={i}>{bubble}</View>;
+                return (
+                  <Pressable
+                    key={i}
+                    onLongPress={() => handleReportAi(msg.content)}
+                    delayLongPress={400}
+                  >
+                    {bubble}
+                  </Pressable>
+                );
+              })}
 
               {loading ? (
                 <View
@@ -356,9 +399,30 @@ export default function AiHeroCard() {
             </View>
           </KeyboardAvoidingView>
         </View>
+
+        <ReportSheet
+          visible={!!reportTarget}
+          onClose={() => setReportTarget(null)}
+          targetType="ai_message"
+          targetId={reportTarget?.id ?? ''}
+          targetUserId={null}
+          contextLabel="AI response"
+          contextText={reportTarget?.content}
+        />
       </Modal>
     </>
   );
+}
+
+/** Generates a v4 UUID using the platform crypto when available, otherwise a Math.random fallback. */
+function makeUuid(): string {
+  const g = globalThis as { crypto?: { randomUUID?: () => string } };
+  if (g.crypto?.randomUUID) return g.crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 const createStyles = (colors: ThemeColors, insetTop: number, insetBottom: number) =>
@@ -505,6 +569,23 @@ const createStyles = (colors: ThemeColors, insetTop: number, insetBottom: number
       justifyContent: 'center',
     },
 
+    disclaimerBar: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: sw(6),
+      paddingHorizontal: sw(16),
+      paddingVertical: sw(8),
+      backgroundColor: colors.surface,
+      borderBottomWidth: 0.5,
+      borderBottomColor: colors.cardBorder,
+    },
+    disclaimerText: {
+      flex: 1,
+      color: colors.textTertiary,
+      fontSize: ms(10),
+      lineHeight: ms(14),
+      fontFamily: Fonts.medium,
+    },
     modalBody: {
       flex: 1,
     },

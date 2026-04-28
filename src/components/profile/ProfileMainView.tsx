@@ -123,7 +123,7 @@ export default function ProfileMainView({ onOpenSettings, onOpenPatchNotes, onCl
       <View style={styles.supportCard}>
         <TouchableOpacity
           style={styles.linkRow}
-          onPress={() => Linking.openURL('https://momentum.app/privacy')}
+          onPress={() => Linking.openURL('https://momentumfitness.vercel.app/privacy')}
           activeOpacity={0.7}
         >
           <Text style={styles.linkText}>Privacy Policy</Text>
@@ -132,7 +132,7 @@ export default function ProfileMainView({ onOpenSettings, onOpenPatchNotes, onCl
         <View style={styles.linkRowBorder} />
         <TouchableOpacity
           style={styles.linkRow}
-          onPress={() => Linking.openURL('https://momentum.app/terms')}
+          onPress={() => Linking.openURL('https://momentumfitness.vercel.app/terms')}
           activeOpacity={0.7}
         >
           <Text style={styles.linkText}>Terms of Service</Text>

@@ -37,6 +37,8 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   deleteAccount: (password: string) => Promise<{ error: string | null }>;
+  requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
+  confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<{ error: string | null }>;
   fetchProfile: (userId: string) => Promise<void>;
   updateProfile: (updates: Partial<Omit<Profile, 'id' | 'email'>>) => Promise<void>;
   dismissWelcome: () => void;
@@ -211,8 +213,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { data, error: fnError } = await supabase.functions.invoke('delete-account', {
       body: {},
     });
-    if (fnError || (data && data.error)) {
-      return { error: (data && data.error) || fnError?.message || 'Failed to delete account.' };
+    if (__DEV__) console.log('[deleteAccount] invoke result:', { data, fnError });
+    if (fnError) {
+      return { error: fnError.message || 'Failed to delete account. Please try again.' };
+    }
+    // Require an explicit success flag from the function. Anything else (missing
+    // function, partial failure, surprise response shape) means we did NOT
+    // actually delete the account — never sign out in that case.
+    if (!data || data.error || data.success !== true) {
+      return {
+        error: (data && data.error) || 'Account deletion did not complete. Please try again.',
+      };
     }
 
     // Local cleanup. The auth user is gone server-side, so any token use will
@@ -232,5 +243,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   dismissWelcome: () => {
     set({ showWelcome: false });
+  },
+
+  requestPasswordReset: async (email) => {
+    // resetPasswordForEmail always returns success so we don't leak whether the
+    // email exists. The user gets the same "check your email" UX either way.
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
+    if (error) return { error: error.message };
+    return { error: null };
+  },
+
+  confirmPasswordReset: async (email, code, newPassword) => {
+    // Two-step: verify the recovery OTP to get a temporary session, then update
+    // the password on that session. Sign out afterwards so the user lands on the
+    // login screen and re-authenticates with the new password (cleaner mental
+    // model than auto-routing into the app from a "reset" flow).
+    const cleanedCode = code.trim();
+    const cleanedEmail = email.trim().toLowerCase();
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email: cleanedEmail,
+      token: cleanedCode,
+      type: 'recovery',
+    });
+    if (verifyError) {
+      return { error: 'That code is invalid or has expired. Request a new one.' };
+    }
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    if (updateError) {
+      return { error: updateError.message };
+    }
+    await supabase.auth.signOut();
+    set({ user: null, session: null, profile: null, showWelcome: false, _pendingWelcome: false });
+    return { error: null };
   },
 }));

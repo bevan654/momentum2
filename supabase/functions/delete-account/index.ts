@@ -143,14 +143,54 @@ async function deleteAllUserData(db: SupabaseClient, userId: string): Promise<vo
   await safeDelete(db.from("body_fat_entries").delete().eq("user_id", userId));
   await safeDelete(db.from("measurement_entries").delete().eq("user_id", userId));
 
-  // 9. Misc per-user state
+  // 9. Direct messages: messages → conversations (both blocking FKs to auth.users).
+  //    Messages may FK conversation_id, so wipe messages from any conversation
+  //    the user is in, then drop the conversations themselves.
+  const conversationIds = await collectConversationIds(db, userId);
+  if (conversationIds.length > 0) {
+    await safeDelete(db.from("messages").delete().in("conversation_id", conversationIds));
+  }
+  // Defensive: messages this user sent in any other conversation
+  await safeDelete(db.from("messages").delete().eq("sender_id", userId));
+  await safeDelete(
+    db.from("conversations").delete().or(`participant_1.eq.${userId},participant_2.eq.${userId}`),
+  );
+
+  // 10. Feature flags (per-user overrides)
+  await safeDelete(db.from("feature_flags").delete().eq("user_id", userId));
+
+  // 11. Misc per-user state
   await safeDelete(db.from("user_streaks").delete().eq("user_id", userId));
   await safeDelete(db.from("user_exercises").delete().eq("user_id", userId));
   await safeDelete(db.from("user_ranks").delete().eq("user_id", userId));
   await safeDelete(db.from("ai_coach_messages").delete().eq("user_id", userId));
 
-  // 10. Profile (FK to auth.users via id)
+  // 12. Waitlist — keyed by email, not user_id. Remove for privacy.
+  const email = await getUserEmail(db, userId);
+  if (email) {
+    await safeDelete(db.from("waitlist").delete().eq("email", email));
+  }
+
+  // 13. Profile (FK to auth.users via id)
   await safeDelete(db.from("profiles").delete().eq("id", userId));
+}
+
+async function getUserEmail(db: SupabaseClient, userId: string): Promise<string | null> {
+  const { data, error } = await db.from("profiles").select("email").eq("id", userId).single();
+  if (error || !data) return null;
+  return data.email ?? null;
+}
+
+async function collectConversationIds(db: SupabaseClient, userId: string): Promise<string[]> {
+  const { data, error } = await db
+    .from("conversations")
+    .select("id")
+    .or(`participant_1.eq.${userId},participant_2.eq.${userId}`);
+  if (error) {
+    if (!isMissingTable(error)) console.warn("collectConversationIds:", error.message);
+    return [];
+  }
+  return (data ?? []).map((row: { id: string }) => row.id).filter(Boolean);
 }
 
 async function collectIds(

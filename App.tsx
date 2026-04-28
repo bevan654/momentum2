@@ -3,6 +3,9 @@ import { ActivityIndicator, Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './src/navigation/navigationRef';
+import { initSentry, navigationIntegration, Sentry, setSentryUser } from './src/lib/sentry';
+
+initSentry();
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
@@ -71,7 +74,7 @@ if (Platform.OS === 'android') {
   Notifications.deleteNotificationChannelAsync('workout_silent').catch(() => {});
 }
 
-export default function App() {
+function App() {
   const { session, profile, initialized, initialize, showWelcome } = useAuthStore();
   const mode = useThemeStore((s) => s.mode);
   const accentColor = useThemeStore((s) => s.accent);
@@ -117,6 +120,18 @@ export default function App() {
     useChangelogStore.getState().check();
   }, []);
 
+  useEffect(() => {
+    if (session?.user) {
+      setSentryUser({
+        id: session.user.id,
+        email: session.user.email,
+        username: profile?.username ?? undefined,
+      });
+    } else {
+      setSentryUser(null);
+    }
+  }, [session?.user?.id, profile?.username]);
+
   if (!fontsLoaded || !initialized || !themeReady) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
@@ -128,7 +143,11 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
-        <NavigationContainer ref={navigationRef} theme={navTheme}>
+        <NavigationContainer
+          ref={navigationRef}
+          theme={navTheme}
+          onReady={() => navigationIntegration.registerNavigationContainer(navigationRef)}
+        >
           <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
           {session
             ? showWelcome
@@ -153,6 +172,8 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(App);
 
 const styles = StyleSheet.create({
   flex: {

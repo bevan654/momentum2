@@ -131,10 +131,12 @@ export async function searchProfiles(
   query: string,
   currentUserId: string,
 ): Promise<SearchResult[]> {
+  // Username-only — searching by email would let anyone confirm whether a given
+  // address has an account, which is a privacy / enumeration leak.
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, username, email')
-    .or(`username.ilike.%${query}%,email.ilike.%${query}%`)
+    .ilike('username', `%${query}%`)
     .neq('id', currentUserId)
     .limit(20);
 
@@ -291,6 +293,57 @@ export async function blockUser(
   });
 }
 
+export async function unblockUser(userId: string, blockedUserId: string): Promise<void> {
+  await supabase
+    .from('friendships')
+    .delete()
+    .eq('user_id', userId)
+    .eq('friend_id', blockedUserId)
+    .eq('status', 'blocked');
+}
+
+/** IDs of users this user has blocked. One-way: who I've chosen not to see. */
+export async function getBlockedUserIds(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('friendships')
+    .select('friend_id')
+    .eq('user_id', userId)
+    .eq('status', 'blocked');
+  return (data ?? []).map((row: { friend_id: string }) => row.friend_id);
+}
+
+// ── Content reports ────────────────────────────────────
+
+export type ReportTargetType = 'user' | 'activity' | 'comment' | 'message' | 'nudge' | 'ai_message';
+export type ReportReason =
+  | 'spam'
+  | 'harassment'
+  | 'hate_speech'
+  | 'sexual_content'
+  | 'violence'
+  | 'self_harm'
+  | 'impersonation'
+  | 'other';
+
+export async function reportContent(
+  reporterId: string,
+  targetType: ReportTargetType,
+  targetId: string,
+  targetUserId: string | null,
+  reason: ReportReason,
+  details?: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('content_reports').insert({
+    reporter_id: reporterId,
+    target_type: targetType,
+    target_id: targetId,
+    target_user_id: targetUserId,
+    reason,
+    details: details?.trim() || null,
+  });
+  return { error: error?.message ?? null };
+}
+
 // ── Activity Feed ──────────────────────────────────────
 
 export async function getFriendsFeed(
@@ -298,8 +351,10 @@ export async function getFriendsFeed(
   currentUserId: string,
   limit: number,
   offset: number,
+  blockedIds: string[] = [],
 ): Promise<ActivityFeedItem[]> {
-  const allIds = [...friendIds, currentUserId];
+  const allIds = [...friendIds, currentUserId].filter((id) => !blockedIds.includes(id));
+  if (allIds.length === 0) return [];
   const { data } = await supabase
     .from('activity_feed')
     .select('*')
@@ -315,6 +370,7 @@ export async function getGlobalFeed(
   currentUserId: string,
   limit: number,
   cursor?: string | null,
+  blockedIds: string[] = [],
 ): Promise<ActivityFeedItem[]> {
   let query = supabase
     .from('activity_feed')
@@ -324,6 +380,10 @@ export async function getGlobalFeed(
 
   if (cursor) {
     query = query.lt('created_at', cursor);
+  }
+  if (blockedIds.length > 0) {
+    // PostgREST `not.in` requires comma-joined list inside parens.
+    query = query.not('user_id', 'in', `(${blockedIds.join(',')})`);
   }
 
   const { data } = await query;
@@ -768,6 +828,7 @@ export async function getLeaderboard(
   scope: 'friends' | 'global',
   friendIds: string[],
   currentUserId: string,
+  blockedIds: string[] = [],
 ): Promise<LeaderboardEntry[]> {
   let query = supabase
     .from('leaderboard_entries')
@@ -777,8 +838,11 @@ export async function getLeaderboard(
     .limit(50);
 
   if (scope === 'friends') {
-    const allIds = [...friendIds, currentUserId];
+    const allIds = [...friendIds, currentUserId].filter((id) => !blockedIds.includes(id));
+    if (allIds.length === 0) return [];
     query = query.in('user_id', allIds);
+  } else if (blockedIds.length > 0) {
+    query = query.not('user_id', 'in', `(${blockedIds.join(',')})`);
   }
 
   const { data } = await query;

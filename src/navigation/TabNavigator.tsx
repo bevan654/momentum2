@@ -255,6 +255,7 @@ export default function TabNavigator() {
       useRankStore.getState().computeRank(userId);
       useProgramStore.getState().fetchPrograms(userId);
       useRoutineStore.getState().fetchRoutines(userId);
+      useFriendsStore.getState().fetchBlockedIds(userId);
       initNotifications(userId);
     }
     return () => {

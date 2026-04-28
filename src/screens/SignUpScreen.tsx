@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   Image,
+  Linking,
 } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -159,6 +160,24 @@ export default function SignUpScreen({ navigation }: Props) {
               {loading ? 'Creating account...' : 'Create Account'}
             </Text>
           </TouchableOpacity>
+
+          <Text style={styles.legal}>
+            By creating an account, you agree to our{' '}
+            <Text
+              style={styles.legalLink}
+              onPress={() => Linking.openURL('https://momentumfitness.vercel.app/terms')}
+            >
+              Terms of Service
+            </Text>
+            {' '}and{' '}
+            <Text
+              style={styles.legalLink}
+              onPress={() => Linking.openURL('https://momentumfitness.vercel.app/privacy')}
+            >
+              Privacy Policy
+            </Text>
+            .
+          </Text>
         </View>
 
         {/* Footer */}
@@ -255,6 +274,20 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: ms(16),
       lineHeight: ms(22),
       fontFamily: Fonts.bold,
+    },
+    legal: {
+      color: colors.textTertiary,
+      fontSize: ms(11),
+      lineHeight: ms(16),
+      fontFamily: Fonts.regular,
+      textAlign: 'center',
+      marginTop: sw(14),
+      paddingHorizontal: sw(8),
+    },
+    legalLink: {
+      color: colors.textSecondary,
+      fontFamily: Fonts.semiBold,
+      textDecorationLine: 'underline',
     },
 
     /* ─── Footer ───────────────────────────────────────────── */
