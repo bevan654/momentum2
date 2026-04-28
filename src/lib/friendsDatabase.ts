@@ -372,23 +372,16 @@ export async function getGlobalFeed(
   cursor?: string | null,
   blockedIds: string[] = [],
 ): Promise<ActivityFeedItem[]> {
-  let query = supabase
-    .from('activity_feed')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  // Goes through a SECURITY DEFINER RPC so we can return rows from users who
+  // aren't friends with the current viewer (a plain `from('activity_feed')`
+  // query gets filtered to friends-only by RLS).
+  const { data, error } = await supabase.rpc('get_global_feed', {
+    p_limit: limit,
+    p_cursor: cursor ?? null,
+    p_blocked: blockedIds,
+  });
 
-  if (cursor) {
-    query = query.lt('created_at', cursor);
-  }
-  if (blockedIds.length > 0) {
-    // PostgREST `not.in` requires comma-joined list inside parens.
-    query = query.not('user_id', 'in', `(${blockedIds.join(',')})`);
-  }
-
-  const { data } = await query;
-
-  if (!data || data.length === 0) return [];
+  if (error || !data || data.length === 0) return [];
   return attachProfilesAndReactions(data, currentUserId);
 }
 
@@ -751,6 +744,40 @@ export async function addReaction(
     user_id: userId,
     emoji,
   });
+
+  // Notify the post owner — fire-and-forget so we don't block the optimistic UI
+  (async () => {
+    try {
+      const { data: activity } = await supabase
+        .from('activity_feed')
+        .select('user_id')
+        .eq('id', activityId)
+        .single();
+
+      if (!activity || activity.user_id === userId) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, email')
+        .eq('id', userId)
+        .single();
+
+      const name = profile?.username || profile?.email || 'Someone';
+      const isHeart = emoji === '\u{2764}\u{FE0F}' || emoji === '❤️';
+
+      await createNotification(
+        activity.user_id,
+        'reaction',
+        isHeart ? 'New like' : 'New reaction',
+        isHeart
+          ? `${name} liked your workout`
+          : `${name} reacted ${emoji} to your workout`,
+        { from_user_id: userId, activity_id: activityId, emoji },
+      );
+    } catch {
+      // ignore — notification is best-effort
+    }
+  })();
 }
 
 export async function removeReaction(
@@ -926,6 +953,23 @@ export async function markAllRead(userId: string): Promise<void> {
 
 export async function deleteAllNotifications(userId: string): Promise<void> {
   await supabase.from('notifications').delete().eq('user_id', userId);
+}
+
+/** Mark a friend-request notification as accepted/declined and persist it in `data`. */
+export async function setNotificationResponded(
+  notificationId: string,
+  responded: 'accepted' | 'declined',
+): Promise<void> {
+  const { data: row } = await supabase
+    .from('notifications')
+    .select('data')
+    .eq('id', notificationId)
+    .single();
+  const merged = { ...(row?.data || {}), responded };
+  await supabase
+    .from('notifications')
+    .update({ data: merged, read: true })
+    .eq('id', notificationId);
 }
 
 export async function createNotification(
