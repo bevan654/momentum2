@@ -39,7 +39,10 @@ export default function SignUpScreen({ navigation }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<FieldStatus>('idle');
   const [emailStatus, setEmailStatus] = useState<FieldStatus>('idle');
-  const { signUp, loading } = useAuthStore();
+  const [verificationSent, setVerificationSent] = useState<string | null>(null);
+  const [otp, setOtp] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const { signUp, verifyOtp, resendOtp, loading } = useAuthStore();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -129,8 +132,31 @@ export default function SignUpScreen({ navigation }: Props) {
       Alert.alert('Error', 'Password must be at least 6 characters');
       return;
     }
-    const { error } = await signUp(email.trim().toLowerCase(), password, username.trim());
-    if (error) Alert.alert('Sign Up Failed', error);
+    const trimmedEmail = email.trim().toLowerCase();
+    const { error, needsVerification } = await signUp(trimmedEmail, password, username.trim());
+    if (error) {
+      Alert.alert('Sign Up Failed', error);
+      return;
+    }
+    if (needsVerification) {
+      setVerificationSent(trimmedEmail);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!verificationSent) return;
+    const { error } = await resendOtp(verificationSent);
+    if (error) Alert.alert('Resend Failed', error);
+    else Alert.alert('Code Sent', 'We just sent a new verification code.');
+  };
+
+  const handleVerify = async () => {
+    if (!verificationSent || otp.trim().length < 6) return;
+    setVerifying(true);
+    const { error } = await verifyOtp(verificationSent, otp);
+    setVerifying(false);
+    if (error) Alert.alert('Verification Failed', error);
+    // On success, onAuthStateChange will create a session and the app routes onward.
   };
 
   const canSubmit =
@@ -165,6 +191,67 @@ export default function SignUpScreen({ navigation }: Props) {
     password.length > 0 && password.length < 6
       ? `${6 - password.length} more character${6 - password.length === 1 ? '' : 's'} needed`
       : null;
+
+  if (verificationSent) {
+    const canVerify = otp.trim().length === 6 && !verifying;
+    return (
+      <KeyboardAvoidingView
+        style={[styles.container, { paddingTop: insets.top + sw(24) }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Animated.View style={entranceStyle}>
+          <View style={styles.topSpacer} />
+          <View style={styles.brandSection}>
+            <View style={styles.verifyIconWrap}>
+              <Ionicons name="mail-unread-outline" size={ms(36)} color={colors.accent} />
+            </View>
+            <Text style={styles.title}>Enter your code</Text>
+            <Text style={styles.verifySubtitle}>
+              We sent a 6-digit code to{'\n'}
+              <Text style={styles.verifyEmail}>{verificationSent}</Text>
+            </Text>
+          </View>
+
+          <View style={styles.form}>
+            <TextInput
+              style={styles.otpInput}
+              value={otp}
+              onChangeText={(v) => setOtp(v.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholder="······"
+              placeholderTextColor={colors.textTertiary}
+              autoFocus
+              textContentType="oneTimeCode"
+              returnKeyType="go"
+              onSubmitEditing={handleVerify}
+            />
+
+            <TouchableOpacity
+              style={[styles.button, !canVerify && styles.buttonDisabled]}
+              activeOpacity={0.8}
+              onPress={handleVerify}
+              disabled={!canVerify}
+            >
+              <Text style={styles.buttonText}>
+                {verifying ? 'Verifying…' : 'Verify'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleResendVerification}
+              activeOpacity={0.7}
+              style={styles.resendBtn}
+            >
+              <Text style={styles.resendText}>Resend code</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.footer} />
+        </Animated.View>
+      </KeyboardAvoidingView>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -432,5 +519,61 @@ const createStyles = (colors: ThemeColors) =>
     switchLink: {
       color: colors.accent,
       fontFamily: Fonts.semiBold,
+    },
+
+    /* ─── Verification screen ───────────────────────────────── */
+    verifyIconWrap: {
+      width: sw(72),
+      height: sw(72),
+      borderRadius: sw(20),
+      backgroundColor: colors.accent + '1A',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: sw(16),
+    },
+    verifySubtitle: {
+      color: colors.textSecondary,
+      fontSize: ms(15),
+      lineHeight: ms(22),
+      fontFamily: Fonts.medium,
+      textAlign: 'center',
+      marginTop: sw(8),
+    },
+    verifyEmail: {
+      color: colors.textPrimary,
+      fontFamily: Fonts.semiBold,
+    },
+    verifyHint: {
+      color: colors.textTertiary,
+      fontSize: ms(13),
+      lineHeight: ms(18),
+      fontFamily: Fonts.regular,
+      textAlign: 'center',
+      marginTop: sw(12),
+      paddingHorizontal: sw(8),
+    },
+    resendBtn: {
+      alignItems: 'center',
+      paddingVertical: sw(12),
+      marginTop: sw(4),
+    },
+    resendText: {
+      color: colors.accent,
+      fontSize: ms(14),
+      lineHeight: ms(20),
+      fontFamily: Fonts.semiBold,
+    },
+    otpInput: {
+      backgroundColor: colors.card,
+      borderRadius: sw(14),
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingVertical: sw(18),
+      color: colors.textPrimary,
+      fontSize: ms(28),
+      lineHeight: ms(34),
+      fontFamily: Fonts.bold,
+      letterSpacing: ms(10),
+      textAlign: 'center',
     },
   });

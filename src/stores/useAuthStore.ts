@@ -8,6 +8,42 @@ import { clearWorkout as clearStoredWorkout } from '../utils/workoutStorage';
 /** Module-level ref so we can unsubscribe on signOut */
 let _authSubscription: { unsubscribe: () => void } | null = null;
 
+/**
+ * After a verified sign-in, create the profile + default goal rows from the
+ * username stashed in user_metadata during signup. Idempotent: only runs once
+ * per user (skips when the profile already has a username).
+ */
+async function ensureProfileFromMetadata(user: User): Promise<void> {
+  const username = (user.user_metadata as Record<string, any> | null)?.username;
+  if (!username) return;
+
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('username')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (existing?.username) return;
+
+  await supabase.from('profiles').upsert(
+    { id: user.id, email: user.email, username },
+    { onConflict: 'id' },
+  );
+  await supabase.from('nutrition_goals').upsert(
+    {
+      user_id: user.id,
+      calorie_goal: 2000,
+      protein_goal: 150,
+      carbs_goal: 250,
+      fat_goal: 65,
+    },
+    { onConflict: 'user_id' },
+  );
+  await supabase.from('supplement_goals').upsert(
+    { user_id: user.id, water_goal: 2500, creatine_goal: 5 },
+    { onConflict: 'user_id' },
+  );
+}
+
 interface Profile {
   id: string;
   email: string;
@@ -33,7 +69,9 @@ interface AuthState {
   showWelcome: boolean;
   _pendingWelcome: boolean;
   initialize: () => Promise<void>;
-  signUp: (email: string, password: string, username: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, username: string) => Promise<{ error: string | null; needsVerification?: boolean }>;
+  verifyOtp: (email: string, token: string) => Promise<{ error: string | null }>;
+  resendOtp: (email: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   deleteAccount: (password: string) => Promise<{ error: string | null }>;
@@ -78,6 +116,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: session?.user ?? null, session });
       }
       if (session?.user) {
+        await ensureProfileFromMetadata(session.user);
         await get().fetchProfile(session.user.id);
       } else {
         set({ profile: null, showWelcome: false });
@@ -128,10 +167,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signUp: async (email, password, username) => {
     set({ loading: true, _pendingWelcome: true });
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      // Stash username in user_metadata so we can recreate the profile after
+      // email verification, when the user signs in for the first time.
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { username } },
+      });
       if (error) {
         set({ _pendingWelcome: false });
         return { error: error.message };
+      }
+
+      // Email verification enabled: signUp returns a user but no session.
+      // Skip profile/goal creation; it will run when the user verifies and
+      // signs in (handled in onAuthStateChange via ensureProfileFromMetadata).
+      if (!data.session) {
+        set({ _pendingWelcome: false });
+        return { error: null, needsVerification: true };
       }
 
       if (data.user) {
@@ -145,7 +198,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return { error: profileError.message };
         }
 
-        // Create default nutrition goals
         await supabase.from('nutrition_goals').upsert({
           user_id: data.user.id,
           calorie_goal: 2000,
@@ -154,7 +206,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           fat_goal: 65,
         }, { onConflict: 'user_id' });
 
-        // Create default supplement goals
         await supabase.from('supplement_goals').upsert({
           user_id: data.user.id,
           water_goal: 2500,
@@ -167,6 +218,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } finally {
       set({ loading: false });
     }
+  },
+
+  verifyOtp: async (email, token) => {
+    set({ loading: true, _pendingWelcome: true });
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: token.trim(),
+        type: 'signup',
+      });
+      if (error) {
+        set({ _pendingWelcome: false });
+        return { error: error.message };
+      }
+      return { error: null };
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  resendOtp: async (email) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+    });
+    return { error: error?.message ?? null };
   },
 
   signIn: async (email, password) => {

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import type { ScrollView as ScrollViewType } from 'react-native';
 import {
   View,
   Text,
@@ -121,6 +122,12 @@ export default function OnboardingScreen() {
 
   // Tracks whether user has manually edited macros — if not, we auto-fill from TDEE
   const macrosTouched = useRef(false);
+  const scrollRef = useRef<ScrollViewType | null>(null);
+
+  // Reset scroll to top whenever the step changes
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
 
   // Animation values
   const progressAnim = useSharedValue(1 / TOTAL_STEPS);
@@ -517,6 +524,7 @@ export default function OnboardingScreen() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
