@@ -64,12 +64,5 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-updates',
     'expo-video',
     ['expo-camera', { cameraPermission: 'Momentum needs camera access to scan food barcodes.' }],
-    [
-      '@sentry/react-native/expo',
-      {
-        organization: 'momentum-fitness',
-        project: 'react-native',
-      },
-    ],
   ],
 });
