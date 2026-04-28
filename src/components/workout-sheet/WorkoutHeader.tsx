@@ -35,6 +35,7 @@ function WorkoutHeader() {
   const startRest = useActiveWorkoutStore((s) => s.startRest);
   const pauseRest = useActiveWorkoutStore((s) => s.pauseRest);
   const resumeRest = useActiveWorkoutStore((s) => s.resumeRest);
+  const stopRest = useActiveWorkoutStore((s) => s.stopRest);
   const discardWorkout = useActiveWorkoutStore((s) => s.discardWorkout);
   const finishWorkout = useActiveWorkoutStore((s) => s.finishWorkout);
   const exercises = useActiveWorkoutStore((s) => s.exercises);
@@ -112,8 +113,15 @@ function WorkoutHeader() {
     <View style={styles.container}>
       {/* Left: Rest timer controls */}
       <View style={styles.leftGroup}>
-        <TouchableOpacity style={styles.restBtn} onPress={() => setRestPickerVisible(true)}>
-          <Text style={styles.restText}>{formatRestDuration(restDuration)}</Text>
+        <TouchableOpacity
+          style={[styles.restBtn, isResting && styles.restBtnDisabled]}
+          onPress={() => setRestPickerVisible(true)}
+          disabled={isResting}
+          activeOpacity={0.6}
+        >
+          <Text style={[styles.restText, isResting && styles.restTextDisabled]}>
+            {formatRestDuration(restDuration)}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.iconBtn}
@@ -125,6 +133,11 @@ function WorkoutHeader() {
             color={colors.accent}
           />
         </TouchableOpacity>
+        {isResting && (
+          <TouchableOpacity style={styles.iconBtn} onPress={stopRest} activeOpacity={0.6}>
+            <Ionicons name="refresh" size={ms(16)} color={colors.accent} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Center: Timer */}
@@ -195,6 +208,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(13),
     fontFamily: Fonts.bold,
     lineHeight: ms(18),
+  },
+  restBtnDisabled: {
+    opacity: 0.5,
+  },
+  restTextDisabled: {
+    color: colors.textTertiary,
   },
   iconBtn: {
     padding: sw(6),

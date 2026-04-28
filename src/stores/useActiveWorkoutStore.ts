@@ -340,6 +340,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
   discardWorkout: () => {
     stopWorkoutActivity();
+    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
     if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
     if (_persistTimeout) { clearTimeout(_persistTimeout); _persistTimeout = null; }
     _workoutRestored = false;
@@ -684,6 +685,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     };
 
     stopWorkoutActivity();
+    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
     if (_persistTimeout) { clearTimeout(_persistTimeout); _persistTimeout = null; }
     _workoutRestored = false;
     set({
