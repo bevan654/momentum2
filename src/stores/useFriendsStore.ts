@@ -15,6 +15,7 @@ import {
   markAsRead as dbMarkAsRead,
   markAllRead as dbMarkAllRead,
   deleteAllNotifications as dbDeleteAll,
+  setNotificationResponded as dbSetNotificationResponded,
   searchProfiles,
   sendFriendRequest as dbSendRequest,
   acceptFriendRequest as dbAcceptRequest,
@@ -111,6 +112,7 @@ interface FriendsState {
   markNotificationRead: (notificationId: string) => Promise<void>;
   markAllNotificationsRead: (userId: string) => Promise<void>;
   deleteAllNotifications: (userId: string) => Promise<void>;
+  setNotificationResponded: (notificationId: string, responded: 'accepted' | 'declined') => Promise<void>;
   searchUsers: (query: string, userId: string) => Promise<void>;
   clearSearch: () => void;
   sendFriendRequest: (userId: string, friendId: string) => Promise<void>;
@@ -350,6 +352,21 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     try {
       await dbDeleteAll(userId);
       set({ notifications: [], unreadCount: 0, notifPage: 0, notifHasMore: true });
+    } catch {}
+  },
+
+  setNotificationResponded: async (notificationId, responded) => {
+    // Optimistic local update so the row keeps its state across remounts even
+    // if the network call lags or fails.
+    set((s) => ({
+      notifications: s.notifications.map((n) =>
+        n.id === notificationId
+          ? { ...n, read: true, data: { ...(n.data || {}), responded } }
+          : n,
+      ),
+    }));
+    try {
+      await dbSetNotificationResponded(notificationId, responded);
     } catch {}
   },
 

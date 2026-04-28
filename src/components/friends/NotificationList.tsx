@@ -23,6 +23,7 @@ export default function NotificationList() {
   const deleteAllNotifications = useFriendsStore((s) => s.deleteAllNotifications);
   const acceptRequest = useFriendsStore((s) => s.acceptRequest);
   const declineRequest = useFriendsStore((s) => s.declineRequest);
+  const setNotificationResponded = useFriendsStore((s) => s.setNotificationResponded);
   const [refreshing, setRefreshing] = useState(false);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -86,18 +87,16 @@ export default function NotificationList() {
     [userId],
   );
 
-  const [respondedMap, setRespondedMap] = useState<Record<string, 'accepted' | 'declined'>>({});
-
   const handleAccept = useCallback(
     async (item: NotificationItem) => {
       if (!userId) return;
       const friendshipId = await resolveFriendshipId(item);
       if (friendshipId) {
         await acceptRequest(friendshipId, userId);
-        setRespondedMap((prev) => ({ ...prev, [item.id]: 'accepted' }));
+        await setNotificationResponded(item.id, 'accepted');
       }
     },
-    [userId, acceptRequest, resolveFriendshipId],
+    [userId, acceptRequest, resolveFriendshipId, setNotificationResponded],
   );
 
   const handleDecline = useCallback(
@@ -105,15 +104,16 @@ export default function NotificationList() {
       const friendshipId = await resolveFriendshipId(item);
       if (friendshipId) {
         await declineRequest(friendshipId);
-        setRespondedMap((prev) => ({ ...prev, [item.id]: 'declined' }));
+        await setNotificationResponded(item.id, 'declined');
       }
     },
-    [declineRequest, resolveFriendshipId],
+    [declineRequest, resolveFriendshipId, setNotificationResponded],
   );
 
   const renderItem = useCallback(
     ({ item }: { item: NotificationItem }) => {
       const isActionable = item.type === 'friend_request';
+      const responded = (item.data?.responded as 'accepted' | 'declined' | undefined) ?? null;
 
       return (
         <NotificationRow
@@ -122,16 +122,16 @@ export default function NotificationList() {
             if (!item.read) markNotificationRead(item.id);
           }}
           onAccept={
-            isActionable && userId ? () => handleAccept(item) : undefined
+            isActionable && userId && !responded ? () => handleAccept(item) : undefined
           }
           onDecline={
-            isActionable ? () => handleDecline(item) : undefined
+            isActionable && !responded ? () => handleDecline(item) : undefined
           }
-          responded={respondedMap[item.id] ?? null}
+          responded={responded}
         />
       );
     },
-    [userId, markNotificationRead, handleAccept, handleDecline, respondedMap],
+    [userId, markNotificationRead, handleAccept, handleDecline],
   );
 
   return (
