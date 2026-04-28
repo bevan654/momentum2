@@ -79,7 +79,7 @@ export default function WorkoutsNavigator() {
   }, []);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Recovery — always rendered as base layer (zIndex 0) */}
       {!showSummary && (
         <View
