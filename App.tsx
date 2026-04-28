@@ -23,6 +23,7 @@ import AuthNavigator from './src/navigation/AuthNavigator';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import WelcomeSplashScreen from './src/screens/WelcomeSplashScreen';
 import ChangelogModal from './src/components/home/ChangelogModal';
+import BetaWelcomeModal from './src/components/home/BetaWelcomeModal';
 import { Fonts } from './src/theme/typography';
 import { getThemeColors } from './src/theme/useColors';
 
@@ -146,6 +147,7 @@ function App() {
                     && profile.starting_weight != null
                   ? <>
                       <TabNavigator />
+                      <BetaWelcomeModal />
                       <ChangelogModal />
                     </>
                   : <OnboardingScreen />)

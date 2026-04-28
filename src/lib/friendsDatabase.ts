@@ -133,12 +133,12 @@ export async function searchProfiles(
 ): Promise<SearchResult[]> {
   // Username-only — searching by email would let anyone confirm whether a given
   // address has an account, which is a privacy / enumeration leak.
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, username, email')
-    .ilike('username', `%${query}%`)
-    .neq('id', currentUserId)
-    .limit(20);
+  // Goes through a SECURITY DEFINER RPC since direct profile reads are RLS'd
+  // to self + accepted friends.
+  const { data: profiles } = await supabase.rpc('search_public_profiles', {
+    p_query: query,
+    p_current_user: currentUserId,
+  });
 
   if (!profiles || profiles.length === 0) return [];
 
@@ -154,11 +154,11 @@ export async function searchProfiles(
   }
 
   return profiles
-    .filter((p) => friendMap.get(p.id) !== 'blocked')
-    .map((p) => ({
+    .filter((p: any) => friendMap.get(p.id) !== 'blocked')
+    .map((p: any) => ({
       id: p.id,
       username: p.username,
-      email: p.email,
+      email: '',
       friendshipStatus: friendMap.get(p.id) ?? null,
     }));
 }
@@ -395,7 +395,9 @@ async function attachProfilesAndReactions(
 
   // Batch 1: profiles, reactions, exercise details, streaks (parallel)
   const [profilesRes, reactionsRes, exercisesRes, streaksRes] = await Promise.all([
-    supabase.from('profiles').select('id, username, email').in('id', userIds),
+    // Uses an RPC instead of `from('profiles')` so non-friend posters in the
+    // global feed still resolve to a username (RLS now hides strangers' rows).
+    supabase.rpc('list_public_profiles', { p_ids: userIds }),
     feedIds.length > 0
       ? supabase.from('reactions').select('*').in('activity_id', feedIds)
       : Promise.resolve({ data: [] as any[] }),
@@ -428,7 +430,9 @@ async function attachProfilesAndReactions(
   // Build profile map
   const profileMap = new Map<string, { username: string | null; email: string }>();
   for (const p of profilesRes.data || []) {
-    profileMap.set(p.id, { username: p.username, email: p.email });
+    // RPC list_public_profiles doesn't return email; keep the field for type
+    // compatibility but leave it empty.
+    profileMap.set(p.id, { username: p.username, email: (p as any).email ?? '' });
   }
 
   // Build streak map
@@ -654,14 +658,11 @@ export async function getComments(
   if (!data || data.length === 0) return [];
 
   const userIds = [...new Set(data.map((c: any) => c.user_id))];
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, username, email')
-    .in('id', userIds);
+  const { data: profiles } = await supabase.rpc('list_public_profiles', { p_ids: userIds });
 
   const profileMap = new Map<string, { username: string | null; email: string }>();
   for (const p of profiles || []) {
-    profileMap.set(p.id, { username: p.username, email: p.email });
+    profileMap.set(p.id, { username: p.username, email: '' });
   }
 
   return data.map((c: any) => ({
@@ -876,14 +877,11 @@ export async function getLeaderboard(
   if (!data || data.length === 0) return [];
 
   const userIds = [...new Set(data.map((e: any) => e.user_id))];
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, username, email')
-    .in('id', userIds);
+  const { data: profiles } = await supabase.rpc('list_public_profiles', { p_ids: userIds });
 
   const profileMap = new Map<string, { username: string | null; email: string }>();
   for (const p of profiles || []) {
-    profileMap.set(p.id, { username: p.username, email: p.email });
+    profileMap.set(p.id, { username: p.username, email: '' });
   }
 
   return data.map((e: any, i: number) => ({

@@ -1,20 +1,14 @@
 Deno.serve(async (req) => {
-  const { record, old_record, type } = await req.json();
+  const { record } = await req.json();
   const url = Deno.env.get("DISCORD_WEBHOOK_URL");
 
   if (!url) {
     return new Response("missing DISCORD_WEBHOOK_URL", { status: 500 });
   }
 
-  // Signup completes when username transitions from null/empty → set.
-  // The profile row is pre-created by an auth.users trigger without a username,
-  // so we listen on UPDATE and only fire on that specific transition.
-  const wasEmpty = !old_record?.username;
-  const isSet = !!record?.username;
-  if (type === "UPDATE" && !(wasEmpty && isSet)) {
-    return new Response("skip");
-  }
-
+  // The handle_new_user DB trigger now creates the profile row with the
+  // username already populated from raw_user_meta_data, so we fire on the
+  // INSERT itself.
   const username = record?.username ?? null;
   const email = record?.email ?? null;
   const id = record?.id ?? "unknown";
