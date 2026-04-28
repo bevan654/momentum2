@@ -31,6 +31,12 @@ import {
   addComment as dbAddComment,
   deleteComment as dbDeleteComment,
   getCommentCounts as dbGetCommentCounts,
+  blockUser as dbBlockUser,
+  unblockUser as dbUnblockUser,
+  getBlockedUserIds as dbGetBlockedUserIds,
+  reportContent as dbReportContent,
+  type ReportTargetType,
+  type ReportReason,
 } from '../lib/friendsDatabase';
 
 const FEED_PAGE_SIZE = 15;
@@ -75,6 +81,10 @@ interface FriendsState {
   searchResults: SearchResult[];
   searchLoading: boolean;
 
+  // Blocks (users this user has blocked — one-way)
+  blockedIds: string[];
+  blockedLoading: boolean;
+
   // Bookmarks
   bookmarks: string[];
   bookmarksLoading: boolean;
@@ -112,6 +122,18 @@ interface FriendsState {
   removeReaction: (activityId: string, userId: string, emoji: string) => Promise<void>;
   fetchBookmarks: (userId: string) => Promise<void>;
   toggleBookmark: (activityId: string, userId: string) => Promise<void>;
+  fetchBlockedIds: (userId: string) => Promise<void>;
+  blockUser: (userId: string, targetUserId: string) => Promise<void>;
+  unblockUser: (userId: string, targetUserId: string) => Promise<void>;
+  isBlocked: (targetUserId: string) => boolean;
+  reportContent: (
+    reporterId: string,
+    targetType: ReportTargetType,
+    targetId: string,
+    targetUserId: string | null,
+    reason: ReportReason,
+    details?: string,
+  ) => Promise<{ error: string | null }>;
   fetchComments: (activityId: string) => Promise<void>;
   postComment: (activityId: string, userId: string, text: string, parentId?: string) => Promise<void>;
   removeComment: (commentId: string, activityId: string) => Promise<void>;
@@ -171,6 +193,9 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   searchResults: [],
   searchLoading: false,
 
+  blockedIds: [],
+  blockedLoading: false,
+
   bookmarks: [],
   bookmarksLoading: false,
 
@@ -229,9 +254,10 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
 
     set({ feedLoading: true });
     try {
+      const blockedIds = get().blockedIds;
       const items = feedMode === 'friends'
-        ? await getFriendsFeed(friendIds, userId, FEED_PAGE_SIZE, reset ? 0 : cached.length)
-        : await getGlobalFeed(userId, FEED_PAGE_SIZE, cursor);
+        ? await getFriendsFeed(friendIds, userId, FEED_PAGE_SIZE, reset ? 0 : cached.length, blockedIds)
+        : await getGlobalFeed(userId, FEED_PAGE_SIZE, cursor, blockedIds);
 
       const merged = reset ? items : [...get().feed, ...items];
       const seen = new Set<string>();
@@ -255,7 +281,7 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   },
 
   fetchLeaderboard: async (userId) => {
-    const { leaderboardType, leaderboardScope, friendIds } = get();
+    const { leaderboardType, leaderboardScope, friendIds, blockedIds } = get();
     set({ leaderboardLoading: true });
     try {
       const entries = await dbGetLeaderboard(
@@ -263,6 +289,7 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
         leaderboardScope,
         friendIds,
         userId,
+        blockedIds,
       );
       set({ leaderboard: entries });
     } finally {
@@ -412,6 +439,61 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     } finally {
       set({ bookmarksLoading: false });
     }
+  },
+
+  fetchBlockedIds: async (userId) => {
+    set({ blockedLoading: true });
+    try {
+      const ids = await dbGetBlockedUserIds(userId);
+      set({ blockedIds: ids });
+    } finally {
+      set({ blockedLoading: false });
+    }
+  },
+
+  blockUser: async (userId, targetUserId) => {
+    // Optimistic update — drop the user from local feed/friends/leaderboard caches.
+    const prev = get();
+    const filterOut = (ids: string[]) => ids.filter((id) => id !== targetUserId);
+    set({
+      blockedIds: [...prev.blockedIds, targetUserId],
+      friends: prev.friends.filter((f) => f.id !== targetUserId),
+      friendIds: filterOut(prev.friendIds),
+      feed: prev.feed.filter((item) => item.user_id !== targetUserId),
+      leaderboard: prev.leaderboard.filter((entry) => entry.user_id !== targetUserId),
+      searchResults: prev.searchResults.filter((r) => r.id !== targetUserId),
+    });
+    try {
+      await dbBlockUser(userId, targetUserId);
+    } catch (err) {
+      // Rollback on failure
+      set({
+        blockedIds: prev.blockedIds,
+        friends: prev.friends,
+        friendIds: prev.friendIds,
+        feed: prev.feed,
+        leaderboard: prev.leaderboard,
+        searchResults: prev.searchResults,
+      });
+      throw err;
+    }
+  },
+
+  unblockUser: async (userId, targetUserId) => {
+    const prev = get();
+    set({ blockedIds: prev.blockedIds.filter((id) => id !== targetUserId) });
+    try {
+      await dbUnblockUser(userId, targetUserId);
+    } catch (err) {
+      set({ blockedIds: prev.blockedIds });
+      throw err;
+    }
+  },
+
+  isBlocked: (targetUserId) => get().blockedIds.includes(targetUserId),
+
+  reportContent: async (reporterId, targetType, targetId, targetUserId, reason, details) => {
+    return dbReportContent(reporterId, targetType, targetId, targetUserId, reason, details);
   },
 
   fetchComments: async (activityId) => {

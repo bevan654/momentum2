@@ -116,6 +116,15 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
 
           <TouchableOpacity
+            style={styles.forgotRow}
+            onPress={() => navigation.navigate('ForgotPassword')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.forgotText}>Forgot password?</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.button, (!canSubmit || loading) && styles.buttonDisabled]}
             onPress={handleSignIn}
             disabled={!canSubmit || loading}
@@ -211,6 +220,18 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: ms(16),
       lineHeight: ms(22),
       fontFamily: Fonts.bold,
+    },
+    forgotRow: {
+      alignSelf: 'flex-end',
+      paddingVertical: sw(4),
+      paddingHorizontal: sw(2),
+      marginTop: sw(-4),
+    },
+    forgotText: {
+      color: colors.textSecondary,
+      fontSize: ms(13),
+      lineHeight: ms(18),
+      fontFamily: Fonts.semiBold,
     },
 
     /* ─── Footer ───────────────────────────────────────────── */

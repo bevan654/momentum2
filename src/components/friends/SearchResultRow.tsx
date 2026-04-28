@@ -5,6 +5,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { SearchResult } from '../../lib/friendsDatabase';
+import { safeDisplayName } from '../../utils/displayName';
 import AvatarCircle from './AvatarCircle';
 
 interface Props {
@@ -27,13 +28,8 @@ function SearchResultRow({ result, onAdd }: Props) {
 
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
-          {result.username || result.email}
+          {safeDisplayName(result.username, result.email)}
         </Text>
-        {result.username && (
-          <Text style={styles.email} numberOfLines={1}>
-            {result.email}
-          </Text>
-        )}
       </View>
 
       {status === 'accepted' && (

@@ -9,6 +9,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -25,6 +26,7 @@ import BarcodeScannerModal from './BarcodeScannerModal';
 import CreateMealModal from './CreateMealModal';
 import QuickAddModal from './QuickAddModal';
 import BottomSheet from '../workout-sheet/BottomSheet';
+import ReportSheet from '../friends/ReportSheet';
 import { supabase } from '../../lib/supabase';
 
 /* ─── Props ──────────────────────────────────────────── */
@@ -41,16 +43,18 @@ interface Props {
 interface CatalogRowProps {
   item: FoodCatalogItem;
   onSelect: (item: FoodCatalogItem) => void;
+  onLongPress?: (item: FoodCatalogItem) => void;
   s: ReturnType<typeof createStyles>;
   c: ThemeColors;
 }
 
-const CatalogRow = React.memo(function CatalogRow({ item, onSelect, s, c }: CatalogRowProps) {
+const CatalogRow = React.memo(function CatalogRow({ item, onSelect, onLongPress, s, c }: CatalogRowProps) {
   const isFav = useFavouritesStore((st) => st.isFavourite(item));
   const addFav = useFavouritesStore((st) => st.addFavourite);
   const removeFav = useFavouritesStore((st) => st.removeFavourite);
 
   const handleSelect = useCallback(() => onSelect(item), [item, onSelect]);
+  const handleLongPress = useCallback(() => onLongPress?.(item), [item, onLongPress]);
   const toggleFav = useCallback(() => {
     if (isFav) removeFav(item);
     else addFav(item);
@@ -58,7 +62,13 @@ const CatalogRow = React.memo(function CatalogRow({ item, onSelect, s, c }: Cata
 
   return (
     <View style={s.catalogRow}>
-      <TouchableOpacity style={s.catalogRowBody} onPress={handleSelect} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={s.catalogRowBody}
+        onPress={handleSelect}
+        onLongPress={onLongPress ? handleLongPress : undefined}
+        delayLongPress={400}
+        activeOpacity={0.7}
+      >
         <View style={s.catalogInfo}>
           <View style={s.catalogNameRow}>
             <Text style={s.catalogName} numberOfLines={1}>{item.name}</Text>
@@ -128,6 +138,28 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const [aiSearching, setAiSearching] = useState(false);
   const [showAiResults, setShowAiResults] = useState(false);
   const [cachedAiResults, setCachedAiResults] = useState<FoodCatalogItem[]>([]);
+  const [reportTarget, setReportTarget] = useState<{ id: string; content: string } | null>(null);
+
+  const handleReportAi = useCallback((item: FoodCatalogItem) => {
+    Alert.alert(
+      'Report this estimate?',
+      `Tell us if "${item.name}" is wildly inaccurate or inappropriate. We review every report and act within 24 hours.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: () => {
+            const summary = `${item.name}${item.brand ? ` (${item.brand})` : ''}\n` +
+              `Per ${item.serving_size}${item.serving_unit}: ` +
+              `${Math.round(item.calories)} kcal, P${Math.round(item.protein)} ` +
+              `C${Math.round(item.carbs)} F${Math.round(item.fat)}`;
+            setReportTarget({ id: makeUuid(), content: summary });
+          },
+        },
+      ],
+    );
+  }, []);
 
   // Saved meals
   const savedMeals = useSavedMealsStore((st) => st.meals);
@@ -545,15 +577,21 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
 
           {/* AI results header */}
           {showAiResults && (
-            <View style={s.aiHeader}>
-              <View style={s.aiBadge}>
-                <Ionicons name="sparkles" size={ms(10)} color={colors.textOnAccent} />
-                <Text style={s.aiBadgeText}>Estimated</Text>
+            <>
+              <View style={s.aiHeader}>
+                <View style={s.aiBadge}>
+                  <Ionicons name="sparkles" size={ms(10)} color={colors.textOnAccent} />
+                  <Text style={s.aiBadgeText}>Estimated</Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowAiResults(false)} hitSlop={8}>
+                  <Text style={s.backToLocal}>Back to local</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => setShowAiResults(false)} hitSlop={8}>
-                <Text style={s.backToLocal}>Back to local</Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={s.aiDisclaimer}>
+                AI estimates of nutrition values. Approximate only — not professional dietary advice.
+                Verify before tracking. Long-press any result to report inaccuracies.
+              </Text>
+            </>
           )}
 
           {/* Content */}
@@ -580,7 +618,14 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
               showsVerticalScrollIndicator={false}
             >
               {showResults && displayResults.map((item, i) => (
-                <CatalogRow key={item.id + i} item={item} onSelect={handleSelectItem} s={s} c={colors} />
+                <CatalogRow
+                  key={item.id + i}
+                  item={item}
+                  onSelect={handleSelectItem}
+                  onLongPress={showAiResults ? handleReportAi : undefined}
+                  s={s}
+                  c={colors}
+                />
               ))}
               {showDefaults && (
                 <>
@@ -716,8 +761,29 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
           onAdded={handleQuickAdded}
         />
       )}
+
+      <ReportSheet
+        visible={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+        targetType="ai_message"
+        targetId={reportTarget?.id ?? ''}
+        targetUserId={null}
+        contextLabel="AI food estimate"
+        contextText={reportTarget?.content}
+      />
     </BottomSheet>
   );
+}
+
+/** Generates a v4 UUID using the platform crypto when available, otherwise a Math.random fallback. */
+function makeUuid(): string {
+  const g = globalThis as { crypto?: { randomUUID?: () => string } };
+  if (g.crypto?.randomUUID) return g.crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 /* ─── Styles ─────────────────────────────────────────── */
@@ -998,6 +1064,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(11),
     lineHeight: ms(15),
     fontFamily: Fonts.semiBold,
+  },
+  aiDisclaimer: {
+    color: colors.textTertiary,
+    fontSize: ms(10),
+    lineHeight: ms(14),
+    fontFamily: Fonts.medium,
+    paddingHorizontal: sw(12),
+    paddingBottom: sw(8),
   },
   deepSearchBtn: {
     flexDirection: 'row',

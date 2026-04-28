@@ -101,8 +101,8 @@ export default function ProfileSettingsView({ onBack }: Props) {
         {/* 7. Support */}
         <SectionHeader title="Support" />
         <View style={styles.card}>
-          <LinkRow label="Privacy Policy" url="https://momentum.app/privacy" />
-          <LinkRow label="Terms of Service" url="https://momentum.app/terms" />
+          <LinkRow label="Privacy Policy" url="https://momentumfitness.vercel.app/privacy" />
+          <LinkRow label="Terms of Service" url="https://momentumfitness.vercel.app/terms" />
           <LinkRow label="Contact Us" url="mailto:support@momentum.app" last />
         </View>
 

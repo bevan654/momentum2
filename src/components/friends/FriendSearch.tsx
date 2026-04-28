@@ -67,7 +67,7 @@ export default function FriendSearch() {
         <Ionicons name="search-outline" size={ms(16)} color={colors.textTertiary} />
         <TextInput
           style={styles.input}
-          placeholder="Search by name or email..."
+          placeholder="Search by username..."
           placeholderTextColor={colors.textTertiary}
           value={query}
           onChangeText={setQuery}

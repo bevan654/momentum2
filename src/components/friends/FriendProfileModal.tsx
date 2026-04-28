@@ -6,11 +6,10 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
-import { useChatStore } from '../../stores/useChatStore';
 import { getFriendStats, getFriendshipBetween } from '../../lib/friendsDatabase';
-import { globalNavigate } from '../../navigation/navigationRef';
 import BottomSheet from '../workout-sheet/BottomSheet';
 import AvatarCircle from './AvatarCircle';
+import ReportSheet from './ReportSheet';
 
 export default function FriendProfileModal() {
   const friend = useFriendsStore((s) => s.profileSheetFriend);
@@ -18,8 +17,10 @@ export default function FriendProfileModal() {
   const hideProfileSheet = useFriendsStore((s) => s.hideProfileSheet);
   const userId = useAuthStore((s) => s.user?.id);
   const removeFriend = useFriendsStore((s) => s.removeFriend);
+  const blockUser = useFriendsStore((s) => s.blockUser);
   const [stats, setStats] = useState<{ workoutCount: number; totalVolume: number; streak: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reportVisible, setReportVisible] = useState(false);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -38,24 +39,6 @@ export default function FriendProfileModal() {
   }, [friend?.id, visible]);
 
   if (!friend) return null;
-
-  const handleMessage = async () => {
-    if (!userId) return;
-    try {
-      const conversationId = await useChatStore.getState().getOrCreateConversation(userId, friend.id);
-      hideProfileSheet();
-      // Small delay to let sheet close animation start
-      setTimeout(() => {
-        globalNavigate('Chat', {
-          conversationId,
-          friendId: friend.id,
-          friendName: friend.username || friend.email,
-        });
-      }, 200);
-    } catch {
-      // Swallow
-    }
-  };
 
   const handleRemove = () => {
     Alert.alert(
@@ -77,6 +60,34 @@ export default function FriendProfileModal() {
         },
       ],
     );
+  };
+
+  const handleBlock = () => {
+    if (!userId || !friend) return;
+    const name = friend.username || friend.email;
+    Alert.alert(
+      'Block User',
+      `Block ${name}? You won't see their posts or be able to interact with each other. They won't be notified.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await blockUser(userId, friend.id);
+              hideProfileSheet();
+            } catch {
+              Alert.alert('Error', 'Could not block user. Please try again.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleReport = () => {
+    setReportVisible(true);
   };
 
   return (
@@ -122,14 +133,6 @@ export default function FriendProfileModal() {
       {/* Actions */}
       <View style={styles.actions}>
         <TouchableOpacity
-          style={styles.messageBtn}
-          onPress={handleMessage}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chatbubble-outline" size={ms(16)} color={colors.accent} />
-          <Text style={styles.messageBtnText}>Message</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={styles.removeBtn}
           onPress={handleRemove}
           activeOpacity={0.7}
@@ -137,7 +140,34 @@ export default function FriendProfileModal() {
           <Ionicons name="person-remove-outline" size={ms(16)} color={colors.accentRed} />
           <Text style={styles.removeBtnText}>Remove Friend</Text>
         </TouchableOpacity>
+
+        <View style={styles.safetyRow}>
+          <TouchableOpacity
+            style={styles.safetyBtn}
+            onPress={handleReport}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="flag-outline" size={ms(14)} color={colors.textSecondary} />
+            <Text style={styles.safetyBtnText}>Report</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.safetyBtn}
+            onPress={handleBlock}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="ban-outline" size={ms(14)} color={colors.textSecondary} />
+            <Text style={styles.safetyBtnText}>Block</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      <ReportSheet
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+        targetType="user"
+        targetId={friend.id}
+        targetUserId={friend.id}
+      />
     </BottomSheet>
   );
 }
@@ -212,23 +242,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     gap: sw(10),
   },
-  messageBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(8),
-    backgroundColor: colors.accent + '15',
-    borderRadius: sw(12),
-    paddingHorizontal: sw(24),
-    paddingVertical: sw(12),
-    borderWidth: 1,
-    borderColor: colors.accent + '30',
-  },
-  messageBtnText: {
-    color: colors.accent,
-    fontSize: ms(14),
-    fontFamily: Fonts.semiBold,
-    lineHeight: ms(20),
-  },
   removeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -245,5 +258,23 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(14),
     fontFamily: Fonts.semiBold,
     lineHeight: ms(20),
+  },
+  safetyRow: {
+    flexDirection: 'row',
+    gap: sw(20),
+    marginTop: sw(8),
+  },
+  safetyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(6),
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(8),
+  },
+  safetyBtnText: {
+    color: colors.textSecondary,
+    fontSize: ms(12),
+    fontFamily: Fonts.medium,
+    lineHeight: ms(16),
   },
 });
