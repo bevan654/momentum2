@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Momentum — Logo Animation</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: radial-gradient(ellipse at center, #140606 0%, #050505 75%);
+    display: grid;
+    place-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    color: #aaa;
+    overflow: hidden;
+  }
+
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(110px);
+    opacity: 0.35;
+    pointer-events: none;
+  }
+  .orb.a { width: 520px; height: 520px; background: #c81818; top: 15%; left: 10%;  animation: drift1 22s ease-in-out infinite; }
+  .orb.b { width: 420px; height: 420px; background: #ff4040; bottom: 12%; right: 12%; animation: drift2 26s ease-in-out infinite; }
+
+  @keyframes drift1 { 0%,100%{transform:translate(0,0);} 50%{transform:translate(40px,30px);} }
+  @keyframes drift2 { 0%,100%{transform:translate(0,0);} 50%{transform:translate(-30px,-25px);} }
+
+  .stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+    z-index: 2;
+  }
+
+  .logo-wrap {
+    position: relative;
+    width: 360px;
+    height: 160px;
+    animation: float 7s ease-in-out 2.4s infinite;
+    filter: drop-shadow(0 24px 48px rgba(220, 30, 30, 0.45));
+  }
+
+  svg { width: 100%; height: 100%; display: block; position: relative; z-index: 1; overflow: visible; }
+
+  /*
+   * Sharp entrance:
+   *   - Triangles fly in from large offsets along the M's diagonals
+   *   - Snappy decelerating ease (expo-out)
+   *   - End with a brief 1-frame highlight flash for crispness
+   * Stagger: bottom-left → bottom-mid-l → top-left → bottom-mid-r → top-right → top-mid
+   * (reads as the M building diagonally)
+   */
+  .tri {
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation:
+      flyIn 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+      flash 0.45s ease-out forwards;
+  }
+
+  /* Each triangle: distinct offset, distinct delay. Same animation timing keeps it crisp. */
+  .tri.t1 { transform: translate(-180px,  120px) scale(0.7); animation-delay: 0.10s, 1.20s; }
+  .tri.t2 { transform: translate(-100px,  120px) scale(0.7); animation-delay: 0.22s, 1.32s; }
+  .tri.t3 { transform: translate( -60px, -140px) scale(0.7); animation-delay: 0.34s, 1.44s; }
+  .tri.t4 { transform: translate( 100px,  120px) scale(0.7); animation-delay: 0.46s, 1.56s; }
+  .tri.t5 { transform: translate(  60px, -140px) scale(0.7); animation-delay: 0.58s, 1.68s; }
+  .tri.t6 { transform: translate(   0px, -160px) scale(0.7); animation-delay: 0.70s, 1.80s; }
+
+  /* Slow single sheen pass after entrance */
+  .sheen-overlay {
+    mix-blend-mode: screen;
+    opacity: 0;
+    animation: sheen 9s ease-in-out 3.2s infinite;
+  }
+
+  @keyframes flyIn {
+    0%   { opacity: 0; }
+    35%  { opacity: 1; }
+    100% { opacity: 1; transform: translate(0, 0) scale(1); }
+  }
+
+  /* Per-triangle landing flash — multi-pulse for a sharper impact */
+  @keyframes flash {
+    0%   { filter: brightness(1); }
+    60%  { filter: brightness(1); }
+    68%  { filter: brightness(2.6); }
+    74%  { filter: brightness(1.1); }
+    82%  { filter: brightness(2.0); }
+    100% { filter: brightness(1); }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+  }
+
+  @keyframes sheen {
+    0%, 88%, 100% { opacity: 0; transform: translateX(-130%) skewX(-18deg); }
+    92%           { opacity: 0.55; }
+    100%          { opacity: 0; transform: translateX(130%) skewX(-18deg); }
+  }
+
+  /* Title */
+  .title {
+    font-size: 16px;
+    letter-spacing: 0.55em;
+    text-transform: uppercase;
+    color: #f5f5f5;
+    font-weight: 500;
+    opacity: 0;
+    animation: titleIn 1.4s ease 1.9s forwards;
+  }
+
+  .title span {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(6px);
+    animation: letterIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .title span:nth-child(1) { animation-delay: 2.00s; }
+  .title span:nth-child(2) { animation-delay: 2.08s; }
+  .title span:nth-child(3) { animation-delay: 2.16s; }
+  .title span:nth-child(4) { animation-delay: 2.24s; }
+  .title span:nth-child(5) { animation-delay: 2.32s; }
+  .title span:nth-child(6) { animation-delay: 2.40s; }
+  .title span:nth-child(7) { animation-delay: 2.48s; }
+  .title span:nth-child(8) { animation-delay: 2.56s; }
+
+  @keyframes titleIn { to { opacity: 1; } }
+  @keyframes letterIn { to { opacity: 1; transform: translateY(0); } }
+
+  /* Loading dots */
+  .dots {
+    display: flex;
+    gap: 10px;
+    opacity: 0;
+    animation: titleIn 0.8s ease 1.9s forwards;
+  }
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ff5050;
+    box-shadow: 0 0 12px rgba(255, 80, 80, 0.7);
+    animation: dotPulse 1.4s ease-in-out infinite;
+  }
+  .dot:nth-child(1) { animation-delay: 0s; }
+  .dot:nth-child(2) { animation-delay: 0.18s; }
+  .dot:nth-child(3) { animation-delay: 0.36s; }
+
+  @keyframes dotPulse {
+    0%, 100% { opacity: 0.25; transform: scale(0.8); }
+    50%      { opacity: 1;    transform: scale(1.15); }
+  }
+</style>
+</head>
+<body>
+  <div class="orb a"></div>
+  <div class="orb b"></div>
+
+  <div class="stage">
+    <div class="logo-wrap">
+      <svg viewBox="0 0 210 90" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="mGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#FF5050"/>
+            <stop offset="1" stop-color="#B81414"/>
+          </linearGradient>
+
+          <linearGradient id="sheenGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0"   stop-color="#fff" stop-opacity="0"/>
+            <stop offset="0.5" stop-color="#fff" stop-opacity="0.85"/>
+            <stop offset="1"   stop-color="#fff" stop-opacity="0"/>
+          </linearGradient>
+
+          <clipPath id="mClip">
+            <path d="M70.4037 44.1774H23.4633L0 88.3549H46.9266L70.4037 44.1774Z
+                     M70.4033 44.1774H117.344L140.807 88.3549H93.8666L70.4033 44.1774Z
+                     M46.9268 0H93.8671L117.344 44.1775H70.4038L46.9268 0Z
+                     M138.883 44.1774H185.823L209.286 88.3549H162.36L138.883 44.1774Z
+                     M115.419 0H162.36L185.823 44.1775H138.883L115.419 0Z
+                     M161.989 0H115.048L91.585 44.1775H138.512L161.989 0Z"/>
+          </clipPath>
+        </defs>
+
+        <g transform="translate(0.5, 0.5)">
+          <path class="tri t1" d="M70.4037 44.1774H23.4633L0 88.3549H46.9266L70.4037 44.1774Z"   fill="url(#mGrad)"/>
+          <path class="tri t2" d="M70.4033 44.1774H117.344L140.807 88.3549H93.8666L70.4033 44.1774Z" fill="url(#mGrad)"/>
+          <path class="tri t3" d="M46.9268 0H93.8671L117.344 44.1775H70.4038L46.9268 0Z"          fill="url(#mGrad)"/>
+          <path class="tri t4" d="M138.883 44.1774H185.823L209.286 88.3549H162.36L138.883 44.1774Z" fill="url(#mGrad)"/>
+          <path class="tri t5" d="M115.419 0H162.36L185.823 44.1775H138.883L115.419 0Z"           fill="url(#mGrad)"/>
+          <path class="tri t6" d="M161.989 0H115.048L91.585 44.1775H138.512L161.989 0Z"           fill="url(#mGrad)"/>
+        </g>
+
+        <g clip-path="url(#mClip)" transform="translate(0.5, 0.5)">
+          <rect class="sheen-overlay" x="-80" y="0" width="80" height="90" fill="url(#sheenGrad)"/>
+        </g>
+      </svg>
+    </div>
+
+    <div class="dots">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+  </div>
+</body>
+</html>

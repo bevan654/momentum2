@@ -1094,17 +1094,20 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Rest timer ────────────────────────────────────
 
   setRestDuration: (seconds) => {
-    if (get().isResting) return;
-    set({ restDuration: seconds });
     _preferredRestDuration = seconds;
     saveRestPreference(seconds);
+    // While resting, don't disturb the in-progress timer's total —
+    // only update the preference. The new default applies to the next rest.
+    if (get().isResting) return;
+    set({ restDuration: seconds });
     get()._persist();
   },
 
   startRest: () => {
-    const { restDuration } = get();
+    // Pick up any preference change made during a previous rest.
+    const restDuration = _preferredRestDuration;
     _restResumeBase = null;
-    set({ isResting: true, restPaused: false, restRemaining: restDuration, restStartedAt: Date.now() });
+    set({ isResting: true, restPaused: false, restDuration, restRemaining: restDuration, restStartedAt: Date.now() });
     updateWorkoutActivity(_buildSnapshot(get()));
 
     // Await cancel before scheduling to avoid race condition on Android
