@@ -3,9 +3,6 @@ import { Platform, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './src/navigation/navigationRef';
-import { initSentry, navigationIntegration, Sentry, setSentryUser } from './src/lib/sentry';
-
-initSentry();
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
@@ -121,18 +118,6 @@ function App() {
     useChangelogStore.getState().check();
   }, []);
 
-  useEffect(() => {
-    if (session?.user) {
-      setSentryUser({
-        id: session.user.id,
-        email: session.user.email,
-        username: profile?.username ?? undefined,
-      });
-    } else {
-      setSentryUser(null);
-    }
-  }, [session?.user?.id, profile?.username]);
-
   if (!fontsLoaded || !initialized || !themeReady) {
     return <LoadingScreen />;
   }
@@ -143,7 +128,6 @@ function App() {
         <NavigationContainer
           ref={navigationRef}
           theme={navTheme}
-          onReady={() => navigationIntegration.registerNavigationContainer(navigationRef)}
         >
           <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
           {session
@@ -168,7 +152,7 @@ function App() {
   );
 }
 
-export default Sentry.wrap(App);
+export default App;
 
 const styles = StyleSheet.create({
   flex: {
