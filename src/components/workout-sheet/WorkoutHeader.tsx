@@ -114,14 +114,11 @@ function WorkoutHeader() {
       {/* Left: Rest timer controls */}
       <View style={styles.leftGroup}>
         <TouchableOpacity
-          style={[styles.restBtn, isResting && styles.restBtnDisabled]}
+          style={styles.restBtn}
           onPress={() => setRestPickerVisible(true)}
-          disabled={isResting}
           activeOpacity={0.6}
         >
-          <Text style={[styles.restText, isResting && styles.restTextDisabled]}>
-            {formatRestDuration(restDuration)}
-          </Text>
+          <Text style={styles.restText}>{formatRestDuration(restDuration)}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.iconBtn}
@@ -208,12 +205,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(13),
     fontFamily: Fonts.bold,
     lineHeight: ms(18),
-  },
-  restBtnDisabled: {
-    opacity: 0.5,
-  },
-  restTextDisabled: {
-    color: colors.textTertiary,
   },
   iconBtn: {
     padding: sw(6),
