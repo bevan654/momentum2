@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { Platform, StyleSheet } from 'react-native';
+import { ActivityIndicator, Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './src/navigation/navigationRef';
@@ -22,7 +22,6 @@ import TabNavigator from './src/navigation/TabNavigator';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import WelcomeSplashScreen from './src/screens/WelcomeSplashScreen';
-import LoadingScreen from './src/components/LoadingScreen';
 import ChangelogModal from './src/components/home/ChangelogModal';
 import { Fonts } from './src/theme/typography';
 import { getThemeColors } from './src/theme/useColors';
@@ -119,7 +118,11 @@ function App() {
   }, []);
 
   if (!fontsLoaded || !initialized || !themeReady) {
-    return <LoadingScreen />;
+    return (
+      <View style={[styles.loading, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </View>
+    );
   }
 
   return (
@@ -134,7 +137,9 @@ function App() {
             ? showWelcome
               ? <WelcomeSplashScreen />
               : !profile
-                ? <LoadingScreen />
+                ? <View style={[styles.loading, { backgroundColor: colors.background }]}>
+                    <ActivityIndicator size="large" color={colors.accent} />
+                  </View>
                 : (profile.height != null
                     && profile.age != null
                     && profile.gender != null
@@ -157,5 +162,10 @@ export default App;
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
+  },
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

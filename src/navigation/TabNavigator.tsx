@@ -298,7 +298,7 @@ export default function TabNavigator() {
   return (
     <View style={styles.root}>
       <Header activeTab={activeTab} />
-      <View style={{ flex: 1, overflow: 'hidden' }}>
+      <View style={{ flex: 1, overflow: 'hidden', backgroundColor: colors.background }}>
         <Tab.Navigator
           tabBar={renderTabBar}
           tabBarPosition="bottom"
@@ -308,6 +308,7 @@ export default function TabNavigator() {
             swipeEnabled: true,
             animationEnabled: true,
             lazy: true,
+            lazyPreloadDistance: 1,
             freezeOnBlur: true,
           }}
         >
