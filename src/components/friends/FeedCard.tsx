@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { TapGestureHandler, State } from 'react-native-gesture-handler';
 import type { TapGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
@@ -14,7 +14,6 @@ import AvatarCircle from './AvatarCircle';
 import FeedActionRow from './FeedActionRow';
 import HeartBurst from './HeartBurst';
 import MiniBodyMap from '../body/MiniBodyMap';
-import ReportSheet from './ReportSheet';
 
 const MAX_EXERCISES_SHOWN = 6;
 
@@ -50,51 +49,9 @@ function FeedCard({
   const currentUserId = useAuthStore((s) => s.user?.id);
   const friendIds = useFriendsStore((s) => s.friendIds);
   const sendFriendRequest = useFriendsStore((s) => s.sendFriendRequest);
-  const blockUserAction = useFriendsStore((s) => s.blockUser);
   const isSelf = currentUserId === item.user_id;
   const isFriend = friendIds.includes(item.user_id);
   const [requestSent, setRequestSent] = useState(false);
-  const [reportVisible, setReportVisible] = useState(false);
-
-  const handleMore = useCallback(() => {
-    if (!currentUserId || isSelf) return;
-    const name = item.profile.username || item.profile.email;
-    Alert.alert(
-      name,
-      undefined,
-      [
-        {
-          text: 'Report Post',
-          onPress: () => setReportVisible(true),
-        },
-        {
-          text: 'Block User',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Block User',
-              `Block ${name}? You won't see their posts and they won't be able to interact with you.`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Block',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      await blockUserAction(currentUserId, item.user_id);
-                    } catch {
-                      Alert.alert('Error', 'Could not block user. Please try again.');
-                    }
-                  },
-                },
-              ],
-            );
-          },
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ],
-    );
-  }, [currentUserId, isSelf, item.user_id, item.profile, blockUserAction]);
 
   const handleAddFriend = useCallback(() => {
     if (!currentUserId || isSelf || isFriend || requestSent) return;
@@ -238,20 +195,6 @@ function FeedCard({
                   </TouchableOpacity>
                 )
               )}
-              {!isSelf && (
-                <TouchableOpacity
-                  style={styles.moreBtn}
-                  onPress={handleMore}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  activeOpacity={0.6}
-                >
-                  <Ionicons
-                    name="ellipsis-horizontal"
-                    size={ms(18)}
-                    color={colors.textTertiary}
-                  />
-                </TouchableOpacity>
-              )}
             </View>
 
             <View style={styles.divider} />
@@ -327,13 +270,6 @@ function FeedCard({
         </Text>
       )}
 
-      <ReportSheet
-        visible={reportVisible}
-        onClose={() => setReportVisible(false)}
-        targetType="activity"
-        targetId={item.id}
-        targetUserId={item.user_id}
-      />
     </View>
   );
 }
@@ -453,11 +389,6 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(13),
     },
     addFriendTextSent: { color: colors.accentGreen },
-    moreBtn: {
-      paddingHorizontal: sw(4),
-      paddingVertical: sw(4),
-      marginLeft: sw(4),
-    },
     timestamp: {
       color: colors.textTertiary,
       fontSize: ms(10),

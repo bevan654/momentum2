@@ -177,6 +177,18 @@ export default function MuscleRadarCard() {
   const hasData = totalSets > 0;
   const angleStep = (2 * Math.PI) / GROUPS.length;
 
+  // Example data shown faded behind the empty-state overlay
+  const SAMPLE_GROUP_SETS: Record<string, number> = {
+    Chest: 12, Back: 14, Shoulders: 9, Arms: 10, Legs: 16, Core: 6,
+  };
+  const SAMPLE_BODY_DATA: ExtendedBodyPart[] = ALL_SLUGS.map((slug) => ({ slug, intensity: 3 }));
+
+  const displayGroupSets = hasData ? groupSets : SAMPLE_GROUP_SETS;
+  const displayBodyData = hasData ? bodyData : SAMPLE_BODY_DATA;
+  const displayMaxSets = hasData
+    ? maxSets
+    : Math.max(...GROUPS.map((g) => SAMPLE_GROUP_SETS[g]));
+
   const ringPaths = useMemo(() => {
     return Array.from({ length: RINGS }, (_, ring) => {
       const r = (RADIUS * (ring + 1)) / RINGS;
@@ -192,10 +204,9 @@ export default function MuscleRadarCard() {
   }, [angleStep]);
 
   const dataPath = useMemo(() => {
-    if (!hasData) return null;
     const p = Skia.Path.Make();
     for (let i = 0; i < GROUPS.length; i++) {
-      const ratio = Math.max(0.08, groupSets[GROUPS[i]] / maxSets);
+      const ratio = Math.max(0.08, displayGroupSets[GROUPS[i]] / displayMaxSets);
       const r = ratio * RADIUS;
       const { x, y } = polarXY(i * angleStep, r);
       if (i === 0) p.moveTo(x, y);
@@ -203,22 +214,21 @@ export default function MuscleRadarCard() {
     }
     p.close();
     return p;
-  }, [groupSets, maxSets, hasData, angleStep]);
+  }, [displayGroupSets, displayMaxSets, angleStep]);
 
   const dataPoints = useMemo(() => {
-    if (!hasData) return [];
     return GROUPS.map((g, i) => {
-      const ratio = Math.max(0.08, groupSets[g] / maxSets);
+      const ratio = Math.max(0.08, displayGroupSets[g] / displayMaxSets);
       return polarXY(i * angleStep, ratio * RADIUS);
     });
-  }, [groupSets, maxSets, hasData, angleStep]);
+  }, [displayGroupSets, displayMaxSets, angleStep]);
 
   const labels = useMemo(() => {
     return GROUPS.map((g, i) => {
       const { x, y } = polarXY(i * angleStep, RADIUS + sw(10));
-      return { group: g, x, y, sets: groupSets[g] };
+      return { group: g, x, y, sets: displayGroupSets[g] };
     });
-  }, [groupSets, angleStep]);
+  }, [displayGroupSets, angleStep]);
 
   return (
     <View style={styles.card}>
@@ -261,7 +271,8 @@ export default function MuscleRadarCard() {
           </View>
         </View>
       </View>
-      <View style={styles.contentRow}>
+      <View>
+      <View style={[styles.contentRow, !hasData && styles.dimmedContent]} pointerEvents={hasData ? 'auto' : 'none'}>
         {/* Radar section */}
         <View style={styles.radarSection}>
           <View style={{ width: CHART_SIZE, height: CHART_SIZE, overflow: 'visible' as const }}>
@@ -351,15 +362,25 @@ export default function MuscleRadarCard() {
         <View style={styles.bodySection}>
           <View style={styles.bodyRow}>
             <View style={styles.bodyCol}>
-              <MiniBodyMap bodyData={bodyData} scale={BODY_SCALE} side="front" />
+              <MiniBodyMap bodyData={displayBodyData} scale={BODY_SCALE} side="front" />
               <Text style={styles.sideLabel}>Front</Text>
             </View>
             <View style={styles.bodyCol}>
-              <MiniBodyMap bodyData={bodyData} scale={BODY_SCALE} side="back" />
+              <MiniBodyMap bodyData={displayBodyData} scale={BODY_SCALE} side="back" />
               <Text style={styles.sideLabel}>Back</Text>
             </View>
           </View>
         </View>
+      </View>
+
+      {!hasData && (
+        <View style={styles.emptyOverlay} pointerEvents="none">
+          <View style={styles.emptyPill}>
+            <Ionicons name="analytics-outline" size={ms(14)} color={colors.textSecondary} />
+            <Text style={styles.emptyPillText}>No training data yet — log a workout to see your balance</Text>
+          </View>
+        </View>
+      )}
       </View>
     </View>
   );
@@ -469,5 +490,33 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(11),
       fontFamily: Fonts.medium,
       marginTop: sw(2),
+    },
+    /* Empty state */
+    dimmedContent: {
+      opacity: 0.25,
+    },
+    emptyOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(6),
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: sw(999),
+      paddingHorizontal: sw(12),
+      paddingVertical: sw(7),
+      maxWidth: '90%',
+    },
+    emptyPillText: {
+      color: colors.textSecondary,
+      fontSize: ms(11),
+      lineHeight: ms(15),
+      fontFamily: Fonts.semiBold,
+      flexShrink: 1,
     },
   });

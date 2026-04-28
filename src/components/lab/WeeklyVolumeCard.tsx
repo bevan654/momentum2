@@ -218,7 +218,21 @@ export default function WeeklyVolumeCard() {
     setOffset(0);
   }, [globalVersion]);
 
-  const slots = useMemo(() => buildSlots(workouts, period, offset), [workouts, period, offset]);
+  const realSlots = useMemo(() => buildSlots(workouts, period, offset), [workouts, period, offset]);
+
+  const hasData = useMemo(() => realSlots.some((s) => s.hasData), [realSlots]);
+
+  // Sample data shown faded behind the empty-state overlay when there's nothing real
+  const sampleSlots = useMemo<Slot[]>(() => {
+    // Deterministic, gently-varied volumes to look plausible
+    const pattern = [4200, 6100, 0, 5400, 7200, 5800, 6700, 0, 6300, 7500, 6900, 8000, 7300];
+    return realSlots.map((s, i) => {
+      const v = pattern[i % pattern.length];
+      return { ...s, volume: v, hasData: v > 0 };
+    });
+  }, [realSlots]);
+
+  const slots = hasData ? realSlots : sampleSlots;
 
   const dataVolumes = useMemo(
     () => slots.filter((s) => s.hasData).map((s) => s.volume),
@@ -226,16 +240,22 @@ export default function WeeklyVolumeCard() {
   );
 
   // Current period rolling average (window matches selected period)
-  const rollingAvg = useMemo(
-    () => computeRollingAvg(workouts, slots, periodDays(period)),
-    [workouts, slots, period],
-  );
+  const rollingAvg = useMemo(() => {
+    if (!hasData) {
+      // Smooth trailing average across the sample slots so the curves render too
+      return slots.map((_, i) => {
+        const win = slots.slice(Math.max(0, i - 3), i + 1).filter((s) => s.volume > 0);
+        return win.length ? win.reduce((a, b) => a + b.volume, 0) / win.length : 0;
+      });
+    }
+    return computeRollingAvg(workouts, slots, periodDays(period));
+  }, [workouts, slots, period, hasData]);
 
   // Previous period rolling average (same positions, shifted back one period)
-  const prevRollingAvg = useMemo(
-    () => computePrevRollingAvg(workouts, slots, period),
-    [workouts, slots, period],
-  );
+  const prevRollingAvg = useMemo(() => {
+    if (!hasData) return slots.map((_, i) => (rollingAvg[i] || 0) * 0.85);
+    return computePrevRollingAvg(workouts, slots, period);
+  }, [workouts, slots, period, hasData, rollingAvg]);
 
   const yMax = useMemo(
     () => niceMax(Math.max(...dataVolumes, ...rollingAvg, ...prevRollingAvg, 0)),
@@ -349,6 +369,7 @@ export default function WeeklyVolumeCard() {
 
       {/* Chart */}
       <View>
+        <View style={!hasData && styles.dimmedContent} pointerEvents={hasData ? 'auto' : 'none'}>
         <View style={{ height: CHART_H }}>
           {/* Y-axis labels */}
           {Array.from({ length: GRID_STEPS + 1 }).map((_, i) => {
@@ -469,6 +490,16 @@ export default function WeeklyVolumeCard() {
             <Text style={styles.legendText}>Prev {period}</Text>
           </View>
         </View>
+        </View>
+
+        {!hasData && (
+          <View style={styles.emptyOverlay} pointerEvents="none">
+            <View style={styles.emptyPill}>
+              <Ionicons name="bar-chart-outline" size={ms(14)} color={colors.textSecondary} />
+              <Text style={styles.emptyPillText}>No volume yet — log a workout to see your trend</Text>
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -603,5 +634,33 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: ms(10),
       lineHeight: ms(14),
       fontFamily: Fonts.bold,
+    },
+    /* Empty state */
+    dimmedContent: {
+      opacity: 0.25,
+    },
+    emptyOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(6),
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: sw(999),
+      paddingHorizontal: sw(12),
+      paddingVertical: sw(7),
+      maxWidth: '90%',
+    },
+    emptyPillText: {
+      color: colors.textSecondary,
+      fontSize: ms(11),
+      lineHeight: ms(15),
+      fontFamily: Fonts.semiBold,
+      flexShrink: 1,
     },
   });
