@@ -437,19 +437,24 @@ export default function RecoveryTimersCard({ analysis }: Props) {
     [],
   );
 
-  if (trainedGroups.length === 0) {
-    return (
-      <View style={styles.card}>
-        <View style={styles.header}>
-          <View style={styles.accentDot} />
-          <Text style={styles.title}>Recovery Status</Text>
-        </View>
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No recovery data yet</Text>
-        </View>
-      </View>
-    );
-  }
+  const isEmpty = trainedGroups.length === 0;
+
+  // Sample data shown faded behind the empty-state overlay
+  const sampleGroups: RowItem[] = useMemo(() => {
+    const now = Date.now();
+    const hAgo = (h: number) => new Date(now - h * 3600000).toISOString();
+    return [
+      { group: 'chest',     recoveryPercent: 95, recoveryRemaining: 0,  sessionCount: 2, lastTrainedAt: hAgo(70), undertrained: false, overtrained: false, exercises: [] },
+      { group: 'back',      recoveryPercent: 70, recoveryRemaining: 14, sessionCount: 2, lastTrainedAt: hAgo(34), undertrained: false, overtrained: false, exercises: [] },
+      { group: 'quads',     recoveryPercent: 45, recoveryRemaining: 26, sessionCount: 1, lastTrainedAt: hAgo(22), undertrained: false, overtrained: false, exercises: [] },
+      { group: 'shoulders', recoveryPercent: 30, recoveryRemaining: 33, sessionCount: 3, lastTrainedAt: hAgo(12), undertrained: false, overtrained: true,  exercises: [] },
+    ];
+  }, []);
+
+  const displayGroups = isEmpty ? sampleGroups : trainedGroups;
+  const displayReadyCount = isEmpty
+    ? sampleGroups.filter((g) => g.recoveryPercent >= 90).length
+    : readyCount;
 
   return (
     <View style={styles.card}>
@@ -461,23 +466,34 @@ export default function RecoveryTimersCard({ analysis }: Props) {
         </View>
         <View style={styles.readyBadge}>
           <Text style={styles.readyText}>
-            {readyCount}/{trainedGroups.length} ready
+            {displayReadyCount}/{displayGroups.length} ready
           </Text>
         </View>
       </View>
 
-      {/* Muscle rows */}
-      <View style={styles.rows}>
-        {trainedGroups.map((item, index) => (
-          <RecoveryRow
-            key={item.group}
-            item={item}
-            animateIndex={index}
-            isExpanded={expandedGroup === item.group}
-            onToggle={() => handleToggle(item.group)}
-            colors={colors}
-          />
-        ))}
+      <View>
+        {/* Muscle rows */}
+        <View style={[styles.rows, isEmpty && styles.dimmedContent]} pointerEvents={isEmpty ? 'none' : 'auto'}>
+          {displayGroups.map((item, index) => (
+            <RecoveryRow
+              key={item.group}
+              item={item}
+              animateIndex={index}
+              isExpanded={!isEmpty && expandedGroup === item.group}
+              onToggle={() => !isEmpty && handleToggle(item.group)}
+              colors={colors}
+            />
+          ))}
+        </View>
+
+        {isEmpty && (
+          <View style={styles.emptyOverlay} pointerEvents="none">
+            <View style={styles.emptyPill}>
+              <Ionicons name="pulse-outline" size={ms(14)} color={colors.textSecondary} />
+              <Text style={styles.emptyPillText}>No recovery data yet — log a workout to track recovery</Text>
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -659,16 +675,31 @@ const createStyles = (colors: ThemeColors) =>
     },
 
     /* Empty */
-    emptyState: {
-      backgroundColor: colors.surface,
-      borderRadius: sw(12),
-      paddingVertical: sw(28),
-      alignItems: 'center',
+    dimmedContent: {
+      opacity: 0.25,
     },
-    emptyText: {
-      color: colors.textTertiary,
-      fontSize: ms(14),
-      lineHeight: ms(20),
-      fontFamily: Fonts.medium,
+    emptyOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(6),
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: sw(999),
+      paddingHorizontal: sw(12),
+      paddingVertical: sw(7),
+      maxWidth: '90%',
+    },
+    emptyPillText: {
+      color: colors.textSecondary,
+      fontSize: ms(11),
+      lineHeight: ms(15),
+      fontFamily: Fonts.semiBold,
+      flexShrink: 1,
     },
   });

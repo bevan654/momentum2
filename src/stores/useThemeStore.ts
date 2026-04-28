@@ -44,7 +44,7 @@ function persist(mode: ThemeMode, accent: AccentColor) {
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
   mode: 'dark',
-  accent: '#8B5CF6',
+  accent: '#FF3232',
   initialized: false,
 
   setMode: (mode: ThemeMode) => {

@@ -499,7 +499,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
             </TouchableOpacity>
             <TouchableOpacity style={s.actionBtn} onPress={handleOpenScanner} activeOpacity={0.7}>
               <Ionicons name="camera-outline" size={ms(16)} color={colors.accent} />
-              <Text style={s.actionBtnText}>Scan a meal</Text>
+              <Text style={s.actionBtnText}>Scan a barcode</Text>
               <Ionicons name="chevron-forward" size={ms(12)} color={colors.textTertiary} />
             </TouchableOpacity>
           </View>
