@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -23,16 +23,74 @@ import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useFoodLogStore } from '../stores/useFoodLogStore';
+import { useSupplementStore } from '../stores/useSupplementStore';
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 2;
 
 const STEP_CONFIG = [
-  { title: 'What is your gender?', subtitle: 'This helps us personalise your experience' },
-  { title: 'How old are you?', subtitle: 'Age is used for accurate fitness calculations' },
-  { title: 'What is your height?', subtitle: 'Enter your height in centimetres' },
-  { title: 'What is your weight?', subtitle: 'Enter your current weight in kilograms' },
-  { title: 'Set your nutrition goals', subtitle: 'Adjust or keep the recommended defaults' },
+  { title: 'Tell us about yourself', subtitle: 'We use this to personalise your experience' },
+  { title: 'Set your daily goals', subtitle: 'Recommended targets based on your details — adjust if you like' },
 ];
+
+type ActivityKey = 'sedentary' | 'light' | 'moderate' | 'very' | 'athlete';
+
+const ACTIVITY_OPTIONS: { key: ActivityKey; label: string; description: string; multiplier: number }[] = [
+  { key: 'sedentary', label: 'Sedentary',  description: 'Desk job, little exercise',         multiplier: 1.2 },
+  { key: 'light',     label: 'Light',      description: 'Light exercise 1–3 days/wk',         multiplier: 1.375 },
+  { key: 'moderate',  label: 'Moderate',   description: 'Exercise 3–5 days/wk',               multiplier: 1.55 },
+  { key: 'very',      label: 'Very active', description: 'Hard exercise 6–7 days/wk',         multiplier: 1.725 },
+  { key: 'athlete',   label: 'Athlete',    description: 'Twice daily training / labour job',  multiplier: 1.9 },
+];
+
+type GoalMode = 'cut' | 'maintain' | 'bulk';
+
+const computeRecommendation = (params: {
+  gender: string | null;
+  ageNum: number;
+  heightCm: number;
+  weightKg: number;
+  goalKg: number;
+  activity: ActivityKey | null;
+}): { mode: GoalMode; calories: number; protein: number; carbs: number; fat: number } | null => {
+  const { gender, ageNum, heightCm, weightKg, goalKg, activity } = params;
+  if (!gender || !activity) return null;
+  if (!(ageNum > 0 && heightCm > 0 && weightKg > 0 && goalKg > 0)) return null;
+
+  // Mifflin-St Jeor
+  const bmr =
+    gender === 'female'
+      ? 10 * weightKg + 6.25 * heightCm - 5 * ageNum - 161
+      : 10 * weightKg + 6.25 * heightCm - 5 * ageNum + 5;
+
+  const multiplier = ACTIVITY_OPTIONS.find((o) => o.key === activity)!.multiplier;
+  const tdee = bmr * multiplier;
+
+  const diff = goalKg - weightKg;
+  let mode: GoalMode = 'maintain';
+  let calories = tdee;
+  if (diff <= -1) {
+    mode = 'cut';
+    calories = tdee - 500;
+  } else if (diff >= 1) {
+    mode = 'bulk';
+    calories = tdee + 300;
+  }
+
+  // Protein: 2.0 g/kg for cut, 1.8 g/kg for bulk/maintain
+  const proteinG = Math.round((mode === 'cut' ? 2.0 : 1.8) * weightKg);
+  // Fat: 25% of calories
+  const fatG = Math.round((calories * 0.25) / 9);
+  // Carbs: remainder
+  const carbsG = Math.max(0, Math.round((calories - proteinG * 4 - fatG * 9) / 4));
+
+  return {
+    mode,
+    calories: Math.round(calories / 10) * 10,
+    protein: proteinG,
+    carbs: carbsG,
+    fat: fatG,
+  };
+};
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -41,6 +99,7 @@ export default function OnboardingScreen() {
 
   const { profile, updateProfile } = useAuthStore();
   const updateGoals = useFoodLogStore((s) => s.updateGoals);
+  const updateSupplementGoals = useSupplementStore((s) => s.updateSupplementGoals);
 
   // Step state
   const [step, setStep] = useState(1);
@@ -55,6 +114,13 @@ export default function OnboardingScreen() {
   const [protein, setProtein] = useState('150');
   const [carbs, setCarbs] = useState('250');
   const [fat, setFat] = useState('65');
+  const [water, setWater] = useState('2500');
+  const [creatine, setCreatine] = useState('5');
+  const [goalWeight, setGoalWeight] = useState('');
+  const [activity, setActivity] = useState<ActivityKey | null>(null);
+
+  // Tracks whether user has manually edited macros — if not, we auto-fill from TDEE
+  const macrosTouched = useRef(false);
 
   // Animation values
   const progressAnim = useSharedValue(1 / TOTAL_STEPS);
@@ -97,33 +163,64 @@ export default function OnboardingScreen() {
     if (step > 1) animateTransition(step - 1);
   }, [step, animateTransition]);
 
+  const recommendation = useMemo(
+    () => computeRecommendation({
+      gender,
+      ageNum: Number(age),
+      heightCm: Number(height),
+      weightKg: Number(weight),
+      goalKg: Number(goalWeight),
+      activity,
+    }),
+    [gender, age, height, weight, goalWeight, activity],
+  );
+
+  // Auto-fill macros from the recommendation as long as the user hasn't manually edited them
+  useEffect(() => {
+    if (!recommendation || macrosTouched.current) return;
+    setCalories(String(recommendation.calories));
+    setProtein(String(recommendation.protein));
+    setCarbs(String(recommendation.carbs));
+    setFat(String(recommendation.fat));
+  }, [recommendation]);
+
+  const onMacroChange = (setter: (v: string) => void) => (v: string) => {
+    macrosTouched.current = true;
+    setter(v);
+  };
+
   const canContinue = useMemo(() => {
     switch (step) {
-      case 1:
-        return gender !== null;
+      case 1: {
+        if (gender === null) return false;
+        if (activity === null) return false;
+        const a = Number(age);
+        const h = Number(height);
+        const w = Number(weight);
+        return (
+          age !== '' && Number.isInteger(a) && a >= 13 && a <= 100 &&
+          height !== '' && h >= 100 && h <= 250 &&
+          weight !== '' && w >= 30 && w <= 300
+        );
+      }
       case 2: {
-        const n = Number(age);
-        return age !== '' && Number.isInteger(n) && n >= 13 && n <= 100;
-      }
-      case 3: {
-        const n = Number(height);
-        return height !== '' && n >= 100 && n <= 250;
-      }
-      case 4: {
-        const n = Number(weight);
-        return weight !== '' && n >= 30 && n <= 300;
-      }
-      case 5: {
         const cal = Number(calories);
         const pro = Number(protein);
         const car = Number(carbs);
         const f = Number(fat);
-        return cal > 0 && pro > 0 && car > 0 && f > 0;
+        const wa = Number(water);
+        const cr = Number(creatine);
+        const gw = Number(goalWeight);
+        return (
+          cal > 0 && pro > 0 && car > 0 && f > 0 &&
+          wa > 0 && cr > 0 &&
+          goalWeight !== '' && gw >= 30 && gw <= 300
+        );
       }
       default:
         return false;
     }
-  }, [step, gender, age, height, weight, calories, protein, carbs, fat]);
+  }, [step, gender, activity, age, height, weight, calories, protein, carbs, fat, water, creatine, goalWeight]);
 
   const handleFinish = useCallback(async () => {
     if (!profile || saving) return;
@@ -134,6 +231,7 @@ export default function OnboardingScreen() {
         age: Number(age),
         height: Number(height),
         starting_weight: Number(weight),
+        goal_weight: Number(goalWeight),
       });
       await updateGoals(profile.id, {
         calorie_goal: Number(calories),
@@ -141,133 +239,249 @@ export default function OnboardingScreen() {
         carbs_goal: Number(carbs),
         fat_goal: Number(fat),
       });
+      await updateSupplementGoals(profile.id, {
+        water_goal: Number(water),
+        creatine_goal: Number(creatine),
+      });
     } finally {
       setSaving(false);
     }
-  }, [profile, saving, gender, age, height, weight, calories, protein, carbs, fat, updateProfile, updateGoals]);
+  }, [
+    profile, saving, gender, age, height, weight,
+    calories, protein, carbs, fat,
+    water, creatine, goalWeight,
+    updateProfile, updateGoals, updateSupplementGoals,
+  ]);
 
   const renderStepContent = () => {
     switch (step) {
       case 1:
         return (
-          <View style={styles.genderRow}>
-            <TouchableOpacity
-              style={[styles.genderCard, gender === 'male' && styles.genderCardSelected]}
-              onPress={() => setGender('male')}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="male"
-                size={ms(40)}
-                color={gender === 'male' ? colors.accent : colors.textSecondary}
-              />
-              <Text style={[styles.genderLabel, gender === 'male' && styles.genderLabelSelected]}>
-                Male
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.genderCard, gender === 'female' && styles.genderCardSelected]}
-              onPress={() => setGender('female')}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="female"
-                size={ms(40)}
-                color={gender === 'female' ? colors.accent : colors.textSecondary}
-              />
-              <Text style={[styles.genderLabel, gender === 'female' && styles.genderLabelSelected]}>
-                Female
-              </Text>
-            </TouchableOpacity>
+          <View style={styles.detailsStack}>
+            {/* Gender */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Gender</Text>
+              <View style={styles.genderRow}>
+                <TouchableOpacity
+                  style={[styles.genderCard, gender === 'male' && styles.genderCardSelected]}
+                  onPress={() => setGender('male')}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="male"
+                    size={ms(28)}
+                    color={gender === 'male' ? colors.accent : colors.textSecondary}
+                  />
+                  <Text style={[styles.genderLabel, gender === 'male' && styles.genderLabelSelected]}>
+                    Male
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.genderCard, gender === 'female' && styles.genderCardSelected]}
+                  onPress={() => setGender('female')}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="female"
+                    size={ms(28)}
+                    color={gender === 'female' ? colors.accent : colors.textSecondary}
+                  />
+                  <Text style={[styles.genderLabel, gender === 'female' && styles.genderLabelSelected]}>
+                    Female
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Age */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Age</Text>
+              <View style={styles.inputWithUnit}>
+                <TextInput
+                  style={[styles.input, styles.inputFlex]}
+                  placeholder="e.g. 24"
+                  placeholderTextColor={colors.textTertiary}
+                  value={age}
+                  onChangeText={setAge}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                />
+                <View style={styles.unitBadge}>
+                  <Text style={styles.unitBadgeText}>yrs</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Height */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Height</Text>
+              <View style={styles.inputWithUnit}>
+                <TextInput
+                  style={[styles.input, styles.inputFlex]}
+                  placeholder="e.g. 178"
+                  placeholderTextColor={colors.textTertiary}
+                  value={height}
+                  onChangeText={setHeight}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                />
+                <View style={styles.unitBadge}>
+                  <Text style={styles.unitBadgeText}>cm</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Weight */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Weight</Text>
+              <View style={styles.inputWithUnit}>
+                <TextInput
+                  style={[styles.input, styles.inputFlex]}
+                  placeholder="e.g. 75"
+                  placeholderTextColor={colors.textTertiary}
+                  value={weight}
+                  onChangeText={setWeight}
+                  keyboardType="decimal-pad"
+                  maxLength={5}
+                />
+                <View style={styles.unitBadge}>
+                  <Text style={styles.unitBadgeText}>kg</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Activity level */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Activity level</Text>
+              <View style={styles.activityList}>
+                {ACTIVITY_OPTIONS.map((opt) => {
+                  const selected = activity === opt.key;
+                  return (
+                    <TouchableOpacity
+                      key={opt.key}
+                      style={[styles.activityCard, selected && styles.activityCardSelected]}
+                      onPress={() => setActivity(opt.key)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.activityTextWrap}>
+                        <Text style={[styles.activityLabel, selected && styles.activityLabelSelected]}>
+                          {opt.label}
+                        </Text>
+                        <Text style={styles.activityDescription}>{opt.description}</Text>
+                      </View>
+                      {selected && (
+                        <Ionicons name="checkmark-circle" size={ms(20)} color={colors.accent} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
           </View>
         );
 
       case 2:
         return (
-          <View style={styles.inputGroup}>
-            <TextInput
-              style={styles.input}
-              placeholder="Age"
-              placeholderTextColor={colors.textTertiary}
-              value={age}
-              onChangeText={setAge}
-              keyboardType="number-pad"
-              maxLength={3}
-              autoFocus
-            />
-            <Text style={styles.unitHint}>years (13–100)</Text>
-          </View>
-        );
-
-      case 3:
-        return (
-          <View style={styles.inputGroup}>
-            <View style={styles.inputWithUnit}>
-              <TextInput
-                style={[styles.input, styles.inputFlex]}
-                placeholder="Height"
-                placeholderTextColor={colors.textTertiary}
-                value={height}
-                onChangeText={setHeight}
-                keyboardType="number-pad"
-                maxLength={3}
-                autoFocus
-              />
-              <View style={styles.unitBadge}>
-                <Text style={styles.unitBadgeText}>cm</Text>
+          <View style={styles.detailsStack}>
+            {recommendation && (
+              <View style={styles.recBanner}>
+                <Ionicons
+                  name={
+                    recommendation.mode === 'cut'
+                      ? 'trending-down'
+                      : recommendation.mode === 'bulk'
+                      ? 'trending-up'
+                      : 'remove'
+                  }
+                  size={ms(18)}
+                  color={colors.accent}
+                />
+                <Text style={styles.recBannerText}>
+                  {recommendation.mode === 'cut'
+                    ? 'Cutting plan — calorie deficit to reach your goal weight.'
+                    : recommendation.mode === 'bulk'
+                    ? 'Lean bulk plan — calorie surplus to reach your goal weight.'
+                    : 'Maintenance plan — calories balanced for your current weight.'}
+                </Text>
               </View>
-            </View>
-            <Text style={styles.unitHint}>100–250 cm</Text>
-          </View>
-        );
+            )}
 
-      case 4:
-        return (
-          <View style={styles.inputGroup}>
-            <View style={styles.inputWithUnit}>
-              <TextInput
-                style={[styles.input, styles.inputFlex]}
-                placeholder="Weight"
-                placeholderTextColor={colors.textTertiary}
-                value={weight}
-                onChangeText={setWeight}
-                keyboardType="decimal-pad"
-                maxLength={5}
-                autoFocus
-              />
-              <View style={styles.unitBadge}>
-                <Text style={styles.unitBadgeText}>kg</Text>
-              </View>
-            </View>
-            <Text style={styles.unitHint}>30–300 kg</Text>
-          </View>
-        );
-
-      case 5:
-        return (
-          <View style={styles.goalsGrid}>
-            {([
-              { label: 'Calories', unit: 'kcal', value: calories, setter: setCalories },
-              { label: 'Protein', unit: 'g', value: protein, setter: setProtein },
-              { label: 'Carbs', unit: 'g', value: carbs, setter: setCarbs },
-              { label: 'Fat', unit: 'g', value: fat, setter: setFat },
-            ] as const).map((item) => (
-              <View key={item.label} style={styles.goalItem}>
-                <Text style={styles.goalLabel}>{item.label}</Text>
-                <View style={styles.inputWithUnit}>
-                  <TextInput
-                    style={[styles.input, styles.inputFlex, styles.goalInput]}
-                    value={item.value}
-                    onChangeText={item.setter}
-                    keyboardType="number-pad"
-                    maxLength={5}
-                  />
-                  <View style={styles.unitBadge}>
-                    <Text style={styles.unitBadgeText}>{item.unit}</Text>
+            <View>
+              <Text style={styles.sectionHeading}>Body</Text>
+              <View style={styles.goalsGrid}>
+                <View style={styles.goalItem}>
+                  <Text style={styles.goalLabel}>Goal weight</Text>
+                  <View style={styles.inputWithUnit}>
+                    <TextInput
+                      style={[styles.input, styles.inputFlex, styles.goalInput]}
+                      placeholder="e.g. 72"
+                      placeholderTextColor={colors.textTertiary}
+                      value={goalWeight}
+                      onChangeText={setGoalWeight}
+                      keyboardType="decimal-pad"
+                      maxLength={5}
+                    />
+                    <View style={styles.unitBadge}>
+                      <Text style={styles.unitBadgeText}>kg</Text>
+                    </View>
                   </View>
                 </View>
               </View>
-            ))}
+            </View>
+
+            <View>
+              <Text style={styles.sectionHeading}>Nutrition</Text>
+              <View style={styles.goalsGrid}>
+                {([
+                  { label: 'Calories', unit: 'kcal', value: calories, setter: onMacroChange(setCalories), kb: 'number-pad' as const, max: 5 },
+                  { label: 'Protein', unit: 'g', value: protein, setter: onMacroChange(setProtein), kb: 'number-pad' as const, max: 5 },
+                  { label: 'Carbs', unit: 'g', value: carbs, setter: onMacroChange(setCarbs), kb: 'number-pad' as const, max: 5 },
+                  { label: 'Fat', unit: 'g', value: fat, setter: onMacroChange(setFat), kb: 'number-pad' as const, max: 5 },
+                ]).map((item) => (
+                  <View key={item.label} style={styles.goalItem}>
+                    <Text style={styles.goalLabel}>{item.label}</Text>
+                    <View style={styles.inputWithUnit}>
+                      <TextInput
+                        style={[styles.input, styles.inputFlex, styles.goalInput]}
+                        value={item.value}
+                        onChangeText={item.setter}
+                        keyboardType={item.kb}
+                        maxLength={item.max}
+                      />
+                      <View style={styles.unitBadge}>
+                        <Text style={styles.unitBadgeText}>{item.unit}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <View>
+              <Text style={styles.sectionHeading}>Supplements</Text>
+              <View style={styles.goalsGrid}>
+                {([
+                  { label: 'Water', unit: 'ml', value: water, setter: setWater, kb: 'number-pad' as const, max: 6 },
+                  { label: 'Creatine', unit: 'g', value: creatine, setter: setCreatine, kb: 'decimal-pad' as const, max: 4 },
+                ]).map((item) => (
+                  <View key={item.label} style={styles.goalItem}>
+                    <Text style={styles.goalLabel}>{item.label}</Text>
+                    <View style={styles.inputWithUnit}>
+                      <TextInput
+                        style={[styles.input, styles.inputFlex, styles.goalInput]}
+                        value={item.value}
+                        onChangeText={item.setter}
+                        keyboardType={item.kb}
+                        maxLength={item.max}
+                      />
+                      <View style={styles.unitBadge}>
+                        <Text style={styles.unitBadgeText}>{item.unit}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
           </View>
         );
 
@@ -395,26 +609,41 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: ms(16),
       lineHeight: ms(22),
       fontFamily: Fonts.medium,
-      marginBottom: sw(32),
+      marginBottom: sw(28),
     },
 
     scrollContent: {
       flexGrow: 1,
+      paddingBottom: sw(24),
     },
 
-    /* ─── Gender step ──────────────────────────────────────── */
+    /* ─── Combined details step ────────────────────────────── */
+    detailsStack: {
+      gap: sw(20),
+    },
+    fieldGroup: {
+      gap: sw(8),
+    },
+    fieldLabel: {
+      color: colors.textSecondary,
+      fontSize: ms(14),
+      lineHeight: ms(20),
+      fontFamily: Fonts.semiBold,
+    },
+
+    /* ─── Gender ───────────────────────────────────────────── */
     genderRow: {
       flexDirection: 'row',
-      gap: sw(14),
+      gap: sw(12),
     },
     genderCard: {
       flex: 1,
       backgroundColor: colors.card,
-      borderRadius: sw(16),
-      paddingVertical: sw(32),
+      borderRadius: sw(14),
+      paddingVertical: sw(18),
       alignItems: 'center',
       justifyContent: 'center',
-      gap: sw(12),
+      gap: sw(8),
       borderWidth: 2,
       borderColor: colors.cardBorder,
     },
@@ -424,8 +653,8 @@ const createStyles = (colors: ThemeColors) =>
     },
     genderLabel: {
       color: colors.textSecondary,
-      fontSize: ms(18),
-      lineHeight: ms(24),
+      fontSize: ms(15),
+      lineHeight: ms(20),
       fontFamily: Fonts.semiBold,
     },
     genderLabelSelected: {
@@ -433,13 +662,10 @@ const createStyles = (colors: ThemeColors) =>
     },
 
     /* ─── Input fields ─────────────────────────────────────── */
-    inputGroup: {
-      gap: sw(8),
-    },
     input: {
       backgroundColor: colors.card,
       borderRadius: sw(12),
-      padding: sw(16),
+      padding: sw(14),
       color: colors.textPrimary,
       fontSize: ms(16),
       lineHeight: ms(22),
@@ -459,7 +685,7 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.surface,
       borderRadius: sw(10),
       paddingHorizontal: sw(14),
-      paddingVertical: sw(14),
+      paddingVertical: sw(12),
       borderWidth: 1,
       borderColor: colors.cardBorder,
     },
@@ -469,17 +695,75 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(20),
       fontFamily: Fonts.semiBold,
     },
-    unitHint: {
+
+    /* ─── Activity selector ────────────────────────────────── */
+    activityList: {
+      gap: sw(8),
+    },
+    activityCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(12),
+      backgroundColor: colors.card,
+      borderRadius: sw(12),
+      paddingVertical: sw(12),
+      paddingHorizontal: sw(14),
+      borderWidth: 2,
+      borderColor: colors.cardBorder,
+    },
+    activityCardSelected: {
+      borderColor: colors.accent,
+      backgroundColor: colors.surface,
+    },
+    activityTextWrap: {
+      flex: 1,
+      gap: sw(2),
+    },
+    activityLabel: {
+      color: colors.textSecondary,
+      fontSize: ms(15),
+      lineHeight: ms(20),
+      fontFamily: Fonts.semiBold,
+    },
+    activityLabelSelected: {
+      color: colors.textPrimary,
+    },
+    activityDescription: {
       color: colors.textTertiary,
+      fontSize: ms(12),
+      lineHeight: ms(16),
+      fontFamily: Fonts.medium,
+    },
+
+    /* ─── Recommendation banner ────────────────────────────── */
+    recBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(10),
+      backgroundColor: colors.surface,
+      borderRadius: sw(12),
+      padding: sw(12),
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    recBannerText: {
+      flex: 1,
+      color: colors.textSecondary,
       fontSize: ms(13),
       lineHeight: ms(18),
       fontFamily: Fonts.medium,
-      marginTop: sw(4),
     },
 
-    /* ─── Nutrition goals step ─────────────────────────────── */
+    /* ─── Goals steps ──────────────────────────────────────── */
+    sectionHeading: {
+      color: colors.textPrimary,
+      fontSize: ms(15),
+      lineHeight: ms(20),
+      fontFamily: Fonts.bold,
+      marginBottom: sw(12),
+    },
     goalsGrid: {
-      gap: sw(16),
+      gap: sw(14),
     },
     goalItem: {
       gap: sw(6),
