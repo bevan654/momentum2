@@ -2,6 +2,7 @@ import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react'
 import { View, Text, StyleSheet, RefreshControl } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -44,28 +45,30 @@ export default function ActivityFeed() {
     }
   }, [userId, feedMode]);
 
-  // Realtime subscription for new feed posts
-  useEffect(() => {
-    if (!userId) return;
+  // Realtime subscription for new feed posts — only while screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId) return;
 
-    const channel = supabase
-      .channel('feed-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'activity_feed' },
-        (payload) => {
-          // Skip own posts — they'll appear via normal fetch
-          if (payload.new && (payload.new as any).user_id !== userId) {
-            setNewPostCount((c) => c + 1);
-          }
-        },
-      )
-      .subscribe();
+      const channel = supabase
+        .channel('feed-realtime')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'activity_feed' },
+          (payload) => {
+            // Skip own posts — they'll appear via normal fetch
+            if (payload.new && (payload.new as any).user_id !== userId) {
+              setNewPostCount((c) => c + 1);
+            }
+          },
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId]);
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }, [userId])
+  );
 
   const handleRefresh = useCallback(async () => {
     if (!userId) return;
