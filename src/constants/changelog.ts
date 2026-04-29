@@ -13,6 +13,14 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.36',
+    date: '2026-04-28',
+    title: 'Bug Fix',
+    items: [
+      'Fixed an issue where tapping a workout in the Recovery Overview history would freeze the screen',
+    ],
+  },
+  {
     version: '1.0.35',
     date: '2026-04-23',
     title: 'Bug Fix',

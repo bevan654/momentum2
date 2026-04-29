@@ -1073,6 +1073,7 @@ function WorkoutHistoryScreen() {
           colors={colors}
           onClose={closeHistory}
           onSelectWorkout={(w) => {
+            setHistoryVisible(false);
             setSelectedWorkout(w);
           }}
         />
