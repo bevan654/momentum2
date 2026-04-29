@@ -29,8 +29,6 @@ import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useRankStore } from '../stores/useRankStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import { useRoutineStore } from '../stores/useRoutineStore';
-import { initNotifications, cleanupNotifications } from '../services/notificationService';
-
 const Tab = createMaterialTopTabNavigator();
 
 import { setOpenProfileSheet, setOpenShareHub, showRecoveryOverlay } from '../lib/navigationBridge';
@@ -256,11 +254,8 @@ export default function TabNavigator() {
       useProgramStore.getState().fetchPrograms(userId);
       useRoutineStore.getState().fetchRoutines(userId);
       useFriendsStore.getState().fetchBlockedIds(userId);
-      initNotifications(userId);
+      useFriendsStore.getState().fetchUnreadCount(userId);
     }
-    return () => {
-      cleanupNotifications();
-    };
   }, [userId]);
 
   const showSummary = useActiveWorkoutStore((s) => s.showSummary);
