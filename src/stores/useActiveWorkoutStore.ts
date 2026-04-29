@@ -363,17 +363,6 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   finishWorkout: async (userId: string, durationOverride?: number) => {
-    // Debug: check Supabase connectivity
-    console.log('[finishWorkout] supabase URL:', process.env.EXPO_PUBLIC_SUPABASE_URL);
-    console.log('[finishWorkout] userId:', userId);
-    try {
-      const { data: sess } = await supabase.auth.getSession();
-      console.log('[finishWorkout] session exists:', !!sess?.session);
-      console.log('[finishWorkout] token expires at:', sess?.session?.expires_at ? new Date(sess.session.expires_at * 1000).toISOString() : 'N/A');
-    } catch (e) {
-      console.error('[finishWorkout] getSession failed:', e);
-    }
-
     const { exercises, elapsedSeconds, ghostUserName } = get();
     if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
 
