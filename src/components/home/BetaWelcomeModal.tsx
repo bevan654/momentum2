@@ -7,16 +7,17 @@ import {
   Modal,
   StyleSheet,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
 import { useAuthStore } from '../../stores/useAuthStore';
 
-const STORAGE_PREFIX = 'momentum.beta_welcome_seen.v1.';
+interface Props {
+  onDismiss?: () => void;
+}
 
-export default function BetaWelcomeModal() {
+export default function BetaWelcomeModal({ onDismiss }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const userId = useAuthStore((s) => s.user?.id);
@@ -25,15 +26,12 @@ export default function BetaWelcomeModal() {
 
   useEffect(() => {
     if (!userId) return;
-    const key = STORAGE_PREFIX + userId;
-    AsyncStorage.getItem(key).then((seen) => {
-      if (!seen) setVisible(true);
-    });
+    setVisible(true);
   }, [userId]);
 
   const dismiss = () => {
     setVisible(false);
-    if (userId) AsyncStorage.setItem(STORAGE_PREFIX + userId, '1').catch(() => {});
+    onDismiss?.();
   };
 
   if (!userId) return null;

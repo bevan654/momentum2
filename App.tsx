@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
@@ -77,6 +77,7 @@ function App() {
   const mode = useThemeStore((s) => s.mode);
   const accentColor = useThemeStore((s) => s.accent);
   const themeReady = useThemeStore((s) => s.initialized);
+  const [betaDismissed, setBetaDismissed] = useState(false);
 
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -147,8 +148,8 @@ function App() {
                     && profile.starting_weight != null
                   ? <>
                       <TabNavigator />
-                      <BetaWelcomeModal />
-                      <ChangelogModal />
+                      <BetaWelcomeModal onDismiss={() => setBetaDismissed(true)} />
+                      {betaDismissed && <ChangelogModal />}
                     </>
                   : <OnboardingScreen />)
             : <AuthNavigator />
