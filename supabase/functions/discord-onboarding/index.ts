@@ -79,8 +79,6 @@ Deno.serve(async (req) => {
       { name: "Starting weight", value: fmtNum(record?.starting_weight, " kg"), inline: true },
       { name: "Goal weight", value: fmtNum(record?.goal_weight, " kg"), inline: true },
 
-      { name: "University", value: fmt(record?.university), inline: false },
-
       {
         name: "Macro goals",
         value: goals
