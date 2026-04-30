@@ -15,7 +15,7 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
 | Language | TypeScript 5.9 (strict) |
 | React | 19.1 |
 | Navigation | React Navigation 7 — `native-stack`, `material-top-tabs` (used as bottom bar with custom UI), `stack` |
-| State | Zustand 5 (26 stores) |
+| State | Zustand 5 (25 stores) |
 | Animations | Reanimated 4.1 + react-native-worklets — UI-thread only. Never RN `Animated`. |
 | Graphics | @shopify/react-native-skia 2.2 for performance-critical visuals; react-native-svg 15.12 still used in legacy components |
 | 3D | three + @react-three/fiber + @react-three/drei + expo-gl (used sparingly, e.g. AvatarViewer) |
@@ -48,7 +48,6 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
     ├── components/
     │   ├── body/              # Muscle body map (heatmap, mini map)
     │   ├── BodyHighlighter/   # Male/female SVG wrapper
-    │   ├── chat/              # 1:1 messaging UI (see "Chat module" caveat below)
     │   ├── dev/               # AvatarViewer (3D), Story/Workout overlays — debug-ish
     │   ├── food/              # Nutrition modals, meal sections, hero gauge, water/supplements
     │   ├── friends/           # Feed, leaderboard, notifications, nudges, comments, search
@@ -61,10 +60,10 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
     │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, confetti, finish flow
     │   ├── workouts/          # Workout history cards, exercise rows, rank/routine cards
     │   └── SheetWrapper.tsx   # Shared modal-sheet chrome
-    ├── stores/                # 26 Zustand stores (see State Management)
+    ├── stores/                # 25 Zustand stores (see State Management)
     ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, CommunityNavigator, navigationRef, navigationBridge
-    ├── services/              # chatService, importService, liveActivityManager, notificationService
-    ├── lib/                   # supabase, friendsDatabase, chatDatabase, navigationBridge
+    ├── services/              # importService, liveActivityManager, notificationService
+    ├── lib/                   # supabase, friendsDatabase, navigationBridge
     ├── theme/                 # colors.ts, useColors.ts, responsive.ts, typography.ts
     ├── utils/                 # barcodeApi, beepSound, displayName, muscleVolume, streakCalculator, strengthScore, workoutStorage
     ├── hooks/                 # useAppUpdates.ts (EAS OTA)
@@ -83,7 +82,7 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
   - `TabNavigator` once authenticated and onboarded
 - **`TabNavigator`** uses `MaterialTopTabNavigator` rendered with a **custom bottom tab bar** (animated indicator, central elevated Home button, Community badge). Tabs: **Recovery, Workouts, Home, Nutrition, Community**. Options: `lazy: true`, `freezeOnBlur: true`, `lazyPreloadDistance: 1`.
 - **`WorkoutsNavigator`** (native stack) hosts: `StartWorkout`, plan editors (`CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`), and `WorkoutDetail`. Re-pressing the Workouts tab triggers `showRecoveryOverlay()` via `navigationBridge`.
-- **`CommunityNavigator`** (native stack) hosts: `CommunityHome` (FriendsScreen), `ChatList`, `Chat`.
+- **`CommunityNavigator`** (native stack) hosts: `CommunityHome` (FriendsScreen). Chat was removed.
 - **`navigationBridge`** exposes imperative entry points (open profile sheet, share hub, recovery overlay, workouts nav ref) to non-navigator components.
 - **`ProfileScreen`** is mounted as a 92%-height bottom sheet, opened by long-pressing the Home tab or tapping the avatar.
 
@@ -177,7 +176,6 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | `useStreakStore` | Computed + fire-and-forget | Streak from workout dates |
 | `useMuscleAnalysisStore` | Pure compute | Weekly muscle volume |
 | `useFriendsStore` | Supabase (4h cache) | Friends, feed, leaderboard, notifications, paginated |
-| `useChatStore` | Supabase | Conversations + messages (see Chat caveat) |
 | `useImportStore` | Supabase (bulk) | Multi-phase CSV/TSV workout import |
 | `useWidgetStore` | AsyncStorage (300ms debounce) | Widget grid layout/sizes |
 | `useThemeStore` | AsyncStorage (100ms debounce) | Accent + dark/light mode |
@@ -192,7 +190,6 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | Service | Status | Notes |
 |---|---|---|
 | `notificationService` | Active — initialized in `TabNavigator` via `initNotifications(userId)` | Realtime channel `notif:${userId}` for `notifications` table. One persistent websocket per session. |
-| `chatService` | **Code present but never initialized** | `initChatService()` exists but is not called anywhere. Chat UI screens are wired into `CommunityNavigator`, but the realtime singleton is dormant. Treat chat as in-progress / not-shipped. |
 | `importService` | On-demand | CSV/TSV → workouts bulk import |
 | `liveActivityManager` | iOS Live Activities for active workouts |
 
@@ -230,7 +227,15 @@ Key columns:
 - `profiles`: `username`, `height`, `age`, `gender`, `push_token`, privacy flags, beta flags
 - `exercises_catalog`: `primary_muscles`, `secondary_muscles`, `other_muscles`, `equipment`, `difficulty`, `slug`
 
-**Tables referenced in code but missing from `database-schema.md`:** `user_ranks` (used by `useRankStore`), `programs` / program-related tables (used by `useProgramStore`), `messages` / `conversations` (used by chat code, dormant).
+**Tables referenced in code but missing from `database-schema.md`:** `user_ranks` (used by `useRankStore`), `programs` / program-related tables (used by `useProgramStore`).
+
+### Cross-user reads
+The `profiles` SELECT policy is owner-only. For cross-user lookups, use:
+- `public_profiles` view (id, username, gender, leaderboard_opt_in, created_at) — for `.from(...)` queries
+- `list_public_profiles(p_ids uuid[])` RPC — security-definer, batch lookup with privacy flags
+- `search_public_profiles(p_query text, p_current_user uuid)` RPC — username search
+
+Never query `from('profiles')` to read another user's row — RLS will return empty.
 
 ---
 
@@ -261,4 +266,4 @@ Before committing, ask the user whether to add an entry to `src/constants/change
 - Don't build list components from scratch — FlashList.
 - Don't write raw fetch to Supabase — use the `supabase` client from `src/lib/supabase.ts`.
 - Don't add screens without wiring them into a navigator under `src/navigation/`.
-- Don't initialize `chatService` without explicit user direction — chat is intentionally dormant.
+- Don't query `from('profiles')` for another user's row — RLS blocks it. Use `public_profiles` view or `list_public_profiles` RPC.

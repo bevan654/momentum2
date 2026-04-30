@@ -8,8 +8,7 @@ export type NotificationType =
   | 'friend_accepted'
   | 'reaction'
   | 'nudge'
-  | 'leaderboard_weekly'
-  | 'chat_message';
+  | 'leaderboard_weekly';
 
 export interface FriendProfile {
   id: string;
@@ -180,8 +179,8 @@ export async function getFriendsList(userId: string): Promise<FriendProfile[]> {
   );
 
   const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, username, email')
+    .from('public_profiles')
+    .select('id, username')
     .in('id', friendIds);
 
   if (!profiles) return [];
@@ -189,7 +188,7 @@ export async function getFriendsList(userId: string): Promise<FriendProfile[]> {
   return profiles.map((p) => ({
     id: p.id,
     username: p.username,
-    email: p.email,
+    email: '',
     currentStreak: 0,
   }));
 }
