@@ -23,6 +23,7 @@ import type { FoodCatalogItem } from '../../stores/useFoodLogStore';
 import FoodDetailModal from './FoodDetailModal';
 import type { FoodDetailData } from './FoodDetailModal';
 import BarcodeScannerModal from './BarcodeScannerModal';
+import MacroLensModal from './MacroLensModal';
 import CreateMealModal from './CreateMealModal';
 import QuickAddModal from './QuickAddModal';
 import BottomSheet from '../workout-sheet/BottomSheet';
@@ -128,6 +129,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const [detailFood, setDetailFood] = useState<FoodDetailData | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
+  const [macroLensVisible, setMacroLensVisible] = useState(false);
   const [scanNotFound, setScanNotFound] = useState<string | null>(null);
   const [createMealVisible, setCreateMealVisible] = useState(false);
   const [selectedSavedMeal, setSelectedSavedMeal] = useState<SavedMeal | null>(null);
@@ -200,6 +202,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
       setDetailFood(null);
       setDetailVisible(false);
       setScannerVisible(false);
+      setMacroLensVisible(false);
       setScanNotFound(null);
       setCreateMealVisible(false);
       setSelectedSavedMeal(null);
@@ -429,6 +432,11 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const handleScanNotFound = useCallback(() => {
     setScannerVisible(false); setScanNotFound('Product not found. Try searching manually.');
   }, []);
+  const handleOpenMacroLens = useCallback(() => { setScanNotFound(null); setMacroLensVisible(true); }, []);
+  const handleMacroLensDismiss = useCallback(() => setMacroLensVisible(false), []);
+  const handleMacroLensFound = useCallback((food: FoodDetailData) => {
+    setMacroLensVisible(false); setDetailFood(food); setDetailVisible(true);
+  }, []);
 
   /* ── Create meal callbacks ──────────────────────────── */
   const handleOpenCreateMeal = useCallback(() => {
@@ -509,10 +517,11 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
               <Text style={s.actionBtnText}>Quick Add</Text>
               <Ionicons name="chevron-forward" size={ms(12)} color={colors.textTertiary} />
             </TouchableOpacity>
-            <View style={[s.actionBtn, s.actionBtnDisabled]}>
-              <Ionicons name="document-text-outline" size={ms(16)} color={colors.textTertiary} />
-              <Text style={[s.actionBtnText, { color: colors.textTertiary }]} numberOfLines={1}>Label Scanner</Text>
-            </View>
+            <TouchableOpacity style={s.actionBtn} onPress={handleOpenMacroLens} activeOpacity={0.7}>
+              <Ionicons name="aperture-outline" size={ms(16)} color={colors.accent} />
+              <Text style={s.actionBtnText} numberOfLines={1}>MacroLens</Text>
+              <Ionicons name="chevron-forward" size={ms(12)} color={colors.textTertiary} />
+            </TouchableOpacity>
           </View>
 
           {/* Search bar */}
@@ -740,6 +749,13 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
           onDismiss={handleScanDismiss}
           onFoodFound={handleScanFound}
           onNotFound={handleScanNotFound}
+        />
+      )}
+      {macroLensVisible && (
+        <MacroLensModal
+          visible={macroLensVisible}
+          onDismiss={handleMacroLensDismiss}
+          onFoodFound={handleMacroLensFound}
         />
       )}
       {createMealVisible && (
