@@ -84,8 +84,10 @@ export default function RoutineSummaryScreen() {
 
   const handleStart = useCallback(() => {
     if (!routine) return;
-    startFromRoutine(routine, catalogMap, prevMap);
-    setTimeout(() => navigation.popToTop(), 300);
+    // Dismiss the transparent-modal stack BEFORE flipping sheetVisible — iOS rejects
+    // presenting ActiveWorkoutSheet's Modal while another modal is still on top.
+    navigation.popToTop();
+    setTimeout(() => startFromRoutine(routine, catalogMap, prevMap), 350);
   }, [routine, catalogMap, prevMap, startFromRoutine, navigation]);
 
   const MAP_W = sw(44);

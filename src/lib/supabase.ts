@@ -47,16 +47,39 @@ export const supabase = new Proxy({} as SupabaseClient, {
 const RECREATE_THRESHOLD_MS = 30 * 60 * 1000; // 30 min
 let _backgroundedAt: number | null = null;
 
+// Realtime channels live inside the supabase client — when we swap the client,
+// any open channels go with the old (dead) client and stop receiving events.
+// Consumers register a handler here to re-subscribe their channels post-swap.
+type ClientSwapHandler = () => void;
+const swapHandlers = new Set<ClientSwapHandler>();
+
+export function onClientSwap(handler: ClientSwapHandler): () => void {
+  swapHandlers.add(handler);
+  return () => { swapHandlers.delete(handler); };
+}
+
 AppState.addEventListener('change', (state) => {
   if (state === 'active') {
     const elapsed = _backgroundedAt ? Date.now() - _backgroundedAt : 0;
     _backgroundedAt = null;
     if (elapsed > RECREATE_THRESHOLD_MS) {
       _client = buildClient();
+      // Snapshot before iterating — handlers commonly unsubscribe and re-add
+      // themselves (e.g. notificationService re-init), and Set.forEach would
+      // otherwise visit the newly-added handler in the same pass.
+      const snapshot = [...swapHandlers];
+      for (const h of snapshot) {
+        try { h(); } catch {}
+      }
     } else {
       _client.auth.startAutoRefresh();
     }
-  } else {
+  } else if (_backgroundedAt === null) {
+    // Only record on the *first* transition out of active. iOS goes
+    // active → inactive → background on suspend AND background → inactive → active
+    // on resume; without this guard the inactive-just-before-active event resets
+    // the timestamp to ~now and elapsed always reads as 0, so the recreation
+    // never fires. Android has no inactive state, which is why it worked there.
     _backgroundedAt = Date.now();
     _client.auth.stopAutoRefresh();
   }

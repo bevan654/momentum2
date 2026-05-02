@@ -88,8 +88,10 @@ export default function ProgramSummaryScreen() {
         exercise_type: e.exercise_type,
       })),
     };
-    startFromProgram(pseudoRoutine, catalogMap, prevMap, program.id, currentWeek);
-    setTimeout(() => navigation.popToTop(), 300);
+    // Dismiss the transparent-modal stack BEFORE flipping sheetVisible — iOS rejects
+    // presenting ActiveWorkoutSheet's Modal while another modal is still on top.
+    navigation.popToTop();
+    setTimeout(() => startFromProgram(pseudoRoutine, catalogMap, prevMap, program.id, currentWeek), 350);
   }, [todaysRoutine, program, catalogMap, prevMap, currentWeek, startFromProgram, navigation]);
 
   const handleActivate = useCallback(async () => {

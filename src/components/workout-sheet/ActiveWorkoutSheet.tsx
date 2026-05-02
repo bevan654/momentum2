@@ -503,6 +503,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
   /* ─── Focused exercise tracking ────────────────────── */
 
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [bugModalVisible, setBugModalVisible] = useState(false);
 
   // Auto-default: first exercise with incomplete sets
   const defaultIndex = useMemo(
@@ -698,6 +699,25 @@ const SheetOverlay = React.memo(function SheetOverlay({
 
         <WorkoutHeader />
 
+        {/* Known-issue notice — remove once finish-hang is fully resolved */}
+        <TouchableOpacity
+          style={styles.bugBanner}
+          onPress={() => setBugModalVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="warning" size={ms(12)} color={colors.accentOrange} />
+          <Text style={styles.bugBannerLabel}>Known bug</Text>
+          <View style={styles.bugBannerDot} />
+          <Text style={styles.bugBannerText} numberOfLines={1}>
+            finish may hang
+          </Text>
+          <Ionicons name="chevron-forward" size={ms(11)} color={colors.accentOrange} />
+        </TouchableOpacity>
+        <BugInfoModal
+          visible={bugModalVisible}
+          onDismiss={() => setBugModalVisible(false)}
+        />
+
         {/* Self-contained: reads from store, never causes SheetOverlay re-render */}
         <RestTimerBar />
 
@@ -774,6 +794,210 @@ const SheetOverlay = React.memo(function SheetOverlay({
     </View>
   );
 });
+
+/* ═══════════════════════════════════════════════════════════
+   BugInfoModal — temporary, remove once finish-hang is fixed
+   ═══════════════════════════════════════════════════════════ */
+
+interface BugInfoModalProps {
+  visible: boolean;
+  onDismiss: () => void;
+}
+
+const BugInfoModal = React.memo(function BugInfoModal({ visible, onDismiss }: BugInfoModalProps) {
+  const colors = useColors();
+  const styles = useMemo(() => createBugModalStyles(colors), [colors]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+      <Pressable style={styles.backdrop} onPress={onDismiss}>
+        <View style={styles.centered}>
+          <Pressable style={styles.modal}>
+            <View style={styles.iconWrap}>
+              <Ionicons name="warning" size={ms(28)} color={colors.accentOrange} />
+            </View>
+
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>KNOWN BUG</Text>
+            </View>
+
+            <Text style={styles.title}>Workout finish may hang</Text>
+            <Text style={styles.subtitle}>
+              A rare issue when the app sits idle for too long.
+            </Text>
+
+            <View style={styles.bullets}>
+              <BugBullet
+                colors={colors}
+                styles={styles}
+                icon="time-outline"
+                title="When it happens"
+                body="If the app has been backgrounded for 30+ minutes, finishing a workout (or other saves) can stall on a loading spinner."
+              />
+              <BugBullet
+                colors={colors}
+                styles={styles}
+                icon="refresh-outline"
+                title="How to fix it"
+                body="Fully close the app and reopen it. The active workout will be restored exactly where you left off."
+              />
+              <BugBullet
+                colors={colors}
+                styles={styles}
+                icon="shield-checkmark-outline"
+                title="Your data is safe"
+                body="Sets are saved locally as you log them — restarting won't lose any progress."
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.button}
+              activeOpacity={0.85}
+              onPress={onDismiss}
+            >
+              <Text style={styles.buttonText}>Got it</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </View>
+      </Pressable>
+    </Modal>
+  );
+});
+
+interface BugBulletProps {
+  colors: ThemeColors;
+  styles: ReturnType<typeof createBugModalStyles>;
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  body: string;
+}
+
+function BugBullet({ colors, styles, icon, title, body }: BugBulletProps) {
+  return (
+    <View style={styles.bulletRow}>
+      <View style={styles.bulletIcon}>
+        <Ionicons name={icon} size={ms(16)} color={colors.accentOrange} />
+      </View>
+      <View style={styles.bulletText}>
+        <Text style={styles.bulletTitle}>{title}</Text>
+        <Text style={styles.bulletBody}>{body}</Text>
+      </View>
+    </View>
+  );
+}
+
+const createBugModalStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.7)',
+    },
+    centered: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: sw(20),
+    },
+    modal: {
+      backgroundColor: colors.card,
+      borderRadius: sw(22),
+      paddingVertical: sw(24),
+      paddingHorizontal: sw(22),
+      width: '100%',
+      maxWidth: sw(420),
+      alignItems: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.cardBorder,
+    },
+    iconWrap: {
+      width: sw(56),
+      height: sw(56),
+      borderRadius: sw(28),
+      backgroundColor: colors.accentOrange + '1A',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: sw(10),
+    },
+    badge: {
+      backgroundColor: colors.accentOrange + '22',
+      borderRadius: sw(20),
+      paddingHorizontal: sw(10),
+      paddingVertical: sw(3),
+      marginBottom: sw(10),
+    },
+    badgeText: {
+      color: colors.accentOrange,
+      fontSize: ms(10),
+      lineHeight: ms(14),
+      fontFamily: Fonts.bold,
+      letterSpacing: 1.2,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: ms(20),
+      lineHeight: ms(25),
+      fontFamily: Fonts.bold,
+      letterSpacing: -0.3,
+      textAlign: 'center',
+    },
+    subtitle: {
+      color: colors.textSecondary,
+      fontSize: ms(13),
+      lineHeight: ms(18),
+      fontFamily: Fonts.medium,
+      textAlign: 'center',
+      marginTop: sw(4),
+      marginBottom: sw(18),
+    },
+    bullets: {
+      width: '100%',
+      gap: sw(12),
+      marginBottom: sw(20),
+    },
+    bulletRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: sw(10),
+    },
+    bulletIcon: {
+      width: sw(30),
+      height: sw(30),
+      borderRadius: sw(10),
+      backgroundColor: colors.accentOrange + '14',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: sw(2),
+    },
+    bulletText: {
+      flex: 1,
+    },
+    bulletTitle: {
+      color: colors.textPrimary,
+      fontSize: ms(14),
+      lineHeight: ms(19),
+      fontFamily: Fonts.semiBold,
+      marginBottom: sw(2),
+    },
+    bulletBody: {
+      color: colors.textTertiary,
+      fontSize: ms(12),
+      lineHeight: ms(17),
+      fontFamily: Fonts.regular,
+    },
+    button: {
+      width: '100%',
+      backgroundColor: colors.accentOrange,
+      borderRadius: sw(12),
+      paddingVertical: sw(14),
+      alignItems: 'center',
+    },
+    buttonText: {
+      color: '#FFFFFF',
+      fontSize: ms(16),
+      lineHeight: ms(22),
+      fontFamily: Fonts.bold,
+    },
+  });
 
 /* ─── Styles ──────────────────────────────────────────── */
 
@@ -854,5 +1078,40 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(14),
       paddingHorizontal: sw(8),
       letterSpacing: 1,
+    },
+    bugBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'center',
+      gap: sw(6),
+      marginBottom: sw(8),
+      paddingLeft: sw(10),
+      paddingRight: sw(8),
+      paddingVertical: sw(5),
+      borderRadius: sw(999),
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.accentOrange,
+      backgroundColor: colors.accentOrange + '1A',
+    },
+    bugBannerLabel: {
+      color: colors.accentOrange,
+      fontSize: ms(11),
+      lineHeight: ms(14),
+      fontFamily: Fonts.bold,
+      letterSpacing: 0.2,
+    },
+    bugBannerDot: {
+      width: sw(3),
+      height: sw(3),
+      borderRadius: sw(2),
+      backgroundColor: colors.accentOrange,
+      opacity: 0.5,
+    },
+    bugBannerText: {
+      color: colors.accentOrange,
+      fontSize: ms(11),
+      lineHeight: ms(14),
+      fontFamily: Fonts.medium,
+      opacity: 0.85,
     },
   });

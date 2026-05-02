@@ -281,8 +281,10 @@ export default function StartWorkoutScreen() {
                 routine={routine}
                 onPress={() => navigation.navigate('RoutineSummary', { routineId: routine.id })}
                 onPlay={() => {
-                  startFromRoutine(routine, catalogMap, prevMap);
+                  // Dismiss the Plans transparent-modal stack first — iOS rejects
+                  // presenting ActiveWorkoutSheet's Modal while another modal is on top.
                   dismiss();
+                  setTimeout(() => startFromRoutine(routine, catalogMap, prevMap), 350);
                 }}
                 onDelete={async () => {
                   const { error } = await deleteRoutine(routine.id);
