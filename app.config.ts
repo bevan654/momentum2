@@ -32,6 +32,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: 'com.momentum.fitnessapp',
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      NSMotionUsageDescription:
+        'Momentum uses motion data to count your daily steps and show them on the home screen.',
     },
   },
   android: {
@@ -49,6 +51,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'USE_EXACT_ALARM',
       'VIBRATE',
       'RECEIVE_BOOT_COMPLETED',
+      'ACTIVITY_RECOGNITION',
     ],
   },
   plugins: [

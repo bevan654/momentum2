@@ -10,6 +10,7 @@ export type AccentColor = string | null;
 
 export const ACCENT_PRESETS: { hex: AccentColor; label: string }[] = [
   { hex: null,      label: 'Mono' },
+  { hex: '#FF3232', label: 'Momentum' },
   { hex: '#3B82F6', label: 'Blue' },
   { hex: '#6366F1', label: 'Indigo' },
   { hex: '#8B5CF6', label: 'Purple' },

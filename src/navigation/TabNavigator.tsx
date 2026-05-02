@@ -292,7 +292,7 @@ export default function TabNavigator() {
 
   return (
     <View style={styles.root}>
-      <Header activeTab={activeTab} />
+      {activeTab !== 'Home' && <Header activeTab={activeTab} />}
       <View style={{ flex: 1, overflow: 'hidden', backgroundColor: colors.background }}>
         <Tab.Navigator
           tabBar={renderTabBar}
