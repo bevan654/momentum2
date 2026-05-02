@@ -156,9 +156,11 @@ function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss
         exercise_type: 'weighted',
       })),
     };
-    startFromRoutine(routine, catalogMap, ghostPrevMap, displayName);
+    // Dismiss the BottomSheet (RN Modal) BEFORE flipping sheetVisible — iOS rejects
+    // presenting ActiveWorkoutSheet's Modal while another modal is still on top.
     onDismiss();
-  }, [item.id, exercises, startFromRoutine, catalogMap, onDismiss]);
+    setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, displayName), 350);
+  }, [item.id, exercises, startFromRoutine, catalogMap, onDismiss, displayName]);
 
   return (
     <>
@@ -279,8 +281,10 @@ function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss: 
         exercise_type: 'weighted',
       })),
     };
-    startFromRoutine(routine, catalogMap, ghostPrevMap, targetName);
+    // Dismiss the BottomSheet (RN Modal) BEFORE flipping sheetVisible — iOS rejects
+    // presenting ActiveWorkoutSheet's Modal while another modal is still on top.
     onDismiss();
+    setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, targetName), 350);
   }, [item.id, startFromRoutine, catalogMap, onDismiss]);
 
   const [showPicker, setShowPicker] = useState(false);
