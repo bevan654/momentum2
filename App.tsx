@@ -17,11 +17,13 @@ import * as Notifications from 'expo-notifications';
 import { useAuthStore } from './src/stores/useAuthStore';
 import { useThemeStore } from './src/stores/useThemeStore';
 import { useAppUpdates } from './src/hooks/useAppUpdates';
+import { useForceUpdate } from './src/hooks/useForceUpdate';
 import { useChangelogStore } from './src/stores/useChangelogStore';
 import TabNavigator from './src/navigation/TabNavigator';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import WelcomeSplashScreen from './src/screens/WelcomeSplashScreen';
+import ForceUpdateScreen from './src/screens/ForceUpdateScreen';
 import ChangelogModal from './src/components/home/ChangelogModal';
 import BetaWelcomeModal from './src/components/home/BetaWelcomeModal';
 import { Fonts } from './src/theme/typography';
@@ -89,6 +91,7 @@ function App() {
 
   // EAS Updates — change to 'prompt' to show restart alert, or 'silent' for background
   useAppUpdates('silent');
+  const { forceUpdate } = useForceUpdate();
 
   const colors = useMemo(() => getThemeColors(mode, accentColor), [mode, accentColor]);
 
@@ -124,6 +127,15 @@ function App() {
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.accent} />
       </View>
+    );
+  }
+
+  if (forceUpdate) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
+        <ForceUpdateScreen />
+      </SafeAreaProvider>
     );
   }
 
