@@ -162,6 +162,7 @@ interface ActiveWorkoutState {
   // Set management
   addSet: (exerciseIndex: number) => void;
   addDropSet: (exerciseIndex: number, parentSetIndex: number) => void;
+  duplicateSet: (exerciseIndex: number, setIndex: number) => void;
   removeSet: (exerciseIndex: number, setIndex: number) => void;
   updateSet: (exerciseIndex: number, setIndex: number, field: 'kg' | 'reps', value: string) => void;
   toggleSetComplete: (exerciseIndex: number, setIndex: number) => void;
@@ -935,6 +936,52 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     get()._persist();
   },
 
+  duplicateSet: (exerciseIndex, setIndex) => {
+    set((s) => {
+      const exercises = [...s.exercises];
+      const ex = { ...exercises[exerciseIndex] };
+      const sets = [...ex.sets];
+      const original = sets[setIndex];
+      if (!original) return s;
+
+      // For non-drop sets, insert AFTER any drop children so the drop chain stays contiguous.
+      // For drop sets, insert immediately after (preserving the drop chain).
+      let insertAt = setIndex + 1;
+      if (original.set_type !== 'drop') {
+        const parentNum = setIndex + 1;
+        while (
+          insertAt < sets.length &&
+          sets[insertAt].set_type === 'drop' &&
+          sets[insertAt].parent_set_number === parentNum
+        ) {
+          insertAt++;
+        }
+      }
+
+      const dup: ActiveSet = {
+        kg: original.kg,
+        reps: original.reps,
+        completed: false,
+        set_type: original.set_type,
+        parent_set_number: original.parent_set_number,
+      };
+      sets.splice(insertAt, 0, dup);
+
+      // Bump parent_set_number for any drop sets whose parent index shifted by the insertion
+      for (let i = insertAt + 1; i < sets.length; i++) {
+        const cur = sets[i];
+        if (cur.set_type === 'drop' && cur.parent_set_number != null && cur.parent_set_number >= insertAt + 1) {
+          sets[i] = { ...cur, parent_set_number: cur.parent_set_number + 1 };
+        }
+      }
+
+      ex.sets = sets;
+      exercises[exerciseIndex] = ex;
+      return { exercises };
+    });
+    get()._persist();
+  },
+
   removeSet: (exerciseIndex, setIndex) => {
     set((s) => {
       const exercises = [...s.exercises];
@@ -1060,6 +1107,17 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       const nextIdx = exerciseIndex + 1;
       if (nextIdx >= s.exercises.length) return s;
       const exercises = [...s.exercises];
+
+      // Clear any existing partners on either side before re-linking
+      const existingA = exercises[exerciseIndex].supersetWith;
+      if (existingA !== null && existingA !== nextIdx && exercises[existingA]) {
+        exercises[existingA] = { ...exercises[existingA], supersetWith: null };
+      }
+      const existingB = exercises[nextIdx].supersetWith;
+      if (existingB !== null && existingB !== exerciseIndex && exercises[existingB]) {
+        exercises[existingB] = { ...exercises[existingB], supersetWith: null };
+      }
+
       exercises[exerciseIndex] = { ...exercises[exerciseIndex], supersetWith: nextIdx };
       exercises[nextIdx] = { ...exercises[nextIdx], supersetWith: exerciseIndex };
       return { exercises };
