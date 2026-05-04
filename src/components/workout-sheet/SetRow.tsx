@@ -350,14 +350,30 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
 
           {/* Previous performance — hidden in ghost mode */}
           {!isGhost && (
-            <View style={styles.prevContainer}>
+            <Pressable
+              style={styles.prevContainer}
+              onPress={() => {
+                if (!completed && prevSet) {
+                  if (showKg(exerciseType) && prevSet.kg > 0) {
+                    const kgStr = String(prevSet.kg);
+                    setLocalKg(kgStr);
+                    onUpdate('kg', kgStr);
+                  }
+                  const repsStr = String(prevSet.reps);
+                  setLocalReps(repsStr);
+                  onUpdate('reps', repsStr);
+                  Haptics.selectionAsync();
+                }
+              }}
+              disabled={completed || !prevSet}
+            >
               <Text
                 style={[styles.prevText, completed && styles.prevTextCompleted]}
                 numberOfLines={1}
               >
                 {formatPrev(prevSet, exerciseType)}
               </Text>
-            </View>
+            </Pressable>
           )}
 
           {/* Suggested — hidden in ghost mode */}

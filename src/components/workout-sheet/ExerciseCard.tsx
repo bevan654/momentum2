@@ -105,6 +105,9 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   const styles = useMemo(() => createStyles(colors), [colors]);
   const addSet = useActiveWorkoutStore((s) => s.addSet);
   const addDropSet = useActiveWorkoutStore((s) => s.addDropSet);
+  const duplicateSet = useActiveWorkoutStore((s) => s.duplicateSet);
+  const linkSuperset = useActiveWorkoutStore((s) => s.linkSuperset);
+  const unlinkSuperset = useActiveWorkoutStore((s) => s.unlinkSuperset);
   const removeExercise = useActiveWorkoutStore((s) => s.removeExercise);
   const moveExercise = useActiveWorkoutStore((s) => s.moveExercise);
   const removeSet = useActiveWorkoutStore((s) => s.removeSet);
@@ -324,6 +327,16 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
               <Ionicons name="chevron-down" size={ms(14)} color={isLast ? colors.textTertiary + '30' : colors.textSecondary} />
             </TouchableOpacity>
           </View>
+          {!isGhost && (
+            <TouchableOpacity
+              onPress={() => removeExercise(exerciseIndex)}
+              style={styles.removeBtn}
+              activeOpacity={0.5}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={ms(16)} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Overload tracker */}
@@ -427,13 +440,39 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.actionBtn, styles.actionBtnDisabled]}
+                  style={[styles.actionBtn, exercise.sets.length === 0 && styles.actionBtnDisabled]}
+                  onPress={() => {
+                    if (exercise.sets.length === 0) return;
+                    duplicateSet(exerciseIndex, exercise.sets.length - 1);
+                  }}
                   activeOpacity={0.7}
-                  disabled
+                  disabled={exercise.sets.length === 0}
                 >
-                  <Ionicons name="git-compare-outline" size={ms(13)} color={colors.textSecondary} />
-                  <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Superset</Text>
+                  <Ionicons name="copy-outline" size={ms(13)} color={colors.accent} />
+                  <Text style={[styles.actionBtnText, { color: colors.accent }]}>Copy</Text>
                 </TouchableOpacity>
+
+                {(() => {
+                  const isLinked = exercise.supersetWith != null;
+                  const canLink = isLinked || !isLast;
+                  const tint = isLinked ? colors.accentRed : colors.accent;
+                  return (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, !canLink && styles.actionBtnDisabled]}
+                      activeOpacity={0.7}
+                      disabled={!canLink}
+                      onPress={() => {
+                        if (isLinked) unlinkSuperset(exerciseIndex);
+                        else linkSuperset(exerciseIndex);
+                      }}
+                    >
+                      <Ionicons name="git-compare-outline" size={ms(13)} color={canLink ? tint : colors.textSecondary} />
+                      <Text style={[styles.actionBtnText, { color: canLink ? tint : colors.textSecondary }]}>
+                        {isLinked ? 'Unlink' : 'Superset'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })()}
               </View>
             )}
       </View>
@@ -544,6 +583,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   reorderBtn: {
     padding: sw(2),
+  },
+  removeBtn: {
+    padding: sw(2),
+    marginLeft: sw(2),
   },
 
   // Divider

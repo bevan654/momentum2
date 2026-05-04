@@ -9,6 +9,8 @@ import {
   ScrollView,
   Linking,
   Platform,
+  TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -40,7 +42,9 @@ interface Props {
   onFoodFound: (food: FoodDetailData) => void;
 }
 
-type Mode = 'camera' | 'analyzing' | 'results' | 'empty' | 'error';
+type Mode = 'camera' | 'context' | 'analyzing' | 'results' | 'empty' | 'error';
+
+const MAX_CONTEXT_CHARS = 300;
 
 interface ScanItem {
   name: string;
@@ -82,6 +86,8 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [items, setItems] = useState<ScanItem[]>([]);
   const [errorText, setErrorText] = useState<string>('');
+  const [pendingScan, setPendingScan] = useState<{ base64: string; mime: string } | null>(null);
+  const [contextText, setContextText] = useState<string>('');
 
   /* ── Animations ────────────────────────────────────────── */
   const reticlePulse = useSharedValue(1);
@@ -153,6 +159,8 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
     setItems([]);
     setErrorText('');
     setTorch(false);
+    setPendingScan(null);
+    setContextText('');
   }, []);
 
   const handleClose = useCallback(() => {
@@ -160,10 +168,11 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
     onDismiss();
   }, [onDismiss, resetToCamera]);
 
-  const analyze = useCallback(async (base64: string, mimeType: string) => {
+  const analyze = useCallback(async (base64: string, mimeType: string, context?: string) => {
     setMode('analyzing');
     setItems([]);
     setErrorText('');
+    const trimmedContext = (context ?? '').trim().slice(0, MAX_CONTEXT_CHARS);
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -186,7 +195,11 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
           Authorization: `Bearer ${session.access_token}`,
           apikey: anonKey,
         },
-        body: JSON.stringify({ image: base64, mime_type: mimeType }),
+        body: JSON.stringify({
+          image: base64,
+          mime_type: mimeType,
+          ...(trimmedContext ? { context: trimmedContext } : {}),
+        }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -258,13 +271,15 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
         return;
       }
       setPreviewUri(photo.uri);
-      analyze(photo.base64, 'image/jpeg');
+      setPendingScan({ base64: photo.base64, mime: 'image/jpeg' });
+      setContextText('');
+      setMode('context');
     } catch (err: any) {
       console.log('[MacroLens] capture error:', err?.message || err);
       setErrorText("Couldn't capture photo.");
       setMode('error');
     }
-  }, [analyze, shutterScale]);
+  }, [shutterScale]);
 
   const handlePickFromGallery = useCallback(async () => {
     Haptics.selectionAsync().catch(() => {});
@@ -294,11 +309,24 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
           : lower.endsWith('.heic')
             ? 'image/heic'
             : 'image/jpeg';
-      analyze(asset.base64, mime);
+      setPendingScan({ base64: asset.base64, mime });
+      setContextText('');
+      setMode('context');
     } catch (err: any) {
       console.log('[MacroLens] gallery error:', err?.message || err);
     }
-  }, [analyze]);
+  }, []);
+
+  const handleScanWithContext = useCallback(() => {
+    if (!pendingScan) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    analyze(pendingScan.base64, pendingScan.mime, contextText);
+  }, [analyze, pendingScan, contextText]);
+
+  const handleRetake = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    resetToCamera();
+  }, [resetToCamera]);
 
   const handlePickItem = useCallback((item: ScanItem) => {
     Haptics.selectionAsync().catch(() => {});
@@ -416,7 +444,7 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
             style={StyleSheet.absoluteFill}
           />
         )}
-        {(mode === 'empty' || mode === 'error') && (
+        {(mode === 'empty' || mode === 'error' || mode === 'context') && (
           <View style={styles.dimOverlay} pointerEvents="none" />
         )}
 
@@ -552,6 +580,70 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
               </View>
               <Text style={styles.frameHint}>Frame your meal · tap to scan</Text>
             </>
+          )}
+
+          {mode === 'context' && (
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              keyboardVerticalOffset={0}
+              style={styles.contextKav}
+              pointerEvents="box-none"
+            >
+              <Animated.View
+                entering={FadeInDown.springify().damping(20)}
+                style={styles.contextSheet}
+              >
+                <View style={styles.sheetGrabber} />
+                <View style={styles.contextHeader}>
+                  <View style={styles.contextTitleRow}>
+                    <Ionicons name="sparkles" size={ms(14)} color={colors.accent} />
+                    <Text style={styles.contextTitle}>Add context</Text>
+                    <Text style={styles.contextOptional}>Optional</Text>
+                  </View>
+                  <Text style={styles.contextSubtitle}>
+                    Tell the AI what's in the photo for a more accurate scan.
+                  </Text>
+                </View>
+
+                <View style={styles.contextInputWrap}>
+                  <TextInput
+                    style={styles.contextInput}
+                    value={contextText}
+                    onChangeText={(v) => setContextText(v.slice(0, MAX_CONTEXT_CHARS))}
+                    placeholder={'e.g. "from McDonald\'s", "1 cup brown rice", "cooked in butter"'}
+                    placeholderTextColor={colors.textTertiary}
+                    multiline
+                    maxLength={MAX_CONTEXT_CHARS}
+                    blurOnSubmit
+                    returnKeyType="done"
+                  />
+                  <Text style={styles.contextCount}>
+                    {contextText.length} / {MAX_CONTEXT_CHARS}
+                  </Text>
+                </View>
+
+                <View style={styles.contextBtnRow}>
+                  <TouchableOpacity
+                    onPress={handleRetake}
+                    style={styles.contextRetakeBtn}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="refresh" size={ms(15)} color={colors.textPrimary} />
+                    <Text style={styles.contextRetakeText}>Retake</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleScanWithContext}
+                    style={styles.contextScanBtn}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="aperture" size={ms(15)} color={colors.textOnAccent} />
+                    <Text style={styles.contextScanText}>
+                      {contextText.trim() ? 'Scan with context' : 'Scan'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            </KeyboardAvoidingView>
           )}
 
           {(mode === 'empty' || mode === 'error') && (
@@ -1020,6 +1112,118 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: ms(14),
       lineHeight: ms(18),
       fontFamily: Fonts.bold,
+    },
+
+    /* Context sheet */
+    contextKav: {
+      width: '100%',
+    },
+    contextSheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: sw(24),
+      borderTopRightRadius: sw(24),
+      paddingTop: sw(8),
+      paddingBottom: sw(28),
+      paddingHorizontal: sw(18),
+    },
+    contextHeader: {
+      gap: sw(4),
+      marginTop: sw(4),
+      marginBottom: sw(12),
+    },
+    contextTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(6),
+    },
+    contextTitle: {
+      color: colors.textPrimary,
+      fontSize: ms(17),
+      lineHeight: ms(22),
+      fontFamily: Fonts.extraBold,
+      letterSpacing: -0.3,
+    },
+    contextOptional: {
+      color: colors.textTertiary,
+      fontSize: ms(11),
+      lineHeight: ms(14),
+      fontFamily: Fonts.semiBold,
+      letterSpacing: 0.3,
+      textTransform: 'uppercase',
+      marginLeft: sw(4),
+    },
+    contextSubtitle: {
+      color: colors.textSecondary,
+      fontSize: ms(12),
+      lineHeight: ms(16),
+      fontFamily: Fonts.medium,
+    },
+    contextInputWrap: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: sw(14),
+      paddingHorizontal: sw(12),
+      paddingTop: sw(10),
+      paddingBottom: sw(8),
+      marginBottom: sw(12),
+    },
+    contextInput: {
+      color: colors.textPrimary,
+      fontSize: ms(13),
+      lineHeight: ms(18),
+      fontFamily: Fonts.medium,
+      minHeight: sw(60),
+      maxHeight: sw(110),
+      textAlignVertical: 'top',
+      padding: 0,
+    },
+    contextCount: {
+      alignSelf: 'flex-end',
+      color: colors.textTertiary,
+      fontSize: ms(10),
+      lineHeight: ms(13),
+      fontFamily: Fonts.semiBold,
+      marginTop: sw(4),
+    },
+    contextBtnRow: {
+      flexDirection: 'row',
+      gap: sw(10),
+    },
+    contextRetakeBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: sw(6),
+      paddingHorizontal: sw(18),
+      paddingVertical: sw(13),
+      borderRadius: sw(14),
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    contextRetakeText: {
+      color: colors.textPrimary,
+      fontSize: ms(13),
+      lineHeight: ms(17),
+      fontFamily: Fonts.bold,
+    },
+    contextScanBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: sw(7),
+      paddingVertical: sw(13),
+      borderRadius: sw(14),
+      backgroundColor: colors.accent,
+    },
+    contextScanText: {
+      color: colors.textOnAccent,
+      fontSize: ms(14),
+      lineHeight: ms(18),
+      fontFamily: Fonts.bold,
+      letterSpacing: -0.1,
     },
 
     /* Results sheet */

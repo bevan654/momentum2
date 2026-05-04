@@ -14,9 +14,15 @@ export interface ChangelogEntry {
 const changelog: ChangelogEntry[] = [
   {
     version: '1.0.36',
-    date: '2026-04-28',
-    title: 'Bug Fix',
+    date: '2026-05-04',
+    title: "What's New",
     items: [
+      'MacroLens: add optional context before scanning (e.g. "from McDonald\'s", "1 cup brown rice", "cooked in butter") to improve accuracy',
+      'Active workout: tap a previous set to copy its weight and reps into your current set',
+      'Active workout: new "Copy" button duplicates the last set in one tap',
+      'Active workout: new X button on each exercise to remove it from the workout',
+      'Active workout: Superset button now works — tap to pair with the next exercise, tap again to unlink',
+      'Background music (Spotify, Apple Music, etc.) no longer ducks when the workout sheet is open',
       'Fixed an issue where tapping a workout in the Recovery Overview history would freeze the screen',
     ],
   },
