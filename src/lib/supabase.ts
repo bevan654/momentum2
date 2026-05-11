@@ -29,58 +29,82 @@ const buildClient = (): SupabaseClient =>
 
 let _client: SupabaseClient = buildClient();
 
-// Proxy so that every consumer always reaches into the *current* client.
-// We swap _client out on resume after long backgrounding (see below) without
-// breaking the imported `supabase` reference held all over the codebase.
+// Proxy so every consumer always reaches into the *current* client. We swap
+// _client out when the probe detects a frozen client (see below) without
+// breaking the imported `supabase` reference held across the codebase.
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_, prop) {
     return (_client as any)[prop];
   },
 });
 
-// Workaround for supabase/supabase#36046: after the app has been backgrounded
-// for a while, the supabase-js client's internal state desyncs — auth promises
-// freeze, sessions go null, queries hang silently before ever reaching the
-// network. The only confirmed fix is to recreate the client. We only do this
-// after a meaningful background gap to avoid churning realtime subscriptions
-// for brief notification-shade pulls.
-const RECREATE_THRESHOLD_MS = 30 * 60 * 1000; // 30 min
-let _backgroundedAt: number | null = null;
-
-// Realtime channels live inside the supabase client — when we swap the client,
-// any open channels go with the old (dead) client and stop receiving events.
-// Consumers register a handler here to re-subscribe their channels post-swap.
 type ClientSwapHandler = () => void;
 const swapHandlers = new Set<ClientSwapHandler>();
 
 export function onClientSwap(handler: ClientSwapHandler): () => void {
   swapHandlers.add(handler);
-  return () => { swapHandlers.delete(handler); };
+  return () => {
+    swapHandlers.delete(handler);
+  };
 }
 
-AppState.addEventListener('change', (state) => {
+function recreateClient() {
+  _client = buildClient();
+  // Snapshot before iterating — handlers commonly unsubscribe and re-add
+  // themselves, and Set.forEach would otherwise visit the newly-added handler
+  // in the same pass.
+  const snapshot = [...swapHandlers];
+  for (const h of snapshot) {
+    try {
+      h();
+    } catch {}
+  }
+}
+
+// Deterministic liveness check. supabase-js#36046 manifests as silently-hanging
+// promises after the app has been backgrounded — auth and queries never reach
+// the network. Race a cheap server round-trip against a short timeout; if it
+// doesn't resolve in 3s the client is frozen and must be recreated.
+const PROBE_TIMEOUT_MS = 3000;
+
+async function probeAlive(client: SupabaseClient): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      client.auth.getUser(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('probe-timeout')), PROBE_TIMEOUT_MS);
+      }),
+    ]);
+    return true;
+  } catch (e: any) {
+    // A real error from getUser (e.g. AuthSessionMissingError, network 5xx)
+    // still means the client responded — it's only `probe-timeout` that
+    // indicates the desynced/hung state.
+    return e?.message !== 'probe-timeout';
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+let _resumeInFlight = false;
+
+AppState.addEventListener('change', async (state) => {
   if (state === 'active') {
-    const elapsed = _backgroundedAt ? Date.now() - _backgroundedAt : 0;
-    _backgroundedAt = null;
-    if (elapsed > RECREATE_THRESHOLD_MS) {
-      _client = buildClient();
-      // Snapshot before iterating — handlers commonly unsubscribe and re-add
-      // themselves (e.g. notificationService re-init), and Set.forEach would
-      // otherwise visit the newly-added handler in the same pass.
-      const snapshot = [...swapHandlers];
-      for (const h of snapshot) {
-        try { h(); } catch {}
+    if (_resumeInFlight) return;
+    _resumeInFlight = true;
+    try {
+      const alive = await probeAlive(_client);
+      if (!alive) {
+        recreateClient();
+      } else {
+        _client.auth.startAutoRefresh();
       }
-    } else {
-      _client.auth.startAutoRefresh();
+    } finally {
+      _resumeInFlight = false;
     }
-  } else if (_backgroundedAt === null) {
-    // Only record on the *first* transition out of active. iOS goes
-    // active → inactive → background on suspend AND background → inactive → active
-    // on resume; without this guard the inactive-just-before-active event resets
-    // the timestamp to ~now and elapsed always reads as 0, so the recreation
-    // never fires. Android has no inactive state, which is why it worked there.
-    _backgroundedAt = Date.now();
+  } else {
+    // Non-active = inactive | background. stopAutoRefresh is idempotent.
     _client.auth.stopAutoRefresh();
   }
 });
