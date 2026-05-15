@@ -109,7 +109,7 @@ export default function CommentsSheet({ activityId, visible, onClose }: Props) {
   );
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} height="70%">
+    <BottomSheet visible={visible} onClose={onClose} height="70%" modal>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -139,7 +139,6 @@ export default function CommentsSheet({ activityId, visible, onClose }: Props) {
               data={threadedComments}
               renderItem={renderItem}
               keyExtractor={(item) => item.id}
-              estimatedItemSize={sw(60)}
               showsVerticalScrollIndicator={false}
             />
           )}
