@@ -120,9 +120,10 @@ interface ActiveWorkoutState {
   isResting: boolean;
   restPaused: boolean;
 
-  // Summary
+  // Summary + share
   showSummary: boolean;
   summaryData: WorkoutSummary | null;
+  pendingFeedPayload: Record<string, any> | null;
 
   startedFromRoutine: string | null;
   startedFromProgram: string | null;
@@ -150,6 +151,11 @@ interface ActiveWorkoutState {
   showSheet: () => void;
   hideSheet: () => void;
   dismissSummary: () => void;
+  commitFeedPost: (opts?: {
+    visibility?: 'public' | 'friends' | 'private';
+    title?: string;
+    caption?: string;
+  }) => Promise<void>;
   undoFinish: () => void;
 
   // Exercise management
@@ -252,6 +258,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
   showSummary: false,
   summaryData: null,
+  pendingFeedPayload: null,
 
   startedFromRoutine: null,
   startedFromProgram: null,
@@ -613,12 +620,10 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
           })),
         } : {}),
       };
-      console.log('[finishWorkout] feed payload:', JSON.stringify(feedPayload));
-
-      supabase.from('activity_feed').insert(feedPayload).then(({ error: feedErr }) => {
-        if (feedErr) console.error('[finishWorkout] feed insert error:', JSON.stringify(feedErr));
-        else console.log('[finishWorkout] feed insert ok');
-      }, (e) => console.error('[finishWorkout] feed insert threw:', e));
+      console.log('[finishWorkout] feed payload prepared, deferred until share confirm');
+      // Deferred: actual insert happens when the user taps Post on the Share screen
+      // (or skips, in which case it does not post). See commitFeedPost / dismissShare.
+      set({ pendingFeedPayload: feedPayload });
     } catch (feedCrash) {
       console.error('[finishWorkout] feed block crashed:', feedCrash);
     }
@@ -755,10 +760,42 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   dismissSummary: () => set({
     showSummary: false,
     summaryData: null,
+    pendingFeedPayload: null,
     sheetVisible: false,
     startTime: null,
     elapsedSeconds: 0,
   }),
+
+  commitFeedPost: async (opts) => {
+    const payload = get().pendingFeedPayload;
+    if (!payload) return;
+    // Clear immediately so a double-tap can't double-post
+    set({ pendingFeedPayload: null });
+
+    const visibility = opts?.visibility ?? 'public';
+    // Private: don't create a feed row at all. Workout already saved to DB.
+    if (visibility === 'private') {
+      console.log('[commitFeedPost] private — skipping feed insert');
+      return;
+    }
+
+    const title = opts?.title?.trim() || null;
+    const caption = opts?.caption?.trim() || null;
+    const finalPayload = {
+      ...payload,
+      friends_only: visibility === 'friends',
+      ...(title ? { title } : {}),
+      ...(caption ? { caption } : {}),
+    };
+
+    try {
+      const { error } = await supabase.from('activity_feed').insert(finalPayload);
+      if (error) console.error('[commitFeedPost] insert error:', JSON.stringify(error));
+      else console.log('[commitFeedPost] feed insert ok');
+    } catch (e) {
+      console.error('[commitFeedPost] threw:', e);
+    }
+  },
 
   undoFinish: () => {
     const { summaryData } = get();

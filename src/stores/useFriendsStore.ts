@@ -42,7 +42,7 @@ import {
 
 const FEED_PAGE_SIZE = 15;
 const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
-const MAX_FEED_ITEMS = 100;
+const MAX_FEED_ITEMS = 500;
 const MAX_NOTIFICATIONS = 100;
 const MAX_COMMENT_THREADS = 30;
 

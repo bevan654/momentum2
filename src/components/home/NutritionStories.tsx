@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, InteractionManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
@@ -109,7 +109,11 @@ export default function NutritionStories({ onAddFriend }: NutritionStoriesProps)
   const fetchFriends = useFriendsStore((s) => s.fetchFriends);
 
   useEffect(() => {
-    if (userId) fetchFriends(userId);
+    if (!userId) return;
+    const task = InteractionManager.runAfterInteractions(() => {
+      fetchFriends(userId);
+    });
+    return () => task.cancel();
   }, [userId, fetchFriends]);
 
   return (

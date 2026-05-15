@@ -13,6 +13,7 @@ import AddFoodModal from '../components/food/AddFoodModal';
 import FoodDetailModal from '../components/food/FoodDetailModal';
 import CreateMealModal from '../components/food/CreateMealModal';
 import NutritionHero from '../components/food/NutritionHero';
+import DateNavigator from '../components/food/DateNavigator';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry, MealConfig } from '../stores/useFoodLogStore';
 
@@ -25,6 +26,7 @@ function FoodLoggerScreen() {
   const collapsedMeals = useFoodLogStore((s) => s.collapsedMeals);
   const loading = useFoodLogStore((s) => s.loading);
 
+  const setDate = useFoodLogStore((s) => s.setDate);
   const fetchDayEntries = useFoodLogStore((s) => s.fetchDayEntries);
   const fetchMealConfigs = useFoodLogStore((s) => s.fetchMealConfigs);
   const fetchGoals = useFoodLogStore((s) => s.fetchGoals);
@@ -215,6 +217,7 @@ function FoodLoggerScreen() {
   return (
     <View style={styles.screen}>
       <NutritionHero entries={entries} goals={goals} />
+      <DateNavigator selectedDate={selectedDate} onDateSelect={setDate} />
       <ScrollView
         ref={scrollRef}
         style={styles.diaryPage}
