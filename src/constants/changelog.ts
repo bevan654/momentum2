@@ -3,15 +3,29 @@
  * Add a new entry at the top whenever you ship a user-facing update.
  */
 
+export type ChangelogCtaTarget = 'Community' | 'Workouts' | 'Home' | 'Nutrition' | 'Recovery';
+
 export interface ChangelogEntry {
   version: string;
   date: string;
   title: string;
   items: string[];
   notes?: string[];
+  cta?: { label: string; target: ChangelogCtaTarget };
 }
 
 const changelog: ChangelogEntry[] = [
+  {
+    version: '1.0.37',
+    date: '2026-05-16',
+    title: "What's New",
+    items: [
+      'New Community tab — see your friends\' workouts in a live activity feed',
+      'Share photos and captions with every session you finish',
+      'Like posts and tap any workout to see the full breakdown',
+    ],
+    cta: { label: 'Check it out', target: 'Community' },
+  },
   {
     version: '1.0.36',
     date: '2026-05-04',

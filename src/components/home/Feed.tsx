@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Pressable, InteractionManager, RefreshControl, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
+import { FlashList } from '@shopify/flash-list';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
@@ -10,11 +19,10 @@ import type { ActivityFeedItem } from '../../lib/friendsDatabase';
 import type { ExerciseWithSets } from '../../stores/useWorkoutStore';
 import FeedWorkoutModal from '../friends/FeedWorkoutModal';
 import ReportSheet from '../friends/ReportSheet';
-import CommentsSheet from '../friends/CommentsSheet';
 import MiniBodyMap from '../body/MiniBodyMap';
 
-const PHOTO_WIDTH = SCREEN_WIDTH - sw(32); // edge-to-edge within HomeScreen's sw(16) padding
-const PHOTO_HEIGHT = Math.round(PHOTO_WIDTH * 0.75); // 4:3 landscape
+const PHOTO_WIDTH = SCREEN_WIDTH - sw(16); // small gutter (sw(8) on each side)
+const PHOTO_HEIGHT = Math.round(PHOTO_WIDTH * 0.5625); // 16:9 landscape — denser feed
 
 /* ─── Helpers ────────────────────────────────────────── */
 
@@ -71,6 +79,7 @@ function workoutTitleFor(item: ActivityFeedItem): string {
 }
 
 function captionFor(item: ActivityFeedItem): string {
+  if (item.caption && item.caption.trim().length > 0) return item.caption.trim();
   const names = item.exercise_names || [];
   if (names.length === 0) return '';
   const shown = names.slice(0, 2).join(', ');
@@ -129,6 +138,17 @@ const WorkoutSummarySlot = React.memo(function WorkoutSummarySlot({ item }: { it
 
   return (
     <View style={styles.summarySlot}>
+      <View style={styles.summaryBody}>
+        <View style={styles.summaryBodyCol}>
+          <Text style={styles.summaryBodyLabel}>FRONT</Text>
+          <MiniBodyMap exercises={bodyMapExercises} scale={0.22} side="front" colors={bodyColors} />
+        </View>
+        <View style={styles.summaryBodyCol}>
+          <Text style={styles.summaryBodyLabel}>BACK</Text>
+          <MiniBodyMap exercises={bodyMapExercises} scale={0.22} side="back" colors={bodyColors} />
+        </View>
+      </View>
+
       <View style={styles.summaryList}>
         {visibleExercises.length === 0 ? (
           <Text style={styles.summaryEmpty}>No exercises recorded</Text>
@@ -140,7 +160,10 @@ const WorkoutSummarySlot = React.memo(function WorkoutSummarySlot({ item }: { it
                 ? `${ex.best_reps} reps`
                 : null;
             return (
-              <View key={`${item.id}-row-${i}`} style={styles.summaryRow}>
+              <View
+                key={`${item.id}-row-${i}`}
+                style={[styles.summaryRow, i > 0 && styles.summaryRowDivider]}
+              >
                 <Text style={styles.summaryName} numberOfLines={1}>
                   {ex.name.replace(/\b\w/g, (c) => c.toUpperCase())}
                 </Text>
@@ -153,10 +176,50 @@ const WorkoutSummarySlot = React.memo(function WorkoutSummarySlot({ item }: { it
         )}
         {extra > 0 && <Text style={styles.summaryMore}>+{extra} more</Text>}
       </View>
+    </View>
+  );
+});
 
-      <View style={styles.summaryBody}>
-        <MiniBodyMap exercises={bodyMapExercises} scale={0.24} side="front" colors={bodyColors} />
-        <MiniBodyMap exercises={bodyMapExercises} scale={0.24} side="back" colors={bodyColors} />
+const PhotoOverviewCarousel = React.memo(function PhotoOverviewCarousel({
+  photoUrl,
+  item,
+}: {
+  photoUrl: string;
+  item: ActivityFeedItem;
+}) {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const [page, setPage] = useState(0);
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offset = e.nativeEvent.contentOffset.x;
+    const idx = Math.round(offset / PHOTO_WIDTH);
+    setPage(idx);
+  }, []);
+
+  return (
+    <View>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScroll}
+        scrollEventThrottle={16}
+        snapToInterval={PHOTO_WIDTH}
+        decelerationRate="fast"
+        style={{ width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
+        contentContainerStyle={{ width: PHOTO_WIDTH * 2 }}
+      >
+        <View style={{ width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}>
+          <Image source={{ uri: photoUrl }} style={styles.photo} />
+        </View>
+        <View style={{ width: PHOTO_WIDTH, height: PHOTO_HEIGHT, justifyContent: 'center' }}>
+          <WorkoutSummarySlot item={item} />
+        </View>
+      </ScrollView>
+      <View style={styles.pageDots}>
+        <View style={[styles.pageDot, page === 0 && styles.pageDotActive]} />
+        <View style={[styles.pageDot, page === 1 && styles.pageDotActive]} />
       </View>
     </View>
   );
@@ -164,10 +227,9 @@ const WorkoutSummarySlot = React.memo(function WorkoutSummarySlot({ item }: { it
 
 interface FeedRowProps {
   item: ActivityFeedItem;
-  onOpenComments: (activityId: string) => void;
 }
 
-const FeedRow = React.memo(function FeedRow({ item, onOpenComments }: FeedRowProps) {
+const FeedRow = React.memo(function FeedRow({ item }: FeedRowProps) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -177,9 +239,9 @@ const FeedRow = React.memo(function FeedRow({ item, onOpenComments }: FeedRowPro
   const timeAgo = formatTimeAgo(item.created_at);
   const workoutTitle = workoutTitleFor(item);
   const caption = captionFor(item);
-  const durationMin = Math.max(0, Math.round(item.duration / 60));
+  const durationMin = Math.max(0, Math.floor(item.duration / 60));
   const { likes, liked } = reactionTotals(item.reactions);
-  const photoUrl = (item as ActivityFeedItem & { photo_url?: string }).photo_url || null;
+  const photoUrl = item.photo_url;
 
   const currentUserId = useAuthStore((s) => s.user?.id);
   const friendIds = useFriendsStore((s) => s.friendIds);
@@ -187,12 +249,12 @@ const FeedRow = React.memo(function FeedRow({ item, onOpenComments }: FeedRowPro
   const blockUser = useFriendsStore((s) => s.blockUser);
   const addReaction = useFriendsStore((s) => s.addReaction);
   const removeReaction = useFriendsStore((s) => s.removeReaction);
-  const commentCount = useFriendsStore((s) => s.commentCounts[item.id] || 0);
   const isSelf = currentUserId === item.user_id;
   const isFriend = friendIds.includes(item.user_id);
 
   const [actionsOpen, setActionsOpen] = useState(false);
   const [viewWorkoutOpen, setViewWorkoutOpen] = useState(false);
+  const [hasOpenedWorkoutModal, setHasOpenedWorkoutModal] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
 
@@ -205,13 +267,12 @@ const FeedRow = React.memo(function FeedRow({ item, onOpenComments }: FeedRowPro
     }
   }, [currentUserId, liked, item.id, addReaction, removeReaction]);
 
-  const handleOpenComments = useCallback(() => onOpenComments(item.id), [onOpenComments, item.id]);
-
   const openActions = useCallback(() => setActionsOpen(true), []);
   const closeActions = useCallback(() => setActionsOpen(false), []);
 
   const handleViewWorkout = useCallback(() => {
     setActionsOpen(false);
+    setHasOpenedWorkoutModal(true);
     setViewWorkoutOpen(true);
   }, []);
 
@@ -240,9 +301,8 @@ const FeedRow = React.memo(function FeedRow({ item, onOpenComments }: FeedRowPro
   }, [currentUserId, isSelf, blockUser, item.user_id]);
 
   return (
-    <Pressable style={styles.card} onPress={handleViewWorkout}>
-      {/* Header */}
-      <View style={styles.headerRow}>
+    <View style={[styles.card, actionsOpen && styles.cardElevated]}>
+      <View style={[styles.headerRow, actionsOpen && styles.headerRowElevated]}>
         <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
           <Text style={styles.avatarText}>{initial}</Text>
         </View>
@@ -252,6 +312,15 @@ const FeedRow = React.memo(function FeedRow({ item, onOpenComments }: FeedRowPro
             <Text style={styles.nameSep}>  ·  {timeAgo}</Text>
           </Text>
         </View>
+
+        {item.streak > 0 && (
+          <View style={styles.streakChip}>
+            <View style={styles.streakAccentBar} />
+            <Ionicons name="flame" size={ms(13)} color={colors.streak} />
+            <Text style={styles.streakChipText}>{item.streak}</Text>
+            <Text style={styles.streakChipUnit}>d</Text>
+          </View>
+        )}
 
         {!isSelf && !isFriend && (
           <TouchableOpacity
@@ -315,7 +384,37 @@ const FeedRow = React.memo(function FeedRow({ item, onOpenComments }: FeedRowPro
         </View>
       </View>
 
-      {/* Hero stats */}
+      {(item.routine_name || item.program_name) && (
+        <View style={styles.tagRow}>
+          {item.routine_name && !item.program_name && (
+            <>
+              <View style={[styles.tagChip, styles.tagChipRoutine]}>
+                <Text style={[styles.tagChipText, styles.tagChipTextRoutine]}>ROUTINE</Text>
+              </View>
+              <Text style={styles.tagName} numberOfLines={1}>{item.routine_name}</Text>
+            </>
+          )}
+          {item.program_name && (
+            <>
+              <View style={styles.tagChip}>
+                <Text style={styles.tagChipText}>PROGRAM</Text>
+              </View>
+              <Text style={styles.tagName} numberOfLines={1}>{item.program_name}</Text>
+              {item.program_week ? (
+                <Text style={styles.tagMeta}>
+                  W{item.program_week}{item.program_total_weeks ? `/${item.program_total_weeks}` : ''}
+                  {item.program_day_label ? ` · ${item.program_day_label}` : ''}
+                </Text>
+              ) : null}
+            </>
+          )}
+        </View>
+      )}
+
+      {item.title && item.title.trim().length > 0 && (
+        <Text style={styles.postTitle}>{item.title.trim()}</Text>
+      )}
+
       <View style={styles.heroRow}>
         <View style={styles.heroStat}>
           <Text style={styles.heroValue}>{formatVolume(item.total_volume)}</Text>
@@ -331,14 +430,22 @@ const FeedRow = React.memo(function FeedRow({ item, onOpenComments }: FeedRowPro
         {workoutTitle}  ·  {item.total_exercises} exercises
       </Text>
 
-      {/* Photo or workout overview */}
       {photoUrl ? (
-        <Image source={{ uri: photoUrl }} style={styles.photo} />
+        <PhotoOverviewCarousel photoUrl={photoUrl} item={item} />
       ) : (
         <WorkoutSummarySlot item={item} />
       )}
 
-      {/* Action row */}
+      {caption.length > 0 && (
+        <View style={styles.captionWrap}>
+          <Text style={styles.caption}>
+            <Text style={styles.captionName}>{name}</Text>
+            {'  '}
+            {caption}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.6} onPress={handleToggleLike} hitSlop={8}>
           <Ionicons
@@ -347,38 +454,21 @@ const FeedRow = React.memo(function FeedRow({ item, onOpenComments }: FeedRowPro
             color={liked ? colors.accentRed : colors.textPrimary}
           />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.6} onPress={handleOpenComments} hitSlop={8}>
-          <Ionicons name="chatbubble-outline" size={ms(20)} color={colors.textPrimary} />
-        </TouchableOpacity>
       </View>
 
-      {/* Like count + caption + comments */}
-      <View style={styles.footerText}>
-        {likes > 0 && (
+      {likes > 0 && (
+        <View style={styles.footerText}>
           <Text style={styles.likeCount}>{formatCount(likes)} {likes === 1 ? 'like' : 'likes'}</Text>
-        )}
-        {caption.length > 0 && (
-          <Text style={styles.caption}>
-            <Text style={styles.captionName}>{name}</Text>
-            <Text>  {caption}</Text>
-          </Text>
-        )}
-        <Text style={styles.viewComments} onPress={handleOpenComments}>
-          {commentCount === 0
-            ? 'Add a comment…'
-            : commentCount === 1
-              ? 'View 1 comment'
-              : `View all ${formatCount(commentCount)} comments`}
-        </Text>
-      </View>
+        </View>
+      )}
 
-      {/* View workout modal */}
-      <FeedWorkoutModal
-        item={viewWorkoutOpen ? item : null}
-        onDismiss={() => setViewWorkoutOpen(false)}
-      />
+      {hasOpenedWorkoutModal && (
+        <FeedWorkoutModal
+          item={viewWorkoutOpen ? item : null}
+          onDismiss={() => setViewWorkoutOpen(false)}
+        />
+      )}
 
-      {/* Report sheet — only mount when open to avoid N instances on feed */}
       {reportOpen && (
         <ReportSheet
           visible={reportOpen}
@@ -389,118 +479,229 @@ const FeedRow = React.memo(function FeedRow({ item, onOpenComments }: FeedRowPro
         />
       )}
 
-    </Pressable>
+    </View>
   );
 });
 
-const FeedModeIcons = React.memo(function FeedModeIcons({
-  feedMode, onSelect,
+const FeedRowSkeleton = React.memo(function FeedRowSkeleton() {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const shimmer = useSharedValue(0);
+
+  useEffect(() => {
+    shimmer.value = withRepeat(
+      withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+  }, [shimmer]);
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    opacity: 0.4 + shimmer.value * 0.45,
+  }));
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.headerRow}>
+        <Animated.View style={[styles.skelAvatar, shimmerStyle]} />
+        <View style={styles.headerText}>
+          <Animated.View style={[styles.skelLine, styles.skelNameLine, shimmerStyle]} />
+        </View>
+        <Animated.View style={[styles.skelStreak, shimmerStyle]} />
+      </View>
+
+      <View style={styles.heroRow}>
+        <View style={styles.heroStat}>
+          <Animated.View style={[styles.skelLine, styles.skelStatValue, shimmerStyle]} />
+          <Animated.View style={[styles.skelLine, styles.skelStatLabel, shimmerStyle]} />
+        </View>
+        <View style={styles.heroDivider} />
+        <View style={styles.heroStat}>
+          <Animated.View style={[styles.skelLine, styles.skelStatValue, shimmerStyle]} />
+          <Animated.View style={[styles.skelLine, styles.skelStatLabel, shimmerStyle]} />
+        </View>
+      </View>
+      <Animated.View style={[styles.skelLine, styles.skelMetaLine, shimmerStyle]} />
+
+      <Animated.View style={[styles.skelMedia, shimmerStyle]} />
+
+      <View style={styles.actionRow}>
+        <Animated.View style={[styles.skelIcon, shimmerStyle]} />
+      </View>
+    </View>
+  );
+});
+
+const FeedSeparator = React.memo(function FeedSeparator() {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  return (
+    <View style={styles.separator}>
+      <View style={styles.separatorLine} />
+      <View style={styles.separatorDot} />
+      <View style={styles.separatorIconWrap}>
+        <Ionicons name="barbell" size={ms(11)} color={colors.textTertiary} />
+      </View>
+      <View style={styles.separatorDot} />
+      <View style={styles.separatorLine} />
+    </View>
+  );
+});
+
+const FeedHeader = React.memo(function FeedHeader({
+  feedMode, onToggle,
 }: {
   feedMode: 'friends' | 'global';
-  onSelect: (mode: 'friends' | 'global') => void;
+  onToggle: () => void;
 }) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <View style={styles.modeIcons}>
-      <TouchableOpacity
-        activeOpacity={0.6}
-        onPress={() => onSelect('friends')}
-        style={styles.modeIconBtn}
-        hitSlop={8}
-        accessibilityLabel="Friends activity"
-      >
-        <Ionicons
-          name={feedMode === 'friends' ? 'people-sharp' : 'people-outline'}
-          size={ms(22)}
-          color={feedMode === 'friends' ? colors.textPrimary : colors.textTertiary}
-        />
-      </TouchableOpacity>
-      <TouchableOpacity
-        activeOpacity={0.6}
-        onPress={() => onSelect('global')}
-        style={styles.modeIconBtn}
-        hitSlop={8}
-        accessibilityLabel="Discover"
-      >
-        <Ionicons
-          name={feedMode === 'global' ? 'globe-sharp' : 'globe-outline'}
-          size={ms(22)}
-          color={feedMode === 'global' ? colors.textPrimary : colors.textTertiary}
-        />
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      activeOpacity={0.6}
+      onPress={onToggle}
+      style={styles.headerWrap}
+      accessibilityLabel={`Community feed, showing ${feedMode}. Tap to switch.`}
+    >
+      <Text style={styles.headerTitle}>Community Feed</Text>
+      <View style={styles.headerSubRow}>
+        <Text style={styles.headerSub}>{feedMode === 'friends' ? 'Friends' : 'Global'}</Text>
+        <Ionicons name="swap-horizontal" size={ms(11)} color={colors.textTertiary} />
+      </View>
+    </TouchableOpacity>
   );
 });
 
-export default function Feed() {
+interface FeedProps {
+  headerComponent?: React.ReactNode;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+}
+
+export default function Feed({ headerComponent, refreshing = false, onRefresh }: FeedProps) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const userId = useAuthStore((s) => s.user?.id);
   const feed = useFriendsStore((s) => s.feed);
   const feedFetchedAt = useFriendsStore((s) => s.feedFetchedAt);
+  const feedLoading = useFriendsStore((s) => s.feedLoading);
+  const feedHasMore = useFriendsStore((s) => s.feedHasMore);
   const fetchFeed = useFriendsStore((s) => s.fetchFeed);
-  const fetchCommentCounts = useFriendsStore((s) => s.fetchCommentCounts);
   const feedMode = useFriendsStore((s) => s.feedMode);
   const setFeedMode = useFriendsStore((s) => s.setFeedMode);
 
   useEffect(() => {
-    if (userId) fetchFeed(userId, true);
+    if (!userId) return;
+    const task = InteractionManager.runAfterInteractions(() => {
+      fetchFeed(userId, true);
+    });
+    return () => task.cancel();
   }, [userId, fetchFeed, feedMode]);
 
-  useEffect(() => {
-    if (feed.length > 0) {
-      fetchCommentCounts(feed.map((f) => f.id));
-    }
-  }, [feed, fetchCommentCounts]);
-
-  const handleSwitchMode = (mode: 'friends' | 'global') => {
+  const handleSwitchMode = useCallback((mode: 'friends' | 'global') => {
     if (mode === feedMode) return;
     setFeedMode(mode);
-  };
-
-  const [commentsActivityId, setCommentsActivityId] = useState<string | null>(null);
-  const handleOpenComments = useCallback((id: string) => setCommentsActivityId(id), []);
-  const handleCloseComments = useCallback(() => setCommentsActivityId(null), []);
+  }, [feedMode, setFeedMode]);
 
   const hasFetched = feedFetchedAt !== null;
+  const isLoading = !hasFetched && feed.length === 0;
   const isEmpty = hasFetched && feed.length === 0;
 
-  return (
-    <View style={styles.wrap}>
-      {/* Feed mode icons */}
-      <FeedModeIcons
+  const handleEndReached = useCallback(() => {
+    if (!userId || !feedHasMore || feedLoading) return;
+    fetchFeed(userId, false);
+  }, [userId, feedHasMore, feedLoading, fetchFeed]);
+
+  const renderItem = useCallback(({ item }: { item: ActivityFeedItem }) => (
+    <FeedRow item={item} />
+  ), []);
+
+  const keyExtractor = useCallback((item: ActivityFeedItem) => item.id, []);
+
+  const listHeader = useMemo(() => (
+    <View>
+      {headerComponent}
+      <FeedHeader
         feedMode={feedMode}
-        onSelect={handleSwitchMode}
+        onToggle={() => handleSwitchMode(feedMode === 'friends' ? 'global' : 'friends')}
       />
-
-      {feed.map((item) => (
-        <FeedRow key={item.id} item={item} onOpenComments={handleOpenComments} />
-      ))}
-
-      {isEmpty && (
-        <View style={styles.emptyState}>
-          <Ionicons name="people-outline" size={ms(28)} color={colors.textTertiary} />
-          <Text style={styles.emptyTitle}>No activity yet</Text>
-          <Text style={styles.emptyText}>
-            {feedMode === 'friends'
-              ? 'Add friends to see their workouts here.'
-              : 'No public workouts yet — check back later.'}
-          </Text>
-        </View>
-      )}
-
-      {/* Comments sheet — single instance mounted at feed level */}
-      {commentsActivityId && (
-        <CommentsSheet
-          visible={!!commentsActivityId}
-          activityId={commentsActivityId}
-          onClose={handleCloseComments}
-        />
+      {isLoading && (
+        <>
+          <FeedRowSkeleton />
+          <FeedSeparator />
+          <FeedRowSkeleton />
+          <FeedSeparator />
+          <FeedRowSkeleton />
+        </>
       )}
     </View>
+  ), [headerComponent, feedMode, isLoading, handleSwitchMode]);
+
+  const listFooter = useMemo(() => {
+    if (feed.length === 0) return null;
+    return (
+      <View>
+        {feedLoading && (
+          <>
+            <FeedSeparator />
+            <FeedRowSkeleton />
+          </>
+        )}
+        {!feedHasMore && (
+          <View style={styles.endOfFeed}>
+            <Text style={styles.endOfFeedText}>You're all caught up</Text>
+          </View>
+        )}
+      </View>
+    );
+  }, [feed.length, feedLoading, feedHasMore, styles]);
+
+  const listEmpty = useMemo(() => {
+    if (!isEmpty) return null;
+    return (
+      <View style={styles.emptyState}>
+        <Ionicons name="people-outline" size={ms(28)} color={colors.textTertiary} />
+        <Text style={styles.emptyTitle}>No activity yet</Text>
+        <Text style={styles.emptyText}>
+          {feedMode === 'friends'
+            ? 'Add friends to see their workouts here.'
+            : 'No public workouts yet — check back later.'}
+        </Text>
+      </View>
+    );
+  }, [isEmpty, feedMode, colors.textTertiary, styles]);
+
+  return (
+    <FlashList
+      data={feed}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
+      ItemSeparatorComponent={FeedSeparator}
+      ListHeaderComponent={listHeader}
+      ListFooterComponent={listFooter}
+      ListEmptyComponent={listEmpty}
+      estimatedItemSize={sw(520)}
+      showsVerticalScrollIndicator={false}
+      onEndReached={handleEndReached}
+      onEndReachedThreshold={0.6}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+          />
+        ) : undefined
+      }
+      contentContainerStyle={{
+        paddingHorizontal: sw(8),
+        paddingTop: sw(8),
+        paddingBottom: sw(24),
+      }}
+    />
   );
 }
 
@@ -508,15 +709,36 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     wrap: {
       marginTop: sw(8),
-      gap: sw(12),
+      gap: sw(4),
     },
-    modeIcons: {
+    headerWrap: {
       flexDirection: 'row',
-      gap: sw(18),
-      alignSelf: 'flex-start',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      paddingHorizontal: sw(12),
+      paddingTop: sw(4),
+      paddingBottom: sw(2),
+      marginBottom: sw(8),
     },
-    modeIconBtn: {
-      padding: sw(2),
+    headerTitle: {
+      color: colors.textPrimary,
+      fontSize: ms(18),
+      lineHeight: ms(22),
+      fontFamily: Fonts.extraBold,
+      letterSpacing: -0.4,
+    },
+    headerSubRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(4),
+    },
+    headerSub: {
+      color: colors.textTertiary,
+      fontSize: ms(10),
+      lineHeight: ms(12),
+      fontFamily: Fonts.bold,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
     },
     actionsAnchor: {
       position: 'relative',
@@ -560,15 +782,100 @@ const createStyles = (colors: ThemeColors) =>
     },
     card: {
       gap: 0,
-      paddingBottom: sw(14),
-      borderBottomWidth: 1,
-      borderBottomColor: colors.cardBorder,
+      paddingBottom: sw(4),
+      backgroundColor: colors.card,
+    },
+    cardElevated: {
+      zIndex: 100,
+      elevation: 20,
+    },
+    skelAvatar: {
+      width: sw(26),
+      height: sw(26),
+      borderRadius: sw(13),
+      backgroundColor: colors.cardBorder,
+    },
+    skelLine: {
+      backgroundColor: colors.cardBorder,
+    },
+    skelNameLine: {
+      width: sw(110),
+      height: ms(11),
+    },
+    skelStreak: {
+      width: sw(42),
+      height: ms(18),
+      backgroundColor: colors.cardBorder,
+    },
+    skelStatValue: {
+      width: sw(64),
+      height: ms(18),
+      marginBottom: sw(4),
+    },
+    skelStatLabel: {
+      width: sw(40),
+      height: ms(8),
+    },
+    skelMetaLine: {
+      width: sw(180),
+      height: ms(9),
+      marginHorizontal: sw(14),
+      marginTop: sw(6),
+      marginBottom: sw(8),
+      backgroundColor: colors.cardBorder,
+    },
+    skelMedia: {
+      width: PHOTO_WIDTH,
+      height: PHOTO_HEIGHT,
+      backgroundColor: colors.cardBorder,
+    },
+    skelIcon: {
+      width: ms(22),
+      height: ms(22),
+      backgroundColor: colors.cardBorder,
+      marginHorizontal: sw(6),
+      marginVertical: sw(2),
+    },
+    separator: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 0,
+      paddingHorizontal: sw(20),
+      gap: sw(6),
+      backgroundColor: colors.background,
+    },
+    separatorLine: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.cardBorder,
+    },
+    separatorDot: {
+      width: sw(3),
+      height: sw(3),
+      borderRadius: sw(2),
+      backgroundColor: colors.cardBorder,
+    },
+    separatorIconWrap: {
+      paddingHorizontal: sw(4),
     },
     emptyState: {
       alignItems: 'center',
       paddingHorizontal: sw(24),
       paddingVertical: sw(32),
       gap: sw(8),
+    },
+    endOfFeed: {
+      alignItems: 'center',
+      paddingVertical: sw(20),
+    },
+    endOfFeedText: {
+      color: colors.textTertiary,
+      fontSize: ms(10),
+      lineHeight: ms(13),
+      fontFamily: Fonts.semiBold,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
     },
     emptyTitle: {
       color: colors.textPrimary,
@@ -589,18 +896,22 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       gap: sw(10),
       paddingHorizontal: sw(12),
-      paddingVertical: sw(8),
+      paddingVertical: sw(6),
+    },
+    headerRowElevated: {
+      zIndex: 100,
+      elevation: 20,
     },
     avatar: {
-      width: sw(32),
-      height: sw(32),
-      borderRadius: sw(16),
+      width: sw(26),
+      height: sw(26),
+      borderRadius: sw(13),
       justifyContent: 'center',
       alignItems: 'center',
     },
     avatarText: {
       color: '#FFFFFF',
-      fontSize: ms(13),
+      fontSize: ms(11),
       fontFamily: Fonts.bold,
     },
     headerText: {
@@ -608,13 +919,53 @@ const createStyles = (colors: ThemeColors) =>
     },
     name: {
       color: colors.textPrimary,
-      fontSize: ms(13),
-      lineHeight: ms(16),
+      fontSize: ms(11),
+      lineHeight: ms(14),
       fontFamily: Fonts.bold,
     },
     nameSep: {
       color: colors.textTertiary,
       fontFamily: Fonts.semiBold,
+    },
+    streakChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(3),
+      paddingLeft: sw(7),
+      paddingRight: sw(8),
+      paddingVertical: sw(3),
+      backgroundColor: colors.streak + '14',
+      shadowColor: colors.streak,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.45,
+      shadowRadius: 5,
+      elevation: 3,
+    },
+    streakAccentBar: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 2,
+      backgroundColor: colors.streak,
+    },
+    streakChipText: {
+      color: colors.streak,
+      fontSize: ms(12),
+      lineHeight: ms(14),
+      fontFamily: Fonts.extraBold,
+      letterSpacing: -0.3,
+    },
+    streakChipUnit: {
+      color: colors.streak,
+      fontSize: ms(9),
+      lineHeight: ms(11),
+      fontFamily: Fonts.bold,
+      letterSpacing: 0.3,
+      textTransform: 'uppercase',
+      opacity: 0.75,
+      marginLeft: -sw(1),
+      marginBottom: -sw(1),
     },
     addBtn: {
       flexDirection: 'row',
@@ -637,6 +988,53 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(13),
       fontFamily: Fonts.bold,
     },
+    tagRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: sw(5),
+      paddingHorizontal: sw(12),
+      paddingTop: sw(4),
+      paddingBottom: sw(2),
+    },
+    tagChip: {
+      backgroundColor: colors.accent + '22',
+      paddingHorizontal: sw(5),
+      paddingVertical: sw(1),
+    },
+    tagChipText: {
+      color: colors.accent,
+      fontSize: ms(7),
+      fontFamily: Fonts.bold,
+      letterSpacing: 0.5,
+    },
+    tagChipRoutine: {
+      backgroundColor: colors.accentOrange + '22',
+    },
+    tagChipTextRoutine: {
+      color: colors.accentOrange,
+    },
+    tagName: {
+      color: colors.textPrimary,
+      fontSize: ms(10),
+      fontFamily: Fonts.bold,
+      flexShrink: 1,
+    },
+    tagMeta: {
+      color: colors.textTertiary,
+      fontSize: ms(9),
+      fontFamily: Fonts.medium,
+    },
+    postTitle: {
+      color: colors.textPrimary,
+      fontSize: ms(13),
+      lineHeight: ms(17),
+      fontFamily: Fonts.extraBold,
+      letterSpacing: -0.3,
+      paddingHorizontal: sw(14),
+      paddingTop: sw(2),
+      paddingBottom: sw(5),
+    },
     heroRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -650,21 +1048,21 @@ const createStyles = (colors: ThemeColors) =>
     },
     heroValue: {
       color: colors.textPrimary,
-      fontSize: ms(22),
-      lineHeight: ms(26),
+      fontSize: ms(16),
+      lineHeight: ms(20),
       fontFamily: Fonts.extraBold,
-      letterSpacing: -0.6,
+      letterSpacing: -0.4,
     },
     heroValueUnit: {
       color: colors.textSecondary,
-      fontSize: ms(14),
+      fontSize: ms(11),
       fontFamily: Fonts.bold,
       letterSpacing: -0.3,
     },
     heroLabel: {
       color: colors.textTertiary,
-      fontSize: ms(9),
-      lineHeight: ms(11),
+      fontSize: ms(7),
+      lineHeight: ms(9),
       fontFamily: Fonts.bold,
       textTransform: 'uppercase',
       letterSpacing: 0.6,
@@ -678,108 +1076,139 @@ const createStyles = (colors: ThemeColors) =>
     },
     heroMeta: {
       color: colors.textSecondary,
-      fontSize: ms(10),
-      lineHeight: ms(13),
+      fontSize: ms(8),
+      lineHeight: ms(11),
       fontFamily: Fonts.semiBold,
       paddingHorizontal: sw(14),
-      paddingTop: sw(4),
-      paddingBottom: sw(8),
+      paddingTop: sw(3),
+      paddingBottom: sw(6),
     },
     photo: {
       width: PHOTO_WIDTH,
       height: PHOTO_HEIGHT,
       backgroundColor: colors.cardBorder,
     },
+    pageDots: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: sw(5),
+      paddingTop: sw(8),
+      paddingBottom: sw(2),
+    },
+    pageDot: {
+      width: sw(5),
+      height: sw(5),
+      borderRadius: sw(3),
+      backgroundColor: colors.cardBorder,
+    },
+    pageDotActive: {
+      backgroundColor: colors.accent,
+    },
     summarySlot: {
       width: PHOTO_WIDTH,
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: sw(14),
-      paddingVertical: sw(14),
-      gap: sw(14),
-      backgroundColor: colors.card,
-      borderTopWidth: 1,
-      borderBottomWidth: 1,
-      borderColor: colors.cardBorder,
+      paddingTop: sw(4),
+      paddingBottom: sw(2),
     },
     summaryBody: {
       flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'flex-end',
+      gap: sw(20),
+      paddingVertical: sw(6),
+    },
+    summaryBodyCol: {
       alignItems: 'center',
-      gap: sw(2),
+      gap: sw(4),
+    },
+    summaryBodyLabel: {
+      color: colors.textTertiary,
+      fontSize: ms(9),
+      lineHeight: ms(11),
+      fontFamily: Fonts.bold,
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
     },
     summaryList: {
-      flex: 1,
-      gap: sw(8),
+      paddingHorizontal: sw(14),
+      paddingTop: sw(6),
     },
     summaryEmpty: {
       color: colors.textTertiary,
-      fontSize: ms(11),
+      fontSize: ms(10),
       fontFamily: Fonts.medium,
+      paddingVertical: sw(8),
     },
     summaryRow: {
-      gap: sw(1),
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: sw(7),
+      gap: sw(10),
+    },
+    summaryRowDivider: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.cardBorder,
     },
     summaryName: {
+      flex: 1,
       color: colors.textPrimary,
       fontSize: ms(10),
       lineHeight: ms(13),
-      fontFamily: Fonts.bold,
+      fontFamily: Fonts.semiBold,
       letterSpacing: -0.1,
     },
     summaryDetail: {
       color: colors.textTertiary,
       fontSize: ms(8),
       lineHeight: ms(11),
-      fontFamily: Fonts.semiBold,
-      textTransform: 'uppercase',
-      letterSpacing: 0.4,
+      fontFamily: Fonts.medium,
     },
     summaryMore: {
       color: colors.textTertiary,
-      fontSize: ms(8),
-      lineHeight: ms(11),
-      fontFamily: Fonts.bold,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-      marginTop: sw(4),
+      fontSize: ms(9),
+      lineHeight: ms(12),
+      fontFamily: Fonts.medium,
+      paddingVertical: sw(6),
     },
     actionRow: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: sw(10),
-      paddingTop: sw(8),
-      paddingBottom: sw(4),
+      paddingTop: sw(5),
+      paddingBottom: sw(2),
       gap: sw(2),
     },
     actionBtn: {
       paddingHorizontal: sw(6),
       paddingVertical: sw(2),
     },
+    captionWrap: {
+      paddingHorizontal: sw(12),
+      paddingTop: sw(8),
+      paddingBottom: sw(2),
+    },
     footerText: {
       paddingHorizontal: sw(12),
-      paddingBottom: sw(10),
-      gap: sw(3),
+      paddingBottom: sw(4),
+      gap: sw(2),
     },
     likeCount: {
       color: colors.textPrimary,
-      fontSize: ms(13),
-      lineHeight: ms(16),
+      fontSize: ms(11),
+      lineHeight: ms(14),
       fontFamily: Fonts.bold,
     },
     caption: {
       color: colors.textPrimary,
-      fontSize: ms(13),
-      lineHeight: ms(18),
-      fontFamily: Fonts.medium,
+      fontSize: ms(12),
+      lineHeight: ms(17),
+      fontFamily: Fonts.regular,
+      letterSpacing: -0.1,
     },
     captionName: {
+      color: colors.textPrimary,
       fontFamily: Fonts.bold,
-    },
-    viewComments: {
-      color: colors.textTertiary,
       fontSize: ms(12),
-      lineHeight: ms(15),
-      fontFamily: Fonts.medium,
-      marginTop: sw(2),
+      lineHeight: ms(17),
     },
   });

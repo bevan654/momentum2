@@ -70,7 +70,12 @@ export interface ActivityFeedItem {
   program_week: number | null;
   program_total_weeks: number | null;
   program_day_label: string | null;
+  photo_url: string | null;
+  title: string | null;
+  caption: string | null;
 }
+
+const PHOTO_BUCKET = 'workout_photos';
 
 export interface ReactionSummary {
   emoji: string;
@@ -381,7 +386,14 @@ export async function getGlobalFeed(
   });
 
   if (error || !data || data.length === 0) return [];
-  return attachProfilesAndReactions(data, currentUserId);
+  // Strip friends-only posts authored by users who aren't the viewer.
+  // (The viewer always sees their own posts even if marked friends_only.)
+  // The RPC returns full activity_feed rows so the column is available.
+  const filtered = (data as any[]).filter(
+    (r) => !r.friends_only || r.user_id === currentUserId,
+  );
+  if (filtered.length === 0) return [];
+  return attachProfilesAndReactions(filtered, currentUserId);
 }
 
 async function attachProfilesAndReactions(
@@ -392,8 +404,8 @@ async function attachProfilesAndReactions(
   const feedIds = feedRows.map((r: any) => r.id).filter(Boolean);
   const workoutIds = [...new Set(feedRows.map((r: any) => r.workout_id).filter(Boolean))];
 
-  // Batch 1: profiles, reactions, exercise details, streaks (parallel)
-  const [profilesRes, reactionsRes, exercisesRes, streaksRes] = await Promise.all([
+  // Batch 1: profiles, reactions, exercise details, streaks, workout photos (parallel)
+  const [profilesRes, reactionsRes, exercisesRes, streaksRes, workoutsRes] = await Promise.all([
     // Uses an RPC instead of `from('profiles')` so non-friend posters in the
     // global feed still resolve to a username (RLS now hides strangers' rows).
     supabase.rpc('list_public_profiles', { p_ids: userIds }),
@@ -407,11 +419,21 @@ async function attachProfilesAndReactions(
           .in('workout_id', workoutIds)
           .order('exercise_order', { ascending: true })
       : Promise.resolve({ data: [] as any[] }),
-    supabase
-      .from('user_streaks')
-      .select('user_id, current_streak')
-      .in('user_id', userIds),
+    supabase.rpc('list_public_streaks', { p_ids: userIds }),
+    // Workout photos. Uses a SECURITY DEFINER RPC instead of `from('workouts')`
+    // so strangers' photos in the global feed aren't blocked by owner-only RLS.
+    workoutIds.length > 0
+      ? supabase.rpc('list_workout_photos', { p_workout_ids: workoutIds })
+      : Promise.resolve({ data: [] as any[] }),
   ]);
+
+  // Build workoutId → public photo URL map
+  const photoUrlByWorkout = new Map<string, string>();
+  for (const w of (workoutsRes.data as any[]) || []) {
+    if (!w.photo_path) continue;
+    const { data } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(w.photo_path);
+    if (data?.publicUrl) photoUrlByWorkout.set(w.id, data.publicUrl);
+  }
 
   // Batch 2: catalog for muscle groups (depends on exercise names)
   // Include names from BOTH the exercises query AND the activity feed's exercise_names
@@ -603,6 +625,9 @@ async function attachProfilesAndReactions(
       program_week: r.program_week || null,
       program_total_weeks: r.program_total_weeks || null,
       program_day_label: r.program_day_label || null,
+      photo_url: r.workout_id ? (photoUrlByWorkout.get(r.workout_id) ?? null) : null,
+      title: r.title || null,
+      caption: r.caption || null,
     };
   });
 }
@@ -739,11 +764,15 @@ export async function addReaction(
   userId: string,
   emoji: string,
 ): Promise<void> {
-  await supabase.from('reactions').insert({
+  const { error } = await supabase.from('reactions').insert({
     activity_id: activityId,
     user_id: userId,
     emoji,
   });
+  if (error) {
+    if (__DEV__) console.warn('[reactions] insert failed', error);
+    return;
+  }
 
   // Notify the post owner — fire-and-forget so we don't block the optimistic UI
   (async () => {
@@ -785,12 +814,13 @@ export async function removeReaction(
   userId: string,
   emoji: string,
 ): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from('reactions')
     .delete()
     .eq('activity_id', activityId)
     .eq('user_id', userId)
     .eq('emoji', emoji);
+  if (error && __DEV__) console.warn('[reactions] delete failed', error);
 }
 
 // ── Nudges ─────────────────────────────────────────────

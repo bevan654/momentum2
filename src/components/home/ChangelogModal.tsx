@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
 import changelog from '../../constants/changelog';
 import { useChangelogStore } from '../../stores/useChangelogStore';
+import { globalNavigate } from '../../navigation/navigationRef';
 
 export default function ChangelogModal() {
   const colors = useColors();
@@ -22,11 +23,21 @@ export default function ChangelogModal() {
   const dismiss = useChangelogStore((s) => s.dismiss);
 
   const entry = changelog[0];
+
+  const handleCta = useCallback(() => {
+    if (entry?.cta) globalNavigate(entry.cta.target);
+    dismiss();
+  }, [entry, dismiss]);
+
   if (!entry) return null;
 
+  const forced = !!entry.cta;
+  const handleBackdropPress = forced ? undefined : dismiss;
+  const handleRequestClose = forced ? () => {} : dismiss;
+
   return (
-    <Modal visible={hasUnseen} transparent animationType="fade" onRequestClose={dismiss}>
-      <Pressable style={styles.backdrop} onPress={dismiss}>
+    <Modal visible={hasUnseen} transparent animationType="fade" onRequestClose={handleRequestClose}>
+      <Pressable style={styles.backdrop} onPress={handleBackdropPress}>
         <View style={styles.centered}>
           <Pressable style={styles.modal}>
             {/* Version badge */}
@@ -62,9 +73,11 @@ export default function ChangelogModal() {
             <TouchableOpacity
               style={styles.button}
               activeOpacity={0.8}
-              onPress={dismiss}
+              onPress={entry.cta ? handleCta : dismiss}
             >
-              <Text style={styles.buttonText}>Got it</Text>
+              <Text style={styles.buttonText}>
+                {entry.cta ? entry.cta.label : 'Got it'}
+              </Text>
             </TouchableOpacity>
           </Pressable>
         </View>
