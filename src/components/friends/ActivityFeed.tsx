@@ -8,7 +8,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
-import { supabase } from '../../lib/supabase';
+import { supabase, onClientSwap } from '../../lib/supabase';
 import type { ActivityFeedItem } from '../../lib/friendsDatabase';
 import FeedCard from './FeedCard';
 import FeedCardSkeleton from './FeedCardSkeleton';
@@ -50,21 +50,32 @@ export default function ActivityFeed() {
     useCallback(() => {
       if (!userId) return;
 
-      const channel = supabase
-        .channel('feed-realtime')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'activity_feed' },
-          (payload) => {
-            // Skip own posts — they'll appear via normal fetch
-            if (payload.new && (payload.new as any).user_id !== userId) {
-              setNewPostCount((c) => c + 1);
-            }
-          },
-        )
-        .subscribe();
+      const subscribe = () =>
+        supabase
+          .channel('feed-realtime')
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'activity_feed' },
+            (payload) => {
+              // Skip own posts — they'll appear via normal fetch
+              if (payload.new && (payload.new as any).user_id !== userId) {
+                setNewPostCount((c) => c + 1);
+              }
+            },
+          )
+          .subscribe();
+
+      let channel = subscribe();
+
+      // Re-subscribe after supabase client swap (post-30min background) — the
+      // old channel is attached to the discarded client and stops firing.
+      const unsubSwap = onClientSwap(() => {
+        try { supabase.removeChannel(channel); } catch {}
+        channel = subscribe();
+      });
 
       return () => {
+        unsubSwap();
         supabase.removeChannel(channel);
       };
     }, [userId])

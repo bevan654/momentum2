@@ -21,7 +21,7 @@
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { supabase } from '../lib/supabase';
+import { supabase, onClientSwap } from '../lib/supabase';
 import { useFriendsStore } from '../stores/useFriendsStore';
 import type { NotificationItem } from '../lib/friendsDatabase';
 
@@ -35,6 +35,7 @@ let fallbackTimer: ReturnType<typeof setInterval> | null = null;
 let badgeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let tokenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
+let unsubscribeClientSwap: (() => void) | null = null;
 
 /** Dedupe guard — prevents processing the same notification twice */
 const seenIds = new Set<string>();
@@ -231,6 +232,17 @@ export function initNotifications(userId: string): void {
   // AppState listener
   appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 
+  // Re-subscribe channel after supabase client swap (post-30min background).
+  // The old `channel` ref is attached to the discarded client; we drop it and
+  // re-init from scratch on the fresh client.
+  unsubscribeClientSwap = onClientSwap(() => {
+    const uid = currentUserId;
+    if (uid) {
+      cleanupNotifications();
+      initNotifications(uid);
+    }
+  });
+
   // Initial unread count sync
   useFriendsStore.getState().fetchUnreadCount(userId);
 
@@ -251,6 +263,11 @@ export function cleanupNotifications(): void {
   if (appStateSubscription) {
     appStateSubscription.remove();
     appStateSubscription = null;
+  }
+
+  if (unsubscribeClientSwap) {
+    unsubscribeClientSwap();
+    unsubscribeClientSwap = null;
   }
 
   stopFallbackPoller();
