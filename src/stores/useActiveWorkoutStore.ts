@@ -11,7 +11,6 @@ import { useProgramStore } from './useProgramStore';
 import { useRoutineStore } from './useRoutineStore';
 import { useAuthStore } from './useAuthStore';
 import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity } from '../services/liveActivityManager';
-import { playBeep } from '../utils/beepSound';
 import type { WorkoutActivitySnapshot } from '../services/liveActivityManager';
 
 const REST_NOTIF_ID = 'rest-timer';
@@ -1238,12 +1237,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         if (patch.elapsedSeconds !== undefined) set(patch);
         get().stopRest();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        playBeep();
         return;
-      }
-      // Beep at 3, 2, 1
-      if (remaining <= 3 && remaining !== get().restRemaining) {
-        playBeep();
       }
       patch.restRemaining = remaining;
     }
