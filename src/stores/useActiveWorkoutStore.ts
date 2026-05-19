@@ -1179,10 +1179,37 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   setRestDuration: (seconds) => {
     _preferredRestDuration = seconds;
     saveRestPreference(seconds);
-    // While resting, don't disturb the in-progress timer's total —
-    // only update the preference. The new default applies to the next rest.
-    if (get().isResting) return;
-    set({ restDuration: seconds });
+
+    const { isResting, restDuration: prevDuration, restRemaining: prevRemaining, restPaused } = get();
+    if (!isResting) {
+      set({ restDuration: seconds });
+      get()._persist();
+      return;
+    }
+
+    // Apply the change to the running timer by the same delta.
+    const delta = seconds - prevDuration;
+    const newRemaining = prevRemaining + delta;
+
+    if (newRemaining <= 0) {
+      get().stopRest();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return;
+    }
+
+    if (restPaused) {
+      set({ restDuration: seconds, restRemaining: newRemaining });
+    } else {
+      _restResumeBase = newRemaining;
+      set({
+        restDuration: seconds,
+        restRemaining: newRemaining,
+        restStartedAt: Date.now(),
+      });
+      Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+      _scheduleRestNotification(newRemaining);
+    }
+    updateWorkoutActivity(_buildSnapshot(get()));
     get()._persist();
   },
 
