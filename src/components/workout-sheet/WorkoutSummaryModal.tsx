@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator, Platform, Dimensions, Image } from 'react-native';
+import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator, Platform, Dimensions, Image, Pressable } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring, withTiming, Easing, runOnJS } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -770,6 +770,9 @@ export default function WorkoutSummaryModal(props: Props) {
   const [showShare, setShowShare] = useState(false);
   const [workoutName, setWorkoutName] = useState('');
 
+  // Themed confirm-before-exit dialog (just-completed mode only)
+  const [confirmExitVisible, setConfirmExitVisible] = useState(false);
+
   // Local overrides after save so display updates without re-fetch
   const [savedDuration, setSavedDuration] = useState<number | null>(null);
   const [savedExercises, setSavedExercises] = useState<SummaryExercise[] | null>(null);
@@ -869,6 +872,26 @@ export default function WorkoutSummaryModal(props: Props) {
     // Dismiss immediately — feed insert is fire-and-forget
     onDismiss();
   }, [shareSubmitting, commitFeedPost, shareVisibility, shareTitle, shareCaption, onDismiss]);
+
+  // Confirm before exiting the just-completed summary without sharing.
+  // Workout is already in `workouts`; the dialog exists so users don't lose the feed post by accident.
+  const handleCloseRequest = useCallback(() => {
+    if (!isJustCompleted || shareVisibility === 'private') {
+      onDismiss();
+      return;
+    }
+    setConfirmExitVisible(true);
+  }, [isJustCompleted, shareVisibility, onDismiss]);
+
+  const handleConfirmExitPost = useCallback(() => {
+    setConfirmExitVisible(false);
+    handlePostToFeed();
+  }, [handlePostToFeed]);
+
+  const handleConfirmExitDiscard = useCallback(() => {
+    setConfirmExitVisible(false);
+    onDismiss();
+  }, [onDismiss]);
 
   // ── Preview data for the inline feed-post preview ─────────────
   const previewRows = useMemo(() => {
@@ -1296,6 +1319,52 @@ export default function WorkoutSummaryModal(props: Props) {
           {({ imageUri }) => <WorkoutOverlay backgroundUri={imageUri} data={shareData} />}
         </ShareModal>
       )}
+      {confirmExitVisible && (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setConfirmExitVisible(false)}
+        >
+          <Pressable
+            style={styles.confirmExitOverlay}
+            onPress={() => setConfirmExitVisible(false)}
+          >
+            <Pressable style={styles.confirmExitCard} onPress={() => {}}>
+              <View style={[styles.confirmExitIconWrap, { backgroundColor: colors.accent + '20' }]}>
+                <Ionicons name="paper-plane" size={ms(24)} color={colors.accent} />
+              </View>
+              <Text style={styles.confirmExitTitle}>Don't forget to post!</Text>
+              <Text style={styles.confirmExitBody}>
+                Your workout is saved. Share it to the feed so your friends can see your progress?
+              </Text>
+              <TouchableOpacity
+                style={styles.confirmExitPrimaryBtn}
+                onPress={handleConfirmExitPost}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="paper-plane" size={ms(16)} color={colors.textOnAccent} />
+                <Text style={styles.confirmExitPrimaryText}>Post to feed</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmExitGhostBtn}
+                onPress={handleConfirmExitDiscard}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.confirmExitGhostText}>Exit anyway</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmExitCancelBtn}
+                onPress={() => setConfirmExitVisible(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.confirmExitCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </>
   );
 
@@ -1352,7 +1421,7 @@ export default function WorkoutSummaryModal(props: Props) {
       {!editing && (
         <TouchableOpacity
           style={styles.closeBtn}
-          onPress={onDismiss}
+          onPress={handleCloseRequest}
           activeOpacity={0.7}
           hitSlop={8}
         >
@@ -2216,6 +2285,93 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.bold,
     lineHeight: ms(18),
     letterSpacing: 0.3,
+  },
+
+  /* ── Confirm-exit dialog ─────────────────────────── */
+  confirmExitOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: sw(28),
+  },
+  confirmExitCard: {
+    width: '100%',
+    maxWidth: sw(360),
+    backgroundColor: colors.card,
+    borderRadius: ms(20),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.cardBorder,
+    paddingTop: sw(22),
+    paddingBottom: sw(14),
+    paddingHorizontal: sw(20),
+    alignItems: 'center',
+  },
+  confirmExitIconWrap: {
+    width: sw(52),
+    height: sw(52),
+    borderRadius: sw(26),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: sw(14),
+  },
+  confirmExitTitle: {
+    color: colors.textPrimary,
+    fontSize: ms(17),
+    fontFamily: Fonts.bold,
+    textAlign: 'center',
+    marginBottom: sw(6),
+  },
+  confirmExitBody: {
+    color: colors.textSecondary,
+    fontSize: ms(13),
+    fontFamily: Fonts.regular,
+    textAlign: 'center',
+    lineHeight: ms(18),
+    marginBottom: sw(18),
+    paddingHorizontal: sw(4),
+  },
+  confirmExitPrimaryBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(6),
+    backgroundColor: colors.accent,
+    paddingVertical: sw(13),
+    borderRadius: ms(12),
+    marginBottom: sw(8),
+  },
+  confirmExitPrimaryText: {
+    color: colors.textOnAccent,
+    fontSize: ms(14),
+    fontFamily: Fonts.bold,
+    letterSpacing: 0.3,
+  },
+  confirmExitGhostBtn: {
+    width: '100%',
+    paddingVertical: sw(12),
+    borderRadius: ms(12),
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    marginBottom: sw(4),
+  },
+  confirmExitGhostText: {
+    color: colors.accentRed,
+    fontSize: ms(13),
+    fontFamily: Fonts.semiBold,
+  },
+  confirmExitCancelBtn: {
+    width: '100%',
+    paddingVertical: sw(12),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmExitCancelText: {
+    color: colors.textSecondary,
+    fontSize: ms(13),
+    fontFamily: Fonts.medium,
   },
 
   /* ── Inline share section in just-completed view ─── */
