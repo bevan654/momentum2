@@ -16,6 +16,18 @@ export interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.39',
+    date: '2026-07-08',
+    title: "What's New",
+    items: [
+      'AI Coach\'s Take — right after you finish a workout, get an instant recap comparing this session to your last one, exercise by exercise',
+      'Smart nudges — reminders when your streak\'s at risk, a muscle group\'s been neglected, or it\'s time to beat your last lift',
+      'Workout summary is now a sleek bottom sheet',
+      'Fixed an issue where finishing a workout could hang after the app had been backgrounded for a while',
+    ],
+    cta: { label: 'Finish a workout', target: 'Workouts' },
+  },
+  {
     version: '1.0.37',
     date: '2026-05-16',
     title: "What's New",

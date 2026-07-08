@@ -46,8 +46,6 @@ interface Props {
   exerciseType?: ExerciseType;
   onUpdate: (field: 'kg' | 'reps', value: string) => void;
   onToggle: () => void;
-  onCycleSetType: () => void;
-  onBadgeLongPress?: (pageY: number) => void;
   onDelete: (() => void) | null;
   onInputFocus?: (y: number) => void;
   isGhost?: boolean;
@@ -79,7 +77,7 @@ const isDuration = (t?: ExerciseType) => t === 'duration';
 
 /* ── Component ─────────────────────────────────────────── */
 
-function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps, exerciseType, onUpdate, onToggle, onCycleSetType, onBadgeLongPress, onDelete, onInputFocus, isGhost, ghostResult, isDropSet, dropIndex }: Props) {
+function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps, exerciseType, onUpdate, onToggle, onDelete, onInputFocus, isGhost, ghostResult, isDropSet, dropIndex }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -172,21 +170,6 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
   const onDeleteRef = useRef(onDelete);
   useEffect(() => { onToggleRef.current = onToggle; }, [onToggle]);
   useEffect(() => { onDeleteRef.current = onDelete; }, [onDelete]);
-
-  const handleCycleType = useCallback(() => {
-    Haptics.selectionAsync();
-    onCycleSetType();
-  }, [onCycleSetType]);
-
-  const badgeRef = useRef<View>(null);
-  const handleBadgeLongPress = useCallback(() => {
-    if (onBadgeLongPress) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      badgeRef.current?.measureInWindow((_x, y, _w, h) => {
-        onBadgeLongPress(y + h / 2);
-      });
-    }
-  }, [onBadgeLongPress]);
 
   /* ── JS-thread callbacks for gestures ─────────────── */
 
@@ -333,20 +316,11 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
           />
 
           {/* Set number / type badge */}
-          <Pressable
-            ref={badgeRef}
-            onPress={handleCycleType}
-            onLongPress={handleBadgeLongPress}
-            style={({ pressed }) => [
-              styles.setNumBadge,
-              { backgroundColor: typeConfig.bg },
-              pressed && styles.setNumBadgePressed,
-            ]}
-          >
+          <View style={[styles.setNumBadge, { backgroundColor: typeConfig.bg }]}>
             <Text style={[styles.setNumText, { color: completed ? (isGhost && ghostResult ? (ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) : colors.accentGreen) : typeConfig.color }]}>
               {badgeLabel}
             </Text>
-          </Pressable>
+          </View>
 
           {/* Previous performance — hidden in ghost mode */}
           {!isGhost && (
@@ -620,10 +594,6 @@ const createStyles = (colors: ThemeColors) =>
       borderRadius: sw(8),
       justifyContent: 'center',
       alignItems: 'center',
-    },
-    setNumBadgePressed: {
-      opacity: 0.6,
-      transform: [{ scale: 0.9 }],
     },
     setNumText: {
       fontSize: ms(10),

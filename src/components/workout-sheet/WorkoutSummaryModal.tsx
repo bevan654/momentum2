@@ -18,6 +18,7 @@ import { useActiveWorkoutStore, type WorkoutSummary, type SummaryExercise, type 
 import type { WorkoutWithDetails, ExerciseWithSets } from '../../stores/useWorkoutStore';
 import ShareModal from '../share/ShareModal';
 import WorkoutOverlay from '../dev/WorkoutOverlay';
+import CoachTakeCard from './CoachTakeCard';
 import { pickAndUploadWorkoutPhoto } from '../../utils/uploadWorkoutPhoto';
 
 // ── Edit-mode types ──────────────────────────────────
@@ -1446,6 +1447,17 @@ export default function WorkoutSummaryModal(props: Props) {
 
             {statsContent}
 
+            {!editing && (
+              <CoachTakeCard
+                workoutId={workoutId ?? ''}
+                exercises={displayExercises ?? (data as WorkoutSummary).exercises}
+                prevMap={prevMap}
+                duration={displayDuration}
+                totalSets={totalSets}
+                totalExercises={totalExercises}
+              />
+            )}
+
             {!editing && (displayExercises ?? (data as WorkoutSummary).exercises).length > 0 && (
               <View style={styles.heatmapSmall}>
                 <MuscleHeatmap exercises={(displayExercises ?? (data as WorkoutSummary).exercises) as any} embedded compact />
@@ -1757,6 +1769,18 @@ function HistoricalPage({
         keyboardShouldPersistTaps="handled"
       >
         {statsContent}
+
+        {!editing && data.coachHeadline && data.coachSummary && (
+          <CoachTakeCard
+            workoutId={data.id}
+            exercises={data.exercises as any}
+            prevMap={{}}
+            duration={data.duration}
+            totalSets={data.total_sets}
+            totalExercises={data.total_exercises}
+            precomputed={{ headline: data.coachHeadline, summary: data.coachSummary }}
+          />
+        )}
 
         {!editing && data.exercises.length > 0 && (
           <View style={styles.heatmapSmall}>

@@ -324,13 +324,16 @@ export default function TabNavigator() {
         visible={shareVisible}
         onClose={() => setShareVisible(false)}
       />
-      {showSummary && summaryData && !isGhostSummary && (
-        <WorkoutSummaryModal
-          mode="just-completed"
-          data={summaryData}
-          onDismiss={dismissSummary}
-        />
-      )}
+      <BottomSheet visible={showSummary && !isGhostSummary} onClose={dismissSummary} height="92%" modal>
+        {summaryData && !isGhostSummary && (
+          <WorkoutSummaryModal
+            mode="just-completed"
+            data={summaryData}
+            onDismiss={dismissSummary}
+            inline
+          />
+        )}
+      </BottomSheet>
     </View>
   );
 }
