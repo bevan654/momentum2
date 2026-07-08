@@ -2,10 +2,13 @@ import React, { useMemo, useCallback, useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   Pressable,
+  ScrollView,
   StyleSheet,
   Modal,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -17,7 +20,7 @@ import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 import type { ActiveExercise } from '../../stores/useActiveWorkoutStore';
 import Body, { type ExtendedBodyPart } from '../BodyHighlighter';
-import { toSlug, ALL_SLUGS } from '../../utils/muscleVolume';
+import { toSlug, ALL_SLUGS, SLUG_LABELS } from '../../utils/muscleVolume';
 import SetRow from './SetRow';
 
 /* ─── Ghost set comparison ─────────────────────────────── */
@@ -37,6 +40,24 @@ function compareGhostSet(
   if (userVol > ghostVol) return 'win';
   if (userVol < ghostVol) return 'loss';
   return 'tie';
+}
+
+/* ─── Note date formatting ─────────────────────────────── */
+
+// Notes shown inline (via expand) before switching to a scrollable modal.
+const PREV_NOTES_INLINE_CAP = 4;
+
+// The 3 selectable note colors, mapped to theme tokens.
+const NOTE_COLOR_OPTIONS: { key: string; token: 'accentGreen' | 'accentOrange' | 'accentRed' }[] = [
+  { key: 'green', token: 'accentGreen' },
+  { key: 'orange', token: 'accentOrange' },
+  { key: 'red', token: 'accentRed' },
+];
+
+function formatNoteDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 /* ─── Focused body map helpers ─────────────────────────── */
@@ -110,25 +131,39 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   const unlinkSuperset = useActiveWorkoutStore((s) => s.unlinkSuperset);
   const removeExercise = useActiveWorkoutStore((s) => s.removeExercise);
   const moveExercise = useActiveWorkoutStore((s) => s.moveExercise);
+  const setExerciseNotes = useActiveWorkoutStore((s) => s.setExerciseNotes);
+  const setExerciseNoteColor = useActiveWorkoutStore((s) => s.setExerciseNoteColor);
   const removeSet = useActiveWorkoutStore((s) => s.removeSet);
   const updateSet = useActiveWorkoutStore((s) => s.updateSet);
   const toggleSetComplete = useActiveWorkoutStore((s) => s.toggleSetComplete);
-  const cycleSetType = useActiveWorkoutStore((s) => s.cycleSetType);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const themeMode = useThemeStore((s) => s.mode);
   const isGhost = !!useActiveWorkoutStore((s) => s.ghostUserName);
 
-  // Long-press context menu state
-  const [contextMenu, setContextMenu] = useState<{ setIdx: number; y: number } | null>(null);
+  // Notes: `notesOpen` means actively editing. Otherwise show a read-only
+  // note (if one exists) or the "Add a note" button.
+  const hasNote = !!exercise.notes && exercise.notes.trim().length > 0;
+  const [notesOpen, setNotesOpen] = useState(false);
+  // Previous-note history: collapsed to the latest by default. Small histories
+  // expand inline; large ones open a scrollable modal.
+  const [showAllPrev, setShowAllPrev] = useState(false);
+  const [notesHistoryOpen, setNotesHistoryOpen] = useState(false);
 
-  const handleBadgeLongPress = useCallback((setIdx: number, pageY: number) => {
-    setContextMenu({ setIdx, y: pageY });
-  }, []);
+  const prevNotes = exercise.prevNotes ?? [];
+  const prevUseModal = prevNotes.length > PREV_NOTES_INLINE_CAP;
+  const visiblePrev = !prevUseModal && showAllPrev ? prevNotes : prevNotes.slice(0, 1);
 
-  const dismissContextMenu = useCallback(() => setContextMenu(null), []);
+  const noteColorValue = useCallback(
+    (key?: string): string | null => {
+      const opt = NOTE_COLOR_OPTIONS.find((o) => o.key === key);
+      return opt ? colors[opt.token] : null;
+    },
+    [colors],
+  );
+  const todayColor = noteColorValue(exercise.noteColor);
 
   // Build body highlight data + focus region
-  const { bodyData, focusY, bodySide, hasMuscles } = useMemo(() => {
+  const { bodyData, focusY, bodySide, hasMuscles, bodyPartLabel } = useMemo(() => {
     const entry = catalogMap[exercise.name];
     const primarySlugs = new Set<string>();
     const secondarySlugs = new Set<string>();
@@ -167,8 +202,21 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
       intensity: primarySlugs.has(slug) ? 6 : secondarySlugs.has(slug) ? 3 : 1,
     }));
 
-    return { bodyData: bd, focusY: fy, bodySide: bs, hasMuscles: primarySlugs.size > 0 };
+    // Body-part label: use the first primary muscle (catalog `category` is a
+    // training type like "strength", not a body part). Fall back to category
+    // only when it's a real body-part group.
+    let bodyPartLabel: string | null = null;
+    if (entry) {
+      for (const m of entry.primary_muscles) {
+        const sl = toSlug(m);
+        if (sl && SLUG_LABELS[sl]) { bodyPartLabel = SLUG_LABELS[sl]; break; }
+      }
+    }
+    if (!bodyPartLabel && category && CATEGORY_SLUGS[category]) bodyPartLabel = category;
+
+    return { bodyData: bd, focusY: fy, bodySide: bs, hasMuscles: primarySlugs.size > 0, bodyPartLabel };
   }, [exercise.name, exercise.category, catalogMap]);
+
 
   const bodyPalette = useMemo(() => {
     const a = colors.accent;
@@ -308,6 +356,11 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
             </Text>
             <Ionicons name="chevron-forward" size={ms(11)} color={colors.textTertiary} />
           </Pressable>
+          {!!bodyPartLabel && (
+            <View style={styles.categoryChip}>
+              <Text style={styles.categoryText}>{bodyPartLabel}</Text>
+            </View>
+          )}
           <View style={{ flex: 1 }} />
           <View style={styles.reorderBtns}>
             <TouchableOpacity
@@ -338,6 +391,133 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Notes */}
+        {!isGhost && (
+          <View>
+            {/* Previous notes — read-only history (newest first) */}
+            {prevNotes.length > 0 && (
+              <View style={styles.notesPrevWrap}>
+                {visiblePrev.map((n, i) => {
+                  const c = noteColorValue(n.color);
+                  return (
+                    <View
+                      key={`prevnote-${i}`}
+                      style={[
+                        styles.notesPrevItem,
+                        i > 0 && styles.notesPrevItemDivider,
+                        c && { borderLeftWidth: sw(3), borderLeftColor: c },
+                      ]}
+                    >
+                      <Text style={[styles.notesPrevDate, c && { color: c }]}>{formatNoteDate(n.date)}</Text>
+                      <Text style={styles.notesPrevText}>{n.note}</Text>
+                    </View>
+                  );
+                })}
+                {prevNotes.length > 1 && (
+                  <TouchableOpacity
+                    style={[styles.notesPrevToggle, styles.notesPrevItemDivider]}
+                    onPress={() => (prevUseModal ? setNotesHistoryOpen(true) : setShowAllPrev((v) => !v))}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={styles.notesPrevToggleText}>
+                      {prevUseModal
+                        ? `View all ${prevNotes.length} notes`
+                        : showAllPrev
+                        ? 'Show less'
+                        : `Show ${prevNotes.length - 1} earlier ${prevNotes.length - 1 === 1 ? 'note' : 'notes'}`}
+                    </Text>
+                    <Ionicons
+                      name={prevUseModal ? 'chevron-forward' : showAllPrev ? 'chevron-up' : 'chevron-down'}
+                      size={ms(11)}
+                      color={colors.accent}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Today's note — editable */}
+            {notesOpen ? (
+              <View style={styles.notesWrap}>
+                <TextInput
+                  style={[styles.notesInput, todayColor && { borderLeftWidth: sw(3), borderLeftColor: todayColor }]}
+                  value={exercise.notes ?? ''}
+                  onChangeText={(t) => setExerciseNotes(exerciseIndex, t)}
+                  onFocus={() => onExerciseFocus?.(exerciseIndex)}
+                  placeholder="Add a note..."
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  autoFocus={!hasNote}
+                />
+                <View style={styles.notesEditFooter}>
+                  <View style={styles.notesSwatches}>
+                    {NOTE_COLOR_OPTIONS.map((opt) => {
+                      const selected = exercise.noteColor === opt.key;
+                      return (
+                        <TouchableOpacity
+                          key={opt.key}
+                          onPress={() => setExerciseNoteColor(exerciseIndex, selected ? undefined : opt.key)}
+                          style={[styles.swatch, { backgroundColor: colors[opt.token] }, selected && styles.swatchSelected]}
+                          activeOpacity={0.7}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          {selected && <Ionicons name="checkmark" size={ms(12)} color="#fff" />}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <View style={styles.notesEditActions}>
+                    {(hasNote || !!exercise.noteColor) && (
+                      <TouchableOpacity
+                        style={styles.notesDeleteBtn}
+                        onPress={() => {
+                          setExerciseNotes(exerciseIndex, '');
+                          setExerciseNoteColor(exerciseIndex, undefined);
+                          Keyboard.dismiss();
+                          setNotesOpen(false);
+                        }}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Ionicons name="trash-outline" size={ms(14)} color={colors.accentRed} />
+                        <Text style={styles.notesDeleteText}>Delete</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={styles.notesSaveBtn}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setNotesOpen(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="checkmark" size={ms(14)} color={colors.accent} />
+                      <Text style={styles.notesSaveText}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            ) : hasNote ? (
+              <TouchableOpacity
+                style={[styles.notesDisplay, todayColor && { borderLeftWidth: sw(3), borderLeftColor: todayColor }]}
+                onPress={() => setNotesOpen(true)}
+                activeOpacity={0.6}
+              >
+                <Text style={styles.notesDisplayText}>{exercise.notes}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.notesAddBtn}
+                onPress={() => setNotesOpen(true)}
+                activeOpacity={0.6}
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+              >
+                <Text style={styles.notesAddText}>Add a note</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* Overload tracker */}
         {overloadTracker}
@@ -400,8 +580,6 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                   suggestedReps={ghostPrev ? String(ghostPrev.reps) : (suggestedSets[setIdx]?.reps ? String(suggestedSets[setIdx]!.reps) : undefined)}
                   onUpdate={(field, value) => { onExerciseFocus?.(exerciseIndex); updateSet(exerciseIndex, setIdx, field, value); }}
                   onToggle={() => { onExerciseFocus?.(exerciseIndex); toggleSetComplete(exerciseIndex, setIdx); }}
-                  onCycleSetType={() => cycleSetType(exerciseIndex, setIdx)}
-                  onBadgeLongPress={!isGhost && !isDropSetRow ? (pageY: number) => handleBadgeLongPress(setIdx, pageY) : undefined}
                   onDelete={exercise.sets.length > 1 && !isGhost ? () => removeSet(exerciseIndex, setIdx) : null}
                   onInputFocus={(y) => { onExerciseFocus?.(exerciseIndex); onInputFocus?.(y); }}
                   isGhost={isGhost}
@@ -417,26 +595,10 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
               <View style={styles.actionRow}>
                 <TouchableOpacity
                   style={styles.actionBtn}
-                  onPress={() => {
-                    let lastWorkingIdx = -1;
-                    for (let i = exercise.sets.length - 1; i >= 0; i--) {
-                      if (exercise.sets[i].set_type === 'working') { lastWorkingIdx = i; break; }
-                    }
-                    if (lastWorkingIdx >= 0) addDropSet(exerciseIndex, lastWorkingIdx);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="arrow-down" size={ms(13)} color={colors.accentBabyBlue} />
-                  <Text style={[styles.actionBtnText, { color: colors.accentBabyBlue }]}>Drop</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.actionBtn}
                   onPress={() => addSet(exerciseIndex)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="add" size={ms(13)} color={colors.accent} />
-                  <Text style={[styles.actionBtnText, { color: colors.accent }]}>Set</Text>
+                  <Text style={[styles.actionBtnText, { color: colors.accent }]}>Add set</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -448,8 +610,21 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                   activeOpacity={0.7}
                   disabled={exercise.sets.length === 0}
                 >
-                  <Ionicons name="copy-outline" size={ms(13)} color={colors.accent} />
                   <Text style={[styles.actionBtnText, { color: colors.accent }]}>Copy</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={() => {
+                    let lastWorkingIdx = -1;
+                    for (let i = exercise.sets.length - 1; i >= 0; i--) {
+                      if (exercise.sets[i].set_type === 'working') { lastWorkingIdx = i; break; }
+                    }
+                    if (lastWorkingIdx >= 0) addDropSet(exerciseIndex, lastWorkingIdx);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.actionBtnText, { color: colors.accentBabyBlue }]}>Drop set</Text>
                 </TouchableOpacity>
 
                 {(() => {
@@ -466,7 +641,6 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                         else linkSuperset(exerciseIndex);
                       }}
                     >
-                      <Ionicons name="git-compare-outline" size={ms(13)} color={canLink ? tint : colors.textSecondary} />
                       <Text style={[styles.actionBtnText, { color: canLink ? tint : colors.textSecondary }]}>
                         {isLinked ? 'Unlink' : 'Superset'}
                       </Text>
@@ -478,32 +652,45 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
       </View>
     </Swipeable>
 
-      {/* Long-press context menu */}
-      {contextMenu && (
-        <Modal transparent animationType="fade" onRequestClose={dismissContextMenu}>
-          <Pressable style={styles.menuOverlay} onPress={dismissContextMenu}>
-            <View style={[styles.menuContainer, { top: contextMenu.y - sw(44) }]}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                activeOpacity={0.7}
-                onPress={() => {
-                  addDropSet(exerciseIndex, contextMenu.setIdx);
-                  dismissContextMenu();
-                }}
+      {/* Full note history — scrollable modal for large histories */}
+      {notesHistoryOpen && (
+        <Modal transparent animationType="slide" onRequestClose={() => setNotesHistoryOpen(false)}>
+          <Pressable style={styles.notesModalOverlay} onPress={() => setNotesHistoryOpen(false)}>
+            <Pressable style={styles.notesModalSheet} onPress={() => {}}>
+              <View style={styles.notesModalHeader}>
+                <Text style={styles.notesModalTitle} numberOfLines={1}>
+                  {exercise.name.replace(/\b\w/g, (c) => c.toUpperCase())} · Notes
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setNotesHistoryOpen(false)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close" size={ms(20)} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView
+                style={styles.notesModalScroll}
+                contentContainerStyle={styles.notesModalContent}
+                showsVerticalScrollIndicator
               >
-                <Ionicons name="arrow-down" size={ms(15)} color={colors.accentBabyBlue} />
-                <Text style={[styles.menuItemText, { color: colors.accentBabyBlue }]}>Add Drop Set</Text>
-              </TouchableOpacity>
-              <View style={styles.menuDivider} />
-              <TouchableOpacity
-                style={[styles.menuItem, styles.actionBtnDisabled]}
-                activeOpacity={0.7}
-                disabled
-              >
-                <Ionicons name="git-compare-outline" size={ms(15)} color={colors.textSecondary} />
-                <Text style={[styles.menuItemText, { color: colors.textSecondary }]}>Add Superset</Text>
-              </TouchableOpacity>
-            </View>
+                {prevNotes.map((n, i) => {
+                  const c = noteColorValue(n.color);
+                  return (
+                    <View
+                      key={`histnote-${i}`}
+                      style={[
+                        styles.notesModalItem,
+                        i > 0 && styles.notesPrevItemDivider,
+                        c && { borderLeftWidth: sw(3), borderLeftColor: c, paddingLeft: sw(10) },
+                      ]}
+                    >
+                      <Text style={[styles.notesPrevDate, c && { color: c }]}>{formatNoteDate(n.date)}</Text>
+                      <Text style={styles.notesModalText}>{n.note}</Text>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </Pressable>
           </Pressable>
         </Modal>
       )}
@@ -589,6 +776,195 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginLeft: sw(2),
   },
 
+  // Notes
+  notesAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(4),
+    marginTop: sw(8),
+  },
+  notesAddText: {
+    color: colors.textTertiary,
+    fontSize: ms(11),
+    fontFamily: Fonts.medium,
+    lineHeight: ms(14),
+  },
+  notesWrap: {
+    marginTop: sw(8),
+  },
+  notesInput: {
+    paddingVertical: sw(6),
+    paddingHorizontal: sw(10),
+    backgroundColor: colors.surface,
+    borderRadius: sw(6),
+    color: colors.textPrimary,
+    fontSize: ms(12),
+    fontFamily: Fonts.regular,
+    lineHeight: ms(16),
+    minHeight: sw(34),
+  },
+  notesEditFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: sw(6),
+  },
+  notesSwatches: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(8),
+  },
+  swatch: {
+    width: sw(22),
+    height: sw(22),
+    borderRadius: sw(11),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swatchSelected: {
+    borderWidth: sw(2),
+    borderColor: colors.textPrimary,
+  },
+  notesEditActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(8),
+  },
+  notesDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(3),
+    paddingVertical: sw(5),
+    paddingHorizontal: sw(10),
+    borderRadius: sw(6),
+    backgroundColor: colors.accentRed + '15',
+  },
+  notesDeleteText: {
+    color: colors.accentRed,
+    fontSize: ms(11),
+    fontFamily: Fonts.semiBold,
+    lineHeight: ms(14),
+  },
+  notesSaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(3),
+    paddingVertical: sw(5),
+    paddingHorizontal: sw(12),
+    borderRadius: sw(6),
+    backgroundColor: colors.accent + '15',
+  },
+  notesSaveText: {
+    color: colors.accent,
+    fontSize: ms(11),
+    fontFamily: Fonts.semiBold,
+    lineHeight: ms(14),
+  },
+  notesDisplay: {
+    marginTop: sw(8),
+    paddingVertical: sw(6),
+    paddingHorizontal: sw(10),
+    backgroundColor: colors.surface,
+    borderRadius: sw(6),
+  },
+  notesDisplayText: {
+    color: colors.textSecondary,
+    fontSize: ms(12),
+    fontFamily: Fonts.regular,
+    lineHeight: ms(16),
+  },
+  notesPrevWrap: {
+    marginTop: sw(8),
+    borderRadius: sw(6),
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  notesPrevItem: {
+    paddingVertical: sw(6),
+    paddingHorizontal: sw(10),
+  },
+  notesPrevItemDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.cardBorder,
+  },
+  notesPrevToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(3),
+    paddingVertical: sw(7),
+    paddingHorizontal: sw(10),
+  },
+  notesPrevToggleText: {
+    color: colors.accent,
+    fontSize: ms(11),
+    fontFamily: Fonts.semiBold,
+    lineHeight: ms(14),
+  },
+
+  // Note history modal
+  notesModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  notesModalSheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: sw(16),
+    borderTopRightRadius: sw(16),
+    maxHeight: '70%',
+    paddingBottom: sw(24),
+  },
+  notesModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: sw(16),
+    paddingTop: sw(16),
+    paddingBottom: sw(12),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.cardBorder,
+  },
+  notesModalTitle: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: ms(15),
+    fontFamily: Fonts.semiBold,
+    marginRight: sw(12),
+  },
+  notesModalScroll: {
+    flexGrow: 0,
+  },
+  notesModalContent: {
+    paddingHorizontal: sw(16),
+    paddingTop: sw(4),
+  },
+  notesModalItem: {
+    paddingVertical: sw(12),
+  },
+  notesModalText: {
+    color: colors.textSecondary,
+    fontSize: ms(13),
+    fontFamily: Fonts.regular,
+    lineHeight: ms(18),
+    marginTop: sw(2),
+  },
+  notesPrevText: {
+    color: colors.textTertiary,
+    fontSize: ms(11),
+    fontFamily: Fonts.regular,
+    lineHeight: ms(15),
+  },
+  notesPrevDate: {
+    color: colors.textTertiary,
+    fontSize: ms(9),
+    fontFamily: Fonts.bold,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: sw(2),
+  },
+
   // Divider
   divider: {
     height: StyleSheet.hairlineWidth,
@@ -636,42 +1012,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(11),
     fontFamily: Fonts.semiBold,
     lineHeight: ms(14),
-  },
-
-  // Context menu
-  menuOverlay: {
-    flex: 1,
-  },
-  menuContainer: {
-    position: 'absolute',
-    left: sw(40),
-    backgroundColor: colors.card,
-    borderRadius: sw(10),
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    paddingVertical: sw(4),
-    minWidth: sw(160),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: sw(10),
-    paddingHorizontal: sw(14),
-    gap: sw(8),
-  },
-  menuItemText: {
-    fontSize: ms(13),
-    fontFamily: Fonts.semiBold,
-    lineHeight: ms(16),
-  },
-  menuDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.cardBorder,
-    marginHorizontal: sw(10),
   },
 });

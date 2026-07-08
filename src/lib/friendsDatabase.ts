@@ -8,7 +8,8 @@ export type NotificationType =
   | 'friend_accepted'
   | 'reaction'
   | 'nudge'
-  | 'leaderboard_weekly';
+  | 'leaderboard_weekly'
+  | 'ai_nudge';
 
 export interface FriendProfile {
   id: string;

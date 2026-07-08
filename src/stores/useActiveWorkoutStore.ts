@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { supabase, rebuildClient } from '../lib/supabase';
 import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference } from '../utils/workoutStorage';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useStreakStore } from './useStreakStore';
@@ -25,6 +25,24 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number = SUPABASE_TIMEOUT):
   return Promise.race([Promise.resolve(promise), timer]).finally(() => clearTimeout(id));
 }
 
+/**
+ * Run a Supabase query with a timeout; on timeout, rebuild the wedged client
+ * and retry once. After backgrounding, the client's auth lock can be stuck so
+ * requests hang before ever reaching the network (supabase/supabase#36046) —
+ * a rebuild + retry recovers without the user force-closing the app. Takes a
+ * factory because a PostgrestBuilder can't be re-executed after it settles.
+ */
+async function runWithRecovery<T>(makeQuery: () => PromiseLike<T>): Promise<T> {
+  try {
+    return await withTimeout(makeQuery());
+  } catch (e: any) {
+    if (e?.message !== 'Request timed out') throw e;
+    console.warn('[runWithRecovery] request hung — rebuilding supabase client and retrying');
+    rebuildClient();
+    return await withTimeout(makeQuery());
+  }
+}
+
 // ── Types ──────────────────────────────────────────────
 
 export interface ActiveSet {
@@ -42,6 +60,11 @@ export interface ActiveExercise {
   sets: ActiveSet[];
   prevSets: { kg: number; reps: number }[];
   supersetWith: number | null;
+  notes?: string;
+  /** Color tag for today's note: 'green' | 'orange' | 'red' (undefined = none) */
+  noteColor?: string;
+  /** Note history from previous sessions, newest first (read-only) */
+  prevNotes?: { note: string; date: string; color?: string }[];
 }
 
 export interface SummaryExercise {
@@ -163,6 +186,8 @@ interface ActiveWorkoutState {
   replaceExercise: (index: number, name: string, exerciseType: string, category: string | null, prevSets: { kg: number; reps: number }[]) => void;
   moveExercise: (fromIndex: number, direction: 'up' | 'down') => void;
   cycleExerciseType: (index: number) => void;
+  setExerciseNotes: (index: number, notes: string) => void;
+  setExerciseNoteColor: (index: number, color: string | undefined) => void;
 
   // Set management
   addSet: (exerciseIndex: number) => void;
@@ -300,6 +325,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   startFromRoutine: (routine, catalogMap, prevMap, ghostUserName) => {
     if (_timerInterval) clearInterval(_timerInterval);
 
+    const prevNoteMap = useWorkoutStore.getState().prevNoteMap;
     const exercises: ActiveExercise[] = routine.exercises.map((ex) => {
       const catalog = catalogMap[ex.name];
       const sets: ActiveSet[] = Array.from({ length: Math.max(ex.default_sets, 1) }, () => ({ ...EMPTY_SET }));
@@ -310,6 +336,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         sets,
         prevSets: prevMap[ex.name] || [],
         supersetWith: null,
+        prevNotes: prevNoteMap[ex.name] || undefined,
       };
     });
 
@@ -420,7 +447,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     console.log('[finishWorkout] inserting workout...');
     let workout: { id: string } | null = null;
     try {
-      const { data, error: workoutErr } = await withTimeout(
+      const { data, error: workoutErr } = await runWithRecovery(() =>
         supabase
           .from('workouts')
           .insert({
@@ -457,7 +484,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         exercise_type: ex.exercise_type,
       }));
 
-      const { data: exDataArr, error: exErr } = await withTimeout(
+      const { data: exDataArr, error: exErr } = await runWithRecovery(() =>
         supabase
           .from('exercises')
           .insert(exerciseRows)
@@ -505,13 +532,27 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       }
 
       if (allSetRows.length > 0) {
-        const { error: setErr } = await withTimeout(
+        const { error: setErr } = await runWithRecovery(() =>
           supabase.from('sets').insert(allSetRows)
         );
         if (setErr) {
           console.warn('[finishWorkout] sets insert error:', setErr);
         } else {
           console.log('[finishWorkout] sets saved');
+        }
+      }
+
+      // Best-effort: persist per-exercise notes. Fire-and-forget so a missing
+      // `notes` column (until the migration is run) can never break the save.
+      for (let i = 0; i < filteredExercises.length; i++) {
+        const note = filteredExercises[i].notes?.trim();
+        const exId = orderToId.get(i + 1);
+        if (note && exId) {
+          supabase
+            .from('exercises')
+            .update({ notes: note, note_color: filteredExercises[i].noteColor ?? null })
+            .eq('id', exId)
+            .then(() => {}, () => {});
         }
       }
     } catch (e: any) {
@@ -844,6 +885,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Exercise management ───────────────────────────
 
   addExercise: (name, exerciseType, category, prevSets = []) => {
+    const prevNotes = useWorkoutStore.getState().prevNoteMap[name] || undefined;
     set((s) => ({
       exercises: [
         ...s.exercises,
@@ -854,6 +896,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
           sets: [{ ...EMPTY_SET }],
           prevSets,
           supersetWith: null,
+          prevNotes,
         },
       ],
     }));
@@ -924,6 +967,26 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         ...ex,
         exercise_type: (EXERCISE_TYPE_CYCLE[ex.exercise_type] || 'weighted') as ActiveExercise['exercise_type'],
       };
+      return { exercises };
+    });
+    get()._persist();
+  },
+
+  setExerciseNotes: (index, notes) => {
+    set((s) => {
+      const exercises = [...s.exercises];
+      if (!exercises[index]) return s;
+      exercises[index] = { ...exercises[index], notes };
+      return { exercises };
+    });
+    get()._persist();
+  },
+
+  setExerciseNoteColor: (index, color) => {
+    set((s) => {
+      const exercises = [...s.exercises];
+      if (!exercises[index]) return s;
+      exercises[index] = { ...exercises[index], noteColor: color };
       return { exercises };
     });
     get()._persist();
@@ -1084,6 +1147,17 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     const ex = { ...exercises[exerciseIndex] };
     const sets = [...ex.sets];
     const wasCompleted = sets[setIndex].completed;
+
+    // A set can only be completed once it has the required inputs:
+    // reps for every type, plus kg for straight weighted exercises.
+    if (!wasCompleted) {
+      const cur = sets[setIndex];
+      const needsKg = ex.exercise_type === 'weighted';
+      if (cur.reps.trim() === '' || (needsKg && cur.kg.trim() === '')) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        return;
+      }
+    }
     sets[setIndex] = { ...sets[setIndex], completed: !wasCompleted };
     ex.sets = sets;
     exercises[exerciseIndex] = ex;

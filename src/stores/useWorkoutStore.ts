@@ -42,6 +42,8 @@ export interface WorkoutWithDetails {
   muscleGroups: string[];
   ghostUsername: string | null;
   programName: string | null;
+  coachHeadline: string | null;
+  coachSummary: string | null;
 }
 
 export interface CatalogEntry {
@@ -71,6 +73,8 @@ interface WorkoutState {
   catalogMap: Record<string, CatalogEntry>;
   aliasMap: Record<string, string>; // alias → canonical_name
   prevMap: Record<string, { kg: number; reps: number }[]>;
+  /** Note history per exercise name, newest first (best-effort; empty until `notes` column exists) */
+  prevNoteMap: Record<string, { note: string; date: string; color?: string }[]>;
   fetchWorkoutHistory: (userId: string) => Promise<void>;
   fetchExerciseCatalog: (userId: string, forceRefresh?: boolean) => Promise<void>;
   fetchPrevData: (userId: string) => Promise<void>;
@@ -81,12 +85,51 @@ interface WorkoutState {
   clearCaches: () => void;
 }
 
+// TODO(sample): temporary 30-entry note history for the dumbbell row so the
+// "View all N notes" modal is demonstrable. Remove once real data exists.
+const SAMPLE_PREV_NOTES: { note: string; date: string; color?: string }[] = (() => {
+  const entries = [
+    { note: 'Felt strong — go up to 32.5kg next time. Keep elbow tucked, no shrugging.', color: 'green' },
+    { note: '30kg x8/8/7 — last set was a grind. Form held up well.', color: 'orange' },
+    { note: 'Right side lagging, focus on the squeeze at the top.', color: 'orange' },
+    { note: 'First time back after the layoff. 27.5kg felt easy, ramp up.', color: 'green' },
+    { note: 'Slowed the eccentric — much better lat connection.', color: 'green' },
+    { note: 'Grip gave out before the back did. Try straps next week.', color: 'orange' },
+    { note: 'Felt a tweak in the lower back, kept it light and strict.', color: 'red' },
+    { note: 'New PR for reps at 30kg. Stoked.', color: 'green' },
+  ];
+  const base = new Date('2026-05-24T00:00:00Z').getTime();
+  const DAY = 86_400_000;
+  return Array.from({ length: 30 }, (_, i) => ({
+    note: entries[i % entries.length].note,
+    color: entries[i % entries.length].color,
+    date: new Date(base - i * 7 * DAY).toISOString().slice(0, 10),
+  }));
+})();
+
+// TODO(sample): temporary demo notes for cable face pull. Remove with the rest
+// of the sample data once real notes exist.
+const SAMPLE_FACE_PULL_NOTES: { note: string; date: string; color?: string }[] = [
+  { note: 'Light and controlled — really felt the rear delts. Pause at the face each rep.', date: '2026-05-28', color: 'green' },
+  { note: 'Went too heavy and it turned into a row. Drop the weight next time.', date: '2026-05-21', color: 'red' },
+  { note: 'Good pump. The external-rotation cue at the end helped a lot.', date: '2026-05-14', color: 'green' },
+];
+
 export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   workouts: [],
   loading: false,
   catalogMap: {},
   aliasMap: {},
   prevMap: {},
+  // TODO(sample): temporary demo note history (see SAMPLE_PREV_NOTES above) so
+  // the previous-notes UI is visible before the `notes` column / real data
+  // exists. Remove once real data is seeded.
+  prevNoteMap: {
+    'bent over dumbbell row': SAMPLE_PREV_NOTES,
+    'dumbbell row': SAMPLE_PREV_NOTES,
+    'cable face pull': SAMPLE_FACE_PULL_NOTES,
+    'face pull': SAMPLE_FACE_PULL_NOTES,
+  },
 
   fetchExerciseCatalog: async (userId: string, forceRefresh = false) => {
     const parseArr = (v: any): string[] => {
@@ -211,6 +254,30 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       }
     }
     set({ prevMap: map });
+
+    // Best-effort: most-recent note per exercise. Separate query so a missing
+    // `notes` column can't break the critical prevMap above. No-op until the
+    // column exists (the select simply errors and we keep an empty map).
+    try {
+      const { data: noteWorkouts, error } = await supabase
+        .from('workouts')
+        .select('created_at, exercises(name, notes, note_color)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (!error && noteWorkouts) {
+        // Workouts are newest-first, so notes accumulate in that order.
+        const noteMap: Record<string, { note: string; date: string; color?: string }[]> = {};
+        for (const w of noteWorkouts as any[]) {
+          for (const ex of (w.exercises || []) as any[]) {
+            const note = (ex.notes ?? '').trim();
+            if (!note) continue;
+            (noteMap[ex.name] ||= []).push({ note, date: w.created_at, color: ex.note_color ?? undefined });
+          }
+        }
+        set({ prevNoteMap: noteMap });
+      }
+    } catch {}
   },
 
   fetchWorkoutHistory: async (userId: string) => {
@@ -218,7 +285,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     try {
       const { data: workoutsData } = await supabase
         .from('workouts')
-        .select('id, created_at, duration, total_exercises, total_sets, ghost_username, program_id, programs(name)')
+        .select('id, created_at, duration, total_exercises, total_sets, ghost_username, program_id, programs(name), coach_headline, coach_summary')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(30);
@@ -357,6 +424,8 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
           muscleGroups: Array.from(muscleGroupSet).slice(0, 4),
           ghostUsername: (w as any).ghost_username || null,
           programName: (w as any).programs?.name || null,
+          coachHeadline: (w as any).coach_headline || null,
+          coachSummary: (w as any).coach_summary || null,
         };
       });
 
@@ -371,7 +440,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       // Fetch the workout
       const { data: workoutData, error: workoutError } = await supabase
         .from('workouts')
-        .select('id, created_at, duration, total_exercises, total_sets, ghost_username')
+        .select('id, created_at, duration, total_exercises, total_sets, ghost_username, coach_headline, coach_summary, programs(name)')
         .eq('id', workoutId)
         .single();
 
@@ -520,6 +589,9 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         prCount,
         muscleGroups: Array.from(muscleGroupSet).slice(0, 4),
         ghostUsername: (workoutData as any).ghost_username || null,
+        programName: (workoutData as any).programs?.name || null,
+        coachHeadline: (workoutData as any).coach_headline || null,
+        coachSummary: (workoutData as any).coach_summary || null,
       };
     } catch {
       return null;
@@ -574,7 +646,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   },
 
   clearCaches: () => {
-    set({ catalogMap: {}, aliasMap: {}, prevMap: {}, workouts: [] });
+    set({ catalogMap: {}, aliasMap: {}, prevMap: {}, prevNoteMap: {}, workouts: [] });
     AsyncStorage.removeItem(CATALOG_CACHE_KEY).catch(() => {});
   },
 

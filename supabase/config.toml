@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.ai-coach]
 verify_jwt = false
+
+[functions.ai-workout-notifications]
+verify_jwt = false
+
+[functions.ai-workout-summary]
+verify_jwt = false
