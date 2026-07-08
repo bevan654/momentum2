@@ -5,6 +5,14 @@ import { supabase } from '../lib/supabase';
 const CATALOG_CACHE_KEY = 'exercise_catalog_cache_v3';
 const CATALOG_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
+export interface CoachExerciseNote {
+  name: string;
+  note: string;
+  deltaPct: number | null;
+  isPR: boolean;
+  hasKg: boolean;
+}
+
 export interface SetData {
   id: string;
   set_number: number;
@@ -43,7 +51,7 @@ export interface WorkoutWithDetails {
   ghostUsername: string | null;
   programName: string | null;
   coachHeadline: string | null;
-  coachSummary: string | null;
+  coachNotes: CoachExerciseNote[] | null;
 }
 
 export interface CatalogEntry {
@@ -285,7 +293,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     try {
       const { data: workoutsData } = await supabase
         .from('workouts')
-        .select('id, created_at, duration, total_exercises, total_sets, ghost_username, program_id, programs(name), coach_headline, coach_summary')
+        .select('id, created_at, duration, total_exercises, total_sets, ghost_username, program_id, programs(name), coach_headline, coach_notes')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(30);
@@ -425,7 +433,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
           ghostUsername: (w as any).ghost_username || null,
           programName: (w as any).programs?.name || null,
           coachHeadline: (w as any).coach_headline || null,
-          coachSummary: (w as any).coach_summary || null,
+          coachNotes: (w as any).coach_notes || null,
         };
       });
 
@@ -440,7 +448,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       // Fetch the workout
       const { data: workoutData, error: workoutError } = await supabase
         .from('workouts')
-        .select('id, created_at, duration, total_exercises, total_sets, ghost_username, coach_headline, coach_summary, programs(name)')
+        .select('id, created_at, duration, total_exercises, total_sets, ghost_username, coach_headline, coach_notes, programs(name)')
         .eq('id', workoutId)
         .single();
 
@@ -591,7 +599,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         ghostUsername: (workoutData as any).ghost_username || null,
         programName: (workoutData as any).programs?.name || null,
         coachHeadline: (workoutData as any).coach_headline || null,
-        coachSummary: (workoutData as any).coach_summary || null,
+        coachNotes: (workoutData as any).coach_notes || null,
       };
     } catch {
       return null;

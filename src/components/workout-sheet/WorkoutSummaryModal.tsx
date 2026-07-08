@@ -1770,7 +1770,7 @@ function HistoricalPage({
       >
         {statsContent}
 
-        {!editing && data.coachHeadline && data.coachSummary && (
+        {!editing && data.coachHeadline && data.coachNotes && data.coachNotes.length > 0 && (
           <CoachTakeCard
             workoutId={data.id}
             exercises={data.exercises as any}
@@ -1778,7 +1778,7 @@ function HistoricalPage({
             duration={data.duration}
             totalSets={data.total_sets}
             totalExercises={data.total_exercises}
-            precomputed={{ headline: data.coachHeadline, summary: data.coachSummary }}
+            precomputed={{ headline: data.coachHeadline, exercises: data.coachNotes }}
           />
         )}
 
