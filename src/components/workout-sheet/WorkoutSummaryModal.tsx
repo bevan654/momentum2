@@ -15,10 +15,10 @@ import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { supabase } from '../../lib/supabase';
 import { useActiveWorkoutStore, type WorkoutSummary, type SummaryExercise, type GhostExerciseData } from '../../stores/useActiveWorkoutStore';
-import type { WorkoutWithDetails, ExerciseWithSets } from '../../stores/useWorkoutStore';
+import type { WorkoutWithDetails, ExerciseWithSets, CoachExerciseNote } from '../../stores/useWorkoutStore';
 import ShareModal from '../share/ShareModal';
 import WorkoutOverlay from '../dev/WorkoutOverlay';
-import CoachTakeCard from './CoachTakeCard';
+import CoachTakeCard, { type CoachResult } from './CoachTakeCard';
 import { pickAndUploadWorkoutPhoto } from '../../utils/uploadWorkoutPhoto';
 
 // ── Edit-mode types ──────────────────────────────────
@@ -67,7 +67,7 @@ function formatWorkoutDate(isoString: string): string {
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} \u00b7 ${h}:${min} ${ampm}`;
 }
 
-function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercise: ExerciseWithSets; colors: ThemeColors; styles: ReturnType<typeof createStyles>; prevSets?: { kg: number; reps: number }[] }) {
+function ExerciseDetailSection({ exercise, colors, styles, prevSets, coachNote }: { exercise: ExerciseWithSets; colors: ThemeColors; styles: ReturnType<typeof createStyles>; prevSets?: { kg: number; reps: number }[]; coachNote?: CoachExerciseNote }) {
   const catColor = exercise.category ? getUICategoryColor(exercise.category) : colors.textTertiary;
   const completedSets = exercise.sets.filter((s) => s.completed);
   const timed = isTimedType(exercise.exercise_type);
@@ -145,6 +145,10 @@ function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercis
         )}
       </View>
 
+      {coachNote?.note ? (
+        <Text style={styles.coachNote}>"{coachNote.note}"</Text>
+      ) : null}
+
       <View style={styles.summaryDivider} />
 
       {/* Column headers */}
@@ -190,7 +194,7 @@ function ExerciseDetailSection({ exercise, colors, styles, prevSets }: { exercis
   );
 }
 
-function SummaryExerciseSection({ exercise, colors, styles, prevSets }: { exercise: SummaryExercise; colors: ThemeColors; styles: ReturnType<typeof createStyles>; prevSets?: { kg: number; reps: number }[] }) {
+function SummaryExerciseSection({ exercise, colors, styles, prevSets, coachNote }: { exercise: SummaryExercise; colors: ThemeColors; styles: ReturnType<typeof createStyles>; prevSets?: { kg: number; reps: number }[]; coachNote?: CoachExerciseNote }) {
   const catColor = exercise.category ? getUICategoryColor(exercise.category) : colors.textTertiary;
   const completedSets = exercise.sets.filter((s) => s.completed);
   const timed = isTimedType(exercise.exercise_type);
@@ -264,6 +268,10 @@ function SummaryExerciseSection({ exercise, colors, styles, prevSets }: { exerci
           </View>
         )}
       </View>
+
+      {coachNote?.note ? (
+        <Text style={styles.coachNote}>"{coachNote.note}"</Text>
+      ) : null}
 
       <View style={styles.summaryDivider} />
 
@@ -730,6 +738,7 @@ export default function WorkoutSummaryModal(props: Props) {
   const { mode, data, onDismiss, onDelete, inline } = props;
   const isJustCompleted = mode === 'just-completed';
   const [deleting, setDeleting] = useState(false);
+  const [coachResult, setCoachResult] = useState<CoachResult | null>(null);
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -825,6 +834,16 @@ export default function WorkoutSummaryModal(props: Props) {
     }
     return map;
   }, [isJustCompleted, data, allWorkouts, globalPrevMap]);
+
+  // Per-exercise coach notes, keyed by lowercase name — freshly generated for
+  // just-completed (via CoachTakeCard's onResult), or read straight off the
+  // persisted workout row for historical mode.
+  const coachNotesByName = useMemo(() => {
+    const map = new Map<string, CoachExerciseNote>();
+    const source = isJustCompleted ? coachResult?.exercises : (data as WorkoutWithDetails).coachNotes;
+    for (const n of source ?? []) map.set(n.name.toLowerCase(), n);
+    return map;
+  }, [isJustCompleted, coachResult, data]);
 
   // Resolve workout ID
   const workoutId = isJustCompleted
@@ -1263,13 +1282,13 @@ export default function WorkoutSummaryModal(props: Props) {
   ) : isJustCompleted ? (
     <View style={styles.exerciseDetailList}>
       {(displayExercises ?? (data as WorkoutSummary).exercises).map((ex, i) => (
-        <SummaryExerciseSection key={i} exercise={ex} colors={colors} styles={styles} prevSets={prevMap[ex.name]} />
+        <SummaryExerciseSection key={i} exercise={ex} colors={colors} styles={styles} prevSets={prevMap[ex.name]} coachNote={coachNotesByName.get(ex.name.toLowerCase())} />
       ))}
     </View>
   ) : (
     <View style={styles.exerciseDetailList}>
       {(data as WorkoutWithDetails).exercises.map((ex) => (
-        <ExerciseDetailSection key={ex.id} exercise={ex} colors={colors} styles={styles} prevSets={prevMap[ex.name]} />
+        <ExerciseDetailSection key={ex.id} exercise={ex} colors={colors} styles={styles} prevSets={prevMap[ex.name]} coachNote={coachNotesByName.get(ex.name.toLowerCase())} />
       ))}
     </View>
   );
@@ -1455,6 +1474,7 @@ export default function WorkoutSummaryModal(props: Props) {
                 duration={displayDuration}
                 totalSets={totalSets}
                 totalExercises={totalExercises}
+                onResult={setCoachResult}
               />
             )}
 
@@ -1770,18 +1790,6 @@ function HistoricalPage({
       >
         {statsContent}
 
-        {!editing && data.coachHeadline && data.coachNotes && data.coachNotes.length > 0 && (
-          <CoachTakeCard
-            workoutId={data.id}
-            exercises={data.exercises as any}
-            prevMap={{}}
-            duration={data.duration}
-            totalSets={data.total_sets}
-            totalExercises={data.total_exercises}
-            precomputed={{ headline: data.coachHeadline, exercises: data.coachNotes }}
-          />
-        )}
-
         {!editing && data.exercises.length > 0 && (
           <View style={styles.heatmapSmall}>
             <MuscleHeatmap exercises={data.exercises} embedded compact />
@@ -2088,6 +2096,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.cardBorder,
     marginVertical: sw(8),
+  },
+  coachNote: {
+    color: colors.textSecondary,
+    fontSize: ms(12),
+    fontFamily: Fonts.medium,
+    lineHeight: ms(16),
+    marginTop: sw(8),
   },
   summaryColHeaders: {
     flexDirection: 'row',
