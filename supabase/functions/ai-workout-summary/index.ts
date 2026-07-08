@@ -2,8 +2,12 @@
 // just-completed mode). Takes the exercises/sets the user just logged plus the
 // prevMap snapshot already computed client-side (previous best sets per
 // exercise, captured at finish time), computes exact volume/weight deltas
-// server-side, and asks DeepSeek to write a short "coach's take" grounded in
-// those numbers. No DB reads — the client already has everything needed.
+// server-side for every exercise, and asks DeepSeek to write one short note
+// per exercise plus an overall headline. No DB reads — the client already has
+// everything needed.
+//
+// Deltas and PR flags are computed here, not by the model — DeepSeek only
+// ever writes prose against numbers it's handed, never does its own math.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -49,17 +53,26 @@ interface InExercise {
   sets: InSet[];
 }
 
+interface ExerciseFact {
+  name: string;
+  line: string;
+  hasKg: boolean;
+  deltaPct: number | null;
+  isWeightPR: boolean;
+}
+
 function round(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
-/** Builds one deterministic fact line per exercise — exact numbers only, so the
- * model never has to (and never should) do its own arithmetic. */
-function buildFactLines(
+/** One deterministic fact per exercise — exact numbers only, plus a plain-text
+ * line for the prompt. deltaPct and isWeightPR are computed here and returned
+ * to the client as-is; the model never touches them. */
+function buildExerciseFacts(
   exercises: InExercise[],
   prevMap: Record<string, { kg: number; reps: number }[]>,
-): string[] {
-  const lines: string[] = [];
+): ExerciseFact[] {
+  const facts: ExerciseFact[] = [];
 
   for (const ex of exercises) {
     const completed = ex.sets.filter((s) => s.completed && s.set_type !== "warmup");
@@ -68,7 +81,9 @@ function buildFactLines(
     const timed = ex.exercise_type === "duration";
     const hasKg = ex.exercise_type === "weighted" || ex.exercise_type === "weighted+bodyweight" || !ex.exercise_type;
 
-    let line = `- ${ex.name}: ${completed.length} sets`;
+    let line = `${ex.name}: ${completed.length} sets`;
+    let deltaPct: number | null = null;
+    let isWeightPR = false;
 
     if (timed) {
       const totalSecs = completed.reduce((s, x) => s + x.reps, 0);
@@ -82,9 +97,11 @@ function buildFactLines(
       if (prev && prev.length > 0) {
         const prevVolume = prev.reduce((s, p) => s + p.kg * p.reps, 0);
         const prevTop = prev.reduce((best, p) => (p.kg * p.reps > best.kg * best.reps ? p : best), prev[0]);
-        const volPct = prevVolume > 0 ? Math.round(((volume - prevVolume) / prevVolume) * 100) : null;
+        deltaPct = prevVolume > 0 ? Math.round(((volume - prevVolume) / prevVolume) * 100) : null;
+        isWeightPR = topSet.kg > prevTop.kg;
         line += ` (previous session: top set ${prevTop.kg}kg x${prevTop.reps}, volume ${round(prevVolume)}kg`;
-        if (volPct !== null) line += `, ${volPct >= 0 ? "+" : ""}${volPct}% volume`;
+        if (deltaPct !== null) line += `, ${deltaPct >= 0 ? "+" : ""}${deltaPct}% volume`;
+        if (isWeightPR) line += ", NEW TOP WEIGHT";
         line += ")";
       } else {
         line += " (no previous session on file for this exercise)";
@@ -94,10 +111,10 @@ function buildFactLines(
       line += `, ${totalReps} reps total`;
     }
 
-    lines.push(line);
+    facts.push({ name: ex.name, line, hasKg, deltaPct, isWeightPR });
   }
 
-  return lines;
+  return facts;
 }
 
 Deno.serve(async (req: Request) => {
@@ -133,18 +150,20 @@ Deno.serve(async (req: Request) => {
   if (exercises.length === 0) return json({ error: "No exercises provided" }, 400);
   if (exercises.length > 30) return json({ error: "Too many exercises" }, 400);
 
-  const lines = buildFactLines(exercises, prevMap);
-  if (lines.length === 0) return json({ error: "Nothing to summarize" }, 400);
+  const facts = buildExerciseFacts(exercises, prevMap);
+  if (facts.length === 0) return json({ error: "Nothing to summarize" }, 400);
 
   const minutes = Math.round(duration / 60);
-  const factsBlock = `Session: ${minutes} min, ${totalExercises} exercises, ${totalSets} sets.\n${lines.join("\n")}`;
+  const factsBlock = `Session: ${minutes} min, ${totalExercises} exercises, ${totalSets} sets.\n${facts.map((f) => `- ${f.line}`).join("\n")}`;
+  const nameList = facts.map((f) => f.name).join(", ");
 
   const system = `You are the hype coach inside a fitness app called Momentum, reacting right after the user finishes a workout. This is the moment they open the app for — it should feel like a reward, not a report card. The user is an intermediate-to-advanced lifter who cares about progressive overload.
 
-Return ONLY a JSON object: {"headline": "...", "summary": "..."}.
-- headline: max 50 characters. A hype, badge-worthy callout — the kind of line that makes someone want to screenshot it. Exactly one emoji is allowed if it genuinely fits (🔥💪⚡🏆) — never more than one, never forced.
-- summary: max 320 characters, 2-4 sentences. Reference the SPECIFIC numbers given below — never invent a number that isn't in the facts. Lead with the single best thing that's genuinely true this session: a weight or volume PR, the heaviest top set, most total reps, or — if nothing in the facts is a clear numerical win — the effort/consistency of showing up and finishing the session. Never lead with a decline. If something did regress, you can acknowledge it briefly in passing, framed as data for next time, but the headline and opening line must be the win.
-- Energetic, genuinely proud, a little competitive — like a coach who's hyped about what just happened, not a spreadsheet. No hedging, no generic "great job!" filler, no participation-trophy vagueness — the excitement has to be earned by an actual number from the facts.
+Return ONLY a JSON object: {"headline": "...", "exercises": [{"name": "...", "note": "..."}, ...]}.
+- headline: max 50 characters. A hype, badge-worthy verdict on the SESSION AS A WHOLE — the kind of line that makes someone want to screenshot it. Exactly one emoji is allowed if it genuinely fits (🔥💪⚡🏆) — never more than one, never forced.
+- exercises: exactly one entry per exercise listed below, in this exact order, using these exact names: ${nameList}
+- note: max 100 characters per exercise. Reference the SPECIFIC numbers given for that exercise — never invent a number that isn't in its facts. Call out a genuine win (a new top weight, a volume increase, most reps) where the facts support one; if an exercise regressed, say so plainly and briefly rather than spinning it — the honesty is on a per-exercise basis, the hype is reserved for the headline and for exercises that actually earned it.
+- Energetic where earned, factual where it isn't — like a coach who actually watched the session, not a hype machine that congratulates everything equally. No hedging, no generic "great job!" filler.
 - Plain text only inside the JSON strings — no markdown.
 
 Facts:
@@ -163,8 +182,8 @@ ${factsBlock}`;
         { role: "user", content: "Write the coach's take for this session." },
       ],
       response_format: { type: "json_object" },
-      temperature: 0.85,
-      max_tokens: 220,
+      temperature: 0.8,
+      max_tokens: 500,
     }),
   });
 
@@ -180,9 +199,32 @@ ${factsBlock}`;
   try {
     const parsed = JSON.parse(raw);
     const headline = String(parsed.headline ?? "").trim().slice(0, 80);
-    const summary = String(parsed.summary ?? "").trim().slice(0, 400);
-    if (!headline || !summary) return json({ error: "Incomplete response" }, 502);
-    return json({ headline, summary });
+    const rawNotes: any[] = Array.isArray(parsed.exercises) ? parsed.exercises : [];
+
+    // Match returned notes back to our deterministic facts by name — the model
+    // supplies prose, we supply every number the client renders.
+    const noteByName = new Map<string, string>();
+    for (const entry of rawNotes) {
+      const name = String(entry?.name ?? "").trim();
+      const note = String(entry?.note ?? "").trim();
+      if (name && note) noteByName.set(name.toLowerCase(), note.slice(0, 140));
+    }
+
+    const resultExercises = facts
+      .map((f) => ({
+        name: f.name,
+        note: noteByName.get(f.name.toLowerCase()) ?? "",
+        deltaPct: f.deltaPct,
+        isPR: f.isWeightPR,
+        hasKg: f.hasKg,
+      }))
+      .filter((e) => e.note.length > 0);
+
+    if (!headline || resultExercises.length === 0) {
+      return json({ error: "Incomplete response" }, 502);
+    }
+
+    return json({ headline, exercises: resultExercises });
   } catch {
     console.error("DeepSeek returned non-JSON:", raw);
     return json({ error: "Failed to parse summary" }, 502);
