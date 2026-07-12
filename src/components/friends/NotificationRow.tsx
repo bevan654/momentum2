@@ -6,12 +6,13 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { NotificationItem, NotificationType } from '../../lib/friendsDatabase';
 
-const NOTIFICATION_CONFIG: Record<NotificationType, { icon: string; color: string }> = {
+const NOTIFICATION_CONFIG: Record<NotificationType, { icon: string; color?: string }> = {
   friend_request: { icon: 'person-add-outline', color: '#3B82F6' },
   friend_accepted: { icon: 'people-outline', color: '#34D399' },
   reaction: { icon: 'heart-outline', color: '#EF4444' },
   nudge: { icon: 'flash-outline', color: '#F59E0B' },
   leaderboard_weekly: { icon: 'trophy-outline', color: '#F59E0B' },
+  leaderboard_overtake: { icon: 'trending-up-outline' },
   ai_nudge: { icon: 'barbell-outline', color: '#8B5CF6' },
 };
 
@@ -31,6 +32,7 @@ function NotificationRow({ notification, onPress, onAccept, onDecline, responded
     icon: 'notifications-outline',
     color: colors.textSecondary,
   };
+  const configColor = config.color ?? colors.accent;
   const isUnread = !notification.read;
   const isActionable = notification.type === 'friend_request' && !responded;
 
@@ -43,8 +45,8 @@ function NotificationRow({ notification, onPress, onAccept, onDecline, responded
       {isUnread && <View style={styles.unreadBorder} />}
 
       {/* Icon */}
-      <View style={[styles.iconCircle, { backgroundColor: config.color + '20' }]}>
-        <Ionicons name={config.icon as any} size={ms(18)} color={config.color} />
+      <View style={[styles.iconCircle, { backgroundColor: configColor + '20' }]}>
+        <Ionicons name={config.icon as any} size={ms(18)} color={configColor} />
       </View>
 
       {/* Content */}

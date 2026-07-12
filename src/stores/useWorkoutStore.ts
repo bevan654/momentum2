@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 
-const CATALOG_CACHE_KEY = 'exercise_catalog_cache_v3';
+const CATALOG_CACHE_KEY = 'exercise_catalog_cache_v4';
 const CATALOG_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface CoachExerciseNote {

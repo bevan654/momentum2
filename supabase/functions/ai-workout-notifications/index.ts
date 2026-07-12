@@ -63,6 +63,27 @@ function daysBetween(a: Date, b: Date): number {
   return Math.floor((a.getTime() - b.getTime()) / DAY_MS);
 }
 
+function calendarDaysBetween(a: string, b: string): number {
+  const aMs = Date.parse(`${a}T00:00:00Z`);
+  const bMs = Date.parse(`${b}T00:00:00Z`);
+  return Math.round((aMs - bMs) / DAY_MS);
+}
+
+function effectiveStreak(
+  streak: { current_streak: number; last_workout_date: string | null; updated_at: string | null } | null,
+  today: string,
+): number {
+  if (!streak?.last_workout_date || streak.current_streak < 1) return 0;
+  const daysSinceWorkout = calendarDaysBetween(today, streak.last_workout_date);
+  if (daysSinceWorkout >= 4) return 0;
+
+  const updatedDate = streak.updated_at?.slice(0, 10) ?? streak.last_workout_date;
+  const baselineDate = updatedDate > streak.last_workout_date
+    ? updatedDate
+    : streak.last_workout_date;
+  return streak.current_streak + Math.max(0, calendarDaysBetween(today, baselineDate));
+}
+
 function workoutVolume(sets: { kg: number; reps: number; set_type: string }[]): number {
   return sets
     .filter((s) => s.set_type !== "warmup")
@@ -113,7 +134,7 @@ async function computeSignal(
   const [{ data: streak }, { data: workouts }] = await Promise.all([
     admin
       .from("user_streaks")
-      .select("current_streak, last_workout_date")
+      .select("current_streak, last_workout_date, updated_at")
       .eq("user_id", userId)
       .maybeSingle(),
     admin
@@ -127,6 +148,7 @@ async function computeSignal(
 
   const loggedToday = (workouts ?? []).some((w: any) => w.created_at.slice(0, 10) === today);
   const lastWorkoutAt = workouts && workouts.length > 0 ? new Date(workouts[0].created_at) : null;
+  const liveStreak = effectiveStreak(streak, today);
 
   // 1. Comeback — highest priority. Re-fires at most once a week while someone
   // stays inactive (not every 3 days, not silenced forever after the first nudge).
@@ -143,12 +165,12 @@ async function computeSignal(
 
   // 2. Streak risk — self-limiting (only fires while a streak is actually active
   // and nothing's logged today), so no extra cooldown needed beyond same-day dedupe.
-  if (streak?.current_streak && streak.current_streak >= 1 && !loggedToday) {
+  if (liveStreak >= 1 && !loggedToday) {
     const last = streak.last_workout_date ? new Date(streak.last_workout_date) : null;
     if (!last || last.toISOString().slice(0, 10) !== today) {
       return {
         subtype: "streak_risk",
-        facts: { current_streak: streak.current_streak },
+        facts: { current_streak: liveStreak },
       };
     }
   }
@@ -337,6 +359,23 @@ Deno.serve(async (req: Request) => {
   }
   if (!DEEPSEEK_API_KEY) {
     return new Response(JSON.stringify({ error: "Server misconfigured" }), { status: 500 });
+  }
+
+  // Streak ranks can change as calendar days elapse even without a new workout
+  // write, so refresh their snapshots during the existing daily sweep.
+  const { error: leaderboardRefreshError } = await admin.rpc(
+    "refresh_leaderboard_rankings",
+    { p_type: "streak", p_send_notifications: true },
+  );
+  if (leaderboardRefreshError) {
+    console.error("streak leaderboard refresh failed:", leaderboardRefreshError.message);
+  }
+  const { error: bestStreakRefreshError } = await admin.rpc(
+    "refresh_leaderboard_rankings",
+    { p_type: "streak_best", p_send_notifications: true },
+  );
+  if (bestStreakRefreshError) {
+    console.error("best streak leaderboard refresh failed:", bestStreakRefreshError.message);
   }
 
   const [{ data: users, error: usersErr }, { data: catalog }] = await Promise.all([
