@@ -63,6 +63,7 @@ interface ProfileSettingsState {
   showStreakOnLeaderboard: boolean;
   showRecoveryPercent: boolean;
   showRankLabels: boolean;
+  hasSeenLeaderboardInfo: boolean;
   labTrackers: LabTracker[];
   defaultWeightRange: TimeRange;
   defaultBodyFatMethod: BodyFatMethod;
@@ -72,6 +73,7 @@ interface ProfileSettingsState {
   setShowStreakOnLeaderboard: (value: boolean) => void;
   setShowRecoveryPercent: (value: boolean) => void;
   setShowRankLabels: (value: boolean) => void;
+  setHasSeenLeaderboardInfo: (value: boolean) => void;
   setLabTrackerEnabled: (id: string, enabled: boolean) => void;
   reorderLabTrackers: (trackers: LabTracker[]) => void;
   resetLabTrackers: () => void;
@@ -99,6 +101,7 @@ function persist(state: ProfileSettingsState) {
     showStreakOnLeaderboard: state.showStreakOnLeaderboard,
     showRecoveryPercent: state.showRecoveryPercent,
     showRankLabels: state.showRankLabels,
+    hasSeenLeaderboardInfo: state.hasSeenLeaderboardInfo,
     labTrackers: state.labTrackers,
     defaultWeightRange: state.defaultWeightRange,
     defaultBodyFatMethod: state.defaultBodyFatMethod,
@@ -111,6 +114,7 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
   showStreakOnLeaderboard: true,
   showRecoveryPercent: false,
   showRankLabels: true,
+  hasSeenLeaderboardInfo: false,
   labTrackers: DEFAULT_LAB_TRACKERS,
   defaultWeightRange: '1W' as TimeRange,
   defaultBodyFatMethod: 'tape' as BodyFatMethod,
@@ -134,6 +138,11 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
 
   setShowRankLabels: (value: boolean) => {
     set({ showRankLabels: value });
+    persist(get());
+  },
+
+  setHasSeenLeaderboardInfo: (value: boolean) => {
+    set({ hasSeenLeaderboardInfo: value });
     persist(get());
   },
 
@@ -179,6 +188,7 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
         showStreakOnLeaderboard: data.showStreakOnLeaderboard ?? true,
         showRecoveryPercent: data.showRecoveryPercent ?? true,
         showRankLabels: data.showRankLabels ?? true,
+        hasSeenLeaderboardInfo: data.hasSeenLeaderboardInfo ?? false,
         labTrackers: migrateTrackers(data.labTrackers ?? DEFAULT_LAB_TRACKERS),
         defaultWeightRange: data.defaultWeightRange ?? '1W',
         defaultBodyFatMethod: data.defaultBodyFatMethod ?? 'tape',
