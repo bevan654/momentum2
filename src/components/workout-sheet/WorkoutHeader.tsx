@@ -10,6 +10,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import RestPickerModal from './RestPickerModal';
 import DurationPickerModal from './DurationPickerModal';
+import { queueWorkoutFinishFeedback } from '../../services/workoutFinishFeedback';
 
 const FOUR_HOURS = 4 * 60 * 60; // 14400 seconds
 
@@ -90,11 +91,15 @@ function WorkoutHeader() {
     if (!userId) return;
     setFinishing(true);
     try {
-      const { error } = await finishWorkout(userId, durationOverride);
+      // Queue before the network write starts. If the historical hang recurs
+      // and the user force-restarts, the next launch can still ask about it.
+      await queueWorkoutFinishFeedback({ userId, workoutId: null });
+      const { error, workoutId } = await finishWorkout(userId, durationOverride);
       if (error) {
         Alert.alert('Error', error);
         return;
       }
+      await queueWorkoutFinishFeedback({ userId, workoutId: workoutId ?? null });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Refresh caches in background — don't block the UI
       Promise.all([

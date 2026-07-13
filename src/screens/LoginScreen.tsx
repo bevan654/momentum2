@@ -17,6 +17,7 @@ import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
+import SocialAuthButtons from '../components/auth/SocialAuthButtons';
 
 interface Props {
   navigation: any;
@@ -132,6 +133,8 @@ export default function LoginScreen({ navigation }: Props) {
           >
             <Text style={styles.buttonText}>{loading ? 'Signing in...' : 'Sign In'}</Text>
           </TouchableOpacity>
+
+          <SocialAuthButtons disabled={loading} />
         </View>
 
         {/* Footer */}

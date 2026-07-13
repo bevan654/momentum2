@@ -4,25 +4,75 @@ import type { User, Session } from '@supabase/supabase-js';
 import { cleanupNotifications } from '../services/notificationService';
 import { useWorkoutStore } from './useWorkoutStore';
 import { clearWorkout as clearStoredWorkout } from '../utils/workoutStorage';
+import { Linking } from 'react-native';
+
+type SocialProvider = 'google' | 'apple';
+
+const OAUTH_REDIRECT_URL = 'momentum://auth/callback';
+
+const socialProviderLabel = (provider: SocialProvider) =>
+  provider === 'google' ? 'Google' : 'Apple';
+
+function getSocialAuthErrorMessage(
+  provider: SocialProvider,
+  code: string | null | undefined,
+  fallback?: string | null,
+): string {
+  const label = socialProviderLabel(provider);
+  switch (code) {
+    case 'email_exists':
+    case 'user_already_exists':
+    case 'identity_already_exists':
+      return `An account already exists for this email and could not be safely linked to ${label}. Sign in using the method you originally used.`;
+    case 'provider_email_needs_verification':
+      return `${label} did not provide a verified email. Verify your email with ${label}, then try again.`;
+    case 'flow_state_expired':
+    case 'flow_state_not_found':
+      return 'This sign-in attempt expired. Please try again.';
+    case 'provider_disabled':
+    case 'oauth_provider_not_supported':
+      return `${label} sign in is not enabled yet.`;
+    default:
+      return fallback || `${label} sign in failed. Please try again.`;
+  }
+}
+
+function waitForOAuthCallback(): Promise<string | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (url: string | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      subscription.remove();
+      resolve(url);
+    };
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (url.startsWith(OAUTH_REDIRECT_URL)) finish(url);
+    });
+    const timeout = setTimeout(() => finish(null), 5 * 60 * 1000);
+  });
+}
 
 /** Module-level ref so we can unsubscribe on signOut */
 let _authSubscription: { unsubscribe: () => void } | null = null;
 
 /**
- * After a verified sign-in, create the profile + default goal rows from the
- * username stashed in user_metadata during signup. Idempotent: only runs once
- * per user (skips when the profile already has a username).
+ * After a verified sign-in, create the profile + default goal rows. Password
+ * sign-up supplies its username through metadata; social users intentionally
+ * start without one so onboarding can ask them to choose it. Idempotent: skips
+ * users whose profile is already ready.
  */
 async function ensureProfileFromMetadata(user: User): Promise<void> {
-  const username = (user.user_metadata as Record<string, any> | null)?.username;
-  if (!username) return;
-
+  const metadata = user.user_metadata as Record<string, any> | null;
   const { data: existing } = await supabase
     .from('profiles')
     .select('username')
     .eq('id', user.id)
     .maybeSingle();
   if (existing?.username) return;
+
+  const username = metadata?.username ?? null;
 
   await supabase.from('profiles').upsert(
     { id: user.id, email: user.email, username },
@@ -73,6 +123,7 @@ interface AuthState {
   verifyOtp: (email: string, token: string) => Promise<{ error: string | null }>;
   resendOtp: (email: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithSocial: (provider: SocialProvider) => Promise<{ error: string | null; cancelled?: boolean }>;
   signOut: () => Promise<void>;
   deleteAccount: (password: string) => Promise<{ error: string | null }>;
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
@@ -96,6 +147,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         set({ user: session.user, session });
+        await ensureProfileFromMetadata(session.user);
         await get().fetchProfile(session.user.id);
       }
     } finally {
@@ -108,7 +160,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       _authSubscription = null;
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const { _pendingWelcome } = get();
       if (session?.user && _pendingWelcome) {
         set({ user: session.user, session, showWelcome: true, _pendingWelcome: false });
@@ -116,8 +168,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: session?.user ?? null, session });
       }
       if (session?.user) {
-        await ensureProfileFromMetadata(session.user);
-        await get().fetchProfile(session.user.id);
+        // Supabase warns against awaiting other auth/database calls inside this
+        // callback because the originating auth operation may still hold its
+        // internal lock. Defer profile bootstrap until the callback has returned.
+        const user = session.user;
+        setTimeout(() => {
+          void (async () => {
+            await ensureProfileFromMetadata(user);
+            await get().fetchProfile(user.id);
+          })();
+        }, 0);
       } else {
         set({ profile: null, showWelcome: false });
       }
@@ -255,6 +315,71 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { error: error.message };
       }
       return { error: null };
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  signInWithSocial: async (provider) => {
+    set({ loading: true, _pendingWelcome: true });
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: OAUTH_REDIRECT_URL,
+          skipBrowserRedirect: true,
+        },
+      });
+      if (error || !data.url) {
+        set({ _pendingWelcome: false });
+        return {
+          error: getSocialAuthErrorMessage(provider, error?.code, error?.message),
+        };
+      }
+
+      const callbackPromise = waitForOAuthCallback();
+      await Linking.openURL(data.url);
+      const callbackUrl = await callbackPromise;
+      if (!callbackUrl) {
+        set({ _pendingWelcome: false });
+        return { error: null, cancelled: true };
+      }
+
+      const callbackParams = new URLSearchParams(
+        callbackUrl.includes('#')
+          ? callbackUrl.split('#')[1]
+          : callbackUrl.split('?')[1] ?? '',
+      );
+      const callbackErrorCode = callbackParams.get('error_code') ?? callbackParams.get('error');
+      const callbackError = callbackParams.get('error_description');
+      if (callbackErrorCode || callbackError) {
+        set({ _pendingWelcome: false });
+        return {
+          error: getSocialAuthErrorMessage(provider, callbackErrorCode, callbackError),
+        };
+      }
+
+      const accessToken = callbackParams.get('access_token');
+      const refreshToken = callbackParams.get('refresh_token');
+      if (!accessToken || !refreshToken) {
+        set({ _pendingWelcome: false });
+        return { error: 'The provider did not return a valid session.' };
+      }
+
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (sessionError) {
+        set({ _pendingWelcome: false });
+        return {
+          error: getSocialAuthErrorMessage(provider, sessionError.code, sessionError.message),
+        };
+      }
+      return { error: null };
+    } catch (error) {
+      set({ _pendingWelcome: false });
+      return { error: error instanceof Error ? error.message : 'Social sign in failed.' };
     } finally {
       set({ loading: false });
     }
