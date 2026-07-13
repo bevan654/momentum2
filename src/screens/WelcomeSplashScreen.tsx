@@ -26,6 +26,7 @@ import { useProgramStore } from '../stores/useProgramStore';
 import { useRoutineStore } from '../stores/useRoutineStore';
 
 const MIN_SPLASH_MS = 2500;
+const MAX_PRELOAD_MS = 8000;
 
 export default function WelcomeSplashScreen() {
   const insets = useSafeAreaInsets();
@@ -97,8 +98,15 @@ export default function WelcomeSplashScreen() {
         ])
       : Promise.resolve();
 
-    // Dismiss only once both the animation and data are ready
-    Promise.all([minTimer, dataLoad]).then(() => {
+    // Never let a stalled data request trap the user on auth. Preloading is an
+    // optimization; individual screens can finish/retry their own requests.
+    const boundedDataLoad = Promise.race([
+      dataLoad,
+      new Promise<void>((resolve) => setTimeout(resolve, MAX_PRELOAD_MS)),
+    ]);
+
+    // Dismiss once the minimum animation and bounded preload are both done.
+    Promise.all([minTimer, boundedDataLoad]).then(() => {
       if (!dismissed.current) {
         dismissed.current = true;
         dismissWelcome();

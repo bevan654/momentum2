@@ -25,8 +25,14 @@ import { sw, ms } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useFoodLogStore } from '../stores/useFoodLogStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
+import { supabase } from '../lib/supabase';
 
 const TOTAL_STEPS = 2;
+const USERNAME_MIN = 3;
+const USERNAME_MAX = 10;
+const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
+
+type UsernameStatus = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid';
 
 const STEP_CONFIG = [
   { title: 'Tell us about yourself', subtitle: 'We use this to personalise your experience' },
@@ -119,6 +125,11 @@ export default function OnboardingScreen() {
   const [creatine, setCreatine] = useState('5');
   const [goalWeight, setGoalWeight] = useState('');
   const [activity, setActivity] = useState<ActivityKey | null>(null);
+  const [username, setUsername] = useState(profile?.username ?? '');
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>(
+    profile?.username ? 'ok' : 'idle',
+  );
+  const needsUsername = profile?.username == null;
 
   // Tracks whether user has manually edited macros — if not, we auto-fill from TDEE
   const macrosTouched = useRef(false);
@@ -128,6 +139,54 @@ export default function OnboardingScreen() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
+
+  useEffect(() => {
+    if (!needsUsername) return;
+    const trimmed = username.trim();
+    if (trimmed.length === 0) {
+      setUsernameStatus('idle');
+      return;
+    }
+    if (
+      trimmed.length < USERNAME_MIN ||
+      trimmed.length > USERNAME_MAX ||
+      !USERNAME_REGEX.test(trimmed)
+    ) {
+      setUsernameStatus('invalid');
+      return;
+    }
+
+    setUsernameStatus('checking');
+    const handle = setTimeout(async () => {
+      const { data, error } = await supabase.rpc('username_or_email_taken', {
+        p_username: trimmed,
+        p_email: '',
+      });
+      if (error) {
+        setUsernameStatus('idle');
+        return;
+      }
+      const row = Array.isArray(data) ? data[0] : data;
+      setUsernameStatus(row?.username_taken ? 'taken' : 'ok');
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [needsUsername, username]);
+
+  const onUsernameChange = (value: string) => {
+    setUsername(value.replace(/\s/g, '').slice(0, USERNAME_MAX));
+  };
+
+  const usernameHint = useMemo(() => {
+    if (!needsUsername || username.length === 0) return null;
+    if (usernameStatus === 'checking') return 'Checking availability…';
+    if (usernameStatus === 'taken') return 'Username is already taken';
+    if (usernameStatus === 'ok') return 'Username available';
+    if (username.length < USERNAME_MIN) {
+      const remaining = USERNAME_MIN - username.length;
+      return `${remaining} more character${remaining === 1 ? '' : 's'} needed`;
+    }
+    return 'Letters, numbers, and underscores only';
+  }, [needsUsername, username, usernameStatus]);
 
   // Animation values
   const progressAnim = useSharedValue(1 / TOTAL_STEPS);
@@ -199,6 +258,7 @@ export default function OnboardingScreen() {
   const canContinue = useMemo(() => {
     switch (step) {
       case 1: {
+        if (needsUsername && usernameStatus !== 'ok') return false;
         if (gender === null) return false;
         if (activity === null) return false;
         const a = Number(age);
@@ -227,13 +287,14 @@ export default function OnboardingScreen() {
       default:
         return false;
     }
-  }, [step, gender, activity, age, height, weight, calories, protein, carbs, fat, water, creatine, goalWeight]);
+  }, [step, needsUsername, usernameStatus, gender, activity, age, height, weight, calories, protein, carbs, fat, water, creatine, goalWeight]);
 
   const handleFinish = useCallback(async () => {
     if (!profile || saving) return;
     setSaving(true);
     try {
       await updateProfile({
+        ...(needsUsername ? { username: username.trim() } : {}),
         gender: gender!,
         age: Number(age),
         height: Number(height),
@@ -254,7 +315,7 @@ export default function OnboardingScreen() {
       setSaving(false);
     }
   }, [
-    profile, saving, gender, age, height, weight,
+    profile, saving, needsUsername, username, gender, age, height, weight,
     calories, protein, carbs, fat,
     water, creatine, goalWeight,
     updateProfile, updateGoals, updateSupplementGoals,
@@ -265,6 +326,48 @@ export default function OnboardingScreen() {
       case 1:
         return (
           <View style={styles.detailsStack}>
+            {needsUsername && (
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Username</Text>
+                <View style={styles.usernameInputWrap}>
+                  <Ionicons name="person-outline" size={ms(20)} color={colors.textTertiary} />
+                  <TextInput
+                    style={styles.usernameInput}
+                    placeholder={`Choose a username (${USERNAME_MIN}–${USERNAME_MAX})`}
+                    placeholderTextColor={colors.textTertiary}
+                    value={username}
+                    onChangeText={onUsernameChange}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="username"
+                    maxLength={USERNAME_MAX}
+                  />
+                  {usernameStatus === 'checking' && (
+                    <Ionicons name="ellipsis-horizontal" size={ms(18)} color={colors.textTertiary} />
+                  )}
+                  {usernameStatus === 'ok' && (
+                    <Ionicons name="checkmark-circle" size={ms(18)} color={colors.accent} />
+                  )}
+                  {(usernameStatus === 'taken' || usernameStatus === 'invalid') && (
+                    <Ionicons name="close-circle" size={ms(18)} color={colors.accentRed} />
+                  )}
+                </View>
+                {usernameHint && (
+                  <Text
+                    style={[
+                      styles.usernameHint,
+                      usernameStatus === 'ok' && { color: colors.accent },
+                      (usernameStatus === 'taken' || usernameStatus === 'invalid') && {
+                        color: colors.accentRed,
+                      },
+                    ]}
+                  >
+                    {usernameHint}
+                  </Text>
+                )}
+              </View>
+            )}
+
             {/* Gender */}
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Gender</Text>
@@ -683,6 +786,31 @@ const createStyles = (colors: ThemeColors) =>
     },
     inputFlex: {
       flex: 1,
+    },
+    usernameInputWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(12),
+      backgroundColor: colors.card,
+      borderRadius: sw(12),
+      paddingHorizontal: sw(14),
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    usernameInput: {
+      flex: 1,
+      paddingVertical: sw(14),
+      color: colors.textPrimary,
+      fontSize: ms(16),
+      lineHeight: ms(22),
+      fontFamily: Fonts.medium,
+    },
+    usernameHint: {
+      color: colors.textTertiary,
+      fontSize: ms(12),
+      lineHeight: ms(16),
+      fontFamily: Fonts.medium,
+      marginLeft: sw(4),
     },
     inputWithUnit: {
       flexDirection: 'row',

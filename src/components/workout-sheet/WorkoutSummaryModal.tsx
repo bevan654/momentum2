@@ -891,6 +891,7 @@ export default function WorkoutSummaryModal(props: Props) {
     }).catch(() => {});
     // Dismiss immediately — feed insert is fire-and-forget
     onDismiss();
+
   }, [shareSubmitting, commitFeedPost, shareVisibility, shareTitle, shareCaption, onDismiss]);
 
   // Confirm before exiting the just-completed summary without sharing.

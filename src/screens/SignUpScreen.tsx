@@ -19,6 +19,7 @@ import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
 import { supabase } from '../lib/supabase';
+import SocialAuthButtons from '../components/auth/SocialAuthButtons';
 
 const USERNAME_MAX = 10;
 const USERNAME_MIN = 3;
@@ -370,6 +371,8 @@ export default function SignUpScreen({ navigation }: Props) {
               {loading ? 'Creating account...' : 'Create Account'}
             </Text>
           </TouchableOpacity>
+
+          <SocialAuthButtons disabled={loading} />
 
           <Text style={styles.legal}>
             By creating an account, you agree to our{' '}

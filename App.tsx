@@ -28,6 +28,7 @@ import ChangelogModal from './src/components/home/ChangelogModal';
 import BetaWelcomeModal from './src/components/home/BetaWelcomeModal';
 import { Fonts } from './src/theme/typography';
 import { getThemeColors } from './src/theme/useColors';
+import WorkoutFinishFeedbackPrompt from './src/components/workout-sheet/WorkoutFinishFeedbackPrompt';
 
 // Foreground handler — show notifications as banners
 Notifications.setNotificationHandler({
@@ -78,6 +79,7 @@ function App() {
   const { session, profile, initialized, initialize, showWelcome } = useAuthStore();
   const mode = useThemeStore((s) => s.mode);
   const accentColor = useThemeStore((s) => s.accent);
+  const hasUnseenChangelog = useChangelogStore((s) => s.hasUnseen);
   const themeReady = useThemeStore((s) => s.initialized);
   const [betaDismissed, setBetaDismissed] = useState(false);
 
@@ -154,12 +156,14 @@ function App() {
                 ? <View style={[styles.loading, { backgroundColor: colors.background }]}>
                     <ActivityIndicator size="large" color={colors.accent} />
                   </View>
-                : (profile.height != null
+                : (profile.username != null
+                    && profile.height != null
                     && profile.age != null
                     && profile.gender != null
                     && profile.starting_weight != null
                   ? <>
                       <TabNavigator />
+                      <WorkoutFinishFeedbackPrompt enabled={betaDismissed && !hasUnseenChangelog} />
                       <BetaWelcomeModal onDismiss={() => setBetaDismissed(true)} />
                       {betaDismissed && <ChangelogModal />}
                     </>
