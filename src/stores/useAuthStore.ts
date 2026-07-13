@@ -1,14 +1,69 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
+import { rebuildClient, supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import { cleanupNotifications } from '../services/notificationService';
 import { useWorkoutStore } from './useWorkoutStore';
 import { clearWorkout as clearStoredWorkout } from '../utils/workoutStorage';
-import { Linking } from 'react-native';
+import { AppState, Linking } from 'react-native';
 
 type SocialProvider = 'google' | 'apple';
 
 const OAUTH_REDIRECT_URL = 'momentum://auth/callback';
+
+const isFetchCancelledError = (error: unknown): boolean =>
+  error instanceof Error && /fetch cancel(?:l)?ed/i.test(error.message);
+
+/**
+ * iOS can deliver the OAuth deep link while the app is still transitioning
+ * from Safari through `inactive` to `active`. A native `expo/fetch` started in
+ * that window is cancelled by the OS, so wait for the app to finish resuming
+ * before Supabase validates and persists the returned session.
+ */
+function waitForAppActive(): Promise<void> {
+  if (AppState.currentState === 'active') return Promise.resolve();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      subscription.remove();
+      resolve();
+    };
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') finish();
+    });
+    // The app should become active almost immediately after the deep link. Do
+    // not leave the auth UI hanging indefinitely if iOS misses the event.
+    const timeout = setTimeout(finish, 5_000);
+  });
+}
+
+async function setOAuthSession(accessToken: string, refreshToken: string) {
+  await waitForAppActive();
+
+  try {
+    const result = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (!result.error || !isFetchCancelledError(result.error)) return result;
+  } catch (error) {
+    if (!isFetchCancelledError(error)) throw error;
+  }
+
+  // A request that began during the Safari -> app transition can leave the
+  // native fetch task/client lock in a cancelled state. Rebuild once and retry
+  // with the same valid OAuth tokens after the app is fully active.
+  rebuildClient();
+  await waitForAppActive();
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  return supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+}
 
 const socialProviderLabel = (provider: SocialProvider) =>
   provider === 'google' ? 'Google' : 'Apple';
@@ -366,10 +421,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { error: 'The provider did not return a valid session.' };
       }
 
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
+      const { error: sessionError } = await setOAuthSession(accessToken, refreshToken);
       if (sessionError) {
         set({ _pendingWelcome: false });
         return {
