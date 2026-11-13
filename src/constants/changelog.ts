@@ -16,6 +16,19 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.42',
+    date: '2026-11-14',
+    title: "What's New",
+    items: [
+      'Progressive overload chart on every exercise — see your last 8 sessions of volume, with the days you beat your previous session lit up',
+      "Today's bar fills as you log sets toward last session's volume, with a little celebration when you beat it",
+      'A target line shows the steady overload pace to aim for over time',
+      "Exercise notes are tucked behind a note icon so they're out of the way until you need them",
+      'Prefer compact cards? Turn charts off in Settings → Workouts',
+    ],
+    cta: { label: 'Start a workout', target: 'Workouts' },
+  },
+  {
     version: '1.0.39',
     date: '2026-07-08',
     title: "What's New",
