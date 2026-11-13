@@ -605,8 +605,6 @@ const SheetOverlay = React.memo(function SheetOverlay({
 
         <WorkoutHeader />
 
-        {/* Self-contained: reads from store, never causes SheetOverlay re-render */}
-
         {/* Ghost mode: exercise win/loss tally */}
         <GhostTally exercises={exercises} />
 

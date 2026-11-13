@@ -1314,10 +1314,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Rest timer ────────────────────────────────────
 
   setRestDuration: (seconds) => {
+    // While resting, restDuration is re-anchored to the remaining time, so the
+    // delta must come from the previous preference, not restDuration.
+    const prevPreferred = _preferredRestDuration;
     _preferredRestDuration = seconds;
     saveRestPreference(seconds);
 
-    const { isResting, restDuration: prevDuration, restRemaining: prevRemaining } = get();
+    const { isResting, restRemaining: prevRemaining, restTotal: prevTotal } = get();
     if (!isResting) {
       set({ restDuration: seconds });
       get()._persist();
@@ -1325,7 +1328,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     }
 
     // Apply the change to the running timer by the same delta.
-    const delta = seconds - prevDuration;
+    const delta = seconds - prevPreferred;
     const newRemaining = prevRemaining + delta;
 
     if (newRemaining <= 0) {
@@ -1339,7 +1342,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     set({
       restDuration: newRemaining,
       restRemaining: newRemaining,
-      restTotal: seconds,
+      restTotal: Math.max(prevTotal + delta, newRemaining),
       restStartedAt: Date.now(),
     });
     _scheduleRestNotification(newRemaining);
