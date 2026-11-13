@@ -7,12 +7,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
-
-function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
+import { formatClock } from '../../utils/formatDuration';
 
 export default function FloatingWorkoutBanner() {
   const colors = useColors();
@@ -60,7 +55,7 @@ export default function FloatingWorkoutBanner() {
         <View style={styles.pulse} />
         <Ionicons name="barbell-outline" size={ms(16)} color={colors.textOnAccent} />
         <Text style={styles.text}>Workout in Progress</Text>
-        <Text style={styles.timer}>{formatElapsed(elapsedSeconds)}</Text>
+        <Text style={styles.timer}>{formatClock(elapsedSeconds)}</Text>
         <Ionicons name="chevron-up" size={ms(16)} color={colors.textOnAccent} />
       </TouchableOpacity>
     </Animated.View>

@@ -33,7 +33,6 @@ import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
 import type { ActiveExercise } from '../../stores/useActiveWorkoutStore';
 import WorkoutHeader from './WorkoutHeader';
-import RestTimerBar from './RestTimerBar';
 import ExerciseCard from './ExerciseCard';
 import ExercisePicker from './ExercisePicker';
 import ExerciseHistoryModal from './ExerciseHistoryModal';
@@ -288,7 +287,7 @@ const GhostSetsCard = React.memo(function GhostSetsCard({
    animation, no mount/unmount, no Modal overhead.
 
    Architecture notes for FPS:
-   - RestTimerBar is self-contained (reads from store, not props)
+   - RestInlineRow (inside ExerciseCard) is self-contained (reads from store, not props)
      so SheetOverlay never re-renders from rest-timer ticks.
    - WorkoutHeader is React.memo'd — timer tick re-renders
      only WorkoutHeader, not the whole sheet.
@@ -382,7 +381,7 @@ export default function ActiveWorkoutSheet() {
    parent don't trigger re-animation of the sheet itself.
 
    KEY OPTIMIZATION: This component does NOT subscribe to
-   isResting / restRemaining / restDuration. RestTimerBar
+   isResting / restRemaining / restDuration. RestInlineRow
    is self-contained and reads those from the store directly.
    This means rest-timer ticks (every 1s) NEVER cause
    SheetOverlay to re-render.
@@ -607,7 +606,6 @@ const SheetOverlay = React.memo(function SheetOverlay({
         <WorkoutHeader />
 
         {/* Self-contained: reads from store, never causes SheetOverlay re-render */}
-        <RestTimerBar />
 
         {/* Ghost mode: exercise win/loss tally */}
         <GhostTally exercises={exercises} />

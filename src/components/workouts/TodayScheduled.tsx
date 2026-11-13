@@ -133,6 +133,7 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
               onPress={() => {
                 const pseudoRoutine = {
                   id: `program-${activeProgram.id}-day-${programToday.day_of_week}`,
+                  name: programToday.label || activeProgram.name,
                   exercises: programToday.exercises.map((e: ProgramDayExercise) => ({
                     name: e.name,
                     default_sets: e.default_sets,

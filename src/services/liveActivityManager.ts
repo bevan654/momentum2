@@ -10,6 +10,7 @@
 
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { formatClock } from '../utils/formatDuration';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -41,22 +42,13 @@ let _lastBody = '';
 
 // ── Helpers ────────────────────────────────────────────────
 
-function formatElapsed(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-}
-
 // ── Notification content ──────────────────────────────────
 
 function buildNotifContent(snapshot: WorkoutActivitySnapshot): {
   title: string;
   body: string;
 } {
-  const elapsed = formatElapsed(Date.now() - snapshot.startTime);
+  const elapsed = formatClock((Date.now() - snapshot.startTime) / 1000);
 
   const title = `Workout Active \u00b7 ${elapsed}`;
   let body = '';

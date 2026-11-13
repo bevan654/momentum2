@@ -6,7 +6,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 
-export interface ExerciseAction {
+export interface ActionSheetItem {
   key: string;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -18,12 +18,12 @@ export interface ExerciseAction {
 interface Props {
   visible: boolean;
   title: string;
-  actions: ExerciseAction[];
+  actions: ActionSheetItem[];
   onClose: () => void;
 }
 
-/** Bottom action sheet for an exercise card's "⋯" menu. */
-function ExerciseActionsSheet({ visible, title, actions, onClose }: Props) {
+/** Bottom action sheet for "⋯" menus (exercise cards, workout header). */
+function ActionSheet({ visible, title, actions, onClose }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -78,7 +78,7 @@ function ExerciseActionsSheet({ visible, title, actions, onClose }: Props) {
   );
 }
 
-export default React.memo(ExerciseActionsSheet);
+export default React.memo(ActionSheet);
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
