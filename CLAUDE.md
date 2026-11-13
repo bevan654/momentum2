@@ -38,7 +38,7 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
 /
 ├── App.tsx                    # Font load, auth gate, theme bootstrap, nav root
 ├── app.config.ts              # Expo config (bundle IDs, plugins, EAS)
-├── database-schema.md         # Postgres schema reference (some tables missing — see below)
+├── database-schema.md         # Postgres schema reference (all public tables, generated from the live schema)
 ├── docs/                      # Plans, audits, security review
 ├── scripts/                   # Dev/ops scripts (build stamping, imports, seeding, notifications)
 │
