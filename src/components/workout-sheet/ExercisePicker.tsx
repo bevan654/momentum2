@@ -31,6 +31,8 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
+import { aliasesByCanonical } from '../../utils/exerciseCatalog';
+import { scoreWithAliases } from './exerciseSearch';
 import { getMuscleColor, toCanonical, CANONICAL_TO_UI_CATEGORY, UI_CATEGORY_COLORS } from '../../constants/muscles';
 
 /* ─── Muscle color (derived from muscles.ts) ─────────── */
@@ -103,176 +105,16 @@ const SEARCH_DEBOUNCE_MS = 150;
 /** Delay before mounting heavy list content (ms).
  *  Lets the spring animation run uncontested on the UI thread. */
 const CONTENT_DEFER_MS = 180;
-const LEADERBOARD_EXERCISE_NAMES = [
-  'bench press',
-  'barbell back squat',
-  'conventional deadlift',
-] as const;
+/** Lifts pinned at the top of the picker (the leaderboard lifts). Matched by catalog id, which survives
+ *  catalog renames, with the current and previous names as a fallback. */
+const LEADERBOARD_LIFTS: { catalogId: string; names: string[] }[] = [
+  { catalogId: '9d6c70f6-9761-4b1b-bdfb-44e6042bbbdf', names: ['barbell bench press', 'bench press'] },
+  { catalogId: '6d6f46ec-ea92-4f38-9baa-d42975f1a706', names: ['barbell back squat'] },
+  { catalogId: '4f9a3d91-42e1-4b46-a907-1c68db1fb201', names: ['barbell deadlift', 'conventional deadlift'] },
+];
 
 const SNAP_SPRING = { damping: 24, stiffness: 350, mass: 0.7 };
 const CLOSE_CFG = { duration: 250, easing: Easing.in(Easing.cubic) };
-
-/* ── Smart search engine ──────────────────────────────── */
-
-const TOKEN_ALIASES: Record<string, string[]> = {
-  db: ['dumbbell'],
-  bb: ['barbell'],
-  ez: ['ez-bar', 'ez bar'],
-  kb: ['kettlebell'],
-  sm: ['smith', 'smith machine'],
-  bp: ['bench press'],
-  ohp: ['overhead press'],
-  rdl: ['romanian deadlift'],
-  dl: ['deadlift'],
-  sq: ['squat'],
-  lp: ['leg press'],
-  bench: ['bench press'],
-  squat: ['squats', 'back squat', 'front squat', 'goblet squat'],
-  deadlift: ['deadlifts', 'dead lift'],
-  press: ['bench press', 'overhead press', 'shoulder press', 'leg press'],
-  row: ['rows', 'barbell row', 'dumbbell row', 'cable row', 'seated row', 'bent over row'],
-  curl: ['curls', 'bicep curl', 'hammer curl', 'preacher curl'],
-  fly: ['flys', 'flies', 'flyes', 'chest fly', 'cable fly', 'pec fly'],
-  raise: ['raises', 'lateral raise', 'front raise', 'calf raise'],
-  extension: ['extensions', 'tricep extension', 'leg extension'],
-  pulldown: ['lat pulldown', 'lat pull down', 'pull down'],
-  pullup: ['pull up', 'pull-up', 'pullups', 'pull ups', 'chin up', 'chinup'],
-  pushup: ['push up', 'push-up', 'pushups', 'push ups'],
-  dip: ['dips', 'chest dip', 'tricep dip'],
-  shrug: ['shrugs', 'barbell shrug', 'dumbbell shrug'],
-  crunch: ['crunches', 'ab crunch'],
-  plank: ['planks'],
-  lunge: ['lunges', 'walking lunge', 'reverse lunge'],
-  incl: ['incline'],
-  decl: ['decline'],
-  rev: ['reverse'],
-  chest: ['bench press', 'fly', 'pec', 'push up'],
-  back: ['row', 'pulldown', 'pull up', 'lat'],
-  shoulders: ['overhead press', 'lateral raise', 'front raise', 'delt', 'shoulder'],
-  biceps: ['bicep curl', 'hammer curl', 'preacher curl', 'curl'],
-  triceps: ['tricep extension', 'pushdown', 'dip', 'skull crusher', 'tricep'],
-  quads: ['squat', 'leg press', 'leg extension', 'lunge'],
-  hamstrings: ['romanian deadlift', 'leg curl', 'hamstring'],
-  glutes: ['hip thrust', 'glute bridge', 'squat', 'lunge'],
-  calves: ['calf raise', 'calf'],
-  abs: ['crunch', 'plank', 'sit up', 'ab', 'core'],
-  traps: ['shrug', 'trap'],
-  forearms: ['wrist curl', 'forearm'],
-  lats: ['lat pulldown', 'pull up', 'lat'],
-};
-
-let _expandMap: Record<string, Set<string>> | null = null;
-function getExpandMap(): Record<string, Set<string>> {
-  if (_expandMap) return _expandMap;
-  _expandMap = {};
-  for (const [key, vals] of Object.entries(TOKEN_ALIASES)) {
-    if (!_expandMap[key]) _expandMap[key] = new Set();
-    for (const v of vals) {
-      _expandMap[key].add(v);
-      if (!_expandMap[v]) _expandMap[v] = new Set();
-      _expandMap[v].add(key);
-    }
-  }
-  return _expandMap;
-}
-
-function expandToken(token: string): string[] {
-  const map = getExpandMap();
-  const out = [token];
-  const mapped = map[token];
-  if (mapped) {
-    for (const m of mapped) out.push(m);
-  }
-  for (const key of Object.keys(map)) {
-    if (key.length >= 3 && key.startsWith(token) && key !== token) {
-      out.push(key);
-      for (const m of map[key]) out.push(m);
-    }
-  }
-  return out;
-}
-
-function levenshtein(a: string, b: string, maxDist: number): number {
-  if (Math.abs(a.length - b.length) > maxDist) return Infinity;
-  const m = a.length;
-  const n = b.length;
-  let prev = Array.from({ length: n + 1 }, (_, i) => i);
-  let curr = new Array(n + 1);
-  for (let i = 1; i <= m; i++) {
-    curr[0] = i;
-    let rowMin = i;
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
-      if (curr[j] < rowMin) rowMin = curr[j];
-    }
-    if (rowMin > maxDist) return Infinity;
-    [prev, curr] = [curr, prev];
-  }
-  return prev[n];
-}
-
-function wordScore(qw: string, nw: string): number {
-  if (nw === qw) return 10;
-  if (nw.startsWith(qw)) return 8;
-  if (nw.includes(qw) && qw.length >= 2) return 5;
-  const maxTypo = qw.length <= 4 ? 1 : 2;
-  const dist = levenshtein(qw, nw.slice(0, qw.length + maxTypo), maxTypo);
-  if (dist <= maxTypo) return 6 - dist * 2;
-  return 0;
-}
-
-interface ExerciseData {
-  name: string;
-  category: string | null;
-  primary_muscles: string[];
-  secondary_muscles: string[];
-}
-
-function scoreExercise(ex: ExerciseData, query: string): number {
-  const lower = ex.name.toLowerCase();
-
-  if (lower === query) return 200;
-  if (lower.startsWith(query)) return 150;
-  if (lower.includes(query)) return 120;
-
-  const queryWords = query.split(/[\s\-]+/).filter(Boolean);
-  const nameWords = lower.split(/[\s\-]+/);
-  const muscleWords = [
-    ...(ex.primary_muscles || []).flatMap((m) => m.toLowerCase().split(/[\s\-]+/)),
-    ...(ex.secondary_muscles || []).flatMap((m) => m.toLowerCase().split(/[\s\-]+/)),
-  ];
-  const catWords = ex.category ? ex.category.toLowerCase().split(/[\s\-]+/) : [];
-  const allTargetWords = [...nameWords, ...muscleWords, ...catWords];
-
-  let totalScore = 0;
-  let matchedQueryWords = 0;
-
-  for (const qw of queryWords) {
-    const expanded = expandToken(qw);
-    let bestWordScore = 0;
-
-    for (const eq of expanded) {
-      const eqTokens = eq.split(/[\s\-]+/);
-      for (const et of eqTokens) {
-        for (const nw of allTargetWords) {
-          const s = wordScore(et, nw);
-          const isName = nameWords.includes(nw);
-          const adjusted = isName ? s : Math.ceil(s * 0.7);
-          if (adjusted > bestWordScore) bestWordScore = adjusted;
-        }
-      }
-    }
-
-    if (bestWordScore > 0) matchedQueryWords++;
-    totalScore += bestWordScore;
-  }
-
-  if (matchedQueryWords < queryWords.length) return 0;
-
-  const precisionBonus = (matchedQueryWords / queryWords.length) * 10;
-  return totalScore + precisionBonus;
-}
 
 function titleCase(str: string): string {
   return str.replace(/\b\w/g, (c) => c.toUpperCase());
@@ -305,6 +147,9 @@ interface CatalogEntry {
   primary_muscles: string[];
   secondary_muscles: string[];
   done: boolean;
+  catalog_id?: string;
+  /** Other names that find this exercise in search (old catalog names, imported names). */
+  aliases?: string[];
 }
 
 let _sortedCache: CatalogEntry[] | null = null;
@@ -328,8 +173,10 @@ function getCachedSorted(
   _sortedCatalogRef = catalogMap;
   _sortedAliasRef = aliasMap;
   _sortedPrevRef = prevMap;
+  const aliases = aliasesByCanonical(aliasMap);
+  // Alias names and hidden rows stay in catalogMap so history still resolves, but aren't offered.
   _sortedCache = Object.entries(catalogMap)
-    .filter(([name]) => !aliasMap[name])
+    .filter(([name, entry]) => !aliasMap[name] && !entry.is_hidden)
     .map(([name, entry]: [string, any]) => ({
       name,
       category: entry.category,
@@ -337,6 +184,8 @@ function getCachedSorted(
       primary_muscles: entry.primary_muscles || [],
       secondary_muscles: entry.secondary_muscles || [],
       done: !!prevMap[name],
+      catalog_id: entry.catalog_id,
+      aliases: aliases[name] || [],
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
   return _sortedCache;
@@ -573,7 +422,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     const scored = sortedEntries
       .map((e) => ({
         ...e,
-        score: scoreExercise(e, q) + (e.done ? 10 : 0),
+        score: scoreWithAliases(e, e.aliases || [], q) + (e.done ? 10 : 0),
       }))
       .filter((e) => e.score > 0);
     scored.sort((a, b) => b.score - a.score);
@@ -594,15 +443,20 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     }
 
     const byLowerName = new Map(baseSorted.map((entry) => [entry.name.toLowerCase(), entry]));
-    const leaderboardNames = new Set<string>(LEADERBOARD_EXERCISE_NAMES);
-    const leaderboard = LEADERBOARD_EXERCISE_NAMES
-      .map((name) => byLowerName.get(name))
+    const byCatalogId = new Map(
+      baseSorted.filter((entry) => entry.catalog_id).map((entry) => [entry.catalog_id, entry]),
+    );
+    const leaderboard = LEADERBOARD_LIFTS
+      .map((lift) => byCatalogId.get(lift.catalogId)
+        ?? lift.names.map((name) => byLowerName.get(name)).find((entry) => entry !== undefined))
       .filter((entry): entry is CatalogEntry => entry !== undefined);
+    const leaderboardNames = new Set<string>(leaderboard.map((entry) => entry.name.toLowerCase()));
 
     const recent: CatalogEntry[] = [];
     const recentNames = new Set<string>();
     for (const name of Object.keys(prevMap)) {
-      const lowerName = name.toLowerCase();
+      // History logged under an old name counts towards the exercise's current name.
+      const lowerName = (aliasMap[name] ?? name).toLowerCase();
       if (leaderboardNames.has(lowerName) || recentNames.has(lowerName)) continue;
       const entry = byLowerName.get(lowerName);
       if (!entry) continue;
@@ -617,7 +471,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     });
 
     return { visible: true, leaderboard, recent, regular };
-  }, [baseSorted, debouncedSearch, exercises, prevMap, selectedMuscle, showApiResults]);
+  }, [aliasMap, baseSorted, debouncedSearch, exercises, prevMap, selectedMuscle, showApiResults]);
 
 
   /* ─── Handlers ──────────────────────────────────────── */

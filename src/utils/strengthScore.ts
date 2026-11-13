@@ -152,19 +152,35 @@ const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
 /**
  * Explicit mapping: main-lift exercise name → the ONE muscle group it is
  * the designated main lift for.  Prevents compound lifts from claiming
- * the main-lift slot in every muscle group they touch.
+ * the main-lift slot in every muscle group they touch.  Only applies to
+ * catalog entries flagged is_main_lift.
+ *
+ * Keyed by name on purpose: only the lift's own catalog name takes the slot,
+ * not names that merely resolve to it through an alias (e.g. an imported
+ * "Pull Up (Assisted)"). Each lift is listed under its current catalog name
+ * and the name it had before the catalog overhaul, so history logged under
+ * either name (including by older app builds) still counts.
  */
 const MAIN_LIFT_ASSIGNMENTS: Record<string, MuscleGroup> = {
+  'barbell bench press': 'chest',
   'bench press': 'chest',
+  'pull-up': 'back',
   'pull ups': 'back',
   'dips': 'triceps',
+  'dumbbell bicep curl': 'biceps',
   'dumbbell curl': 'biceps',
+  'barbell overhead press': 'shoulders',
   'overhead press': 'shoulders',
+  'military press': 'shoulders',
   'dumbbell shoulder press': 'shoulders',
+  'barbell hip thrust': 'legs',
   'hip thrust': 'legs',
   'barbell back squat': 'legs',
+  'barbell deadlift': 'legs',
   'conventional deadlift': 'legs',
+  'barbell romanian deadlift': 'legs',
   'romanian deadlift': 'legs',
+  'machine standing calf raise': 'calves',
   'standing calf raise': 'calves',
   'cable crunch': 'abs',
 };

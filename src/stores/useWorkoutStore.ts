@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+import { fetchCatalogRows } from '../lib/catalogDatabase';
 import type { ExerciseSession } from '../utils/exerciseProgress';
 
-const CATALOG_CACHE_KEY = 'exercise_catalog_cache_v4';
+const CATALOG_CACHE_KEY = 'exercise_catalog_cache_v5';
 const CATALOG_TTL = 24 * 60 * 60 * 1000; // 24 hours
 /** Max past sessions kept per exercise for the inline progress chart. */
 const PROGRESS_SESSION_LIMIT = 8;
@@ -66,6 +67,10 @@ export interface CatalogEntry {
   ranking_weight: number;
   is_bodyweight: boolean;
   allows_external_weight: boolean;
+  /** exercises_catalog.id. Stable across catalog renames; undefined for the user's own exercises. */
+  catalog_id?: string;
+  /** Kept so history still resolves, but not offered in the exercise picker. */
+  is_hidden?: boolean;
 }
 
 interface CreateUserExerciseParams {
@@ -170,7 +175,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       return 'weighted';
     };
 
-    const toEntry = (e: any): CatalogEntry => ({
+    const toEntry = (e: any, isCatalog: boolean): CatalogEntry => ({
       category: e.category,
       exercise_type: deriveExerciseType(e),
       primary_muscles: parseArr(e.primary_muscles),
@@ -179,15 +184,16 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       ranking_weight: Number(e.ranking_weight) || 0.3,
       is_bodyweight: toBool(e.is_bodyweight, false),
       allows_external_weight: toBool(e.allows_external_weight, true),
+      ...(isCatalog ? { catalog_id: e.id, is_hidden: toBool(e.is_hidden, false) } : {}),
     });
 
     const buildMap = (catalogData: any[] | null, userData: any[] | null) => {
       const map: Record<string, CatalogEntry> = {};
       if (catalogData) {
-        for (const e of catalogData) map[e.name] = toEntry(e);
+        for (const e of catalogData) map[e.name] = toEntry(e, true);
       }
       if (userData) {
-        for (const e of userData) map[e.name] = toEntry(e);
+        for (const e of userData) map[e.name] = toEntry(e, false);
       }
       return map;
     };
@@ -209,18 +215,22 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
 
     // 2. Fetch from Supabase
     try {
-      const [catalogRes, userRes, aliasRes] = await Promise.all([
-        supabase.from('exercises_catalog').select('*'),
+      const [catalogRows, userRes, aliasRes] = await Promise.all([
+        fetchCatalogRows(),
         supabase.from('user_exercises').select('*').eq('user_id', userId),
         supabase.from('exercise_aliases').select('alias, canonical_name'),
       ]);
 
-      const map = buildMap(catalogRes.data, userRes.data);
+      if (!catalogRows) return; // keep what we have rather than caching a catalog without its rows
+      const map = buildMap(catalogRows, userRes.data);
+      const customNames = new Set<string>((userRes.data || []).map((e: any) => e.name));
 
       // Inject aliases into catalogMap so all lookups resolve automatically
       const aMap: Record<string, string> = {};
       if (aliasRes.data) {
         for (const row of aliasRes.data) {
+          // The user's own exercise with that exact name wins (the database resolves it the same way).
+          if (customNames.has(row.alias)) continue;
           const canonical = map[row.canonical_name];
           if (canonical) {
             map[row.alias] = canonical;

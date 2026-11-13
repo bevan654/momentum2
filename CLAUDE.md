@@ -62,9 +62,9 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
     ├── stores/                # 23 Zustand stores (see State Management)
     ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, navigationRef
     ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
-    ├── lib/                   # supabase, friendsDatabase, navigationBridge
+    ├── lib/                   # supabase, friendsDatabase, catalogDatabase, navigationBridge
     ├── theme/                 # useColors.ts, responsive.ts, typography.ts
-    ├── utils/                 # barcodeApi, displayName, exerciseProgress, muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, workoutStorage
+    ├── utils/                 # barcodeApi, displayName, exerciseCatalog, exerciseProgress, muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, workoutStorage
     ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate)
     └── constants/             # buildInfo, changelog, muscles
 
