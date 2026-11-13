@@ -11,7 +11,7 @@ import { useFriendsStore } from '../../stores/useFriendsStore';
 import AvatarCircle from '../friends/AvatarCircle';
 import { openProfileSheet } from '../../lib/navigationBridge';
 import NotificationList from '../friends/NotificationList';
-import BottomSheet from '../workout-sheet/BottomSheet';
+import Sheet from '../ui/Sheet';
 
 /* ─── Header ────────────────────────────────────────────── */
 
@@ -83,9 +83,9 @@ export default function Header({ activeTab }: HeaderProps) {
         </TouchableOpacity>
       </View>
 
-      <BottomSheet visible={notifOpen} onClose={closeNotif} height="70%" modal>
+      <Sheet visible={notifOpen} onClose={closeNotif} height="70%">
         <NotificationList />
-      </BottomSheet>
+      </Sheet>
     </View>
   );
 }

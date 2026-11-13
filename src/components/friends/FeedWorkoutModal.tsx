@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState } from 'react';
+import React, { useMemo, useCallback, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -12,7 +12,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useRoutineStore } from '../../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
-import BottomSheet from '../workout-sheet/BottomSheet';
+import Sheet from '../ui/Sheet';
 
 /* --- Body map helpers --- */
 
@@ -70,20 +70,24 @@ function formatDate(isoString: string): string {
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} \u00b7 ${h}:${min} ${ampm}`;
 }
 
-/* ── Thin wrapper — always mounted, toggles BottomSheet visibility ── */
+/* ── Thin wrapper — always mounted, toggles Sheet visibility ── */
 
 export default function FeedWorkoutModal({ item, onDismiss }: Props) {
   const visible = !!item;
-  const isGhost = !!(item?.ghost_username && item?.ghost_result && item?.ghost_exercises);
+  // Keep showing the last item while the sheet animates closed.
+  const lastItem = useRef(item);
+  if (item) lastItem.current = item;
+  const shown = item ?? lastItem.current;
+  const isGhost = !!(shown?.ghost_username && shown?.ghost_result && shown?.ghost_exercises);
 
   return (
-    <BottomSheet visible={visible} onClose={onDismiss} height="92%" modal>
-      {item && (
+    <Sheet visible={visible} onClose={onDismiss} height="92%">
+      {shown && (
         isGhost
-          ? <GhostContent item={item} onDismiss={onDismiss} />
-          : <WorkoutContent item={item} onDismiss={onDismiss} />
+          ? <GhostContent item={shown} onDismiss={onDismiss} />
+          : <WorkoutContent item={shown} onDismiss={onDismiss} />
       )}
-    </BottomSheet>
+    </Sheet>
   );
 }
 
@@ -156,8 +160,8 @@ function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss
         exercise_type: 'weighted',
       })),
     };
-    // Dismiss the BottomSheet (RN Modal) BEFORE flipping sheetVisible — iOS rejects
-    // presenting ActiveWorkoutSheet's Modal while another modal is still on top.
+    // Close this sheet first and start the workout once its close animation has
+    // played, so the workout sheet doesn't open underneath it.
     onDismiss();
     setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, displayName), 350);
   }, [item.id, exercises, startFromRoutine, catalogMap, onDismiss, displayName]);
@@ -281,8 +285,8 @@ function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss: 
         exercise_type: 'weighted',
       })),
     };
-    // Dismiss the BottomSheet (RN Modal) BEFORE flipping sheetVisible — iOS rejects
-    // presenting ActiveWorkoutSheet's Modal while another modal is still on top.
+    // Close this sheet first and start the workout once its close animation has
+    // played, so the workout sheet doesn't open underneath it.
     onDismiss();
     setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, targetName), 350);
   }, [item.id, startFromRoutine, catalogMap, onDismiss]);

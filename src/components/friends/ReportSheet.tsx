@@ -19,7 +19,7 @@ import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
 import type { ReportTargetType, ReportReason } from '../../lib/friendsDatabase';
-import BottomSheet from '../workout-sheet/BottomSheet';
+import Sheet from '../ui/Sheet';
 
 interface Props {
   visible: boolean;
@@ -111,11 +111,10 @@ export default function ReportSheet({
   }, []);
 
   return (
-    <BottomSheet
+    <Sheet
       visible={visible}
       onClose={handleClose}
       height="80%"
-      modal
       bgColor={colors.card}
     >
       <KeyboardAvoidingView
@@ -146,7 +145,7 @@ export default function ReportSheet({
           <DoneStep styles={styles} colors={colors} onClose={handleClose} />
         )}
       </KeyboardAvoidingView>
-    </BottomSheet>
+    </Sheet>
   );
 }
 

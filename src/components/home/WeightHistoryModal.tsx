@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
-import BottomSheet from '../workout-sheet/BottomSheet';
+import Sheet from '../ui/Sheet';
 import type { WeightEntry } from '../../stores/useWeightStore';
 
 const DELETE_THRESHOLD = -80;
@@ -97,11 +97,10 @@ export default function WeightHistoryModal({ visible, onClose, entries, onDelete
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <BottomSheet
+    <Sheet
       visible={visible}
       onClose={onClose}
       height="70%"
-      modal
       bgColor={colors.card}
     >
       <View style={styles.header}>
@@ -131,7 +130,7 @@ export default function WeightHistoryModal({ visible, onClose, entries, onDelete
           )}
         />
       )}
-    </BottomSheet>
+    </Sheet>
   );
 }
 

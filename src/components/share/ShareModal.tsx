@@ -9,7 +9,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StoryCropModal from '../dev/StoryCropModal';
-import BottomSheet from '../workout-sheet/BottomSheet';
+import Sheet from '../ui/Sheet';
 
 interface Props {
   visible: boolean;
@@ -115,7 +115,7 @@ export default function ShareModal({ visible, onClose, children, controls }: Pro
 
   return (
     <>
-      <BottomSheet visible={visible} onClose={handleClose} height="95%" modal>
+      <Sheet visible={visible} onClose={handleClose} height="95%">
         {/* Top bar */}
         <View style={styles.topBar}>
           <Text style={styles.title}>Share</Text>
@@ -182,7 +182,7 @@ export default function ShareModal({ visible, onClose, children, controls }: Pro
             <Text style={styles.saveBtnText}>Save to Gallery</Text>
           </TouchableOpacity>
         </View>
-      </BottomSheet>
+      </Sheet>
 
       {!!cropUri && (
         <StoryCropModal

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import BottomSheet from '../workout-sheet/BottomSheet';
+import Sheet from '../ui/Sheet';
 import FriendSearch from './FriendSearch';
 
 interface Props {
@@ -16,14 +16,14 @@ function AddFriendSheet({ visible, onClose }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} height="70%" modal>
+    <Sheet visible={visible} onClose={onClose} height="70%">
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Add Friends</Text>
         </View>
         <FriendSearch />
       </View>
-    </BottomSheet>
+    </Sheet>
   );
 }
 

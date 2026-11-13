@@ -20,7 +20,7 @@ import { useBodyFatStore, type BodyFatMethod, type BodyFatEntry } from '../../st
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
 import { useLabTimeRangeStore, nearestRangeOption } from '../../stores/useLabTimeRangeStore';
-import BottomSheet from '../workout-sheet/BottomSheet';
+import Sheet from '../ui/Sheet';
 import BodyFatLogModal from './BodyFatLogModal';
 
 /* ─── Config ─────────────────────────────────────────────── */
@@ -326,7 +326,7 @@ const MethodPickerModal = React.memo(function MethodPickerModal({
 }) {
   const styles = useMemo(() => createStyles(colors), [colors]);
   return (
-    <BottomSheet visible={visible} onClose={onClose} height="55%" modal bgColor={colors.card}>
+    <Sheet visible={visible} onClose={onClose} height="55%" bgColor={colors.card}>
       <View style={styles.sheetHeader}>
         <Text style={styles.sheetTitle}>Method</Text>
         <TouchableOpacity onPress={onClose}><Text style={styles.sheetDone}>Done</Text></TouchableOpacity>
@@ -342,7 +342,7 @@ const MethodPickerModal = React.memo(function MethodPickerModal({
           );
         })}
       </View>
-    </BottomSheet>
+    </Sheet>
   );
 });
 
@@ -391,7 +391,7 @@ function BodyFatHistoryModal({
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} height="70%" modal bgColor={colors.card}>
+    <Sheet visible={visible} onClose={onClose} height="70%" bgColor={colors.card}>
       <View style={styles.sheetHeader}>
         <Text style={styles.sheetTitle}>{label} History</Text>
         <TouchableOpacity onPress={onClose}><Text style={styles.sheetDone}>Done</Text></TouchableOpacity>
@@ -407,7 +407,7 @@ function BodyFatHistoryModal({
           renderItem={({ item }) => <SwipeableRow item={item} onDelete={onDelete} colors={colors} styles={styles} />}
         />
       )}
-    </BottomSheet>
+    </Sheet>
   );
 }
 

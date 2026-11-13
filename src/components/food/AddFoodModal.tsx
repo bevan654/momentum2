@@ -26,7 +26,7 @@ import BarcodeScannerModal from './BarcodeScannerModal';
 import MacroLensModal from './MacroLensModal';
 import CreateMealModal from './CreateMealModal';
 import QuickAddModal from './QuickAddModal';
-import BottomSheet from '../workout-sheet/BottomSheet';
+import Sheet from '../ui/Sheet';
 import ReportSheet from '../friends/ReportSheet';
 import { supabase } from '../../lib/supabase';
 
@@ -484,7 +484,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
 
   /* ── Render ────────────────────────────────────────── */
   return (
-    <BottomSheet visible={visible} onClose={onDismiss} height="95%" modal>
+    <Sheet visible={visible} onClose={onDismiss} height="95%">
         <KeyboardAvoidingView
           style={s.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -786,7 +786,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
         contextLabel="AI food estimate"
         contextText={reportTarget?.content}
       />
-    </BottomSheet>
+    </Sheet>
   );
 }
 

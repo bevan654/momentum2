@@ -55,6 +55,7 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
     │   ├── lab/               # Recovery/analytics: timers, charts, body metrics, muscle radar
         │   ├── profile/           # Settings sub-views, goal editors
     │   ├── share/             # Share modal
+    │   ├── ui/                # Shared primitives: Sheet (animated bottom sheet), Portal/PortalHost
         │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, confetti, finish flow
     │   ├── workouts/          # Workout history cards, exercise rows, rank/routine cards
     │   └── SheetWrapper.tsx   # Shared modal-sheet chrome

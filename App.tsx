@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './src/navigation/navigationRef';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { PortalHost } from './src/components/ui/Portal';
 import {
   useFonts,
   Inter_400Regular,
@@ -149,6 +150,7 @@ function App() {
           theme={navTheme}
         >
           <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
+          <PortalHost>
           {session
             ? showWelcome
               ? <WelcomeSplashScreen />
@@ -170,6 +172,7 @@ function App() {
                   : <OnboardingScreen />)
             : <AuthNavigator />
           }
+          </PortalHost>
         </NavigationContainer>
       </SafeAreaProvider>
     </GestureHandlerRootView>
