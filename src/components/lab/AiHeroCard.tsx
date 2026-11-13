@@ -13,7 +13,7 @@ import {
   ScrollView as RNScrollView,
 } from 'react-native';
 import { ScrollView, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { PortalHost } from '../ui/Portal';
+import { PortalHost, type PortalHostHandle } from '../ui/Portal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -67,6 +67,7 @@ export default function AiHeroCard() {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<RNScrollView | null>(null);
   const [reportTarget, setReportTarget] = useState<{ id: string; content: string } | null>(null);
+  const portalHostRef = useRef<PortalHostHandle>(null);
 
   const handleReportAi = useCallback((content: string) => {
     Alert.alert(
@@ -272,10 +273,13 @@ export default function AiHeroCard() {
         visible={open}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setOpen(false)}
+        // Back / swipe-down closes the report sheet first, if it's open.
+        onRequestClose={() => {
+          if (!portalHostRef.current?.closeTopLayer()) setOpen(false);
+        }}
       >
         <GestureHandlerRootView style={styles.modalHostRoot}>
-        <PortalHost>
+        <PortalHost ref={portalHostRef}>
         <View style={styles.modalRoot}>
           <View style={styles.modalHeader}>
             <View style={[styles.modalSparkle, { backgroundColor: colors.accent + '20' }]}>
