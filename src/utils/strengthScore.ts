@@ -196,6 +196,7 @@ const MAIN_LIFT_ASSIGNMENTS: Record<string, MuscleGroup> = {
   'dumbbell shoulder press': 'shoulders',
   'hip thrust': 'legs',
   'barbell back squat': 'legs',
+  'conventional deadlift': 'legs',
   'romanian deadlift': 'legs',
   'standing calf raise': 'calves',
   'cable crunch': 'abs',

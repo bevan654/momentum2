@@ -103,6 +103,11 @@ const SEARCH_DEBOUNCE_MS = 150;
 /** Delay before mounting heavy list content (ms).
  *  Lets the spring animation run uncontested on the UI thread. */
 const CONTENT_DEFER_MS = 180;
+const LEADERBOARD_EXERCISE_NAMES = [
+  'bench press',
+  'barbell back squat',
+  'conventional deadlift',
+] as const;
 
 const OPEN_SPRING = { damping: 28, stiffness: 280, mass: 0.8 };
 const SNAP_SPRING = { damping: 24, stiffness: 350, mass: 0.7 };
@@ -578,6 +583,43 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
 
   const exercises = showApiResults ? apiResults : localExercises;
 
+  const defaultSections = useMemo(() => {
+    const visible = !debouncedSearch.trim() && !selectedMuscle && !showApiResults;
+    if (!visible) {
+      return {
+        visible: false,
+        leaderboard: [] as CatalogEntry[],
+        recent: [] as CatalogEntry[],
+        regular: exercises,
+      };
+    }
+
+    const byLowerName = new Map(baseSorted.map((entry) => [entry.name.toLowerCase(), entry]));
+    const leaderboardNames = new Set<string>(LEADERBOARD_EXERCISE_NAMES);
+    const leaderboard = LEADERBOARD_EXERCISE_NAMES
+      .map((name) => byLowerName.get(name))
+      .filter((entry): entry is CatalogEntry => entry !== undefined);
+
+    const recent: CatalogEntry[] = [];
+    const recentNames = new Set<string>();
+    for (const name of Object.keys(prevMap)) {
+      const lowerName = name.toLowerCase();
+      if (leaderboardNames.has(lowerName) || recentNames.has(lowerName)) continue;
+      const entry = byLowerName.get(lowerName);
+      if (!entry) continue;
+      recent.push(entry);
+      recentNames.add(lowerName);
+      if (recent.length === 5) break;
+    }
+
+    const regular = exercises.filter((entry) => {
+      const lowerName = entry.name.toLowerCase();
+      return !leaderboardNames.has(lowerName) && !recentNames.has(lowerName);
+    });
+
+    return { visible: true, leaderboard, recent, regular };
+  }, [baseSorted, debouncedSearch, exercises, prevMap, selectedMuscle, showApiResults]);
+
 
   /* ─── Handlers ──────────────────────────────────────── */
 
@@ -753,6 +795,58 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     [styles, showApiResults],
   );
 
+  const defaultListHeader = useMemo(() => {
+    if (!defaultSections.visible) return null;
+    return (
+      <View>
+        {defaultSections.leaderboard.length > 0 && (
+          <View style={styles.exerciseSection}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="trophy-outline" size={ms(13)} color={colors.accent} />
+              <Text style={styles.sectionTitle}>Leaderboard Exercises</Text>
+            </View>
+            {defaultSections.leaderboard.map((entry) => (
+              <ExerciseRow
+                key={`leaderboard-${entry.name}`}
+                name={entry.name}
+                category={entry.category || ''}
+                exercise_type={entry.exercise_type}
+                primary_muscles={entry.primary_muscles}
+                onSelect={handleSelect}
+                styles={styles}
+              />
+            ))}
+          </View>
+        )}
+
+        {defaultSections.recent.length > 0 && (
+          <View style={styles.exerciseSection}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="time-outline" size={ms(13)} color={colors.textTertiary} />
+              <Text style={styles.sectionTitle}>Recently Used</Text>
+            </View>
+            {defaultSections.recent.map((entry) => (
+              <ExerciseRow
+                key={`recent-${entry.name}`}
+                name={entry.name}
+                category={entry.category || ''}
+                exercise_type={entry.exercise_type}
+                primary_muscles={entry.primary_muscles}
+                onSelect={handleSelect}
+                styles={styles}
+              />
+            ))}
+          </View>
+        )}
+
+        <View style={styles.sectionHeader}>
+          <Ionicons name="list-outline" size={ms(13)} color={colors.textTertiary} />
+          <Text style={styles.sectionTitle}>All Exercises</Text>
+        </View>
+      </View>
+    );
+  }, [colors, defaultSections, handleSelect, styles]);
+
   /* ─── Render ────────────────────────────────────────── */
 
   if (!alive) return null;
@@ -911,11 +1005,12 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
             {/* Results */}
             {contentReady && (
               <FlatList
-                data={exercises}
+                data={defaultSections.regular}
                 keyExtractor={keyExtractor}
                 keyboardShouldPersistTaps="handled"
                 style={styles.list}
                 renderItem={renderFlatItem}
+                ListHeaderComponent={defaultListHeader}
                 ListEmptyComponent={listEmptyComponent}
                 initialNumToRender={20}
                 maxToRenderPerBatch={15}
@@ -1100,6 +1195,28 @@ const createStyles = (colors: ThemeColors) =>
       paddingVertical: sw(10),
       paddingHorizontal: sw(4),
       gap: sw(10),
+    },
+    exerciseSection: {
+      paddingBottom: sw(8),
+      marginBottom: sw(4),
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(6),
+      paddingHorizontal: sw(4),
+      paddingTop: sw(8),
+      paddingBottom: sw(5),
+    },
+    sectionTitle: {
+      color: colors.textTertiary,
+      fontSize: ms(10),
+      lineHeight: ms(13),
+      fontFamily: Fonts.bold,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
     },
     catDot: {
       width: sw(8),

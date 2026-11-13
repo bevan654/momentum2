@@ -168,7 +168,11 @@ interface ActiveWorkoutState {
     programWeek: number,
   ) => void;
   discardWorkout: () => void;
-  finishWorkout: (userId: string, durationOverride?: number) => Promise<{ error: string | null; incompleteCount?: number }>;
+  finishWorkout: (userId: string, durationOverride?: number) => Promise<{
+    error: string | null;
+    incompleteCount?: number;
+    workoutId?: string;
+  }>;
   restoreWorkout: () => Promise<void>;
   showSheet: () => void;
   hideSheet: () => void;
@@ -739,7 +743,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     });
 
     clearWorkout();
-    return { error: null, incompleteCount };
+    return { error: null, incompleteCount, workoutId: workout!.id };
   },
 
   restoreWorkout: async () => {
