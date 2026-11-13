@@ -4,6 +4,7 @@ import Overlay from '../ui/Overlay';
 import { SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PortalHost } from '../ui/Portal';
+import { useLingerMount } from '../../hooks/useLingerMount';
 import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring, withTiming, Easing, runOnJS } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -493,9 +494,11 @@ export default function WorkoutSummaryModal(props: Props) {
   const [editDuration, setEditDuration] = useState(0);
   const [saving, setSaving] = useState(false);
   const [durationPickerVisible, setDurationPickerVisible] = useState(false);
+  const durationPickerMounted = useLingerMount(durationPickerVisible);
 
   // Share modal + workout name
   const [showShare, setShowShare] = useState(false);
+  const shareMounted = useLingerMount(showShare);
   const [workoutName] = useState('');
 
   // Themed confirm-before-exit dialog (just-completed mode only)
@@ -1046,14 +1049,14 @@ export default function WorkoutSummaryModal(props: Props) {
 
   const subModals = (
     <>
-      {durationPickerVisible && (
+      {durationPickerMounted && (
         <DurationPickerModal
-          visible
+          visible={durationPickerVisible}
           onConfirm={handleDurationConfirm}
           onCancel={() => setDurationPickerVisible(false)}
         />
       )}
-      {showShare && (
+      {shareMounted && (
         <ShareModal visible={showShare} onClose={() => setShowShare(false)}>
           {({ imageUri }) => <WorkoutOverlay backgroundUri={imageUri} data={shareData} />}
         </ShareModal>
