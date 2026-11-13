@@ -40,8 +40,9 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
 ├── App.tsx                    # Font load, auth gate, theme bootstrap, nav root
 ├── app.config.ts              # Expo config (bundle IDs, plugins, EAS)
 ├── database-schema.md         # Postgres schema reference (some tables missing — see below)
-├── exercises_catalog.csv/sql  # Exercise seed data
 ├── patches/fix-body-highlighter.js  # Postinstall patch for react-native-body-highlighter
+├── docs/                      # Plans, audits, security review
+├── scripts/                   # Dev/ops scripts (build stamping, imports, seeding, notifications)
 │
 └── src/
     ├── screens/               # Top-level routes (22 screens)
@@ -74,7 +75,8 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
 supabase/
 ├── functions/                 # Edge functions: ai-coach, ai-workout-summary, ai-workout-notifications,
 │                              #   gemini-food-scan, gemini-food-search, push-notification, delete-account, discord-*
-└── migrations/                # Dated SQL migrations (YYYYMMDD_description.sql)
+├── migrations/                # Dated SQL migrations (YYYYMMDD_description.sql)
+└── seed/                      # Exercise catalog seed data (exercises_catalog.csv / _full.sql)
 ```
 
 ---

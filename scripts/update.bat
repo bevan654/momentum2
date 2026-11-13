@@ -1,6 +1,6 @@
 @echo off
 if "%1"=="" (
-    echo Usage: update.bat [production / preview / all]
+    echo Usage (run from repo root): scripts\update.bat [production / preview / all]
     exit /b 1
 )
 
