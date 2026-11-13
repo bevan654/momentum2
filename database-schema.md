@@ -1,6 +1,6 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
--- Generated from the live schema (production + supabase/migrations up to 20261115).
+-- Generated from the live schema (production + supabase/migrations up to 20261116).
 -- Column comments are shown as trailing -- notes.
 
 CREATE TABLE public.activity_feed (
@@ -209,6 +209,18 @@ CREATE TABLE public.exercise_aliases (
   CONSTRAINT exercise_aliases_pkey PRIMARY KEY (id)
 );
 
+CREATE TABLE public.exercise_muscle_targets (
+  catalog_id text NOT NULL,
+  muscle_id text NOT NULL,
+  role text NOT NULL,
+  weight numeric NOT NULL,  -- Share of the exercise's work credited to this muscle (0-1). Import default: primary 1.0, secondary 0.5.
+  CONSTRAINT exercise_muscle_targets_pkey PRIMARY KEY (catalog_id, muscle_id),
+  CONSTRAINT exercise_muscle_targets_catalog_id_fkey FOREIGN KEY (catalog_id) REFERENCES exercises_catalog(id) ON DELETE CASCADE,
+  CONSTRAINT exercise_muscle_targets_muscle_id_fkey FOREIGN KEY (muscle_id) REFERENCES muscles(id) ON UPDATE CASCADE,
+  CONSTRAINT exercise_muscle_targets_role_valid CHECK ((role = ANY (ARRAY['primary'::text, 'secondary'::text]))),
+  CONSTRAINT exercise_muscle_targets_weight_range CHECK (((weight >= (0)::numeric) AND (weight <= (1)::numeric)))
+);
+
 CREATE TABLE public.exercises (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   workout_id uuid,
@@ -234,7 +246,7 @@ CREATE TABLE public.exercises_catalog (
   id text NOT NULL,
   name text,
   slug text,
-  primary_muscles jsonb,
+  primary_muscles jsonb,  -- Legacy muscle names read by every app build (see MUSCLE_ALIASES). Anatomical detail: exercise_muscle_targets.
   secondary_muscles jsonb,
   other_muscles jsonb,
   equipment jsonb,
@@ -250,8 +262,17 @@ CREATE TABLE public.exercises_catalog (
   ranking_weight double precision,
   is_bodyweight boolean,
   allows_external_weight boolean,
+  repdb_id text,  -- RepDB exercise this row was matched to or imported from (provenance). NULL = our own exercise.
+  is_hidden boolean DEFAULT false,  -- Hidden from the exercise picker and search. Still resolves for history. NULL = visible.
+  exercise_type text,  -- weighted | bodyweight | weighted+bodyweight | duration. NULL = derive from is_bodyweight / allows_external_weight.
+  description text,  -- Short description (RepDB).
+  instructions jsonb,  -- Step-by-step instructions, JSON array of strings (RepDB).
+  tips jsonb,  -- Coaching tips, JSON array of strings (RepDB).
+  is_unilateral boolean,  -- Trained one side at a time.
+  body_part text,  -- RepDB body part: chest, back, shoulders, upper_arms, lower_arms, core, upper_legs, lower_legs, full_body.
   CONSTRAINT exercises_catalog_name_unique UNIQUE (name),
-  CONSTRAINT exercises_catalog_pkey PRIMARY KEY (id)
+  CONSTRAINT exercises_catalog_pkey PRIMARY KEY (id),
+  CONSTRAINT exercises_catalog_exercise_type_valid CHECK ((exercise_type = ANY (ARRAY['weighted'::text, 'bodyweight'::text, 'weighted+bodyweight'::text, 'duration'::text])))
 );
 
 CREATE TABLE public.feature_flags (
@@ -402,6 +423,23 @@ CREATE TABLE public.measurement_entries (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT measurement_entries_pkey PRIMARY KEY (id),
   CONSTRAINT measurement_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE public.muscle_map_regions (
+  map_id text NOT NULL,
+  muscle_id text NOT NULL,
+  region text NOT NULL,
+  CONSTRAINT muscle_map_regions_pkey PRIMARY KEY (map_id, muscle_id, region),
+  CONSTRAINT muscle_map_regions_muscle_id_fkey FOREIGN KEY (muscle_id) REFERENCES muscles(id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE public.muscles (
+  id text NOT NULL,
+  label text NOT NULL,
+  body_group text NOT NULL,
+  sort smallint NOT NULL,
+  CONSTRAINT muscles_pkey PRIMARY KEY (id),
+  CONSTRAINT muscles_body_group_valid CHECK ((body_group = ANY (ARRAY['chest'::text, 'back'::text, 'shoulders'::text, 'arms'::text, 'core'::text, 'legs'::text])))
 );
 
 CREATE TABLE public.notifications (
