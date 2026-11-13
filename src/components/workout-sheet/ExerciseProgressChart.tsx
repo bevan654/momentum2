@@ -111,20 +111,30 @@ function ExerciseProgressChart({ exerciseName, exerciseType, sets, onOpenHistory
   const todayY = useDerivedValue(() => CHART_H - todayH.value);
 
   // Celebrate the moment today's volume beats last session: glow pulse +
-  // success haptic. Only on the transition, not on mount or every later set.
+  // success haptic. Only when logging sets causes the transition, not on
+  // mount or when history loads/refreshes late (target changed), so a
+  // restored workout doesn't buzz once per already-beaten exercise.
   const glow = useSharedValue(achieved ? 0.55 : 0);
-  const wasAchieved = useRef(achieved);
+  const prevState = useRef({ achieved, target });
   useEffect(() => {
-    if (achieved && !wasAchieved.current) {
-      glow.value = withSequence(withTiming(1, { duration: 180 }), withTiming(0.55, { duration: 500 }));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    const was = prevState.current;
+    prevState.current = { achieved, target };
+    if (achieved && !was.achieved) {
+      if (target === was.target) {
+        glow.value = withSequence(withTiming(1, { duration: 180 }), withTiming(0.55, { duration: 500 }));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } else {
+        glow.value = withTiming(0.55, { duration: 200 });
+      }
     } else if (!achieved) {
       glow.value = withTiming(0, { duration: 200 });
     }
-    wasAchieved.current = achieved;
-  }, [achieved, glow]);
+  }, [achieved, target, glow]);
 
-  if (pastVol.length < 1) return null;
+  // No usable history (e.g. bodyweight-only sets on a weighted+bodyweight
+  // exercise, or weight never entered): every bar would be empty and the
+  // target unbeatable, so hide the chart like the old overload card did.
+  if (!pastVol.some((v) => v > 0)) return null;
 
   // Today's bar: muted while working toward the target, solid once beaten.
   const fillColor = achieved ? colors.accent : colors.accent + '99';
