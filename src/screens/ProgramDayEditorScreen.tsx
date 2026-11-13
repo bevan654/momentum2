@@ -19,6 +19,7 @@ import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
+import { aliasesByCanonical } from '../utils/exerciseCatalog';
 import { getDayEditInput, saveDayEdit, type ProgramDayExercise } from '../stores/useProgramStore';
 import { useRoutineStore, type Routine } from '../stores/useRoutineStore';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -47,6 +48,8 @@ interface CatalogEntry {
   category: string;
   exercise_type: string;
   primary_muscles: string[];
+  /** Lowercased other names (old catalog names) that also find this exercise. */
+  aliases: string[];
 }
 
 const MUSCLE_FILTERS = [
@@ -179,13 +182,15 @@ function getSortedCatalog(
   if (catalogMap === _sortedRef && aliasMap === _sortedAliasRef && _sortedCache) return _sortedCache;
   _sortedRef = catalogMap;
   _sortedAliasRef = aliasMap;
+  const aliases = aliasesByCanonical(aliasMap);
   _sortedCache = Object.entries(catalogMap)
-    .filter(([name]) => !aliasMap[name])
+    .filter(([name, entry]) => !aliasMap[name] && !entry.is_hidden)
     .map(([name, entry]: [string, any]) => ({
       name,
       category: entry.category || '',
       exercise_type: entry.exercise_type || 'weighted',
       primary_muscles: Array.isArray(entry.primary_muscles) ? entry.primary_muscles.map((m: string) => m.toLowerCase()) : [],
+      aliases: (aliases[name] || []).map((a) => a.toLowerCase()),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
   return _sortedCache;
@@ -247,7 +252,7 @@ export default function ProgramDayEditorScreen() {
     }
     const q = search.trim().toLowerCase();
     if (q) {
-      list = list.filter((e) => e.name.toLowerCase().includes(q));
+      list = list.filter((e) => e.name.toLowerCase().includes(q) || e.aliases.some((a) => a.includes(q)));
     }
     return list.slice(0, 60);
   }, [sorted, search, selectedCategory]);
