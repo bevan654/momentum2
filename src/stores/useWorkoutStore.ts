@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+import type { ExerciseSession } from '../utils/exerciseProgress';
 
 const CATALOG_CACHE_KEY = 'exercise_catalog_cache_v4';
 const CATALOG_TTL = 24 * 60 * 60 * 1000; // 24 hours
+/** Max past sessions kept per exercise for the inline progress chart. */
+const PROGRESS_SESSION_LIMIT = 8;
 
 export interface CoachExerciseNote {
   name: string;
@@ -83,6 +86,8 @@ interface WorkoutState {
   prevMap: Record<string, { kg: number; reps: number }[]>;
   /** Note history per exercise name, newest first (best-effort; empty until `notes` column exists) */
   prevNoteMap: Record<string, { note: string; date: string; color?: string }[]>;
+  /** Recent completed sessions per exercise name, newest first (max PROGRESS_SESSION_LIMIT, no warmups) */
+  sessionHistoryMap: Record<string, ExerciseSession[]>;
   fetchWorkoutHistory: (userId: string) => Promise<void>;
   fetchExerciseCatalog: (userId: string, forceRefresh?: boolean) => Promise<void>;
   fetchPrevData: (userId: string) => Promise<void>;
@@ -129,6 +134,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   catalogMap: {},
   aliasMap: {},
   prevMap: {},
+  sessionHistoryMap: {},
   // TODO(sample): temporary demo note history (see SAMPLE_PREV_NOTES above) so
   // the previous-notes UI is visible before the `notes` column / real data
   // exists. Remove once real data is seeded.
@@ -240,28 +246,37 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     // Fetch recent workouts (newest first) with their exercises + sets
     const { data: workouts } = await supabase
       .from('workouts')
-      .select('created_at, exercises(name, sets(kg, reps, set_number, completed))')
+      .select('created_at, exercises(name, sets(kg, reps, set_number, completed, set_type))')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(50);
 
     const map: Record<string, { kg: number; reps: number }[]> = {};
+    const sessions: Record<string, ExerciseSession[]> = {};
     if (workouts) {
       // Workouts are already newest-first, so first occurrence per name is most recent
       for (const w of workouts) {
         for (const ex of (w.exercises || []) as any[]) {
-          if (map[ex.name]) continue;
-          const sets = (ex.sets || [])
+          const completed = (ex.sets || [])
             .filter((s: any) => s.completed)
-            .sort((a: any, b: any) => a.set_number - b.set_number)
-            .map((s: any) => ({ kg: Number(s.kg) || 0, reps: Number(s.reps) || 0 }));
-          if (sets.length > 0) {
-            map[ex.name] = sets;
+            .sort((a: any, b: any) => a.set_number - b.set_number);
+          if (!map[ex.name]) {
+            const sets = completed.map((s: any) => ({ kg: Number(s.kg) || 0, reps: Number(s.reps) || 0 }));
+            if (sets.length > 0) map[ex.name] = sets;
+          }
+          // Progress chart history: working sets only, capped per exercise
+          const list = (sessions[ex.name] ||= []);
+          if (list.length < PROGRESS_SESSION_LIMIT) {
+            const working = completed
+              .filter((s: any) => s.set_type !== 'warmup')
+              .map((s: any) => ({ kg: Number(s.kg) || 0, reps: Number(s.reps) || 0 }))
+              .filter((s: { reps: number }) => s.reps > 0);
+            if (working.length > 0) list.push({ date: w.created_at, sets: working });
           }
         }
       }
     }
-    set({ prevMap: map });
+    set({ prevMap: map, sessionHistoryMap: sessions });
 
     // Best-effort: most-recent note per exercise. Separate query so a missing
     // `notes` column can't break the critical prevMap above. No-op until the
@@ -654,7 +669,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   },
 
   clearCaches: () => {
-    set({ catalogMap: {}, aliasMap: {}, prevMap: {}, prevNoteMap: {}, workouts: [] });
+    set({ catalogMap: {}, aliasMap: {}, prevMap: {}, prevNoteMap: {}, sessionHistoryMap: {}, workouts: [] });
     AsyncStorage.removeItem(CATALOG_CACHE_KEY).catch(() => {});
   },
 

@@ -92,6 +92,12 @@ export default function ProfileSettingsView({ onBack }: Props) {
           <ProteinPowderToggle />
         </View>
 
+        {/* Workouts */}
+        <SectionHeader title="Workouts" />
+        <View style={styles.card}>
+          <ProgressChartsToggle />
+        </View>
+
         {/* 6. Lab Trackers */}
         <LabTrackersSection />
         <View style={styles.card}>
@@ -298,6 +304,27 @@ function ProteinPowderToggle() {
       <Switch
         value={enabled}
         onValueChange={handleToggle}
+        trackColor={{ false: colors.accentRed + '60', true: colors.accentGreen + '60' }}
+        thumbColor={enabled ? colors.accentGreen : colors.accentRed}
+      />
+    </View>
+  );
+}
+
+/* ─── Progress Charts Toggle ────────────────────────────── */
+
+function ProgressChartsToggle() {
+  const enabled = useProfileSettingsStore((s) => s.showProgressCharts);
+  const setEnabled = useProfileSettingsStore((s) => s.setShowProgressCharts);
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  return (
+    <View style={styles.switchRow}>
+      <Text style={styles.fieldLabel}>Show Progress Charts</Text>
+      <Switch
+        value={enabled}
+        onValueChange={setEnabled}
         trackColor={{ false: colors.accentRed + '60', true: colors.accentGreen + '60' }}
         thumbColor={enabled ? colors.accentGreen : colors.accentRed}
       />

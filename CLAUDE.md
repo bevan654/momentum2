@@ -63,7 +63,7 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
     ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
     ├── lib/                   # supabase, friendsDatabase, navigationBridge
     ├── theme/                 # useColors.ts, responsive.ts, typography.ts
-    ├── utils/                 # barcodeApi, displayName, muscleVolume, streakCalculator, strengthScore, uploadWorkoutPhoto, workoutStorage
+    ├── utils/                 # barcodeApi, displayName, exerciseProgress, muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, workoutStorage
     ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate)
     └── constants/             # buildInfo, changelog, muscles
 

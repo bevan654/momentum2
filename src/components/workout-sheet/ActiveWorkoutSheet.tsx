@@ -30,6 +30,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
+import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
 import type { ActiveExercise } from '../../stores/useActiveWorkoutStore';
 import WorkoutHeader from './WorkoutHeader';
 import RestTimerBar from './RestTimerBar';
@@ -214,152 +215,66 @@ const GhostSetChip = React.memo(function GhostSetChip({
   );
 });
 
-/* ─── ProgressiveOverloadCard ─────────────────────────────── */
+/* ─── GhostSetsCard ───────────────────────────────────────── */
+/* Ghost mode only: the friend's sets as chips, marked win/loss as you log.
+   (Normal progressive overload lives in ExerciseProgressChart.) */
 
-const ProgressiveOverloadCard = React.memo(function ProgressiveOverloadCard({
-  exercises,
+const GhostSetsCard = React.memo(function GhostSetsCard({
+  exercise,
 }: {
-  exercises: ActiveExercise[];
+  exercise: ActiveExercise;
 }) {
   const colors = useColors();
   const ghostUserName = useActiveWorkoutStore((s) => s.ghostUserName);
-  const isGhost = !!ghostUserName;
-
-  const overload = useMemo(() => {
-    const ex = exercises[0];
-    if (!ex || ex.prevSets.length === 0) return null;
-
-    const prevTotal = ex.prevSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
-    if (prevTotal <= 0) return null;
-
-    const currentVol = ex.sets
-      .filter((s) => s.completed)
-      .reduce((sum, s) => sum + (parseFloat(s.kg) || 0) * (parseInt(s.reps, 10) || 0), 0);
-
-    const beaten = currentVol > prevTotal;
-    const barMax = prevTotal * 1.2;
-    const fillPct = Math.min(currentVol / barMax, 1);
-    const ghostPct = 1 / 1.2;
-
-    return { prevTotal, currentVol, fillPct, ghostPct, beaten };
-  }, [exercises]);
-
-  if (exercises.length === 0) return null;
-
-  const ex = exercises[0];
-
-  // Ghost mode: simple set-by-set list
-  if (isGhost) {
-    const prevSets = ex?.prevSets ?? [];
-    if (prevSets.length === 0) return null;
-
-    return (
-      <View style={{ marginTop: sw(10) }}>
-        <View style={{
-          backgroundColor: colors.surface,
-          borderRadius: 0,
-          padding: sw(10),
-          gap: sw(4),
-        }}>
-          <Text style={{
-            fontSize: ms(9),
-            fontFamily: Fonts.semiBold,
-            color: colors.accentRed,
-            textTransform: 'uppercase',
-            letterSpacing: 0.8,
-            marginBottom: sw(2),
-            textAlign: 'center',
-          }}>
-            {ghostUserName}'s sets
-          </Text>
-          <View style={{
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            gap: sw(6),
-          }}>
-            {prevSets.map((ps, i) => {
-              const userSet = ex.sets[i];
-              const completed = userSet?.completed;
-              let result: 'win' | 'loss' | 'tie' | null = null;
-              if (completed) {
-                const uKg = parseFloat(userSet.kg) || 0;
-                const uReps = parseInt(userSet.reps, 10) || 0;
-                result = compareGhostSet(uKg, uReps, ps.kg, ps.reps);
-              }
-              return (
-                <GhostSetChip
-                  key={i}
-                  index={i}
-                  ghostKg={ps.kg}
-                  ghostReps={ps.reps}
-                  result={result}
-                  colors={colors}
-                />
-              );
-            })}
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  if (!overload) return null;
-
-  const currentColor = overload.beaten ? '#34C759' : colors.accent;
+  const prevSets = exercise.prevSets ?? [];
+  if (!ghostUserName || prevSets.length === 0) return null;
 
   return (
-    <View style={{ marginTop: sw(8), gap: sw(3) }}>
-      {/* Volume */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          {overload.beaten ? 'Overload achieved' : 'Progressive overload'}
-        </Text>
-        <Text style={{ fontSize: ms(9), fontFamily: Fonts.medium, color: colors.textTertiary }}>
-          <Text style={{ color: currentColor, fontFamily: Fonts.bold }}>
-            {Math.round(overload.currentVol).toLocaleString()}
-          </Text>
-          {' / '}{Math.round(overload.prevTotal).toLocaleString()} kg
-        </Text>
-      </View>
-
-      {/* Bar */}
+    <View style={{ marginTop: sw(10) }}>
       <View style={{
-        height: sw(4),
-        borderRadius: sw(2),
-        backgroundColor: colors.cardBorder,
-        overflow: 'hidden',
+        backgroundColor: colors.surface,
+        borderRadius: 0,
+        padding: sw(10),
+        gap: sw(4),
       }}>
+        <Text style={{
+          fontSize: ms(9),
+          fontFamily: Fonts.semiBold,
+          color: colors.accentRed,
+          textTransform: 'uppercase',
+          letterSpacing: 0.8,
+          marginBottom: sw(2),
+          textAlign: 'center',
+        }}>
+          {ghostUserName}'s sets
+        </Text>
         <View style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          borderRadius: sw(2),
-          width: `${Math.min(overload.fillPct, overload.ghostPct) * 100}%`,
-          backgroundColor: colors.accent,
-        }} />
-        {overload.beaten && (
-          <View style={{
-            position: 'absolute',
-            left: `${overload.ghostPct * 100}%`,
-            top: 0,
-            bottom: 0,
-            borderTopRightRadius: sw(2),
-            borderBottomRightRadius: sw(2),
-            width: `${(overload.fillPct - overload.ghostPct) * 100}%`,
-            backgroundColor: '#34C759',
-          }} />
-        )}
-        <View style={{
-          position: 'absolute',
-          left: `${overload.ghostPct * 100}%`,
-          top: 0,
-          bottom: 0,
-          width: sw(2),
-          backgroundColor: overload.beaten ? colors.accent : colors.textTertiary,
-          marginLeft: -sw(1),
-        }} />
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          gap: sw(6),
+        }}>
+          {prevSets.map((ps, i) => {
+            const userSet = exercise.sets[i];
+            const completed = userSet?.completed;
+            let result: 'win' | 'loss' | 'tie' | null = null;
+            if (completed) {
+              const uKg = parseFloat(userSet.kg) || 0;
+              const uReps = parseInt(userSet.reps, 10) || 0;
+              result = compareGhostSet(uKg, uReps, ps.kg, ps.reps);
+            }
+            return (
+              <GhostSetChip
+                key={i}
+                index={i}
+                ghostKg={ps.kg}
+                ghostReps={ps.reps}
+                result={result}
+                colors={colors}
+              />
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -390,6 +305,14 @@ export default function ActiveWorkoutSheet() {
   const [pickerMode, setPickerMode] = useState<'add' | 'replace'>('add');
   const [replaceIndex, setReplaceIndex] = useState(-1);
   const [historyExerciseName, setHistoryExerciseName] = useState<string | null>(null);
+
+  // Chart/notes preferences live in profile settings, which are otherwise only
+  // loaded by the Profile/Lab/Leaderboard screens. Load them here too so a
+  // toggle in the workout never persists defaults over saved settings.
+  const settingsInitialized = useProfileSettingsStore((s) => s.initialized);
+  useEffect(() => {
+    if (!settingsInitialized) useProfileSettingsStore.getState().loadSettings();
+  }, [settingsInitialized]);
 
   const prevMap = useWorkoutStore((s) => s.prevMap);
   const addExercise = useActiveWorkoutStore((s) => s.addExercise);
@@ -733,7 +656,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
                 isLast={i === exercises.length - 1}
                 totalExercises={exercises.length}
                 isCurrent={i === activeIndex}
-                overloadTracker={i === activeIndex ? <ProgressiveOverloadCard exercises={[ex]} /> : undefined}
+                overloadTracker={i === activeIndex ? <GhostSetsCard exercise={ex} /> : undefined}
                 onReplace={onOpenReplace}
                 onExerciseFocus={handleExerciseFocus}
                 onInputFocus={handleInputFocus}

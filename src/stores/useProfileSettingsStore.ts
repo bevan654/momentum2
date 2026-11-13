@@ -68,6 +68,10 @@ interface ProfileSettingsState {
   defaultWeightRange: TimeRange;
   defaultBodyFatMethod: BodyFatMethod;
   defaultMeasurement: MeasDefault;
+  /** Inline progress chart on each exercise card in the active workout */
+  showProgressCharts: boolean;
+  /** Exercise names whose notes section is expanded in the active workout */
+  expandedNotes: Record<string, true>;
   initialized: boolean;
   setShowStreakOnProfile: (value: boolean) => void;
   setShowStreakOnLeaderboard: (value: boolean) => void;
@@ -80,6 +84,8 @@ interface ProfileSettingsState {
   setDefaultWeightRange: (range: TimeRange) => void;
   setDefaultBodyFatMethod: (method: BodyFatMethod) => void;
   setDefaultMeasurement: (meas: MeasDefault) => void;
+  setShowProgressCharts: (value: boolean) => void;
+  toggleNotesExpanded: (exerciseName: string) => void;
   loadSettings: () => Promise<void>;
 }
 
@@ -106,6 +112,8 @@ function persist(state: ProfileSettingsState) {
     defaultWeightRange: state.defaultWeightRange,
     defaultBodyFatMethod: state.defaultBodyFatMethod,
     defaultMeasurement: state.defaultMeasurement,
+    showProgressCharts: state.showProgressCharts,
+    expandedNotes: state.expandedNotes,
   }));
 }
 
@@ -119,6 +127,8 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
   defaultWeightRange: '1W' as TimeRange,
   defaultBodyFatMethod: 'tape' as BodyFatMethod,
   defaultMeasurement: { part: 'chest' as MeasBodyPart, side: 'left' as MeasSide, pump: 'no_pump' as MeasPump },
+  showProgressCharts: true,
+  expandedNotes: {},
   initialized: false,
 
   setShowStreakOnProfile: (value: boolean) => {
@@ -179,6 +189,19 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
     persist(get());
   },
 
+  setShowProgressCharts: (value: boolean) => {
+    set({ showProgressCharts: value });
+    persist(get());
+  },
+
+  toggleNotesExpanded: (exerciseName: string) => {
+    const next = { ...get().expandedNotes };
+    if (next[exerciseName]) delete next[exerciseName];
+    else next[exerciseName] = true;
+    set({ expandedNotes: next });
+    persist(get());
+  },
+
   loadSettings: async () => {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -193,6 +216,8 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
         defaultWeightRange: data.defaultWeightRange ?? '1W',
         defaultBodyFatMethod: data.defaultBodyFatMethod ?? 'tape',
         defaultMeasurement: data.defaultMeasurement ?? { part: 'chest', side: 'left', pump: 'no_pump' },
+        showProgressCharts: data.showProgressCharts ?? true,
+        expandedNotes: data.expandedNotes ?? {},
         initialized: true,
       });
     } else {
