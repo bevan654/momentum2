@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, Text, Pressable, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import React, { useMemo, useRef, useCallback } from 'react';
+import { View, Text, Pressable, TouchableOpacity, StyleSheet, Modal, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -28,8 +28,25 @@ function ExerciseActionsSheet({ visible, title, actions, onClose }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
 
+  // The tapped action runs only once this sheet has finished dismissing. On iOS
+  // a Modal can't be presented (e.g. the exercise picker for "Replace") while
+  // another Modal from the same view controller is still animating out, so the
+  // action waits for onDismiss there. Android has no such restriction.
+  const pendingRef = useRef<(() => void) | null>(null);
+  const runPending = useCallback(() => {
+    const fn = pendingRef.current;
+    pendingRef.current = null;
+    fn?.();
+  }, []);
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      onDismiss={runPending}
+    >
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + sw(12) }]} onPress={() => {}}>
           <View style={styles.handle} />
@@ -42,9 +59,12 @@ function ExerciseActionsSheet({ visible, title, actions, onClose }: Props) {
                 style={[styles.row, a.disabled && styles.rowDisabled]}
                 disabled={a.disabled}
                 activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !!a.disabled }}
                 onPress={() => {
+                  pendingRef.current = a.onPress;
                   onClose();
-                  a.onPress();
+                  if (Platform.OS !== 'ios') runPending();
                 }}
               >
                 <Ionicons name={a.icon} size={ms(18)} color={tint} />

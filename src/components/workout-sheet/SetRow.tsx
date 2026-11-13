@@ -589,8 +589,6 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textTertiary + '80',
     },
 
-    /* ── Suggested ───────────────────────────────────── */
-
     /* ── Inputs ──────────────────────────────────────── */
     inputContainer: {
       flex: 1,
