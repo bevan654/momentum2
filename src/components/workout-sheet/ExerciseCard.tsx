@@ -319,6 +319,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                     if (lastWorkingIdx >= 0) addDropSet(exerciseIndex, lastWorkingIdx);
                   }}
                   activeOpacity={0.7}
+                  accessibilityLabel="Add drop set"
                 >
                   <Ionicons name="trending-down" size={ms(13)} color={colors.textSecondary} />
                   <Text style={styles.actionBtnText}>Drop</Text>
