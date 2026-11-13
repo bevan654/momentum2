@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView, TextInput } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -82,9 +83,8 @@ export default function WaterCard() {
       </TouchableOpacity>
 
       {/* Detail modal */}
-      <Modal
+      <Overlay
         visible={expanded}
-        transparent
         animationType="fade"
         onRequestClose={() => setExpanded(false)}
         onDismiss={() => { setShowCustom(false); setCustomAmount(''); }}
@@ -186,7 +186,7 @@ export default function WaterCard() {
             </ScrollView>
           </Pressable>
         </Pressable>
-      </Modal>
+      </Overlay>
     </>
   );
 }

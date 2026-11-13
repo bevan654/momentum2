@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms, sh } from '../../theme/responsive';
@@ -51,7 +51,7 @@ function LeaderboardInfoModal({ visible, onClose }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Overlay visible={visible} animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <View style={styles.centered}>
           <Pressable style={styles.modal} onPress={() => {}}>
@@ -119,7 +119,7 @@ function LeaderboardInfoModal({ visible, onClose }: Props) {
           </Pressable>
         </View>
       </Pressable>
-    </Modal>
+    </Overlay>
   );
 }
 

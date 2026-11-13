@@ -3,11 +3,11 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   StyleSheet,
   ActivityIndicator,
   Linking,
 } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -113,7 +113,7 @@ export default function BarcodeScannerModal({
   };
 
   return (
-    <Modal visible transparent animationType="slide" onShow={handleShow}>
+    <Overlay visible animationType="slide" onShow={handleShow}>
       <View style={styles.container}>
         {permission?.granted ? (
           <>
@@ -185,7 +185,7 @@ export default function BarcodeScannerModal({
           </>
         )}
       </View>
-    </Modal>
+    </Overlay>
   );
 }
 

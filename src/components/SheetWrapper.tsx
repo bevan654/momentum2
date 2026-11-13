@@ -1,11 +1,12 @@
 import React, { useCallback, useRef } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable, Platform } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '../theme/useColors';
 import { sw, SCREEN_HEIGHT } from '../theme/responsive';
+import { PortalHost } from './ui/Portal';
 
 const DISMISS_THRESHOLD = 120;
 const VELOCITY_THRESHOLD = 800;
@@ -66,7 +67,7 @@ export default function SheetWrapper({ children, hasOwnSheet = false }: SheetWra
   }));
 
   if (hasOwnSheet) {
-    return (
+    return withHost(
       <View style={styles.container}>
         <Pressable style={StyleSheet.absoluteFill} onPress={dismiss}>
           <Animated.View style={[styles.backdrop, backdropStyle]} />
@@ -83,7 +84,7 @@ export default function SheetWrapper({ children, hasOwnSheet = false }: SheetWra
     );
   }
 
-  return (
+  return withHost(
     <View style={styles.container}>
       <Pressable style={StyleSheet.absoluteFill} onPress={dismiss}>
         <Animated.View style={[styles.backdrop, backdropStyle]} />
@@ -98,6 +99,16 @@ export default function SheetWrapper({ children, hasOwnSheet = false }: SheetWra
       </Animated.View>
     </View>
   );
+}
+
+/**
+ * On iOS a transparentModal screen is presented as a native modal view controller,
+ * on top of the app root view that holds the root PortalHost, so sheets and
+ * overlays opened from it need a host inside the screen. On Android the screen
+ * stays in the app's view tree and the root host already draws above it.
+ */
+function withHost(node: React.ReactElement) {
+  return Platform.OS === 'ios' ? <PortalHost>{node}</PortalHost> : node;
 }
 
 const styles = StyleSheet.create({

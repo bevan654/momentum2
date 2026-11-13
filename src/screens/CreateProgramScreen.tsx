@@ -9,8 +9,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Modal,
-} from 'react-native';
+  } from 'react-native';
+import Overlay from '../components/ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -112,7 +112,7 @@ function CalendarPicker({
   const st = useMemo(() => calendarStyles(colors), [colors]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Overlay visible={visible} animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={st.overlay} activeOpacity={1} onPress={onClose}>
         <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
         <View style={st.card} onStartShouldSetResponder={() => true}>
@@ -159,7 +159,7 @@ function CalendarPicker({
           </View>
         </View>
       </TouchableOpacity>
-    </Modal>
+    </Overlay>
   );
 }
 

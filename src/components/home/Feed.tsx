@@ -18,6 +18,7 @@ import { useFriendsStore } from '../../stores/useFriendsStore';
 import type { ActivityFeedItem } from '../../lib/friendsDatabase';
 import type { ExerciseWithSets } from '../../stores/useWorkoutStore';
 import FeedWorkoutModal from '../friends/FeedWorkoutModal';
+import { useLingerMount } from '../../hooks/useLingerMount';
 import ReportSheet from '../friends/ReportSheet';
 import MiniBodyMap from '../body/MiniBodyMap';
 
@@ -256,6 +257,7 @@ const FeedRow = React.memo(function FeedRow({ item }: FeedRowProps) {
   const [viewWorkoutOpen, setViewWorkoutOpen] = useState(false);
   const [hasOpenedWorkoutModal, setHasOpenedWorkoutModal] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const reportMounted = useLingerMount(reportOpen);
   const [requestSent, setRequestSent] = useState(false);
 
   const handleToggleLike = useCallback(() => {
@@ -469,7 +471,7 @@ const FeedRow = React.memo(function FeedRow({ item }: FeedRowProps) {
         />
       )}
 
-      {reportOpen && (
+      {reportMounted && (
         <ReportSheet
           visible={reportOpen}
           onClose={() => setReportOpen(false)}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
@@ -162,7 +163,7 @@ function NutritionHero({ entries, goals }: Props) {
       </TouchableOpacity>
 
       {/* Expanded detail modal */}
-      <Modal visible={expanded} transparent animationType="fade" onRequestClose={handleClose}>
+      <Overlay visible={expanded} animationType="fade" onRequestClose={handleClose}>
         <Pressable style={styles.backdrop} onPress={handleClose}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             {/* Calories summary */}
@@ -260,7 +261,7 @@ function NutritionHero({ entries, goals }: Props) {
             </TouchableOpacity>
           </Pressable>
         </Pressable>
-      </Modal>
+      </Overlay>
     </>
   );
 }

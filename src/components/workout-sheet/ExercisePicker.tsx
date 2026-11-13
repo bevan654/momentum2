@@ -14,8 +14,8 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
   Alert,
-  Modal,
-} from 'react-native';
+  } from 'react-native';
+import Overlay from '../ui/Overlay';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -851,7 +851,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
   if (!alive) return null;
 
   return (
-    <Modal visible transparent statusBarTranslucent animationType="none">
+    <Overlay visible animationType="none">
     <GestureHandlerRootView style={StyleSheet.absoluteFill}>
     <PortalHost>
     <View style={StyleSheet.absoluteFill} pointerEvents="auto">
@@ -1050,7 +1050,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     </View>
     </PortalHost>
     </GestureHandlerRootView>
-    </Modal>
+    </Overlay>
   );
 }
 

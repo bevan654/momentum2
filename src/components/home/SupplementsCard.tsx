@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -109,7 +110,7 @@ const SupplementCell = React.memo(function SupplementCell({
           </View>
         )}
         {/* Detail modal */}
-        <Modal visible={expanded} transparent animationType="fade" onRequestClose={() => setExpanded(false)}>
+        <Overlay visible={expanded} animationType="fade" onRequestClose={() => setExpanded(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setExpanded(false)}>
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -173,7 +174,7 @@ const SupplementCell = React.memo(function SupplementCell({
             </ScrollView>
           </Pressable>
         </Pressable>
-        </Modal>
+        </Overlay>
       </TouchableOpacity>
     );
 });

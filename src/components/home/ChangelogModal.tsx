@@ -4,10 +4,10 @@ import {
   Text,
   TouchableOpacity,
   Pressable,
-  Modal,
   ScrollView,
   StyleSheet,
 } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
@@ -36,7 +36,7 @@ export default function ChangelogModal() {
   const handleRequestClose = forced ? () => {} : dismiss;
 
   return (
-    <Modal visible={hasUnseen} transparent animationType="fade" onRequestClose={handleRequestClose}>
+    <Overlay visible={hasUnseen} animationType="fade" onRequestClose={handleRequestClose}>
       <Pressable style={styles.backdrop} onPress={handleBackdropPress}>
         <View style={styles.centered}>
           <Pressable style={styles.modal}>
@@ -82,7 +82,7 @@ export default function ChangelogModal() {
           </Pressable>
         </View>
       </Pressable>
-    </Modal>
+    </Overlay>
   );
 }
 

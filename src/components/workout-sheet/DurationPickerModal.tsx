@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, Modal, StyleSheet, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -25,7 +26,7 @@ export default function DurationPickerModal({ visible, onConfirm, onCancel }: Pr
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <Overlay visible={visible} animationType="fade" onRequestClose={onCancel}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onCancel}>
         <TouchableOpacity style={styles.modal} activeOpacity={1}>
           <Text style={styles.title}>Adjust Workout Duration</Text>
@@ -73,7 +74,7 @@ export default function DurationPickerModal({ visible, onConfirm, onCancel }: Pr
           </View>
         </TouchableOpacity>
       </TouchableOpacity>
-    </Modal>
+    </Overlay>
   );
 }
 

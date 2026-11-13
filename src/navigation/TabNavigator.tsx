@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, memo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
@@ -257,6 +257,10 @@ export default function TabNavigator() {
 
   const showSummary = useActiveWorkoutStore((s) => s.showSummary);
   const summaryData = useActiveWorkoutStore((s) => s.summaryData);
+  // Keep the last summary while the sheet animates closed (dismissSummary clears it).
+  const lastSummary = useRef(summaryData);
+  if (summaryData) lastSummary.current = summaryData;
+  const shownSummary = summaryData ?? lastSummary.current;
   const dismissSummary = useActiveWorkoutStore((s) => s.dismissSummary);
   const isGhostSummary = showSummary && summaryData &&
     'ghostUserName' in summaryData && !!summaryData.ghostUserName;
@@ -311,10 +315,10 @@ export default function TabNavigator() {
       <ActiveWorkoutSheet />
       <FriendProfileModal />
       <Sheet visible={showSummary && !isGhostSummary} onClose={dismissSummary} height="92%">
-        {summaryData && !isGhostSummary && (
+        {shownSummary && !isGhostSummary && (
           <WorkoutSummaryModal
             mode="just-completed"
-            data={summaryData}
+            data={shownSummary}
             onDismiss={dismissSummary}
             inline
           />

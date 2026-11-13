@@ -7,9 +7,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Modal,
   Keyboard,
 } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
@@ -202,7 +202,7 @@ function ExerciseNotes({ exercise, exerciseIndex, onExerciseFocus }: Props) {
 
       {/* Full note history — scrollable modal for large histories */}
       {notesHistoryOpen && (
-        <Modal transparent animationType="slide" onRequestClose={() => setNotesHistoryOpen(false)}>
+        <Overlay animationType="slide" onRequestClose={() => setNotesHistoryOpen(false)}>
           <Pressable style={styles.notesModalOverlay} onPress={() => setNotesHistoryOpen(false)}>
             <Pressable style={styles.notesModalSheet} onPress={() => {}}>
               <View style={styles.notesModalHeader}>
@@ -240,7 +240,7 @@ function ExerciseNotes({ exercise, exerciseIndex, onExerciseFocus }: Props) {
               </ScrollView>
             </Pressable>
           </Pressable>
-        </Modal>
+        </Overlay>
       )}
     </View>
   );

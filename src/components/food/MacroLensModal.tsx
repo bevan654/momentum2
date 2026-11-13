@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   Image,
   StyleSheet,
   ScrollView,
@@ -12,6 +11,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
 } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -374,16 +374,16 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
   /* ── Permission gate ───────────────────────────────────── */
   if (!permission) {
     return (
-      <Modal visible transparent animationType="slide">
+      <Overlay visible animationType="slide">
         <View style={styles.container} />
-      </Modal>
+      </Overlay>
     );
   }
 
   if (!permission.granted) {
     const canAsk = permission.canAskAgain;
     return (
-      <Modal visible transparent animationType="slide">
+      <Overlay visible animationType="slide">
         <View style={styles.container}>
           <View style={styles.permissionContainer}>
             <View style={styles.permIcon}>
@@ -413,13 +413,13 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
             <Ionicons name="close" size={ms(22)} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
-      </Modal>
+      </Overlay>
     );
   }
 
   /* ── Main render ───────────────────────────────────────── */
   return (
-    <Modal visible transparent animationType="slide">
+    <Overlay visible animationType="slide">
       <View style={styles.container}>
         {mode === 'camera' ? (
           <CameraView
@@ -750,7 +750,7 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
           )}
         </View>
       </View>
-    </Modal>
+    </Overlay>
   );
 }
 

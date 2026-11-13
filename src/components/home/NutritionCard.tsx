@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView } from 'react-native';
+import Overlay from '../ui/Overlay';
 import {
   Canvas,
   Path as SkiaPath,
@@ -190,7 +191,7 @@ export default function NutritionCard() {
       </TouchableOpacity>
 
       {/* Expanded detail modal */}
-      <Modal visible={expanded} transparent animationType="fade" onRequestClose={handleClose}>
+      <Overlay visible={expanded} animationType="fade" onRequestClose={handleClose}>
         <Pressable style={styles.backdrop} onPress={handleClose}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -290,7 +291,7 @@ export default function NutritionCard() {
             </ScrollView>
           </Pressable>
         </Pressable>
-      </Modal>
+      </Overlay>
     </>
   );
 }

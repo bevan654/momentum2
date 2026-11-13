@@ -5,11 +5,11 @@ import {
   ScrollView,
   TouchableOpacity,
   Pressable,
-  Modal,
   StyleSheet,
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import Overlay from '../ui/Overlay';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -334,7 +334,7 @@ function ExerciseHistoryModal({ exerciseName, visible, onClose }: Props) {
   if (!alive) return null;
 
   return (
-    <Modal visible transparent statusBarTranslucent animationType="none">
+    <Overlay visible animationType="none">
       <GestureHandlerRootView style={StyleSheet.absoluteFill}>
         {/* Backdrop */}
         <Pressable style={StyleSheet.absoluteFill} onPress={handleDismiss}>
@@ -577,7 +577,7 @@ function ExerciseHistoryModal({ exerciseName, visible, onClose }: Props) {
           )}
         </Animated.View>
       </GestureHandlerRootView>
-    </Modal>
+    </Overlay>
   );
 }
 

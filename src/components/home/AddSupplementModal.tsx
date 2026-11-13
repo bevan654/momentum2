@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, Modal, TouchableOpacity, TextInput,
+  View, Text, TouchableOpacity, TextInput,
   ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Pressable,
 } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
@@ -99,7 +100,7 @@ export default function AddSupplementModal({ visible, onClose }: Props) {
   const canAdd = customName.trim().length > 0 && customGoal.length > 0 && !isNaN(parseFloat(customGoal));
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+    <Overlay visible={visible} animationType="slide" onRequestClose={handleClose}>
       <KeyboardAvoidingView
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -207,7 +208,7 @@ export default function AddSupplementModal({ visible, onClose }: Props) {
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
-    </Modal>
+    </Overlay>
   );
 }
 

@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, FlatList, Modal, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { PortalHost } from '../ui/Portal';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
@@ -180,6 +182,8 @@ function YearViewModal({
 
   return (
     <Modal visible={visible} animationType="slide" onShow={handleShow} statusBarTranslucent>
+      <GestureHandlerRootView style={ys.hostRoot}>
+      <PortalHost>
       <View style={[ys.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={ys.header}>
           <View>
@@ -211,6 +215,8 @@ function YearViewModal({
           />
         )}
       </View>
+      </PortalHost>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -406,6 +412,9 @@ export default function ActivityCard() {
 /* ─── Year View Styles ───────────────────────────────── */
 
 const yearStyles = (colors: ThemeColors) => StyleSheet.create({
+  hostRoot: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,

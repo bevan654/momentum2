@@ -5,8 +5,8 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Modal,
-} from 'react-native';
+  } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -346,9 +346,8 @@ function ExerciseCard({
       </View>
 
       {/* Rest Picker Modal */}
-      <Modal
+      <Overlay
         visible={showRestPicker}
-        transparent
         animationType="fade"
         onRequestClose={() => setShowRestPicker(false)}
       >
@@ -385,7 +384,7 @@ function ExerciseCard({
             </View>
           </View>
         </TouchableOpacity>
-      </Modal>
+      </Overlay>
     </View>
     </Swipeable>
   );
