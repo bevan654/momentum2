@@ -291,7 +291,7 @@ Then implement it, following the Git & GitHub Practices below.
 Keep the repo clean and the history readable.
 
 ### Branches
-- Never commit directly to `main`. Branch from an up-to-date `main` (`git checkout main && git pull`) for every piece of work.
+- Never commit directly to `main`. Branch from an up-to-date `main` (`git checkout main && git pull`) for every piece of work. The only exception is review-loop fix branches, which branch off the PR under review (see below).
 - **Naming: `{user}/{type}/{short-name}`.**
   - `{user}`: the developer's lowercase first name, asked at the start of the session (see "Before Starting Any Work").
   - `{type}`: `feature` (new functionality), `bugfix` (fixing broken behaviour) or `chore` (docs, refactors, tooling, deps, cleanup).
@@ -302,7 +302,7 @@ Keep the repo clean and the history readable.
 
 ### Pull Requests & Merging
 - **Never merge into `main` yourself unless the user explicitly approves that specific merge.** Approval for one PR doesn't carry over to the next.
-- Your job ends at **opening a pull request** (`gh pr create`) with a summary and a test plan, so another agent or reviewer can double-check it. Then give the user the PR link.
+- When the user asks you to commit and push finished work, your job ends at **opening a pull request** (`gh pr create`) with a summary and a test plan, so another agent or reviewer can double-check it. Then give the user the PR link.
 - Never bypass branch protection (no `gh pr merge --admin`, no force-pushing to `main`, no unlocking or editing protection rules). The only exception is the final merge step of the review loop below.
 - When reviewing someone else's PR outside that loop, report findings as PR comments or back to the user. Don't merge it.
 
@@ -310,10 +310,12 @@ Keep the repo clean and the history readable.
 A request to merge is the trigger for a review, not an instant merge. Run this as a **background agent** so the user isn't blocked, and tell them it has started.
 
 1. **Review.** The background agent checks out the PR (call it PR A) and reviews its full diff against `main` for bugs: logic errors, crashes, regressions in behaviour the PR touches, broken imports or types (`npx tsc --noEmit` must add no new errors), RLS or migration problems, and violations of the conventions in this file. It also traces how changed code is used elsewhere; don't just read the diff.
-2. **Fix.** If it finds real bugs, it fixes them on a new branch off PR A's branch, `{user}/bugfix/<pr-short-name>-review-<n>`, and opens a fix PR **targeting PR A's branch** (not `main`). The fix PR lists each bug, why it's a bug, and the fix.
+2. **Fix.** If it finds real bugs, it fixes them on a new branch off PR A's branch, `{user}/bugfix/<pr-short-name>-review-<n>` (`{user}` is the developer who asked for the merge, `<pr-short-name>` is the `{short-name}` part of PR A's branch, `<n>` is the round number), and opens a fix PR **targeting PR A's branch** (not `main`). The fix PR lists each bug, why it's a bug, and the fix.
 3. **Loop.** A fresh review pass then checks PR A's branch with the fix applied, looking at the whole diff, not just the fix, since fixes can introduce new bugs. Once that pass confirms the fix, merge the fix PR into PR A's branch. Repeat steps 1–3 until a review pass finds nothing.
-4. **Cap.** Stop after **3 rounds** and report to the user instead of continuing. Also stop and ask straight away if a finding needs a product decision, changes the PR's scope or behaviour, or touches data or migrations in a way that can't be undone.
+4. **Cap.** Stop after **3 rounds** and report to the user instead of continuing. Also stop and report back to the user straight away, without merging, if a finding needs a product decision, changes the PR's scope or behaviour, or touches data or migrations in a way that can't be undone.
 5. **Merge.** Once a pass is clean, report to the user: rounds run, bugs found and fixed (with fix PR links), and anything deliberately left alone. The user's merge request counts as approval for **this PR only**, so the agent may now merge PR A into `main`. Because `main` requires a review the author can't give, this one step may use `gh pr merge --merge --admin --delete-branch`. Then delete the fix branches.
+
+The user's merge request also authorises the agent to commit, push and open fix PRs for this loop. The background agent can't ask the user questions, so it uses the requesting developer's `{user}` instead of asking for a name, and skips the changelog question in the Pre-Commit Checklist (changelog entries belong to PR A, not its fix PRs).
 
 Don't report "no bugs" without having run the review. If the review couldn't run (for example, the build or typecheck tooling failed), say so and don't merge.
 
@@ -321,7 +323,7 @@ Don't report "no bugs" without having run the review. If the review couldn't run
 - Small, focused commits that each leave the app building.
 - Descriptive imperative messages, e.g. `Add big-three leaderboard RPC`. Never use placeholder messages like `sdfg` or `fdsaf`.
 - Review `git status` and `git diff` before committing. Stage specific files, not blind `git add -A`.
-- Commit or push only when the user asks.
+- Commit or push only when the user asks (a merge request covers the review loop's fix branches; see above).
 
 ### Keeping the repo clean
 - Never commit secrets (`.env`, keys, `google-services.json` with real keys, service-role tokens) or generated output (`ios/`, `android/`, `dist/`, build artifacts).
