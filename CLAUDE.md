@@ -40,7 +40,7 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
 ├── app.config.ts              # Expo config (bundle IDs, plugins, EAS)
 ├── database-schema.md         # Postgres schema reference (all public tables, generated from the live schema)
 ├── docs/                      # Plans, audits, security review
-├── scripts/                   # Dev/ops scripts (build stamping, imports, seeding, notifications)
+├── scripts/                   # Dev/ops scripts (build stamping, imports, seeding, notifications; catalog/ = RepDB exercise import)
 │
 └── src/
     ├── screens/               # Top-level routes (22 screens)
@@ -71,8 +71,7 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
 supabase/
 ├── functions/                 # Edge functions: ai-coach, ai-workout-summary, ai-workout-notifications,
 │                              #   gemini-food-scan, gemini-food-search, push-notification, delete-account, discord-*
-├── migrations/                # Dated SQL migrations (YYYYMMDD_description.sql)
-└── seed/                      # Exercise catalog seed data (exercises_catalog.csv / _full.sql)
+└── migrations/                # Dated SQL migrations (YYYYMMDD_description.sql)
 ```
 
 ---
@@ -209,9 +208,9 @@ Total resting ~4 connections per app instance. Pool ceiling on default Supabase 
 
 ## Database — see `database-schema.md`
 
-45 tables, all documented (regenerated from the live schema). Categories:
+48 tables, all documented (regenerated from the live schema). Categories:
 
-**Workout:** `workouts`, `exercises`, `sets`, `exercises_catalog`, `exercise_aliases`, `user_exercises`, `routines`, `routine_exercises`, `programs`, `program_days`, `program_day_exercises`, `user_ranks`, `user_streaks`
+**Workout:** `workouts`, `exercises`, `sets`, `exercises_catalog`, `exercise_aliases`, `muscles`, `exercise_muscle_targets`, `muscle_map_regions`, `user_exercises`, `routines`, `routine_exercises`, `programs`, `program_days`, `program_day_exercises`, `user_ranks`, `user_streaks`
 
 **Nutrition:** `food_entries`, `food_catalog`, `barcode_foods`, `ai_food_cache`, `nutrition_goals`, `meal_config`, `supplement_goals`, `user_supplements`, `supplement_entries`, `protein_powders`, `protein_powder_log`
 
@@ -231,8 +230,10 @@ Key columns:
 - `workouts`: `duration` (seconds; 0 = unknown), `program_id`/`program_week`; optional `started_at`/`ended_at`, `timezone`/`utc_offset_min`, `program_day_of_week`/`program_day_label`, `routine_id`, `bodyweight_kg`, `source`
 - `exercises`: `name` is the stored identity; `catalog_id` / `user_exercise_id` are filled by the `exercises_link_identity` trigger (also for inserts from old app builds)
 - `profiles`: `username`, `height`, `age`, `gender`, `push_token`, privacy flags, beta flags
-- `exercises_catalog`: `id` is text; names are stored lowercase. `primary_muscles`, `secondary_muscles`, `other_muscles`, `equipment`, `difficulty`, `slug`
+- `exercises_catalog`: `id` is text; names are stored lowercase and equipment-first ("barbell bench press"). `primary_muscles`, `secondary_muscles`, `other_muscles` (legacy muscle names, see below), `equipment`, `difficulty`, `slug`, `is_main_lift`, `ranking_weight`; `is_hidden` (not offered in the picker, still resolves for history), `exercise_type` (NULL = derive from the bodyweight flags), `repdb_id`, `description`, `instructions`, `tips`, `is_unilateral`, `body_part`
 - `data_change_log`: old/new value of every column changed by a data clean-up (service role only); use it to revert
+
+**Exercise catalog (RepDB):** most rows come from the RepDB dataset, imported by `scripts/catalog/import_repdb.py` (decisions for our own rows in `scripts/catalog/decisions.json`; undo with `scripts/catalog/revert_import.sql`). Its licence allows in-app use with the "Exercise data by RepDB (repdb.co)" credit in Profile, but not redistribution, and this repo is public: never commit RepDB content (the dataset, generated SQL, names or text), only RepDB ids. Renamed exercises keep their old name as an `exercise_aliases` row, so old app builds and imported names still resolve. `primary_muscles` / `secondary_muscles` stay in the legacy vocabulary every app build understands (`MUSCLE_ALIASES` in `src/constants/muscles.ts`); anatomical detail is in `exercise_muscle_targets` (→ `muscles`), and `muscle_map_regions` maps muscles to the regions of each body-map renderer (`map_id`), so a new body map only adds its own rows. Main-lift slots in `src/utils/strengthScore.ts` and the leaderboard RPCs match lifts by name: keep the previous name listed when renaming one.
 
 **Compatibility rule:** older app builds stay installed (builds before the force-update gate can't be blocked), and they write directly to `workouts` → `exercises` → `sets`. Schema changes must be additive: new nullable columns, no renames, type changes, new NOT NULL columns or drops, and no trigger that can fail an insert.
 
