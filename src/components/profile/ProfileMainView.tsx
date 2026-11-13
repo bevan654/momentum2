@@ -149,6 +149,20 @@ export default function ProfileMainView({ onOpenSettings, onOpenPatchNotes, onCl
         </TouchableOpacity>
       </View>
 
+      {/* Credits */}
+      <Text style={styles.sectionTitle}>Credits</Text>
+      <View style={styles.supportCard}>
+        <TouchableOpacity
+          style={styles.linkRow}
+          onPress={() => Linking.openURL('https://repdb.co')}
+          activeOpacity={0.7}
+          accessibilityRole="link"
+        >
+          <Text style={styles.linkText}>Exercise data by RepDB (repdb.co)</Text>
+          <Ionicons name="open-outline" size={ms(16)} color={colors.textTertiary} />
+        </TouchableOpacity>
+      </View>
+
       <Text style={styles.version}>{BUILD_VERSION}</Text>
     </ScrollView>
   );
