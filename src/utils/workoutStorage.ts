@@ -12,6 +12,8 @@ interface PersistedWorkout {
   startedFromRoutine: string | null;
   startedFromProgram?: string | null;
   programWeek?: number | null;
+  workoutTitle?: string | null;
+  restAnchor?: { exerciseIndex: number; setIndex: number } | null;
 }
 
 export function saveWorkout(state: PersistedWorkout): void {

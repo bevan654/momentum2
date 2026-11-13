@@ -5,20 +5,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
+import { useActiveWorkoutStore, getPreferredRestDuration } from '../../stores/useActiveWorkoutStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import RestPickerModal from './RestPickerModal';
 import DurationPickerModal from './DurationPickerModal';
+import ActionSheet, { type ActionSheetItem } from './ActionSheet';
+import { formatClock } from '../../utils/formatDuration';
+import { workoutTotals } from '../../utils/workoutProgress';
 import { queueWorkoutFinishFeedback } from '../../services/workoutFinishFeedback';
 
 const FOUR_HOURS = 4 * 60 * 60; // 14400 seconds
-
-function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
 
 function formatRestDuration(seconds: number): string {
   if (seconds >= 120) return `${seconds / 60}m`;
@@ -29,14 +26,8 @@ function WorkoutHeader() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const elapsedSeconds = useActiveWorkoutStore((s) => s.elapsedSeconds);
-  const restDuration = useActiveWorkoutStore((s) => s.restDuration);
-  const isResting = useActiveWorkoutStore((s) => s.isResting);
-  const restPaused = useActiveWorkoutStore((s) => s.restPaused);
+  const workoutTitle = useActiveWorkoutStore((s) => s.workoutTitle);
   const setRestDuration = useActiveWorkoutStore((s) => s.setRestDuration);
-  const startRest = useActiveWorkoutStore((s) => s.startRest);
-  const pauseRest = useActiveWorkoutStore((s) => s.pauseRest);
-  const resumeRest = useActiveWorkoutStore((s) => s.resumeRest);
-  const stopRest = useActiveWorkoutStore((s) => s.stopRest);
   const discardWorkout = useActiveWorkoutStore((s) => s.discardWorkout);
   const finishWorkout = useActiveWorkoutStore((s) => s.finishWorkout);
   const exercises = useActiveWorkoutStore((s) => s.exercises);
@@ -48,6 +39,9 @@ function WorkoutHeader() {
   const [restPickerVisible, setRestPickerVisible] = useState(false);
   const [durationPickerVisible, setDurationPickerVisible] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const totals = useMemo(() => workoutTotals(exercises), [exercises]);
+  const setsRatio = totals.setsTotal > 0 ? totals.setsDone / totals.setsTotal : 0;
 
   const handleDiscard = () => {
     Alert.alert('Discard Workout', 'Are you sure? All progress will be lost.', [
@@ -114,59 +108,78 @@ function WorkoutHeader() {
     }
   };
 
+  const menuActions: ActionSheetItem[] = [
+    {
+      key: 'rest',
+      label: `Rest length · ${formatRestDuration(getPreferredRestDuration())}`,
+      icon: 'timer-outline',
+      onPress: () => setRestPickerVisible(true),
+    },
+    { key: 'discard', label: 'Discard workout', icon: 'trash-outline', onPress: handleDiscard, destructive: true },
+  ];
+
   return (
+    <View style={styles.wrapper}>
     <View style={styles.container}>
-      {/* Left: Rest timer controls */}
-      <View style={styles.leftGroup}>
-        <TouchableOpacity
-          style={styles.restBtn}
-          onPress={() => setRestPickerVisible(true)}
-          activeOpacity={0.6}
-        >
-          <Text style={styles.restText}>{formatRestDuration(restDuration)}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={isResting ? (restPaused ? resumeRest : pauseRest) : startRest}
-        >
-          <Ionicons
-            name={isResting && !restPaused ? 'pause' : 'play'}
-            size={ms(16)}
-            color={colors.accent}
-          />
-        </TouchableOpacity>
-        {isResting && (
-          <TouchableOpacity style={styles.iconBtn} onPress={stopRest} activeOpacity={0.6}>
-            <Ionicons name="refresh" size={ms(16)} color={colors.accent} />
-          </TouchableOpacity>
+      {/* Left: title + elapsed time + volume so far */}
+      <View style={styles.titleBlock}>
+        <Text style={styles.title} numberOfLines={1}>{workoutTitle || 'Workout'}</Text>
+        <Text style={styles.elapsed} numberOfLines={1}>
+          {formatClock(elapsedSeconds)}
+          {totals.volumeKg > 0 ? `  ·  ${Math.round(totals.volumeKg).toLocaleString()} kg` : ''}
+        </Text>
+      </View>
+
+      {/* Right: Finish + options */}
+      <TouchableOpacity
+        style={[styles.finishBtn, finishing && styles.finishBtnSaving]}
+        onPress={handleFinish}
+        disabled={finishing}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Finish workout"
+      >
+        {finishing ? (
+          <ActivityIndicator size="small" color={colors.textOnAccent} />
+        ) : (
+          <Text style={styles.finishText}>
+            Finish{totals.setsTotal > 0 ? ` · ${totals.setsDone}/${totals.setsTotal}` : ''}
+          </Text>
         )}
-      </View>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.moreBtn}
+        onPress={() => setMenuOpen(true)}
+        activeOpacity={0.6}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        accessibilityRole="button"
+        accessibilityLabel="Workout options"
+      >
+        <Ionicons name="ellipsis-horizontal" size={ms(18)} color={colors.textSecondary} />
+      </TouchableOpacity>
 
-      {/* Center: Timer */}
-      <Text style={styles.timer}>{formatElapsed(elapsedSeconds)}</Text>
+    </View>
 
-      {/* Right: Actions */}
-      <View style={styles.rightGroup}>
-        <TouchableOpacity style={styles.discardBtn} onPress={handleDiscard} activeOpacity={0.6}>
-          <Ionicons name="close" size={ms(20)} color={colors.textTertiary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.finishBtn, finishing && styles.finishBtnSaving]}
-          onPress={handleFinish}
-          disabled={finishing}
-          activeOpacity={0.7}
-        >
-          {finishing ? (
-            <ActivityIndicator size="small" color={colors.textOnAccent} />
-          ) : (
-            <Ionicons name="checkmark" size={ms(20)} color={colors.textOnAccent} />
-          )}
-        </TouchableOpacity>
-      </View>
+      {/* Workout progress: sets done / total */}
+      {totals.setsTotal > 0 && (
+        <View style={styles.progressRow}>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.round(setsRatio * 100)}%` }]} />
+          </View>
+          <Text style={styles.progressText}>{totals.setsDone}/{totals.setsTotal} sets</Text>
+        </View>
+      )}
+
+      <ActionSheet
+        visible={menuOpen}
+        title={workoutTitle || 'Workout'}
+        actions={menuActions}
+        onClose={() => setMenuOpen(false)}
+      />
 
       <RestPickerModal
         visible={restPickerVisible}
-        currentDuration={restDuration}
+        currentDuration={getPreferredRestDuration()}
         onSelect={setRestDuration}
         onClose={() => setRestPickerVisible(false)}
       />
@@ -186,60 +199,61 @@ function WorkoutHeader() {
 export default React.memo(WorkoutHeader);
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  wrapper: {
+    paddingHorizontal: sw(16),
+    paddingTop: sw(10),
+    paddingBottom: sw(10),
+  },
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: sw(16),
-    paddingVertical: sw(10),
+    gap: sw(10),
   },
-  leftGroup: {
+  progressRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: sw(8),
+    marginTop: sw(10),
+  },
+  progressTrack: {
     flex: 1,
-  },
-  restBtn: {
+    height: sw(3),
+    borderRadius: sw(2),
     backgroundColor: colors.surface,
-    paddingHorizontal: sw(12),
-    paddingVertical: sw(6),
-    borderRadius: sw(8),
+    overflow: 'hidden',
   },
-  restText: {
-    color: colors.accent,
-    fontSize: ms(13),
-    fontFamily: Fonts.bold,
-    lineHeight: ms(18),
+  progressFill: {
+    height: '100%',
+    borderRadius: sw(2),
+    backgroundColor: colors.accent,
   },
-  iconBtn: {
-    padding: sw(6),
-  },
-  discardBtn: {
-    width: sw(36),
-    height: sw(36),
-    borderRadius: sw(18),
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timer: {
-    color: colors.textPrimary,
-    fontSize: ms(22),
-    fontFamily: Fonts.bold,
-    lineHeight: ms(27),
-    letterSpacing: -0.3,
+  progressText: {
+    color: colors.textTertiary,
+    fontSize: ms(10),
+    fontFamily: Fonts.semiBold,
+    lineHeight: ms(13),
     fontVariant: ['tabular-nums'],
   },
-  rightGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(10),
+  titleBlock: {
     flex: 1,
-    justifyContent: 'flex-end',
+  },
+  title: {
+    color: colors.textPrimary,
+    fontSize: ms(17),
+    fontFamily: Fonts.bold,
+    lineHeight: ms(22),
+  },
+  elapsed: {
+    color: colors.textSecondary,
+    fontSize: ms(13),
+    fontFamily: Fonts.semiBold,
+    lineHeight: ms(17),
+    fontVariant: ['tabular-nums'],
   },
   finishBtn: {
-    width: sw(36),
+    minWidth: sw(84),
     height: sw(36),
+    paddingHorizontal: sw(16),
     borderRadius: sw(18),
     backgroundColor: colors.accentGreen,
     justifyContent: 'center',
@@ -247,5 +261,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   finishBtnSaving: {
     opacity: 0.7,
+  },
+  finishText: {
+    color: colors.textOnAccent,
+    fontSize: ms(13),
+    fontFamily: Fonts.bold,
+    lineHeight: ms(17),
+  },
+  moreBtn: {
+    padding: sw(4),
   },
 });

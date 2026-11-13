@@ -123,9 +123,21 @@ const SET_TYPE_CYCLE: Record<string, string> = {
 let _timerInterval: ReturnType<typeof setInterval> | null = null;
 let _persistTimeout: ReturnType<typeof setTimeout> | null = null;
 let _workoutRestored = false; // Guard: prevent _persist before restore
-let _restResumeBase: number | null = null; // Remaining seconds when rest was resumed after pause
 let _preferredRestDuration = 90; // Loaded from AsyncStorage at module init
 loadRestPreference().then((d) => { _preferredRestDuration = d; });
+
+/** The user's preferred rest length (what each new rest starts at). */
+export type RestAnchor = { exerciseIndex: number; setIndex: number } | null;
+
+/** Keep the rest anchor on the same set when a set is inserted before it. */
+function _shiftAnchorForInsert(anchor: RestAnchor, exerciseIndex: number, insertAt: number): RestAnchor {
+  if (!anchor || anchor.exerciseIndex !== exerciseIndex || anchor.setIndex < insertAt) return anchor;
+  return { ...anchor, setIndex: anchor.setIndex + 1 };
+}
+
+export function getPreferredRestDuration(): number {
+  return _preferredRestDuration;
+}
 
 // ── Store interface ────────────────────────────────────
 
@@ -136,11 +148,19 @@ interface ActiveWorkoutState {
   elapsedSeconds: number;
   exercises: ActiveExercise[];
 
+  /** Seconds from restStartedAt until the current rest ends (restStartedAt + restDuration = end). */
   restDuration: number;
   restRemaining: number;
   restStartedAt: number | null;
   isResting: boolean;
-  restPaused: boolean;
+  /** Full length of the current rest incl. ±15s adjustments — for the progress bar only. */
+  restTotal: number;
+  /** When the last rest ran out on its own (not skipped) — drives the "rest done" moment. */
+  restEndedAt: number | null;
+  /** Routine / program-day name shown in the header; null = plain workout. */
+  workoutTitle: string | null;
+  /** The set whose completion started the current/last rest — the inline rest row renders under it. */
+  restAnchor: RestAnchor;
 
   // Summary + share
   showSummary: boolean;
@@ -155,13 +175,13 @@ interface ActiveWorkoutState {
   // Workout lifecycle
   startWorkout: () => void;
   startFromRoutine: (
-    routine: { id: string; exercises: { name: string; default_sets: number; exercise_type: string }[] },
+    routine: { id: string; name?: string; exercises: { name: string; default_sets: number; exercise_type: string }[] },
     catalogMap: Record<string, { category: string; exercise_type: string }>,
     prevMap: Record<string, { kg: number; reps: number }[]>,
     ghostUserName?: string,
   ) => void;
   startFromProgram: (
-    routine: { id: string; exercises: { name: string; default_sets: number; exercise_type: string }[] },
+    routine: { id: string; name?: string; exercises: { name: string; default_sets: number; exercise_type: string }[] },
     catalogMap: Record<string, { category: string; exercise_type: string }>,
     prevMap: Record<string, { kg: number; reps: number }[]>,
     programId: string,
@@ -210,8 +230,8 @@ interface ActiveWorkoutState {
   setRestDuration: (seconds: number) => void;
   startRest: () => void;
   stopRest: () => void;
-  pauseRest: () => void;
-  resumeRest: () => void;
+  /** Add or remove time from the running rest (e.g. ±15s). Ending at ≤0 stops the rest. */
+  adjustRest: (deltaSeconds: number) => void;
   tick: () => void;
 
   // Internal
@@ -282,7 +302,10 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   restRemaining: 0,
   restStartedAt: null,
   isResting: false,
-  restPaused: false,
+  restTotal: 0,
+  restEndedAt: null,
+  workoutTitle: null,
+  restAnchor: null,
 
   showSummary: false,
   summaryData: null,
@@ -307,6 +330,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       elapsedSeconds: 0,
       exercises: [],
       restDuration: _preferredRestDuration,
+      workoutTitle: null,
+      restAnchor: null,
       startedFromRoutine: null,
       startedFromProgram: null,
       programWeek: null,
@@ -353,6 +378,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       elapsedSeconds: 0,
       exercises,
       restDuration: _preferredRestDuration,
+      workoutTitle: routine.name || (ghostUserName ? `vs ${ghostUserName}` : null),
+      restAnchor: null,
       startedFromRoutine: routine.id,
       ghostUserName: ghostUserName || null,
       isResting: false,
@@ -388,12 +415,15 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       startTime: null,
       elapsedSeconds: 0,
       exercises: [],
+      workoutTitle: null,
+      restAnchor: null,
       startedFromRoutine: null,
       startedFromProgram: null,
       programWeek: null,
       ghostUserName: null,
       isResting: false,
       restRemaining: 0,
+      restEndedAt: null,
       showSummary: false,
       summaryData: null,
     });
@@ -731,6 +761,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       isActive: false,
       sheetVisible: false,
       exercises: [],
+      workoutTitle: null,
+      restAnchor: null,
       startedFromRoutine: null,
       startedFromProgram: null,
       programWeek: null,
@@ -738,6 +770,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       isResting: false,
       restRemaining: 0,
       restStartedAt: null,
+      restEndedAt: null,
       showSummary: true,
       summaryData,
     });
@@ -785,12 +818,16 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       elapsedSeconds: elapsed,
       exercises,
       restDuration: saved.restDuration,
+      workoutTitle: saved.workoutTitle ?? null,
+      restAnchor: saved.restAnchor ?? null,
       startedFromRoutine: saved.startedFromRoutine,
       startedFromProgram: saved.startedFromProgram || null,
       programWeek: saved.programWeek || null,
       isResting,
       restRemaining,
       restStartedAt,
+      restTotal: restRemaining,
+      restEndedAt: null,
     });
 
     _workoutRestored = true;
@@ -911,8 +948,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   removeExercise: (index) => {
     set((s) => {
       const exercises = s.exercises.filter((_, i) => i !== index);
+      const a = s.restAnchor;
+      const restAnchor = !a || a.exerciseIndex < index ? a
+        : a.exerciseIndex === index ? null
+        : { ...a, exerciseIndex: a.exerciseIndex - 1 };
       // Fix superset refs
       return {
+        restAnchor,
         exercises: exercises.map((ex, i) => {
           let sw = ex.supersetWith;
           if (sw === null) return ex;
@@ -936,7 +978,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         category,
         prevSets,
       };
-      return { exercises };
+      const restAnchor = s.restAnchor?.exerciseIndex === index ? null : s.restAnchor;
+      return { exercises, restAnchor };
     });
     get()._persist();
   },
@@ -948,9 +991,15 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
       const exercises = [...s.exercises];
       [exercises[fromIndex], exercises[toIndex]] = [exercises[toIndex], exercises[fromIndex]];
+      const a = s.restAnchor;
+      const restAnchor = !a ? a
+        : a.exerciseIndex === fromIndex ? { ...a, exerciseIndex: toIndex }
+        : a.exerciseIndex === toIndex ? { ...a, exerciseIndex: fromIndex }
+        : a;
 
       // Fix superset refs
       return {
+        restAnchor,
         exercises: exercises.map((ex) => {
           let sw = ex.supersetWith;
           if (sw === null) return ex;
@@ -1034,7 +1083,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       sets.splice(insertAt, 0, dropSet);
       ex.sets = sets;
       exercises[exerciseIndex] = ex;
-      return { exercises };
+      return { exercises, restAnchor: _shiftAnchorForInsert(s.restAnchor, exerciseIndex, insertAt) };
     });
     get()._persist();
   },
@@ -1080,7 +1129,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
       ex.sets = sets;
       exercises[exerciseIndex] = ex;
-      return { exercises };
+      return { exercises, restAnchor: _shiftAnchorForInsert(s.restAnchor, exerciseIndex, insertAt) };
     });
     get()._persist();
   },
@@ -1128,7 +1177,16 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       });
 
       exercises[exerciseIndex] = ex;
-      return { exercises };
+      let restAnchor = s.restAnchor;
+      if (restAnchor && restAnchor.exerciseIndex === exerciseIndex) {
+        if (removeIndices.has(restAnchor.setIndex)) restAnchor = null;
+        else {
+          let below = 0;
+          removeIndices.forEach((i) => { if (i < restAnchor!.setIndex) below++; });
+          restAnchor = { ...restAnchor, setIndex: restAnchor.setIndex - below };
+        }
+      }
+      return { exercises, restAnchor };
     });
     get()._persist();
   },
@@ -1169,6 +1227,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
     if (!wasCompleted) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      set({ restAnchor: { exerciseIndex, setIndex } });
       get().startRest();
     }
 
@@ -1255,10 +1314,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Rest timer ────────────────────────────────────
 
   setRestDuration: (seconds) => {
+    // While resting, restDuration is re-anchored to the remaining time, so the
+    // delta must come from the previous preference, not restDuration.
+    const prevPreferred = _preferredRestDuration;
     _preferredRestDuration = seconds;
     saveRestPreference(seconds);
 
-    const { isResting, restDuration: prevDuration, restRemaining: prevRemaining, restPaused } = get();
+    const { isResting, restRemaining: prevRemaining, restTotal: prevTotal } = get();
     if (!isResting) {
       set({ restDuration: seconds });
       get()._persist();
@@ -1266,7 +1328,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     }
 
     // Apply the change to the running timer by the same delta.
-    const delta = seconds - prevDuration;
+    const delta = seconds - prevPreferred;
     const newRemaining = prevRemaining + delta;
 
     if (newRemaining <= 0) {
@@ -1275,18 +1337,15 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       return;
     }
 
-    if (restPaused) {
-      set({ restDuration: seconds, restRemaining: newRemaining });
-    } else {
-      _restResumeBase = newRemaining;
-      set({
-        restDuration: seconds,
-        restRemaining: newRemaining,
-        restStartedAt: Date.now(),
-      });
-      Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
-      _scheduleRestNotification(newRemaining);
-    }
+    // Re-anchor so restStartedAt + restDuration is always the real end time
+    // (the Live Activity and crash-restore both compute the end that way).
+    set({
+      restDuration: newRemaining,
+      restRemaining: newRemaining,
+      restTotal: Math.max(prevTotal + delta, newRemaining),
+      restStartedAt: Date.now(),
+    });
+    _scheduleRestNotification(newRemaining);
     updateWorkoutActivity(_buildSnapshot(get()));
     get()._persist();
   },
@@ -1294,8 +1353,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   startRest: () => {
     // Pick up any preference change made during a previous rest.
     const restDuration = _preferredRestDuration;
-    _restResumeBase = null;
-    set({ isResting: true, restPaused: false, restDuration, restRemaining: restDuration, restStartedAt: Date.now() });
+    set({ isResting: true, restDuration, restTotal: restDuration, restRemaining: restDuration, restStartedAt: Date.now(), restEndedAt: null });
     updateWorkoutActivity(_buildSnapshot(get()));
 
     // Await cancel before scheduling to avoid race condition on Android
@@ -1303,26 +1361,27 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   stopRest: () => {
-    _restResumeBase = null;
-    set({ isResting: false, restPaused: false, restRemaining: 0, restStartedAt: null });
+    set({ isResting: false, restRemaining: 0, restStartedAt: null });
     updateWorkoutActivity(_buildSnapshot(get()));
     Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+    get()._persist();
   },
 
-  pauseRest: () => {
-    const { isResting, restRemaining } = get();
-    if (!isResting || restRemaining <= 0) return;
-    set({ restPaused: true, restStartedAt: null });
-    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+  adjustRest: (deltaSeconds) => {
+    const { isResting, restRemaining, restTotal } = get();
+    if (!isResting) return;
+    const newRemaining = restRemaining + deltaSeconds;
+    if (newRemaining <= 0) {
+      get().stopRest();
+      return;
+    }
+    const newTotal = Math.max(restTotal + deltaSeconds, newRemaining);
+    set({ restDuration: newRemaining, restRemaining: newRemaining, restTotal: newTotal, restStartedAt: Date.now() });
+    _scheduleRestNotification(newRemaining);
+    updateWorkoutActivity(_buildSnapshot(get()));
+    get()._persist();
   },
 
-  resumeRest: () => {
-    const { isResting, restPaused, restRemaining } = get();
-    if (!isResting || !restPaused || restRemaining <= 0) return;
-    _restResumeBase = restRemaining;
-    set({ restPaused: false, restStartedAt: Date.now() });
-    _scheduleRestNotification(restRemaining);
-  },
 
   tick: () => {
     const { startTime, isResting, restDuration, restStartedAt } = get();
@@ -1332,15 +1391,14 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       patch.elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
     }
 
-    const restPaused = get().restPaused;
-    if (isResting && restStartedAt && !restPaused) {
-      const base = _restResumeBase ?? restDuration;
+    if (isResting && restStartedAt) {
       const elapsed = Math.floor((Date.now() - restStartedAt) / 1000);
-      const remaining = Math.max(0, base - elapsed);
+      const remaining = Math.max(0, restDuration - elapsed);
       if (remaining <= 0) {
         // Apply elapsed update first, then stop rest (separate set to avoid stale merge)
         if (patch.elapsedSeconds !== undefined) set(patch);
         get().stopRest();
+        set({ restEndedAt: Date.now() });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         return;
       }
@@ -1357,9 +1415,9 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     if (!_workoutRestored) return; // Don't persist before restore has run
     if (_persistTimeout) clearTimeout(_persistTimeout);
     _persistTimeout = setTimeout(() => {
-      const { isActive, startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek } = get();
+      const { isActive, startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor } = get();
       if (!isActive || !startTime) return;
-      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek });
+      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor });
     }, 500);
   },
 }));

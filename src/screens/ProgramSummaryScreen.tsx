@@ -82,6 +82,7 @@ export default function ProgramSummaryScreen() {
     // Build a pseudo-routine for startFromProgram
     const pseudoRoutine = {
       id: `program-${program.id}-day-${todaysRoutine.day_of_week}`,
+      name: todaysRoutine.label || program.name,
       exercises: todaysRoutine.exercises.map((e) => ({
         name: e.name,
         default_sets: e.default_sets,

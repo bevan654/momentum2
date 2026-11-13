@@ -18,9 +18,10 @@ import { toSlug, SLUG_LABELS } from '../../utils/muscleVolume';
 import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
 import { suggestSets } from '../../utils/exerciseProgress';
 import SetRow from './SetRow';
+import RestInlineRow from './RestInlineRow';
 import ExerciseNotes, { noteCount } from './ExerciseNotes';
 import ExerciseProgressChart from './ExerciseProgressChart';
-import ExerciseActionsSheet, { type ExerciseAction } from './ExerciseActionsSheet';
+import ActionSheet, { type ActionSheetItem } from './ActionSheet';
 
 /* ─── Ghost set comparison ─────────────────────────────── */
 
@@ -82,6 +83,11 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   const toggleSetComplete = useActiveWorkoutStore((s) => s.toggleSetComplete);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const isGhost = !!useActiveWorkoutStore((s) => s.ghostUserName);
+  // Index of this card's set that started the current rest (-1 = none). A
+  // primitive selector so cards only re-render when the anchor moves.
+  const restSetIndex = useActiveWorkoutStore((s) =>
+    s.restAnchor && s.restAnchor.exerciseIndex === exerciseIndex ? s.restAnchor.setIndex : -1,
+  );
 
   const showProgressCharts = useProfileSettingsStore((s) => s.showProgressCharts);
   const notesExpanded = useProfileSettingsStore((s) => !!s.expandedNotes[exercise.name]);
@@ -115,8 +121,8 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   const swipeableRef = React.useRef<Swipeable>(null);
 
   const displayName = exercise.name.replace(/\b\w/g, (c) => c.toUpperCase());
-  const menuActions = useMemo<ExerciseAction[]>(() => {
-    const actions: ExerciseAction[] = [
+  const menuActions = useMemo<ActionSheetItem[]>(() => {
+    const actions: ActionSheetItem[] = [
       { key: 'up', label: 'Move up', icon: 'arrow-up', onPress: () => moveExercise(exerciseIndex, 'up'), disabled: exerciseIndex === 0 },
       { key: 'down', label: 'Move down', icon: 'arrow-down', onPress: () => moveExercise(exerciseIndex, 'down'), disabled: isLast },
     ];
@@ -263,8 +269,8 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
               }
 
               return (
+                <React.Fragment key={`set-${setIdx}`}>
                 <SetRow
-                  key={`set-${setIdx}`}
                   index={setIdx}
                   set={set}
                   prevSet={exercise.prevSets?.[setIdx] || null}
@@ -280,6 +286,8 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                   isDropSet={isDropSetRow}
                   dropIndex={dropIdx}
                 />
+                {setIdx === restSetIndex && <RestInlineRow />}
+                </React.Fragment>
               );
             })}
 
@@ -351,7 +359,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
       </View>
     </Swipeable>
 
-      <ExerciseActionsSheet
+      <ActionSheet
         visible={menuOpen}
         title={displayName}
         actions={menuActions}
