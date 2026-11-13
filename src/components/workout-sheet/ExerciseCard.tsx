@@ -22,6 +22,7 @@ import RestInlineRow from './RestInlineRow';
 import ExerciseNotes, { noteCount } from './ExerciseNotes';
 import ExerciseProgressChart from './ExerciseProgressChart';
 import ActionSheet, { type ActionSheetItem } from './ActionSheet';
+import { GhostSetsCard } from './GhostMode';
 
 /* ─── Ghost set comparison ─────────────────────────────── */
 
@@ -61,14 +62,15 @@ interface Props {
   isLast: boolean;
   totalExercises: number;
   isCurrent?: boolean;
-  overloadTracker?: React.ReactNode;
+  /** Ghost mode: show the friend's sets under this card (current exercise only). */
+  showGhostSets?: boolean;
   onReplace: (exerciseIndex: number) => void;
   onExerciseFocus?: (exerciseIndex: number) => void;
   onInputFocus?: (y: number) => void;
   onTitlePress?: (exerciseName: string) => void;
 }
 
-function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurrent, overloadTracker, onReplace, onExerciseFocus, onInputFocus, onTitlePress }: Props) {
+function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurrent, showGhostSets, onReplace, onExerciseFocus, onInputFocus, onTitlePress }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const addSet = useActiveWorkoutStore((s) => s.addSet);
@@ -223,7 +225,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
         )}
 
         {/* Overload tracker */}
-        {overloadTracker}
+        {showGhostSets && <GhostSetsCard exercise={exercise} />}
 
         {/* Divider */}
         <View style={styles.divider} />
