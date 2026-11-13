@@ -21,7 +21,7 @@ import GhostFinishScreen from '../components/workout-sheet/GhostFinishScreen';
 import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
 import FriendProfileModal from '../components/friends/FriendProfileModal';
 import FloatingWorkoutBanner from '../components/workout-sheet/FloatingWorkoutBanner';
-import BottomSheet from '../components/workout-sheet/BottomSheet';
+import Sheet from '../components/ui/Sheet';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 
@@ -305,12 +305,12 @@ export default function TabNavigator() {
         </Tab.Navigator>
         <GhostFinishScreen />
       </View>
-      <BottomSheet visible={profileVisible} onClose={closeProfile} height="92%" modal>
+      <Sheet visible={profileVisible} onClose={closeProfile} height="92%">
         <ProfileScreen onClose={closeProfile} />
-      </BottomSheet>
+      </Sheet>
       <ActiveWorkoutSheet />
       <FriendProfileModal />
-      <BottomSheet visible={showSummary && !isGhostSummary} onClose={dismissSummary} height="92%" modal>
+      <Sheet visible={showSummary && !isGhostSummary} onClose={dismissSummary} height="92%">
         {summaryData && !isGhostSummary && (
           <WorkoutSummaryModal
             mode="just-completed"
@@ -319,7 +319,7 @@ export default function TabNavigator() {
             inline
           />
         )}
-      </BottomSheet>
+      </Sheet>
     </View>
   );
 }

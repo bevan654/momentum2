@@ -20,7 +20,7 @@ import {
   MUSCLE_COLORS,
   type CanonicalMuscle,
 } from '../../constants/muscles';
-import BottomSheet from './BottomSheet';
+import Sheet from '../ui/Sheet';
 
 const CATEGORIES = Object.keys(UI_CATEGORY_COLORS).filter((k) => k !== 'Custom' && k !== 'Cardio');
 
@@ -181,11 +181,10 @@ export default function CreateCustomExerciseModal({
   }, [canSubmit, name, category, exerciseType, primaryMuscles, secondaryMuscles, equipment, onSubmit]);
 
   return (
-    <BottomSheet
+    <Sheet
       visible={visible}
       onClose={onClose}
       height="90%"
-      modal
       bgColor={colors.background}
       radius={0}
     >
@@ -396,7 +395,7 @@ export default function CreateCustomExerciseModal({
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </BottomSheet>
+    </Sheet>
   );
 }
 

@@ -39,6 +39,9 @@ export interface ThemeColors {
 
   textOnAccent: string;
 
+  /** Scrim behind sheets and dialogs (opacity applied by the component). */
+  backdrop: string;
+
   ring: { track: string; progress: string };
 
   cardShadow: {
@@ -109,6 +112,8 @@ const shared = {
   creatine: '#FBBF24',
 
   streak: '#F59E0B',
+
+  backdrop: '#000000',
 };
 
 /* ─── Base palette values (before accent tinting) ──────── */

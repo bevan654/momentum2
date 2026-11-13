@@ -34,6 +34,7 @@ import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
 import WorkoutHeader from './WorkoutHeader';
 import ExerciseCard from './ExerciseCard';
 import { GhostTally } from './GhostMode';
+import { PortalHost } from '../ui/Portal';
 import ExercisePicker from './ExercisePicker';
 import ExerciseHistoryModal from './ExerciseHistoryModal';
 
@@ -122,6 +123,8 @@ export default function ActiveWorkoutSheet() {
   return (
     <Modal visible={sheetVisible} transparent statusBarTranslucent animationType="none">
       <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+        {/* Sheets opened from inside the workout render here, above it. */}
+        <PortalHost>
         <SheetOverlay
           onOpenAdd={handleOpenAdd}
           onOpenReplace={handleOpenReplace}
@@ -140,6 +143,7 @@ export default function ActiveWorkoutSheet() {
           visible={historyExerciseName !== null}
           onClose={() => setHistoryExerciseName(null)}
         />
+        </PortalHost>
       </GestureHandlerRootView>
     </Modal>
   );

@@ -16,7 +16,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
-import BottomSheet from '../workout-sheet/BottomSheet';
+import Sheet from '../ui/Sheet';
 
 interface Props {
   visible: boolean;
@@ -86,11 +86,10 @@ export default function DeleteAccountModal({ visible, onClose }: Props) {
   }, [password, deleteAccount, reset]);
 
   return (
-    <BottomSheet
+    <Sheet
       visible={visible}
       onClose={handleClose}
       height="75%"
-      modal
       bgColor={colors.card}
     >
       <KeyboardAvoidingView
@@ -126,7 +125,7 @@ export default function DeleteAccountModal({ visible, onClose }: Props) {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </BottomSheet>
+    </Sheet>
   );
 }
 

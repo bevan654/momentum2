@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import BottomSheet from './BottomSheet';
+import Sheet from '../ui/Sheet';
 
 const DURATIONS = [30, 45, 60, 90, 120, 150, 180, 240, 300];
 
@@ -28,11 +28,10 @@ export default function RestPickerModal({ visible, currentDuration, onSelect, on
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <BottomSheet
+    <Sheet
       visible={visible}
       onClose={onClose}
       height={sw(280)}
-      modal
       bgColor={colors.card}
     >
       <View style={styles.content}>
@@ -52,7 +51,7 @@ export default function RestPickerModal({ visible, currentDuration, onSelect, on
           ))}
         </View>
       </View>
-    </BottomSheet>
+    </Sheet>
   );
 }
 

@@ -40,6 +40,7 @@ function muscleColor(muscle: string): string {
 }
 import { useAuthStore } from '../../stores/useAuthStore';
 import CreateCustomExerciseModal from './CreateCustomExerciseModal';
+import { PortalHost } from '../ui/Portal';
 
 /* ─── External API search (wger.de) ──────────────────── */
 
@@ -852,6 +853,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
   return (
     <Modal visible transparent statusBarTranslucent animationType="none">
     <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+    <PortalHost>
     <View style={StyleSheet.absoluteFill} pointerEvents="auto">
       {/* Backdrop */}
       <Pressable
@@ -1046,6 +1048,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
         onSubmit={handleCreateSubmit}
       />
     </View>
+    </PortalHost>
     </GestureHandlerRootView>
     </Modal>
   );

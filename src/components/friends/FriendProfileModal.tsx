@@ -7,7 +7,7 @@ import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
 import { getFriendStats, getFriendshipBetween } from '../../lib/friendsDatabase';
-import BottomSheet from '../workout-sheet/BottomSheet';
+import Sheet from '../ui/Sheet';
 import AvatarCircle from './AvatarCircle';
 import ReportSheet from './ReportSheet';
 
@@ -91,7 +91,7 @@ export default function FriendProfileModal() {
   };
 
   return (
-    <BottomSheet visible={visible} onClose={hideProfileSheet} height="65%">
+    <Sheet visible={visible} onClose={hideProfileSheet} height="65%">
       {/* Profile header */}
       <View style={styles.profileHeader}>
         <View style={styles.avatarWrap}>
@@ -168,7 +168,7 @@ export default function FriendProfileModal() {
         targetId={friend.id}
         targetUserId={friend.id}
       />
-    </BottomSheet>
+    </Sheet>
   );
 }
 

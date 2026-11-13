@@ -13,7 +13,7 @@ import { useSupplementStore } from '../../stores/useSupplementStore';
 import { useProteinPowderStore } from '../../stores/useProteinPowderStore';
 import { useProfileSettingsStore, BODY_FAT_METHODS, MEAS_BODY_PARTS, TIME_RANGES, type LabTracker, type BodyFatMethod, type MeasDefault, type MeasBodyPart, type MeasSide, type MeasPump, type TimeRange } from '../../stores/useProfileSettingsStore';
 import SupplementConfigEditor from './SupplementConfigEditor';
-import BottomSheet from '../workout-sheet/BottomSheet';
+import Sheet from '../ui/Sheet';
 import MacroGoalEditor from './MacroGoalEditor';
 import MicroGoalEditor from './MicroGoalEditor';
 import DeleteAccountModal from './DeleteAccountModal';
@@ -568,7 +568,7 @@ const DefaultRangePicker = React.memo(function DefaultRangePicker({
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} height="45%" modal bgColor={colors.card}>
+    <Sheet visible={visible} onClose={onClose} height="45%" bgColor={colors.card}>
       <View style={styles.pickerHeader}>
         <Text style={styles.pickerTitle}>Default Range</Text>
         <TouchableOpacity onPress={onClose}>
@@ -591,7 +591,7 @@ const DefaultRangePicker = React.memo(function DefaultRangePicker({
           );
         })}
       </View>
-    </BottomSheet>
+    </Sheet>
   );
 });
 
@@ -613,7 +613,7 @@ const DefaultMethodPicker = React.memo(function DefaultMethodPicker({
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} height="45%" modal bgColor={colors.card}>
+    <Sheet visible={visible} onClose={onClose} height="45%" bgColor={colors.card}>
       <View style={styles.pickerHeader}>
         <Text style={styles.pickerTitle}>Default Method</Text>
         <TouchableOpacity onPress={onClose}>
@@ -636,7 +636,7 @@ const DefaultMethodPicker = React.memo(function DefaultMethodPicker({
           );
         })}
       </View>
-    </BottomSheet>
+    </Sheet>
   );
 });
 
@@ -675,7 +675,7 @@ const DefaultMeasPicker = React.memo(function DefaultMeasPicker({
   }, [part, side, pump, onSelect]);
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} height="75%" modal bgColor={colors.card}>
+    <Sheet visible={visible} onClose={onClose} height="75%" bgColor={colors.card}>
       <View style={styles.pickerHeader}>
         <Text style={styles.pickerTitle}>Default View</Text>
         <TouchableOpacity onPress={handleDone}>
@@ -743,7 +743,7 @@ const DefaultMeasPicker = React.memo(function DefaultMeasPicker({
           </View>
         ))}
       </ScrollView>
-    </BottomSheet>
+    </Sheet>
   );
 });
 
