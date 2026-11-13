@@ -297,8 +297,14 @@ Keep the repo clean and the history readable.
   - `{type}`: `feature` (new functionality), `bugfix` (fixing broken behaviour) or `chore` (docs, refactors, tooling, deps, cleanup).
   - `{short-name}`: kebab-case and descriptive. No dates, no spaces, no quotes, no vague names like `changes` or `fixes`.
   - Examples: `bevan/feature/big-three-leaderboard`, `britto/bugfix/rest-timer-drift`, `thev/chore/update-docs`.
-- One feature or fix per branch. Merge to `main` through a pull request (`gh pr create`) with a summary and a test plan.
+- One feature or fix per branch.
 - Delete branches once they're merged. Don't let stale branches pile up.
+
+### Pull Requests & Merging
+- **Never merge into `main` yourself unless the user explicitly approves that specific merge.** Approval for one PR doesn't carry over to the next.
+- Your job ends at **opening a pull request** (`gh pr create`) with a summary and a test plan, so another agent or reviewer can double-check it. Then give the user the PR link.
+- Never bypass branch protection: no `gh pr merge --admin`, no force-pushing to `main`, no unlocking or editing protection rules.
+- When reviewing someone else's PR, report findings as PR comments or back to the user. Don't merge it.
 
 ### Commits
 - Small, focused commits that each leave the app building.
