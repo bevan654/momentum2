@@ -90,8 +90,8 @@ export default function WeightCard({ pageIndicator }: Props) {
   const goalWeight = useAuthStore((s) => s.profile?.goal_weight ?? null);
   const defaultRange = useProfileSettingsStore((s) => s.defaultWeightRange);
 
-  const { current, trend, change, entries, emaPoints } = useWeightStore(
-    useShallow((s) => ({ current: s.current, trend: s.trend, change: s.change, entries: s.entries, emaPoints: s.emaPoints })),
+  const { current, change, entries, emaPoints } = useWeightStore(
+    useShallow((s) => ({ current: s.current, change: s.change, entries: s.entries, emaPoints: s.emaPoints })),
   );
   const fetchWeightData = useWeightStore((s) => s.fetchWeightData);
   const logWeight = useWeightStore((s) => s.logWeight);

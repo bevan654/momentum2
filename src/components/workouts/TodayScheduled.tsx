@@ -32,7 +32,6 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
 
   const programToday = activeProgram ? getTodaysRoutine() : null;
   const week = activeProgram ? getCurrentWeek() : 0;
-  const durationWeeks = activeProgram ? useProgramStore.getState().getDurationWeeks(activeProgram) : 0;
   const todayRoutines = routines.filter((r) => r.days.includes(todayDow));
 
   const programDaysPerWeek = activeProgram?.days.length ?? 0;

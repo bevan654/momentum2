@@ -50,7 +50,7 @@ export interface ExtendedBodyPart extends BodyPart {
   side?: "left" | "right";
 }
 
-export type BodyProps = {
+type BodyProps = {
   colors?: ReadonlyArray<string>;
   data: ReadonlyArray<ExtendedBodyPart>;
   scale?: number;

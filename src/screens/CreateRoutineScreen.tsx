@@ -160,7 +160,6 @@ export default function CreateRoutineScreen() {
     return ['#E8E4DE', '#C8C4Be', a + '30', a + '50', a + '70', a + '90', a];
   }, [themeMode, colors.accent]);
 
-  const hasAnyMuscles = exercises.length > 0;
 
   const handleAddExercise = useCallback((name: string, exerciseType: string, category: string | null) => {
     const prevMap = useWorkoutStore.getState().prevMap;

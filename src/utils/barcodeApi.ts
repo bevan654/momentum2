@@ -1,7 +1,7 @@
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import { supabase } from '../lib/supabase';
 
-export interface BarcodeResult {
+interface BarcodeResult {
   found: boolean;
   food: FoodDetailData | null;
   barcode?: string;

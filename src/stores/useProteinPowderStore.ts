@@ -8,7 +8,7 @@ const ENABLED_KEY = 'protein_powder_enabled';
 
 /* ─── Types ────────────────────────────────────────────── */
 
-export interface ProteinPowder {
+interface ProteinPowder {
   id: string;
   user_id: string;
   name: string;
@@ -19,7 +19,7 @@ export interface ProteinPowder {
   sort_order: number;
 }
 
-export interface ProteinPowderLogEntry {
+interface ProteinPowderLogEntry {
   id: string;
   powder_id: string | null;
   food_entry_id: string | null;

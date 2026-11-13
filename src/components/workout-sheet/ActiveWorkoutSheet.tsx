@@ -17,8 +17,6 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
   withTiming,
-  withDelay,
-  withSequence,
   cancelAnimation,
   runOnJS,
   Easing,
@@ -49,7 +47,6 @@ const DISMISS_THRESHOLD = 80;
 const VELOCITY_THRESHOLD = 800;
 const BACKDROP_MAX = 0.6;
 
-const OPEN_SPRING = { damping: 28, stiffness: 280, mass: 0.8 };
 const SNAP_SPRING = { damping: 24, stiffness: 350, mass: 0.7 };
 const CLOSE_CFG = { duration: 250, easing: Easing.in(Easing.cubic) };
 
@@ -170,13 +167,10 @@ const GhostSetChip = React.memo(function GhostSetChip({
   result: 'win' | 'loss' | 'tie' | null;
   colors: ThemeColors;
 }) {
-  const scale = useSharedValue(result ? 1 : 0);
   const prevResult = useRef<string | null>(null);
 
   useEffect(() => {
     if (result && prevResult.current !== result) {
-      scale.value = 0;
-      scale.value = withSpring(1, { damping: 12, stiffness: 300 });
       if (result === 'win') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else if (result === 'loss') {
@@ -186,15 +180,9 @@ const GhostSetChip = React.memo(function GhostSetChip({
     prevResult.current = result;
   }, [result]);
 
-  const iconStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: scale.value,
-  }));
-
   const resultColor = result === 'win' ? '#34C759' : result === 'loss' ? colors.accentRed : result === 'tie' ? colors.textPrimary : colors.textPrimary;
   const borderColor = result === 'win' ? '#34C759' + '50' : result === 'loss' ? colors.accentRed + '50' : result === 'tie' ? colors.textPrimary + '30' : colors.cardBorder;
   const bgColor = result === 'win' ? '#34C759' + '10' : result === 'loss' ? colors.accentRed + '10' : result === 'tie' ? colors.textPrimary + '08' : colors.card;
-  const iconName = result === 'win' ? 'checkmark-circle' : result === 'loss' ? 'close-circle' : result === 'tie' ? 'remove-circle' : null;
 
   return (
     <View style={{
@@ -397,8 +385,6 @@ export default function ActiveWorkoutSheet() {
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const sheetVisible = useActiveWorkoutStore((s) => s.sheetVisible);
   const showSummary = useActiveWorkoutStore((s) => s.showSummary);
-  const summaryData = useActiveWorkoutStore((s) => s.summaryData);
-  const dismissSummary = useActiveWorkoutStore((s) => s.dismissSummary);
 
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerMode, setPickerMode] = useState<'add' | 'replace'>('add');
@@ -515,7 +501,6 @@ const SheetOverlay = React.memo(function SheetOverlay({
   );
 
   const activeIndex = focusedIndex >= 0 && focusedIndex < exercises.length ? focusedIndex : defaultIndex;
-  const currentExercise = exercises[activeIndex] ?? null;
 
   const exerciseYRef = useRef<Record<number, number>>({});
 

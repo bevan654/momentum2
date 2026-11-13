@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
-import Animated from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -17,7 +16,6 @@ import { useThemeStore } from '../../stores/useThemeStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import Body, { type ExtendedBodyPart } from '../BodyHighlighter';
 import { toSlug, ALL_SLUGS } from '../../utils/muscleVolume';
-import MusclePill from './MusclePill';
 
 interface LocalSet {
   goal_reps: number;

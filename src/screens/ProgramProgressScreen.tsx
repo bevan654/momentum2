@@ -1,8 +1,8 @@
-import React, { useMemo, useCallback, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import React, { useMemo, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useRoute } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
@@ -16,7 +16,6 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'ProgramProgress'>;
 
 export default function ProgramProgressScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<WorkoutsStackParamList>>();
   const route = useRoute<ScreenProps['route']>();
   const { programId } = route.params;
 

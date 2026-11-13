@@ -12,7 +12,7 @@ export interface MeasurementEntry {
   pump_state: PumpState;
 }
 
-export interface EmaPoint {
+interface EmaPoint {
   date: string;
   value: number;
 }

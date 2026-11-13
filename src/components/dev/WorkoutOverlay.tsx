@@ -81,13 +81,13 @@ function capitalize(s: string | null): string {
 
 /* ─── Constants ────────────────────────────────────────── */
 
-export const CARD_WIDTH = SCREEN_WIDTH - sw(32);
-export const CARD_HEIGHT_STORY = CARD_WIDTH * (16 / 9);
-export const CARD_HEIGHT_FEED = CARD_WIDTH * (5 / 4);
+const CARD_WIDTH = SCREEN_WIDTH - sw(32);
+const CARD_HEIGHT_STORY = CARD_WIDTH * (16 / 9);
+const CARD_HEIGHT_FEED = CARD_WIDTH * (5 / 4);
 
-export type CardVariant = 'classic' | 'minimal' | 'bold' | 'poster';
+type CardVariant = 'classic' | 'minimal' | 'bold' | 'poster';
 
-export interface WorkoutOverlayData {
+interface WorkoutOverlayData {
   exercises: SummaryExercise[];
   duration: number;
   date?: Date;

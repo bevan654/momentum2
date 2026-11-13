@@ -24,7 +24,7 @@ export interface MacroPreset {
   defaultGoal: number;
 }
 
-export interface MicroPreset {
+interface MicroPreset {
   key: string;
   name: string;
   defaultMale: number;
@@ -70,10 +70,6 @@ export function getMicroDefault(key: string, gender?: string | null): number {
   const preset = MICRO_PRESETS.find((p) => p.key === key);
   if (!preset) return 0;
   return gender === 'female' ? preset.defaultFemale : preset.defaultMale;
-}
-
-export function getMacroDefault(key: string): number {
-  return MACRO_PRESETS.find((p) => p.key === key)?.defaultGoal ?? 0;
 }
 
 /* ─── Store ───────────────────────────────────────────── */

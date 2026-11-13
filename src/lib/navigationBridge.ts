@@ -28,9 +28,3 @@ export function navigateWorkoutsStack(screen: string, params?: any) {
   setTimeout(() => hideRecoveryOverlay(), 50);
 }
 export function setWorkoutsNavRef(ref: any) { _workoutsNavRef = ref; }
-
-/* ─── Share hub (set by WorkoutHistoryScreen) ────────── */
-
-let _openShareHub: (() => void) | null = null;
-export function openShareHub() { _openShareHub?.(); }
-export function setOpenShareHub(fn: (() => void) | null) { _openShareHub = fn; }

@@ -20,7 +20,7 @@ export function safeDisplayName(username: string | null | undefined, email: stri
  * We deliberately drop the `@domain` part: revealing the institution / provider
  * is itself a privacy leak (e.g. flinders.edu.au identifies a specific university).
  */
-export function maskEmail(email: string | null | undefined): string {
+function maskEmail(email: string | null | undefined): string {
   if (!email) return 'User';
   const local = email.split('@')[0];
   if (!local) return 'User';

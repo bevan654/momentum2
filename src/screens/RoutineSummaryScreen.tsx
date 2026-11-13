@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, InteractionManager } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
-import { useRoutineStore, consumePreviewRoutine } from '../stores/useRoutineStore';
+import { useRoutineStore } from '../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useThemeStore } from '../stores/useThemeStore';
@@ -53,10 +53,7 @@ export default function RoutineSummaryScreen() {
   const route = useRoute<ScreenProps['route']>();
   const { routineId } = route.params;
 
-  const storeRoutine = useRoutineStore((s) => s.routines.find((r) => r.id === routineId));
-  const previewRoutine = useMemo(() => consumePreviewRoutine(), []);
-  const routine = storeRoutine || previewRoutine;
-  const isPreview = !storeRoutine && !!previewRoutine;
+  const routine = useRoutineStore((s) => s.routines.find((r) => r.id === routineId));
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const prevMap = useWorkoutStore((s) => s.prevMap);
   const startFromRoutine = useActiveWorkoutStore((s) => s.startFromRoutine);
@@ -130,16 +127,14 @@ export default function RoutineSummaryScreen() {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.editBtn}>
             <Ionicons name="chevron-back" size={ms(24)} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{isPreview ? 'Workout Summary' : 'Routine Summary'}</Text>
-          {!isPreview ? (
-            <TouchableOpacity
-              style={styles.editBtn}
-              onPress={() => navigation.navigate('CreateRoutine', { routineId })}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="create-outline" size={ms(20)} color={colors.accent} />
-            </TouchableOpacity>
-          ) : <View style={styles.editBtn} />}
+          <Text style={styles.headerTitle}>Routine Summary</Text>
+          <TouchableOpacity
+            style={styles.editBtn}
+            onPress={() => navigation.navigate('CreateRoutine', { routineId })}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="create-outline" size={ms(20)} color={colors.accent} />
+          </TouchableOpacity>
         </View>
         {/* Routine info */}
         <View style={styles.routineInfo}>

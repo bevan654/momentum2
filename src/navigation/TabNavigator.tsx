@@ -31,8 +31,7 @@ import { useProgramStore } from '../stores/useProgramStore';
 import { useRoutineStore } from '../stores/useRoutineStore';
 const Tab = createMaterialTopTabNavigator();
 
-import { setOpenProfileSheet, setOpenShareHub, showRecoveryOverlay } from '../lib/navigationBridge';
-import ShareHub from '../components/share/ShareHub';
+import { setOpenProfileSheet, showRecoveryOverlay } from '../lib/navigationBridge';
 
 /* ─── Tab config ────────────────────────────────────────── */
 
@@ -45,7 +44,6 @@ const TAB_ICONS: Record<string, string> = {
 };
 
 const TAB_COUNT = 5;
-const HOME_INDEX = 2; // center slot
 const HOME_BTN = sw(46);
 const BADGE_SIZE = sw(16);
 const ICON_SIZE = ms(24);
@@ -241,7 +239,6 @@ export default function TabNavigator() {
   const [profileVisible, setProfileVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('Home');
   const colors = useColors();
-  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
@@ -266,13 +263,6 @@ export default function TabNavigator() {
 
   const openProfile = useCallback(() => setProfileVisible(true), []);
   const closeProfile = useCallback(() => setProfileVisible(false), []);
-
-  // Share hub — lives here so it's available before lazy tabs mount
-  const [shareVisible, setShareVisible] = useState(false);
-  useEffect(() => {
-    setOpenShareHub(() => setShareVisible(true));
-    return () => { setOpenShareHub(null); };
-  }, []);
 
   // Expose for external callers (e.g. HomeScreen avatar)
   useEffect(() => {
@@ -320,10 +310,6 @@ export default function TabNavigator() {
       </BottomSheet>
       <ActiveWorkoutSheet />
       <FriendProfileModal />
-      <ShareHub
-        visible={shareVisible}
-        onClose={() => setShareVisible(false)}
-      />
       <BottomSheet visible={showSummary && !isGhostSummary} onClose={dismissSummary} height="92%" modal>
         {summaryData && !isGhostSummary && (
           <WorkoutSummaryModal

@@ -7,7 +7,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import ViewShot from 'react-native-view-shot';
 import { useColors, type ThemeColors } from '../../theme/useColors';
-import { sw, ms, SCREEN_WIDTH, SCREEN_HEIGHT } from '../../theme/responsive';
+import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 
 /* ─── Crop frame dimensions (9:16 story) ───────────────── */

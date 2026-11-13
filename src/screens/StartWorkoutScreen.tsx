@@ -5,7 +5,6 @@ import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms, SCREEN_HEIGHT } from '../theme/responsive';
@@ -22,7 +21,6 @@ const VELOCITY_THRESHOLD = 800;
 
 export default function StartWorkoutScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<WorkoutsStackParamList>>();
-  const insets = useSafeAreaInsets();
   const userId = useAuthStore((s) => s.user?.id);
   const routines = useRoutineStore((s) => s.routines);
   const fetchRoutines = useRoutineStore((s) => s.fetchRoutines);
@@ -31,7 +29,6 @@ export default function StartWorkoutScreen() {
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const prevMap = useWorkoutStore((s) => s.prevMap);
   const programs = useProgramStore((s) => s.programs);
-  const activeProgram = useProgramStore((s) => s.activeProgram);
   const fetchPrograms = useProgramStore((s) => s.fetchPrograms);
   const deleteProgram = useProgramStore((s) => s.deleteProgram);
   const startProgram = useProgramStore((s) => s.startProgram);

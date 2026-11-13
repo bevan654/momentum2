@@ -19,7 +19,7 @@ export interface FriendProfile {
   currentStreak: number;
 }
 
-export interface FriendshipRow {
+interface FriendshipRow {
   id: string;
   user_id: string;
   friend_id: string;
@@ -113,7 +113,7 @@ export type LeaderboardType =
   | 'streak'
   | 'streak_best';
 
-export interface NudgeRow {
+interface NudgeRow {
   id: string;
   sender_id: string;
   receiver_id: string;
@@ -871,7 +871,7 @@ export async function sendNudge(
   return { error: null };
 }
 
-export async function getLastNudge(
+async function getLastNudge(
   senderId: string,
   receiverId: string,
 ): Promise<NudgeRow | null> {
@@ -1041,7 +1041,7 @@ export async function setNotificationResponded(
     .eq('id', notificationId);
 }
 
-export async function createNotification(
+async function createNotification(
   userId: string,
   type: NotificationType,
   title: string,
@@ -1059,13 +1059,6 @@ export async function createNotification(
 }
 
 // ── Streaks ────────────────────────────────────────────
-
-export async function getFriendStreak(
-  userId: string,
-): Promise<number> {
-  const streak = await getUserStreak(userId);
-  return streak?.current_streak ?? 0;
-}
 
 /** Fetch distinct workout dates (YYYY-MM-DD) for a user, descending. */
 export async function fetchWorkoutDates(

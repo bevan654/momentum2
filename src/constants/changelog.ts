@@ -3,9 +3,9 @@
  * Add a new entry at the top whenever you ship a user-facing update.
  */
 
-export type ChangelogCtaTarget = 'Community' | 'Workouts' | 'Home' | 'Nutrition' | 'Recovery';
+type ChangelogCtaTarget = 'Community' | 'Workouts' | 'Home' | 'Nutrition' | 'Recovery';
 
-export interface ChangelogEntry {
+interface ChangelogEntry {
   version: string;
   date: string;
   title: string;

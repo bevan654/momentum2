@@ -642,7 +642,6 @@ const DefaultMeasPicker = React.memo(function DefaultMeasPicker({
     setPump(current.pump);
   }, [current.part, current.side, current.pump]);
 
-  const partDef = MEAS_BODY_PARTS.find((p) => p.key === part);
 
   const handleDone = useCallback(() => {
     onSelect({ part, side, pump });

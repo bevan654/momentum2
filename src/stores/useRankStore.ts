@@ -13,7 +13,6 @@ import {
   type MuscleGroup,
   type BestSetEntry,
   type RankInfo,
-  type FullRankResult,
   type SlugScoreDetail,
 } from '../utils/strengthScore';
 

@@ -13,8 +13,6 @@ const GRID_GAP = sw(10);
 const GRID_PADDING = sw(16);
 const CELL_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
 const FULL_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
-const MAX_SUPPLEMENTS = 2;
-
 function formatIncrement(value: number): string {
   if (value >= 1000 && value % 1000 === 0) return `${value / 1000}k`;
   return String(value);

@@ -17,10 +17,8 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
-import { useThemeStore } from '../../stores/useThemeStore';
 import type { ActiveExercise } from '../../stores/useActiveWorkoutStore';
-import Body, { type ExtendedBodyPart } from '../BodyHighlighter';
-import { toSlug, ALL_SLUGS, SLUG_LABELS } from '../../utils/muscleVolume';
+import { toSlug, SLUG_LABELS } from '../../utils/muscleVolume';
 import SetRow from './SetRow';
 
 /* ─── Ghost set comparison ─────────────────────────────── */
@@ -60,7 +58,7 @@ function formatNoteDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-/* ─── Focused body map helpers ─────────────────────────── */
+/* ─── Body-part label helpers ─────────────────────────── */
 
 const CATEGORY_SLUGS: Record<string, string[]> = {
   Chest: ['chest'],
@@ -70,41 +68,6 @@ const CATEGORY_SLUGS: Record<string, string[]> = {
   Legs: ['quadriceps', 'hamstring', 'gluteal', 'calves', 'adductors'],
   Core: ['abs', 'obliques'],
 };
-
-const SLUG_FOCUS: Record<string, { y: number; side: 'front' | 'back' }> = {
-  chest:          { y: 0.32, side: 'front' },
-  deltoids:       { y: 0.26, side: 'front' },
-  'rear-deltoids':{ y: 0.26, side: 'back' },
-  biceps:         { y: 0.37, side: 'front' },
-  triceps:        { y: 0.37, side: 'back' },
-  forearm:        { y: 0.48, side: 'front' },
-  abs:            { y: 0.44, side: 'front' },
-  obliques:       { y: 0.44, side: 'front' },
-  'upper-back':   { y: 0.32, side: 'back' },
-  'lower-back':   { y: 0.44, side: 'back' },
-  trapezius:      { y: 0.23, side: 'back' },
-  quadriceps:     { y: 0.66, side: 'front' },
-  hamstring:      { y: 0.66, side: 'back' },
-  gluteal:        { y: 0.53, side: 'back' },
-  calves:         { y: 0.83, side: 'back' },
-  adductors:      { y: 0.62, side: 'front' },
-  tibialis:       { y: 0.80, side: 'front' },
-};
-
-const CATEGORY_FOCUS: Record<string, { y: number; side: 'front' | 'back' }> = {
-  Chest:     { y: 0.32, side: 'front' },
-  Back:      { y: 0.32, side: 'back' },
-  Shoulders: { y: 0.26, side: 'front' },
-  Arms:      { y: 0.37, side: 'front' },
-  Legs:      { y: 0.66, side: 'front' },
-  Core:      { y: 0.44, side: 'front' },
-};
-
-const BODY_SCALE = 0.35;
-const BODY_W = 200 * BODY_SCALE;
-const BODY_H = 400 * BODY_SCALE;
-
-
 
 /* ─── ExerciseCard ─────────────────────────────────────── */
 
@@ -137,7 +100,6 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   const updateSet = useActiveWorkoutStore((s) => s.updateSet);
   const toggleSetComplete = useActiveWorkoutStore((s) => s.toggleSetComplete);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
-  const themeMode = useThemeStore((s) => s.mode);
   const isGhost = !!useActiveWorkoutStore((s) => s.ghostUserName);
 
   // Notes: `notesOpen` means actively editing. Otherwise show a read-only
@@ -162,88 +124,22 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   );
   const todayColor = noteColorValue(exercise.noteColor);
 
-  // Build body highlight data + focus region
-  const { bodyData, focusY, bodySide, hasMuscles, bodyPartLabel } = useMemo(() => {
+  // Body-part label: use the first primary muscle (catalog `category` is a
+  // training type like "strength", not a body part). Fall back to category
+  // only when it's a real body-part group.
+  const bodyPartLabel = useMemo(() => {
     const entry = catalogMap[exercise.name];
-    const primarySlugs = new Set<string>();
-    const secondarySlugs = new Set<string>();
-
-    if (entry) {
-      for (const m of entry.primary_muscles) {
-        const s = toSlug(m);
-        if (s) primarySlugs.add(s);
-      }
-      for (const m of entry.secondary_muscles) {
-        const s = toSlug(m);
-        if (s) secondarySlugs.add(s);
-      }
-    }
-
     const category = exercise.category || entry?.category || null;
-    if (primarySlugs.size === 0 && category) {
-      const slugs = CATEGORY_SLUGS[category];
-      if (slugs) slugs.forEach((s) => primarySlugs.add(s));
-    }
-
-    const firstSlug = [...primarySlugs][0];
-    let fy = 0.35;
-    let bs: 'front' | 'back' = 'front';
-
-    if (firstSlug && SLUG_FOCUS[firstSlug]) {
-      fy = SLUG_FOCUS[firstSlug].y;
-      bs = SLUG_FOCUS[firstSlug].side;
-    } else if (category && CATEGORY_FOCUS[category]) {
-      fy = CATEGORY_FOCUS[category].y;
-      bs = CATEGORY_FOCUS[category].side;
-    }
-
-    const bd: ExtendedBodyPart[] = ALL_SLUGS.map((slug) => ({
-      slug,
-      intensity: primarySlugs.has(slug) ? 6 : secondarySlugs.has(slug) ? 3 : 1,
-    }));
-
-    // Body-part label: use the first primary muscle (catalog `category` is a
-    // training type like "strength", not a body part). Fall back to category
-    // only when it's a real body-part group.
-    let bodyPartLabel: string | null = null;
+    let label: string | null = null;
     if (entry) {
       for (const m of entry.primary_muscles) {
         const sl = toSlug(m);
-        if (sl && SLUG_LABELS[sl]) { bodyPartLabel = SLUG_LABELS[sl]; break; }
+        if (sl && SLUG_LABELS[sl]) { label = SLUG_LABELS[sl]; break; }
       }
     }
-    if (!bodyPartLabel && category && CATEGORY_SLUGS[category]) bodyPartLabel = category;
-
-    return { bodyData: bd, focusY: fy, bodySide: bs, hasMuscles: primarySlugs.size > 0, bodyPartLabel };
+    if (!label && category && CATEGORY_SLUGS[category]) label = category;
+    return label;
   }, [exercise.name, exercise.category, catalogMap]);
-
-
-  const bodyPalette = useMemo(() => {
-    const a = colors.accent;
-    if (themeMode === 'dark') {
-      return ['#1A1A1E', '#2A2A2E', a + '40', a + '60', a + '80', a, a];
-    }
-    return ['#E8E4DE', '#C8C4BE', a + '40', a + '60', a + '80', a, a];
-  }, [themeMode, colors.accent]);
-
-  const MAP_W = sw(44);
-  const MAP_H = sw(52);
-  const bodyOffsetX = -(BODY_W - MAP_W) / 2;
-  const bodyOffsetY = -(BODY_H * focusY) + MAP_H / 2;
-
-  // Summary
-  const repRange = useMemo(() => {
-    if (exercise.sets.length === 0) return '0';
-    const reps = exercise.sets.map((s) => {
-      const n = parseInt(s.reps, 10);
-      return isNaN(n) ? 0 : n;
-    });
-    const min = Math.min(...reps);
-    const max = Math.max(...reps);
-    return min === max ? `${min}` : `${min}-${max}`;
-  }, [exercise.sets]);
-
-  const summary = `${exercise.sets.length} sets · ${repRange} reps`;
 
   // Per-set suggestion engine (same logic as ProgressiveOverloadCard)
   const suggestedSets = useMemo(() => {
