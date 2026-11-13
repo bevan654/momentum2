@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { suggestSets } from '../../utils/exerciseProgress';
 import SetRow from './SetRow';
 import ExerciseNotes, { noteCount } from './ExerciseNotes';
 import ExerciseProgressChart from './ExerciseProgressChart';
+import ExerciseActionsSheet, { type ExerciseAction } from './ExerciseActionsSheet';
 
 /* ─── Ghost set comparison ─────────────────────────────── */
 
@@ -86,6 +87,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   const notesExpanded = useProfileSettingsStore((s) => !!s.expandedNotes[exercise.name]);
   const toggleNotesExpanded = useProfileSettingsStore((s) => s.toggleNotesExpanded);
   const notesBadge = noteCount(exercise);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Body-part label: use the first primary muscle (catalog `category` is a
   // training type like "strength", not a body part). Fall back to category
@@ -111,6 +113,19 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   );
 
   const swipeableRef = React.useRef<Swipeable>(null);
+
+  const displayName = exercise.name.replace(/\b\w/g, (c) => c.toUpperCase());
+  const menuActions = useMemo<ExerciseAction[]>(() => {
+    const actions: ExerciseAction[] = [
+      { key: 'up', label: 'Move up', icon: 'arrow-up', onPress: () => moveExercise(exerciseIndex, 'up'), disabled: exerciseIndex === 0 },
+      { key: 'down', label: 'Move down', icon: 'arrow-down', onPress: () => moveExercise(exerciseIndex, 'down'), disabled: isLast },
+    ];
+    if (!isGhost) {
+      actions.unshift({ key: 'replace', label: 'Replace exercise', icon: 'swap-horizontal', onPress: () => onReplace(exerciseIndex) });
+      actions.push({ key: 'remove', label: 'Remove exercise', icon: 'trash-outline', onPress: () => removeExercise(exerciseIndex), destructive: true });
+    }
+    return actions;
+  }, [exerciseIndex, isLast, isGhost, moveExercise, onReplace, removeExercise]);
 
   const renderRightActions = useCallback(() => (
     <TouchableOpacity
@@ -147,7 +162,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
             hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
           >
             <Text style={styles.name} numberOfLines={1}>
-              {exercise.name.replace(/\b\w/g, (c) => c.toUpperCase())}
+              {displayName}
             </Text>
             <Ionicons name="chevron-forward" size={ms(11)} color={colors.textTertiary} />
           </Pressable>
@@ -175,34 +190,15 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
               )}
             </TouchableOpacity>
           )}
-          <View style={styles.reorderBtns}>
-            <TouchableOpacity
-              onPress={() => moveExercise(exerciseIndex, 'up')}
-              disabled={exerciseIndex === 0}
-              style={styles.reorderBtn}
-              activeOpacity={0.5}
-            >
-              <Ionicons name="chevron-up" size={ms(14)} color={exerciseIndex === 0 ? colors.textTertiary + '30' : colors.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => moveExercise(exerciseIndex, 'down')}
-              disabled={isLast}
-              style={styles.reorderBtn}
-              activeOpacity={0.5}
-            >
-              <Ionicons name="chevron-down" size={ms(14)} color={isLast ? colors.textTertiary + '30' : colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-          {!isGhost && (
-            <TouchableOpacity
-              onPress={() => removeExercise(exerciseIndex)}
-              style={styles.removeBtn}
-              activeOpacity={0.5}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="close" size={ms(16)} color={colors.textSecondary} />
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            onPress={() => setMenuOpen(true)}
+            style={styles.moreBtn}
+            activeOpacity={0.5}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Exercise options"
+          >
+            <Ionicons name="ellipsis-horizontal" size={ms(16)} color={colors.textSecondary} />
+          </TouchableOpacity>
         </View>
 
         {/* Notes (collapsed behind the header icon) */}
@@ -231,9 +227,6 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
               <Text style={[styles.colHeader, { width: sw(28) }]}>SET</Text>
               {!isGhost && (
                 <Text style={[styles.colHeader, { width: sw(46) }]}>PREV</Text>
-              )}
-              {!isGhost && (
-                <Text style={[styles.colHeader, { width: sw(46) }]}>REC</Text>
               )}
               {(exercise.exercise_type === 'weighted' || exercise.exercise_type === 'weighted+bodyweight') && (
                 <Text style={[styles.colHeader, { flex: 1 }]}>
@@ -275,7 +268,6 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                   index={setIdx}
                   set={set}
                   prevSet={exercise.prevSets?.[setIdx] || null}
-                  suggestedSet={suggestedSets[setIdx]}
                   exerciseType={exercise.exercise_type}
                   suggestedKg={ghostPrev ? String(ghostPrev.kg) : (suggestedSets[setIdx]?.kg ? String(suggestedSets[setIdx]!.kg) : undefined)}
                   suggestedReps={ghostPrev ? String(ghostPrev.reps) : (suggestedSets[setIdx]?.reps ? String(suggestedSets[setIdx]!.reps) : undefined)}
@@ -295,10 +287,11 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
             {!isGhost && (
               <View style={styles.actionRow}>
                 <TouchableOpacity
-                  style={styles.actionBtn}
+                  style={styles.addSetBtn}
                   onPress={() => addSet(exerciseIndex)}
                   activeOpacity={0.7}
                 >
+                  <Ionicons name="add" size={ms(14)} color={colors.accent} />
                   <Text style={[styles.actionBtnText, { color: colors.accent }]}>Add set</Text>
                 </TouchableOpacity>
 
@@ -310,8 +303,10 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                   }}
                   activeOpacity={0.7}
                   disabled={exercise.sets.length === 0}
+                  accessibilityLabel="Copy last set"
                 >
-                  <Text style={[styles.actionBtnText, { color: colors.accent }]}>Copy</Text>
+                  <Ionicons name="copy-outline" size={ms(13)} color={colors.textSecondary} />
+                  <Text style={styles.actionBtnText}>Copy</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -325,13 +320,14 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.actionBtnText, { color: colors.accentBabyBlue }]}>Drop set</Text>
+                  <Ionicons name="trending-down" size={ms(13)} color={colors.textSecondary} />
+                  <Text style={styles.actionBtnText}>Drop</Text>
                 </TouchableOpacity>
 
                 {(() => {
                   const isLinked = exercise.supersetWith != null;
                   const canLink = isLinked || !isLast;
-                  const tint = isLinked ? colors.accentRed : colors.accent;
+                  const tint = isLinked ? colors.accent : colors.textSecondary;
                   return (
                     <TouchableOpacity
                       style={[styles.actionBtn, !canLink && styles.actionBtnDisabled]}
@@ -342,7 +338,8 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                         else linkSuperset(exerciseIndex);
                       }}
                     >
-                      <Text style={[styles.actionBtnText, { color: canLink ? tint : colors.textSecondary }]}>
+                      <Ionicons name={isLinked ? 'unlink-outline' : 'link-outline'} size={ms(13)} color={tint} />
+                      <Text style={[styles.actionBtnText, { color: tint }]}>
                         {isLinked ? 'Unlink' : 'Superset'}
                       </Text>
                     </TouchableOpacity>
@@ -353,6 +350,12 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
       </View>
     </Swipeable>
 
+      <ExerciseActionsSheet
+        visible={menuOpen}
+        title={displayName}
+        actions={menuActions}
+        onClose={() => setMenuOpen(false)}
+      />
     </Pressable>
   );
 }
@@ -408,29 +411,21 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexShrink: 1,
   },
   categoryChip: {
-    backgroundColor: colors.accent + '15',
+    backgroundColor: colors.surface,
     paddingHorizontal: sw(8),
     paddingVertical: sw(2),
     borderRadius: sw(4),
   },
   categoryText: {
-    color: colors.accent,
+    color: colors.textSecondary,
     fontSize: ms(9),
     fontFamily: Fonts.semiBold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
 
-  // Reorder buttons
-  reorderBtns: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(2),
-  },
-  reorderBtn: {
-    padding: sw(2),
-  },
-  removeBtn: {
+  // Options ("⋯") button
+  moreBtn: {
     padding: sw(2),
     marginLeft: sw(2),
   },
@@ -473,26 +468,37 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Action buttons row
+  // Action buttons row: one primary (Add set) + compact neutral secondaries
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-evenly',
-    marginTop: sw(6),
+    gap: sw(6),
+    marginTop: sw(8),
+  },
+  addSetBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: sw(7),
+    gap: sw(3),
+    borderRadius: sw(8),
+    backgroundColor: colors.accent + '18',
   },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: sw(5),
-    paddingHorizontal: sw(10),
-    gap: sw(3),
-    borderRadius: sw(6),
+    paddingVertical: sw(7),
+    paddingHorizontal: sw(9),
+    gap: sw(4),
+    borderRadius: sw(8),
     backgroundColor: colors.surface,
   },
   actionBtnDisabled: {
     opacity: 0.4,
   },
   actionBtnText: {
+    color: colors.textSecondary,
     fontSize: ms(11),
     fontFamily: Fonts.semiBold,
     lineHeight: ms(14),
