@@ -54,6 +54,8 @@ export interface ActiveSet {
 }
 
 export interface ActiveExercise {
+  /** Stable per-session id, used as the React key so cards survive reorder/remove. */
+  id: string;
   name: string;
   exercise_type: 'weighted' | 'bodyweight' | 'duration' | 'weighted+bodyweight';
   category: string | null;
@@ -240,6 +242,13 @@ interface ActiveWorkoutState {
 
 // ── Live Activity snapshot helper ──────────────────────
 
+let _exerciseSeq = 0;
+/** Unique within a device session; only used for React keys, never stored in the DB. */
+function _newExerciseId(): string {
+  _exerciseSeq += 1;
+  return `ex-${Date.now().toString(36)}-${_exerciseSeq}`;
+}
+
 function _getExerciseInfo(exercises: ActiveExercise[]): { name: string; currentSet: number; totalSets: number } {
   if (exercises.length === 0) return { name: '', currentSet: 0, totalSets: 0 };
   for (let i = exercises.length - 1; i >= 0; i--) {
@@ -359,6 +368,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       const catalog = catalogMap[ex.name];
       const sets: ActiveSet[] = Array.from({ length: Math.max(ex.default_sets, 1) }, () => ({ ...EMPTY_SET }));
       return {
+        id: _newExerciseId(),
         name: ex.name,
         exercise_type: (ex.exercise_type || catalog?.exercise_type || 'weighted') as ActiveExercise['exercise_type'],
         category: catalog?.category || null,
@@ -792,6 +802,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     const { catalogMap } = useWorkoutStore.getState();
     const exercises = saved.exercises.map((ex) => ({
       ...ex,
+      // Workouts saved before exercises had ids
+      id: ex.id || _newExerciseId(),
       category: ex.category || catalogMap[ex.name]?.category || null,
     }));
 
@@ -897,6 +909,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     const exercises: ActiveExercise[] = summaryData.exercises.map((ex) => {
       const catalogEntry = catalogMap[ex.name];
       return {
+        id: _newExerciseId(),
         name: ex.name,
         exercise_type: (catalogEntry?.exercise_type as ActiveExercise['exercise_type']) || 'weighted',
         category: ex.category,
@@ -931,6 +944,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       exercises: [
         ...s.exercises,
         {
+          id: _newExerciseId(),
           name,
           exercise_type: exerciseType as ActiveExercise['exercise_type'],
           category,
@@ -973,6 +987,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       const exercises = [...s.exercises];
       exercises[index] = {
         ...exercises[index],
+        id: _newExerciseId(),
         name,
         exercise_type: exerciseType as ActiveExercise['exercise_type'],
         category,
