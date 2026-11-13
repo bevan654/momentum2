@@ -259,6 +259,14 @@ GET https://api.nal.usda.gov/fdc/v1/foods/search
 
 ---
 
+## Before Starting Any Work: Who Am I Working With?
+
+Several developers work on this repo (e.g. `bevan`, `britto`, `thev`). At the start of every session, **before creating a branch or making any changes**, ask the user for their name, unless they've already given it in this session. Don't guess it from `git config`, the machine or existing branches; at most, suggest it as the default answer.
+
+Use their lowercase first name (matching the existing prefixes on GitHub) as `{user}` in branch names. See Branches below.
+
+---
+
 ## Feature Workflow (mandatory for any new feature)
 
 Follow these steps in order. Don't write feature code until steps 1 and 2 are done.
@@ -292,7 +300,12 @@ Then implement it, following the Git & GitHub Practices below.
 Keep the repo clean and the history readable.
 
 ### Branches
-- Never commit directly to `main`. Branch from an up-to-date `main` for every piece of work: `feature/<short-name>`, `fix/<short-name>` or `chore/<short-name>`.
+- Never commit directly to `main`. Branch from an up-to-date `main` (`git checkout main && git pull`) for every piece of work.
+- **Naming: `{user}/{type}/{short-name}`.**
+  - `{user}`: the developer's lowercase first name, asked at the start of the session (see "Before Starting Any Work").
+  - `{type}`: `feature` (new functionality), `bugfix` (fixing broken behaviour) or `chore` (docs, refactors, tooling, deps, cleanup).
+  - `{short-name}`: kebab-case and descriptive. No dates, no spaces, no quotes, no vague names like `changes` or `fixes`.
+  - Examples: `bevan/feature/big-three-leaderboard`, `britto/bugfix/rest-timer-drift`, `thev/chore/update-docs`.
 - One feature or fix per branch. Merge to `main` through a pull request (`gh pr create`) with a summary and a test plan.
 - Delete branches once they're merged. Don't let stale branches pile up.
 
