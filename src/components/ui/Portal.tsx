@@ -43,7 +43,7 @@ export function PortalHost({ children }: { children?: ReactNode }) {
     <HostContext.Provider value={api}>
       {children}
       {entries.length > 0 && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View style={styles.layer} pointerEvents="box-none">
           {entries.map((e) => <Fragment key={e.key}>{e.node}</Fragment>)}
         </View>
       )}
@@ -65,3 +65,12 @@ export function Portal({ children }: { children: ReactNode }) {
 
   return host ? null : <>{children}</>;
 }
+
+const styles = StyleSheet.create({
+  // Above anything in the app that sets its own zIndex/elevation (e.g. the header).
+  layer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
+  },
+});
