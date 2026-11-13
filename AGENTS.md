@@ -44,8 +44,9 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
 ├── patches/fix-body-highlighter.js  # Postinstall patch for react-native-body-highlighter
 │
 └── src/
-    ├── screens/               # Top-level routes (21 screens)
+    ├── screens/               # Top-level routes (22 screens)
     ├── components/
+    │   ├── auth/              # SocialAuthButtons (Google / Apple OAuth)
     │   ├── body/              # Muscle body map (heatmap, mini map)
     │   ├── BodyHighlighter/   # Male/female SVG wrapper
     │   ├── dev/               # AvatarViewer (3D), Story/Workout overlays — debug-ish
@@ -61,14 +62,19 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
     │   ├── workouts/          # Workout history cards, exercise rows, rank/routine cards
     │   └── SheetWrapper.tsx   # Shared modal-sheet chrome
     ├── stores/                # 25 Zustand stores (see State Management)
-    ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, CommunityNavigator, navigationRef, navigationBridge
-    ├── services/              # importService, liveActivityManager, notificationService
+    ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, CommunityNavigator, navigationRef
+    ├── services/              # importService, liveActivityManager, notificationService, workoutFinishFeedback
     ├── lib/                   # supabase, friendsDatabase, navigationBridge
     ├── theme/                 # colors.ts, useColors.ts, responsive.ts, typography.ts
-    ├── utils/                 # barcodeApi, beepSound, displayName, muscleVolume, streakCalculator, strengthScore, workoutStorage
-    ├── hooks/                 # useAppUpdates.ts (EAS OTA)
+    ├── utils/                 # barcodeApi, displayName, muscleVolume, streakCalculator, strengthScore, uploadWorkoutPhoto, workoutStorage
+    ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate)
     ├── constants/             # buildInfo, changelog, muscles
     └── types/                 # widget.ts
+
+supabase/
+├── functions/                 # Edge functions: ai-coach, ai-workout-summary, ai-workout-notifications,
+│                              #   gemini-food-scan, gemini-food-search, push-notification, delete-account, discord-*
+└── migrations/                # Dated SQL migrations (YYYYMMDD_description.sql)
 ```
 
 ---
@@ -153,7 +159,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 
 ---
 
-## State Management — 26 Zustand Stores
+## State Management — 25 Zustand Stores
 
 | Store | Persistence | Responsibility |
 |---|---|---|
@@ -251,9 +257,94 @@ GET https://api.nal.usda.gov/fdc/v1/foods/search
 
 ---
 
+## Feature Workflow (mandatory for any new feature)
+
+Follow these steps in order. Don't write feature code until steps 1 and 2 are done.
+
+### 1. Clarify: ask before building
+Ask the user questions until the feature is fully understood. Don't assume. Cover what the user may not have thought of:
+- **Scope:** what's in v1, what's explicitly out, and where it lives (which tab, screen, sheet or widget)
+- **Data:** new tables or columns? RLS (owner-only vs. friends vs. public)? Does it need a migration? What about existing users with no data?
+- **States:** empty, loading, error, offline, first-time user
+- **Social and privacy:** does it show up in the feed, leaderboards or notifications? Is there an opt-out?
+- **Platforms:** iOS vs. Android differences, tablet layout, light mode plus all 12 accents
+- **Edge cases:** units (kg/lb), time zones and day boundaries, active-workout interactions, backgrounding
+- **Ship plan:** OTA-safe (JS only) or needs a native build? Changelog entry? PostHog events?
+
+Summarise the agreed requirements back to the user before moving on.
+
+### 2. Research: find the best implementation
+Before coding, research the best way to meet **all** the requirements:
+- Check first whether something already in `package.json` or the codebase solves it. Reuse beats adding.
+- For any new library, verify that it is compatible with Expo SDK 54, React Native 0.81 and the New Architecture (Fabric/TurboModules); that it's actively maintained (recent releases, open issues); its bundle and native size; and whether it needs a config plugin or a native rebuild, which rules out shipping it OTA.
+- Follow the Library-First order (Reanimated → Gesture Handler → FlashList → Skia → Zustand). For backend logic, decide whether it belongs in the client, a Postgres function/RPC or an edge function.
+- Present a short recommendation (approach, libraries, trade-offs, anything that can't be met) and get the user's go-ahead.
+
+### 3. Build on a branch
+Then implement it, following the Git & GitHub Practices below.
+
+---
+
+## Git & GitHub Practices
+
+Keep the repo clean and the history readable.
+
+### Branches
+- Never commit directly to `main`. Branch from an up-to-date `main` for every piece of work: `feature/<short-name>`, `fix/<short-name>` or `chore/<short-name>`.
+- One feature or fix per branch. Merge to `main` through a pull request (`gh pr create`) with a summary and a test plan.
+- Delete branches once they're merged. Don't let stale branches pile up.
+
+### Commits
+- Small, focused commits that each leave the app building.
+- Descriptive imperative messages, e.g. `Add big-three leaderboard RPC`. Never use placeholder messages like `sdfg` or `fdsaf`.
+- Review `git status` and `git diff` before committing. Stage specific files, not blind `git add -A`.
+- Commit or push only when the user asks.
+
+### Keeping the repo clean
+- Never commit secrets (`.env`, keys, `google-services.json` with real keys, service-role tokens) or generated output (`ios/`, `android/`, `dist/`, build artifacts).
+- No scratch files, test exports, one-off scripts or personal CSVs in the repo root. Put plans and audits in `docs/` (or delete them once done) and utility scripts in `scripts/`.
+- Database changes go in `supabase/migrations/YYYYMMDD_description.sql`, one logical change per file. Never edit a migration that has already been applied; add a new one.
+- Keep `CLAUDE.md`, `AGENTS.md` and `database-schema.md` up to date when structure, stores, tables or conventions change. `AGENTS.md` mirrors `CLAUDE.md`.
+
+---
+
+## File Structure & Organization
+
+Keep the codebase as clean and well-structured as possible. Every file should have one obvious home.
+
+### Where things go
+| What | Where |
+|---|---|
+| Route-level screen | `src/screens/` (and wire it into a navigator in `src/navigation/`) |
+| UI used by one feature | `src/components/<feature>/` |
+| UI shared across features | `src/components/` root, or a clearly named shared folder |
+| State | `src/stores/use[Domain]Store.ts` |
+| Supabase or third-party I/O with side effects | `src/services/` (feature logic) or `src/lib/` (clients, low-level DB helpers) |
+| Pure helpers (no React, no I/O) | `src/utils/` |
+| Reusable hooks | `src/hooks/` |
+| Shared types | `src/types/`. Types used by only one file stay in that file. |
+| Static data and config | `src/constants/` |
+| Edge functions / SQL | `supabase/functions/<name>/`, `supabase/migrations/` |
+| Docs, plans, audits | `docs/` |
+| Dev/ops scripts | `scripts/` |
+
+### Rules
+- **Don't add new top-level or `src/` folders** without asking the user first. Use the existing structure.
+- **Search before creating.** Check for an existing component, util, hook or store that already does the job. Extend it rather than duplicating it.
+- **Keep files focused.** One main component per file. When a file passes about 400–500 lines, or mixes several concerns, split out sub-components, hooks or helpers into the same feature folder. Don't make an existing large file bigger. Extract instead. Don't refactor unrelated large files unless asked.
+- **Colocate.** Sub-components, hooks and helpers that only one feature uses live in that feature's folder, not in the global `utils/` or `hooks/`.
+- **Delete, don't orphan.** When a feature is removed or replaced, delete its components, store slices, styles, assets, unused imports and dead code in the same change. Don't leave commented-out code or `*Old`/`*V2` copies lying around.
+- **Naming:** follow the conventions in File Naming. Names should say what the file does (`WorkoutSummaryModal.tsx`, not `Modal2.tsx`).
+- When the structure changes, update the Project Structure tree in this file.
+
+---
+
 ## Pre-Commit Checklist
 
-Before committing, ask the user whether to add an entry to `src/constants/changelog.ts`. If yes: prepend a new entry with the next version, today's date, and a user-facing summary. Skip purely internal changes (refactors, tooling) unless requested.
+- `npx tsc --noEmit` introduces no new errors. (There is a pre-existing baseline of type errors, partly because `supabase/functions` Deno code is included in the app tsconfig.)
+- No stray debug `console.log`s, commented-out blocks or unrelated changes in the diff.
+- If you added or changed migrations, update `database-schema.md` and tell the user they need to apply them.
+- Ask the user whether to add an entry to `src/constants/changelog.ts`. If yes, prepend a new entry with the next version, today's date and a user-facing summary. Skip purely internal changes (refactors, tooling) unless requested.
 
 ---
 
