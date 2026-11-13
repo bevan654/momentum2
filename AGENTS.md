@@ -209,25 +209,36 @@ Total resting ~4 connections per app instance. Pool ceiling on default Supabase 
 
 ## Database — see `database-schema.md`
 
-28 documented tables. Categories:
+45 tables, all documented (regenerated from the live schema). Categories:
 
-**Workout:** `workouts`, `exercises`, `sets`, `exercises_catalog`, `user_exercises`, `routines`, `routine_exercises`, `user_streaks`
+**Workout:** `workouts`, `exercises`, `sets`, `exercises_catalog`, `exercise_aliases`, `user_exercises`, `routines`, `routine_exercises`, `programs`, `program_days`, `program_day_exercises`, `user_ranks`, `user_streaks`
 
-**Nutrition:** `food_entries`, `food_catalog`, `user_created_foods`, `barcode_foods`, `nutrition_goals`, `meal_config`, `supplement_goals`, `supplement_entries`, `protein_powders`, `protein_powder_log`
+**Nutrition:** `food_entries`, `food_catalog`, `barcode_foods`, `ai_food_cache`, `nutrition_goals`, `meal_config`, `supplement_goals`, `user_supplements`, `supplement_entries`, `protein_powders`, `protein_powder_log`
 
 **Body:** `weight_entries`, `body_fat_entries`, `measurement_entries`
 
-**Social:** `friendships`, `activity_feed`, `reactions`, `leaderboard_entries`, `nudges`, `notifications`
+**Social:** `friendships`, `activity_feed`, `reactions`, `comments`, `content_reports`, `leaderboard_entries`, `leaderboard_rank_snapshots`, `nudges`, `notifications`
 
 **Profile:** `profiles`
 
+**AI:** `ai_coach_messages`, `ai_notification_log`, `ai_usage` (rate limits via `reserve_ai_usage` / `release_ai_usage`)
+
+**App / ops:** `app_config` (force-update minimum versions), `feature_flags`, `waitlist`, `workout_finish_feedback`, `data_change_log`
+
 Key columns:
 - `food_entries`: macros + 14 micronutrients, `meal_type`, `quantity`, `is_planned`
-- `sets`: `kg`, `reps`, `set_type` (working/warmup/drop/failure), `parent` (drop-set link)
+- `sets`: `kg`, `reps`, `set_type` (working/warmup/drop/failure), `parent_set_number` (drop-set link); optional `rir`, `completed_at`, `rest_seconds`, `target_kg`/`target_reps`/`target_source`, `side` (left/right, one row per side), `duration_seconds`, `distance_m`
+- `workouts`: `duration` (seconds; 0 = unknown), `program_id`/`program_week`; optional `started_at`/`ended_at`, `timezone`/`utc_offset_min`, `program_day_of_week`/`program_day_label`, `routine_id`, `bodyweight_kg`, `source`
+- `exercises`: `name` is the stored identity; `catalog_id` / `user_exercise_id` are filled by the `exercises_link_identity` trigger (also for inserts from old app builds)
 - `profiles`: `username`, `height`, `age`, `gender`, `push_token`, privacy flags, beta flags
-- `exercises_catalog`: `primary_muscles`, `secondary_muscles`, `other_muscles`, `equipment`, `difficulty`, `slug`
+- `exercises_catalog`: `id` is text; names are stored lowercase. `primary_muscles`, `secondary_muscles`, `other_muscles`, `equipment`, `difficulty`, `slug`
+- `data_change_log`: old/new value of every column changed by a data clean-up (service role only); use it to revert
 
-**Tables referenced in code but missing from `database-schema.md`:** `user_ranks` (used by `useRankStore`), `programs` / program-related tables (used by `useProgramStore`).
+**Compatibility rule:** older app builds stay installed (builds before the force-update gate can't be blocked), and they write directly to `workouts` → `exercises` → `sets`. Schema changes must be additive: new nullable columns, no renames, type changes, new NOT NULL columns or drops, and no trigger that can fail an insert.
+
+**Applying migrations — never run `supabase db push`.** 15 early migrations (20260218–20260709) were applied by hand and are not in production's migration history, so `db push` would re-run them against live data. Apply a new migration file on its own, then record it: `insert into supabase_migrations.schema_migrations (version, name) values ('<version>', '<name>')`. The repo's migrations also can't rebuild the database from scratch (there's no baseline); for a local copy, restore a dump of production instead.
+
+**Webhooks:** `profiles` (insert/update) and `notifications` (insert) have triggers that call production edge functions (Discord, push). Never apply data changes to those tables casually, and strip those triggers from any local copy.
 
 ### Cross-user reads
 The `profiles` SELECT policy is owner-only. For cross-user lookups, use:
