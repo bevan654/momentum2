@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Pressable, StyleSheet, BackHandler, useWindowDimensions } from 'react-native';
+import { View, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -15,7 +15,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw } from '../../theme/responsive';
-import { Portal } from './Portal';
+import { Portal, useLayerBackHandler } from './Portal';
 
 const DISMISS_DISTANCE = 80;
 const DISMISS_VELOCITY = 800;
@@ -119,24 +119,21 @@ function Sheet({
 
   useEffect(() => () => cancelAnimation(translateY), []);
 
+  const requestClose = useCallback(() => onCloseRef.current(), []);
+
   /* ── Android back closes the top-most open sheet ──── */
 
-  useEffect(() => {
-    if (!visible) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      onCloseRef.current();
-      return true;
-    });
-    return () => sub.remove();
-  }, [visible]);
+  useLayerBackHandler(visible, requestClose);
 
   /* ── Drag to dismiss (UI thread) ──────────────────── */
 
   const start = useSharedValue(0);
-  const requestClose = useCallback(() => onCloseRef.current(), []);
 
   const pan = useMemo(() =>
     Gesture.Pan()
+      // Off while closing: grabbing the handle would cancel the close animation
+      // and leave the sheet stuck on screen with nothing left to close it.
+      .enabled(visible)
       .activeOffsetY(8)
       .failOffsetX([-20, 20])
       .onStart(() => {
@@ -151,10 +148,13 @@ function Sheet({
           // Parent flips `visible`, which runs the close animation from here.
           runOnJS(requestClose)();
         } else {
-          translateY.value = withSpring(0, { ...OPEN_SPRING, velocity: e.velocityY });
+          // The drag may have interrupted the open spring, so this settle also marks content ready.
+          translateY.value = withSpring(0, { ...OPEN_SPRING, velocity: e.velocityY }, (finished) => {
+            if (finished) runOnJS(markReady)();
+          });
         }
       }),
-  [requestClose]);
+  [requestClose, markReady, visible]);
 
   /* ── Animated styles ──────────────────────────────── */
 
@@ -166,13 +166,12 @@ function Sheet({
 
   const sheetStyle = useAnimatedStyle(() => {
     if (!avoidKeyboard) return { transform: [{ translateY: translateY.value }] };
-    // Lift by the keyboard, but never past the top safe area; shrink if needed.
-    const room = maxHeight - heightSV.value;
-    const lift = Math.min(keyboard.height.value, Math.max(0, room));
-    const shrink = Math.max(0, keyboard.height.value - lift);
+    // Sit on top of the keyboard; shrink if the top would pass the top safe area.
+    const kb = keyboard.height.value;
+    const shrink = Math.max(0, kb - (maxHeight - heightSV.value));
     return {
       height: heightSV.value - shrink,
-      transform: [{ translateY: translateY.value - lift }],
+      transform: [{ translateY: translateY.value - kb }],
     };
   });
 
@@ -182,7 +181,8 @@ function Sheet({
 
   return (
     <Portal>
-      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      {/* No touches while closing, so the backdrop can't call onClose again. */}
+      <View style={StyleSheet.absoluteFill} pointerEvents={visible ? 'box-none' : 'none'}>
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={requestClose}
