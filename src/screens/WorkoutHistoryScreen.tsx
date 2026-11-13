@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, TouchableWithoutFeedback, ActivityIndicator, ScrollView, StyleSheet, Modal, StatusBar } from 'react-native';
+import { View, Text, TouchableOpacity, TouchableWithoutFeedback, ActivityIndicator, ScrollView, StyleSheet, StatusBar } from 'react-native';
+import Overlay from '../components/ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
@@ -808,10 +809,8 @@ function WorkoutHistoryScreen() {
       </View>
 
       {/* ── History Overlay ──────────────────────── */}
-      <Modal
+      <Overlay
         visible={historyVisible}
-        transparent
-        statusBarTranslucent
         animationType="none"
         onRequestClose={closeHistory}
       >
@@ -827,7 +826,7 @@ function WorkoutHistoryScreen() {
             setSelectedWorkout(w);
           }}
         />
-      </Modal>
+      </Overlay>
 
       {selectedWorkout && (
         <WorkoutSummaryModal
@@ -842,10 +841,8 @@ function WorkoutHistoryScreen() {
         />
       )}
 
-      <Modal
+      <Overlay
         visible={!!previewRoutine}
-        transparent
-        statusBarTranslucent
         animationType="none"
         onRequestClose={() => setPreviewRoutine(null)}
       >
@@ -858,7 +855,7 @@ function WorkoutHistoryScreen() {
             onDismiss={() => setPreviewRoutine(null)}
           />
         )}
-      </Modal>
+      </Overlay>
 
 
     </View>

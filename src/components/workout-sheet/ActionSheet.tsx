@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useCallback } from 'react';
-import { View, Text, Pressable, TouchableOpacity, StyleSheet, Modal, Platform } from 'react-native';
+import { View, Text, Pressable, TouchableOpacity, StyleSheet } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -28,10 +29,9 @@ function ActionSheet({ visible, title, actions, onClose }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
 
-  // The tapped action runs only once this sheet has finished dismissing. On iOS
-  // a Modal can't be presented (e.g. the exercise picker for "Replace") while
-  // another Modal from the same view controller is still animating out, so the
-  // action waits for onDismiss there. Android has no such restriction.
+  // The tapped action runs once this sheet has finished animating out, so
+  // whatever it opens (e.g. the exercise picker for "Replace") appears on top
+  // of a settled screen rather than mid-transition.
   const pendingRef = useRef<(() => void) | null>(null);
   const runPending = useCallback(() => {
     const fn = pendingRef.current;
@@ -40,9 +40,8 @@ function ActionSheet({ visible, title, actions, onClose }: Props) {
   }, []);
 
   return (
-    <Modal
+    <Overlay
       visible={visible}
-      transparent
       animationType="slide"
       onRequestClose={onClose}
       onDismiss={runPending}
@@ -64,7 +63,6 @@ function ActionSheet({ visible, title, actions, onClose }: Props) {
                 onPress={() => {
                   pendingRef.current = a.onPress;
                   onClose();
-                  if (Platform.OS !== 'ios') runPending();
                 }}
               >
                 <Ionicons name={a.icon} size={ms(18)} color={tint} />
@@ -74,7 +72,7 @@ function ActionSheet({ visible, title, actions, onClose }: Props) {
           })}
         </Pressable>
       </Pressable>
-    </Modal>
+    </Overlay>
   );
 }
 

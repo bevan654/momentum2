@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator, Image, Pressable } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { PortalHost } from '../ui/Portal';
 import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring, withTiming, Easing, runOnJS } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -1056,11 +1059,9 @@ export default function WorkoutSummaryModal(props: Props) {
         </ShareModal>
       )}
       {confirmExitVisible && (
-        <Modal
+        <Overlay
           visible
-          transparent
           animationType="fade"
-          statusBarTranslucent
           onRequestClose={() => setConfirmExitVisible(false)}
         >
           <Pressable
@@ -1099,7 +1100,7 @@ export default function WorkoutSummaryModal(props: Props) {
               </TouchableOpacity>
             </Pressable>
           </Pressable>
-        </Modal>
+        </Overlay>
       )}
     </>
   );
@@ -1142,9 +1143,13 @@ export default function WorkoutSummaryModal(props: Props) {
         onRequestClose={animatedDismiss}
       >
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-          <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
-          {historicalContent}
-          </SafeAreaView>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <PortalHost>
+              <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
+              {historicalContent}
+              </SafeAreaView>
+            </PortalHost>
+          </GestureHandlerRootView>
         </SafeAreaProvider>
       </Modal>
     );
@@ -1437,9 +1442,14 @@ export default function WorkoutSummaryModal(props: Props) {
 
   return (
     <Modal visible animationType="slide" presentationStyle="fullScreen" statusBarTranslucent>
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
-        {justCompletedContent}
-      </SafeAreaView>
+      {/* Sub-dialogs (duration, share, confirm exit) render here, inside this native window. */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <PortalHost>
+          <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
+            {justCompletedContent}
+          </SafeAreaView>
+        </PortalHost>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

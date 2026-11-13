@@ -5,13 +5,13 @@ import {
   TouchableOpacity,
   Text,
   Pressable,
-  Modal,
   StyleSheet,
   Keyboard,
   Platform,
   Dimensions,
   useWindowDimensions,
 } from 'react-native';
+import Overlay from '../ui/Overlay';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -121,7 +121,7 @@ export default function ActiveWorkoutSheet() {
   if (!isActive && !showSummary) return null;
 
   return (
-    <Modal visible={sheetVisible} transparent statusBarTranslucent animationType="none">
+    <Overlay visible={sheetVisible} animationType="none">
       <GestureHandlerRootView style={StyleSheet.absoluteFill}>
         {/* Sheets opened from inside the workout render here, above it. */}
         <PortalHost>
@@ -145,7 +145,7 @@ export default function ActiveWorkoutSheet() {
         />
         </PortalHost>
       </GestureHandlerRootView>
-    </Modal>
+    </Overlay>
   );
 }
 

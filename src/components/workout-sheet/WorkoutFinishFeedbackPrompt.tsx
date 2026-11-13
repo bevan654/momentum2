@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../stores/useAuthStore';
 import {
@@ -50,9 +51,8 @@ function WorkoutFinishFeedbackPrompt({ enabled }: Props) {
   };
 
   return (
-    <Modal
+    <Overlay
       visible={pending != null}
-      transparent
       animationType="fade"
       onRequestClose={() => setPending(null)}
     >
@@ -96,7 +96,7 @@ function WorkoutFinishFeedbackPrompt({ enabled }: Props) {
           </Pressable>
         </View>
       </Pressable>
-    </Modal>
+    </Overlay>
   );
 }
 

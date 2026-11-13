@@ -4,9 +4,9 @@ import {
   Text,
   TouchableOpacity,
   Pressable,
-  Modal,
   StyleSheet,
 } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
@@ -37,7 +37,7 @@ export default function BetaWelcomeModal({ onDismiss }: Props) {
   if (!userId) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={dismiss}>
+    <Overlay visible={visible} animationType="fade" onRequestClose={dismiss}>
       <Pressable style={styles.backdrop} onPress={dismiss}>
         <View style={styles.centered}>
           <Pressable style={styles.modal}>
@@ -88,7 +88,7 @@ export default function BetaWelcomeModal({ onDismiss }: Props) {
           </Pressable>
         </View>
       </Pressable>
-    </Modal>
+    </Overlay>
   );
 }
 

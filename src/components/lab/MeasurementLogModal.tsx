@@ -5,12 +5,12 @@ import {
   TextInput,
   TouchableOpacity,
   Pressable,
-  Modal,
   StyleSheet,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import Overlay from '../ui/Overlay';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
@@ -51,7 +51,7 @@ export default function MeasurementLogModal({ visible, onClose, onSave, label }:
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+    <Overlay visible={visible} animationType="fade" onRequestClose={handleClose}>
       <Pressable style={styles.backdrop} onPress={handleClose}>
         <KeyboardAvoidingView
           style={styles.centered}
@@ -86,7 +86,7 @@ export default function MeasurementLogModal({ visible, onClose, onSave, label }:
           </Pressable>
         </KeyboardAvoidingView>
       </Pressable>
-    </Modal>
+    </Overlay>
   );
 }
 
