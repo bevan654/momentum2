@@ -1,0 +1,1215 @@
+{
+ "_about": "Catalog overhaul decisions for the existing exercises_catalog rows (ids are production ids). merge: the row becomes the canonical row for that RepDB exercise and takes its name and data. merge_into: same lift as another of our rows; hidden, and its history is renamed onto the survivor. keep: stays our own exercise (new_name is our equipment-first name). hide: hidden from search, history kept. Holds no RepDB content beyond RepDB ids.",
+ "batch": "20261116_catalog",
+ "rows": [
+  {
+   "id": "bc3ba1cf-4e85-47c9-ae88-067e01bac0e9",
+   "name": "ab wheel rollout",
+   "action": "merge",
+   "repdb_id": "ab-wheel-rollout"
+  },
+  {
+   "id": "fea2a155-fac2-4648-9dc5-5cd76066bdc1",
+   "name": "abcoaster",
+   "action": "keep",
+   "new_name": "abcoaster"
+  },
+  {
+   "id": "2f5ee441-4fd7-43ee-a4a4-26793c7db1ae",
+   "name": "air bike",
+   "action": "merge",
+   "repdb_id": "air-bike"
+  },
+  {
+   "id": "e77ae65c-f2af-46bc-b1d8-95d27b55042f",
+   "name": "alternating arm kettlebell swing",
+   "action": "keep",
+   "new_name": "kettlebell alternating arm swing"
+  },
+  {
+   "id": "4454f090-872f-4491-8b0e-a846ac5dd945",
+   "name": "archer pull-ups",
+   "action": "merge",
+   "repdb_id": "archer-pull-ups"
+  },
+  {
+   "id": "caadc082-ea1a-40a8-96d0-4316daf15776",
+   "name": "archer push-ups",
+   "action": "merge",
+   "repdb_id": "archer-push-ups"
+  },
+  {
+   "id": "6d6fc003-ed9d-42e2-a1f0-d6b9f47e8f68",
+   "name": "assisted chin-ups",
+   "action": "keep",
+   "new_name": "assisted chin-ups"
+  },
+  {
+   "id": "3a8dd64f-b18b-42c3-8d35-04be04225de2",
+   "name": "assisted dips",
+   "action": "merge",
+   "repdb_id": "assisted-dips"
+  },
+  {
+   "id": "56ac803b-f494-4dc3-9241-1374c2d29b72",
+   "name": "assisted muscle-ups",
+   "action": "keep",
+   "new_name": "assisted muscle-ups"
+  },
+  {
+   "id": "1dbfba12-05e9-431f-aaf9-94e8f80eab4a",
+   "name": "assisted pull ups",
+   "action": "merge",
+   "repdb_id": "assisted-pull-ups"
+  },
+  {
+   "id": "ed8ace3c-8285-4da8-adb8-dd216c828db7",
+   "name": "back extension",
+   "action": "merge",
+   "repdb_id": "back-extension"
+  },
+  {
+   "id": "9b5316e9-5ea5-4a5b-97e7-f1db0da096cc",
+   "name": "band assisted pull-ups",
+   "action": "merge",
+   "repdb_id": "band-assisted-pull-ups"
+  },
+  {
+   "id": "a1000018-0000-4000-a000-000000000018",
+   "name": "band chest fly",
+   "action": "keep",
+   "new_name": "band chest fly"
+  },
+  {
+   "id": "f1e8cd18-12d5-4561-bc8b-ec4492c0fd0f",
+   "name": "band pull-apart",
+   "action": "merge",
+   "repdb_id": "band-pull-apart"
+  },
+  {
+   "id": "6d6f46ec-ea92-4f38-9baa-d42975f1a706",
+   "name": "barbell back squat",
+   "action": "merge",
+   "repdb_id": "squat"
+  },
+  {
+   "id": "a1000019-0000-4000-a000-000000000019",
+   "name": "barbell bent over row",
+   "action": "merge",
+   "repdb_id": "barbell-row"
+  },
+  {
+   "id": "061b607e-00e3-4a7a-9fe7-0f6a82634745",
+   "name": "barbell calf raise",
+   "action": "merge",
+   "repdb_id": "barbell-calf-raise"
+  },
+  {
+   "id": "51408920-3d63-4ee8-a9d2-ec5dec71bbce",
+   "name": "barbell concentration curl",
+   "action": "keep",
+   "new_name": "barbell concentration curl"
+  },
+  {
+   "id": "a1000014-0000-4000-a000-000000000014",
+   "name": "barbell curl",
+   "action": "merge",
+   "repdb_id": "barbell-curl"
+  },
+  {
+   "id": "24627197-8d8b-48eb-a437-03e7e8d3780f",
+   "name": "barbell flexion row",
+   "action": "keep",
+   "new_name": "barbell flexion row"
+  },
+  {
+   "id": "1ac40b49-bae5-45c6-b7d5-fd9998b527e0",
+   "name": "barbell front raise",
+   "action": "merge",
+   "repdb_id": "barbell-front-raise"
+  },
+  {
+   "id": "a94e5195-beb5-4457-93a7-12a08b00b4c7",
+   "name": "barbell glute bridge",
+   "action": "merge",
+   "repdb_id": "barbell-glute-bridge"
+  },
+  {
+   "id": "0abdf2ba-3f47-4f40-a532-fa19bcebfbad",
+   "name": "barbell hack squat",
+   "action": "keep",
+   "new_name": "barbell hack squat"
+  },
+  {
+   "id": "122fb563-ed37-4e53-aa91-d23958f227d0",
+   "name": "barbell lunge",
+   "action": "merge",
+   "repdb_id": "barbell-lunge"
+  },
+  {
+   "id": "7a7fffd6-4c5d-42cc-931c-9c5994ac0cb5",
+   "name": "barbell power shrug",
+   "action": "keep",
+   "new_name": "barbell power shrug"
+  },
+  {
+   "id": "83e99a91-1e5e-465d-81bb-f1c959f5484c",
+   "name": "barbell preacher curl",
+   "action": "merge",
+   "repdb_id": "barbell-preacher-curl"
+  },
+  {
+   "id": "54c93624-7828-44f2-9a1f-a5eaa1f8e3f7",
+   "name": "barbell pullover",
+   "action": "merge",
+   "repdb_id": "barbell-pullover"
+  },
+  {
+   "id": "25b4d529-9358-4d0f-a722-bcd774c56cda",
+   "name": "barbell reverse lunge",
+   "action": "merge",
+   "repdb_id": "barbell-reverse-lunge"
+  },
+  {
+   "id": "15ac6882-160d-4dad-9930-cb8744b2da52",
+   "name": "barbell shrug",
+   "action": "merge",
+   "repdb_id": "shrug"
+  },
+  {
+   "id": "a100000f-0000-4000-a000-00000000000f",
+   "name": "barbell upright row",
+   "action": "merge",
+   "repdb_id": "upright-row"
+  },
+  {
+   "id": "7c2aa651-cc74-45ce-88d2-89c0e103ab9b",
+   "name": "barbell wrist curl",
+   "action": "merge",
+   "repdb_id": "barbell-wrist-curl"
+  },
+  {
+   "id": "38e9c777-50fc-4934-89df-d468f07f3ede",
+   "name": "bayesian curl",
+   "action": "keep",
+   "new_name": "cable bayesian curl"
+  },
+  {
+   "id": "0ccfb882-51ca-4e9d-af3b-548897191a86",
+   "name": "behind the back barbell shrug",
+   "action": "merge",
+   "repdb_id": "behind-the-back-barbell-shrug"
+  },
+  {
+   "id": "9ca8dd6d-5430-46c0-ab90-23c2c0e3b19e",
+   "name": "behind the back deadlift",
+   "action": "keep",
+   "new_name": "barbell behind the back deadlift"
+  },
+  {
+   "id": "50564236-115b-414e-8865-92dd209f6d59",
+   "name": "behind the neck press",
+   "action": "merge",
+   "repdb_id": "behind-the-neck-press"
+  },
+  {
+   "id": "a100001a-0000-4000-a000-00000000001a",
+   "name": "ben's",
+   "action": "hide"
+  },
+  {
+   "id": "5a59a344-beab-415a-b850-30c7f4705528",
+   "name": "bench dip",
+   "action": "merge",
+   "repdb_id": "bench-dips"
+  },
+  {
+   "id": "2e50024a-f253-4859-9a8d-69b24e5cdd2a",
+   "name": "bench pin press",
+   "action": "keep",
+   "new_name": "barbell bench pin press"
+  },
+  {
+   "id": "9d6c70f6-9761-4b1b-bdfb-44e6042bbbdf",
+   "name": "bench press",
+   "action": "merge",
+   "repdb_id": "bench-press"
+  },
+  {
+   "id": "1aaccc60-30d2-47c1-88ac-a0031c875fbc",
+   "name": "bench pull",
+   "action": "merge",
+   "repdb_id": "bench-pull"
+  },
+  {
+   "id": "61c7f3cc-f881-4dab-aff9-f7086faf1564",
+   "name": "bent arm barbell pullover",
+   "action": "merge",
+   "repdb_id": "bent-arm-barbell-pullover"
+  },
+  {
+   "id": "274b0dfb-4634-480f-9da0-ffc0eaf8b0c7",
+   "name": "bent over dumbbell row",
+   "action": "merge",
+   "repdb_id": "bent-over-db-row"
+  },
+  {
+   "id": "19122fad-f27b-4689-b7cb-0b05f0ed1571",
+   "name": "bent over folded twists",
+   "action": "keep",
+   "new_name": "bent over folded twists"
+  },
+  {
+   "id": "18f75180-8dd2-4c9f-ba01-2683f2ed336d",
+   "name": "bicycle crunch",
+   "action": "merge",
+   "repdb_id": "bicycle-crunch"
+  },
+  {
+   "id": "a29eab92-ea33-41b8-b2fd-d006303d621a",
+   "name": "box jump",
+   "action": "merge",
+   "repdb_id": "box-jump"
+  },
+  {
+   "id": "e5779840-fcbe-4c1c-a875-394a2a94134e",
+   "name": "cable chest fly",
+   "action": "merge",
+   "repdb_id": "cable-fly"
+  },
+  {
+   "id": "d162fa4e-f8d0-4c2c-bb18-d2af34952827",
+   "name": "cable chest press",
+   "action": "merge",
+   "repdb_id": "cable-chest-press"
+  },
+  {
+   "id": "0545ccf0-1fc1-4b5c-8581-850fda673c85",
+   "name": "cable crunch",
+   "action": "merge",
+   "repdb_id": "cable-crunch"
+  },
+  {
+   "id": "a1000011-0000-4000-a000-000000000011",
+   "name": "cable curl",
+   "action": "merge",
+   "repdb_id": "cable-curl"
+  },
+  {
+   "id": "a1000001-0000-4000-a000-000000000001",
+   "name": "cable face pull",
+   "action": "merge",
+   "repdb_id": "face-pull"
+  },
+  {
+   "id": "a1000007-0000-4000-a000-000000000007",
+   "name": "cable hammer curl",
+   "action": "merge",
+   "repdb_id": "cable-hammer-curl"
+  },
+  {
+   "id": "b5383b6e-9bdd-474d-884c-c9e6a99602b9",
+   "name": "cable lateral raise",
+   "action": "merge",
+   "repdb_id": "cable-lateral-raise"
+  },
+  {
+   "id": "1e7361b6-afda-4b93-b2ff-f8c79518610e",
+   "name": "cable pull through",
+   "action": "merge",
+   "repdb_id": "cable-pull-through"
+  },
+  {
+   "id": "6f7ff84f-0342-4bb5-bd31-5006a7aec5d3",
+   "name": "cable reverse curl",
+   "action": "keep",
+   "new_name": "cable reverse curl"
+  },
+  {
+   "id": "a1000015-0000-4000-a000-000000000015",
+   "name": "cable triceps extension",
+   "action": "keep",
+   "new_name": "cable triceps extension"
+  },
+  {
+   "id": "16b1e83e-651b-4c46-bd14-b02cd86c4fde",
+   "name": "cable wood chop",
+   "action": "keep",
+   "new_name": "cable wood chop"
+  },
+  {
+   "id": "a100000a-0000-4000-a000-00000000000a",
+   "name": "calf press on leg press",
+   "action": "keep",
+   "new_name": "calf press on leg press"
+  },
+  {
+   "id": "e202e4ec-333f-4614-958f-5f277a69bdcb",
+   "name": "captains chair knee raise",
+   "action": "merge",
+   "repdb_id": "captains-chair-knee-raise"
+  },
+  {
+   "id": "69ec1b33-271e-4ffe-a114-3757f2afeb3b",
+   "name": "captains chair leg raise",
+   "action": "merge",
+   "repdb_id": "captains-chair-leg-raise"
+  },
+  {
+   "id": "6fe324f4-a43a-4a1a-9e49-6855cda9dcb7",
+   "name": "chest-supported dumbbell row",
+   "action": "merge",
+   "repdb_id": "chest-supported-db-row"
+  },
+  {
+   "id": "2b60f96d-05d1-44e5-ad43-44fc9bf20430",
+   "name": "chin ups",
+   "action": "merge",
+   "repdb_id": "chin-ups"
+  },
+  {
+   "id": "01dbecd3-8d86-4f7e-a124-b1899cef625d",
+   "name": "close grip lat pulldown",
+   "action": "merge",
+   "repdb_id": "close-grip-lat-pulldown"
+  },
+  {
+   "id": "f4f793a0-f8d6-41b1-bf30-0396a5f8c2a0",
+   "name": "close-grip bench press",
+   "action": "merge",
+   "repdb_id": "close-grip-bench-press"
+  },
+  {
+   "id": "ee12a02c-8492-4e43-9fec-781980c9c6d9",
+   "name": "close-grip push-up",
+   "action": "merge",
+   "repdb_id": "close-grip-push-ups"
+  },
+  {
+   "id": "89bd239a-96a4-4e5f-b5a0-d89cdec7bb49",
+   "name": "concentration curl",
+   "action": "merge",
+   "repdb_id": "concentration-curl"
+  },
+  {
+   "id": "4f9a3d91-42e1-4b46-a907-1c68db1fb201",
+   "name": "conventional deadlift",
+   "action": "merge",
+   "repdb_id": "deadlift"
+  },
+  {
+   "id": "9d57f3ef-7831-4318-9796-8e367a458730",
+   "name": "cross body hammer curl",
+   "action": "merge",
+   "repdb_id": "cross-body-hammer-curl"
+  },
+  {
+   "id": "156b5643-f3df-4cc1-8ab4-738487bd21a6",
+   "name": "crunch",
+   "action": "merge",
+   "repdb_id": "crunches"
+  },
+  {
+   "id": "747d2a58-887c-4838-92c8-edd055acd890",
+   "name": "dead bug",
+   "action": "merge",
+   "repdb_id": "dead-bug"
+  },
+  {
+   "id": "5a262f3b-7e1f-498e-b49f-c9d4425abb96",
+   "name": "dead hang",
+   "action": "merge",
+   "repdb_id": "dead-hang"
+  },
+  {
+   "id": "8f21e5d4-a50f-4484-8b51-a2fceef562cf",
+   "name": "decline crunch",
+   "action": "merge",
+   "repdb_id": "decline-crunch"
+  },
+  {
+   "id": "c2ca4b06-11ac-4207-a366-60c49804d6f3",
+   "name": "decline dumbbell fly",
+   "action": "merge",
+   "repdb_id": "decline-db-fly"
+  },
+  {
+   "id": "7c360710-0fce-42ba-b9fc-765158e0ed24",
+   "name": "decline dumbbell press",
+   "action": "keep",
+   "new_name": "dumbbell decline press"
+  },
+  {
+   "id": "68170c3d-4f04-4a03-a15f-ad3cb6266469",
+   "name": "decline push-up",
+   "action": "merge",
+   "repdb_id": "decline-push-up"
+  },
+  {
+   "id": "0f5fc1c3-175d-4258-909e-1498094279dc",
+   "name": "decline sit-up",
+   "action": "keep",
+   "new_name": "decline sit-up"
+  },
+  {
+   "id": "a6702b53-d8ed-4211-8d35-454dafd5e181",
+   "name": "dips",
+   "action": "keep",
+   "new_name": "dips"
+  },
+  {
+   "id": "d5c44f3d-bf97-41f4-96be-34b004b7c47b",
+   "name": "donkey calf raise",
+   "action": "merge",
+   "repdb_id": "donkey-calf-raise"
+  },
+  {
+   "id": "2741ac7f-ba91-4a5e-94dd-94cd6db496b8",
+   "name": "dragon flag",
+   "action": "merge",
+   "repdb_id": "dragon-flag"
+  },
+  {
+   "id": "a100000d-0000-4000-a000-00000000000d",
+   "name": "dumbbell arnold press",
+   "action": "merge",
+   "repdb_id": "arnold-press"
+  },
+  {
+   "id": "0e860114-bc1f-47d7-999d-d658b1243e59",
+   "name": "dumbbell bench press",
+   "action": "merge",
+   "repdb_id": "db-bench-press"
+  },
+  {
+   "id": "5e14af07-6d0b-4fac-b303-cdc5d465ab2e",
+   "name": "dumbbell bulgarian split squat",
+   "action": "merge",
+   "repdb_id": "bulgarian-split-squat"
+  },
+  {
+   "id": "5de0ff50-7b9c-49f8-88bf-0ce8c667b035",
+   "name": "dumbbell chest fly",
+   "action": "merge",
+   "repdb_id": "db-fly"
+  },
+  {
+   "id": "d722d67f-0532-46c5-bf8f-9aca71b9558e",
+   "name": "dumbbell curl",
+   "action": "merge",
+   "repdb_id": "bicep-curl"
+  },
+  {
+   "id": "a100000e-0000-4000-a000-00000000000e",
+   "name": "dumbbell front raise",
+   "action": "merge",
+   "repdb_id": "dumbbell-front-raise"
+  },
+  {
+   "id": "a1000003-0000-4000-a000-000000000003",
+   "name": "dumbbell hammer curl",
+   "action": "merge",
+   "repdb_id": "hammer-curl"
+  },
+  {
+   "id": "318a415d-5fb1-452a-a9e3-a9e741f42268",
+   "name": "dumbbell lateral raise",
+   "action": "merge",
+   "repdb_id": "lateral-raise"
+  },
+  {
+   "id": "a1000010-0000-4000-a000-000000000010",
+   "name": "dumbbell lunge",
+   "action": "merge",
+   "repdb_id": "db-lunge"
+  },
+  {
+   "id": "a1000005-0000-4000-a000-000000000005",
+   "name": "dumbbell preacher curl",
+   "action": "merge",
+   "repdb_id": "db-preacher-curl"
+  },
+  {
+   "id": "d08e08b1-7e0a-405b-a0f0-eb76c7843f40",
+   "name": "dumbbell pullover",
+   "action": "merge",
+   "repdb_id": "db-pullover"
+  },
+  {
+   "id": "f31ef577-3b25-4674-a79d-b2668dcd036a",
+   "name": "dumbbell row",
+   "action": "merge",
+   "repdb_id": "single-arm-db-row"
+  },
+  {
+   "id": "f288db3e-8560-4ba8-8f50-05792ff72511",
+   "name": "dumbbell shoulder press",
+   "action": "merge",
+   "repdb_id": "dumbbell-shoulder-press"
+  },
+  {
+   "id": "948ed302-b016-422e-909f-5745974ad237",
+   "name": "dumbbell shrug",
+   "action": "merge",
+   "repdb_id": "db-shrug"
+  },
+  {
+   "id": "a1000013-0000-4000-a000-000000000013",
+   "name": "dumbbell triceps extension",
+   "action": "merge",
+   "repdb_id": "dumbbell-tricep-extension"
+  },
+  {
+   "id": "9659a532-ce12-4ad5-bc84-8d4b51b0f284",
+   "name": "glute ham raise",
+   "action": "keep",
+   "new_name": "glute ham raise"
+  },
+  {
+   "id": "3d00dc24-e7a8-4b5f-b2ff-26d712da8253",
+   "name": "goblet squat",
+   "action": "merge",
+   "repdb_id": "db-goblet-squat",
+   "note": "re-targeted from the kettlebell goblet squat: ours is the dumbbell version, which RepDB also has"
+  },
+  {
+   "id": "eb8ad7c4-a9e7-4fb7-8a51-86785b55d197",
+   "name": "good morning",
+   "action": "merge",
+   "repdb_id": "good-morning"
+  },
+  {
+   "id": "4bc09b25-73b1-4650-85fb-a00787011227",
+   "name": "hack squat",
+   "action": "merge",
+   "repdb_id": "hack-squat"
+  },
+  {
+   "id": "d4f24c84-079d-4f7b-9f70-54c349389b97",
+   "name": "hack squat calf raise",
+   "action": "merge",
+   "repdb_id": "hack-squat-calf-raise"
+  },
+  {
+   "id": "0a9a30d2-59d7-40df-b938-7405b28d5446",
+   "name": "hanging knee raise",
+   "action": "merge",
+   "repdb_id": "hanging-knee-raise"
+  },
+  {
+   "id": "6fbd0eda-ed4c-4304-8d67-e3908cb88caf",
+   "name": "hanging leg raise",
+   "action": "merge",
+   "repdb_id": "hanging-leg-raise"
+  },
+  {
+   "id": "f03c26f2-0bcb-4e1e-9a87-c3fe2a9dbf75",
+   "name": "heel touch",
+   "action": "merge",
+   "repdb_id": "heel-touches"
+  },
+  {
+   "id": "7e28f7cb-48a3-4c37-98b1-d3df85e3b62f",
+   "name": "high to low cable fly",
+   "action": "keep",
+   "new_name": "cable high to low fly"
+  },
+  {
+   "id": "3d23b0bd-3706-4c28-852d-f98ff26f9e57",
+   "name": "hip abduction machine",
+   "action": "merge",
+   "repdb_id": "hip-abduction"
+  },
+  {
+   "id": "9ad36eac-ab3e-4c1b-a516-234e1c4d086c",
+   "name": "hip adduction machine",
+   "action": "merge",
+   "repdb_id": "hip-adduction"
+  },
+  {
+   "id": "552d6eee-5ede-4749-87a6-d546aef10f2a",
+   "name": "hip thrust",
+   "action": "merge",
+   "repdb_id": "hip-thrust"
+  },
+  {
+   "id": "0be1d654-200d-4566-957b-b749990382ba",
+   "name": "incline bench press",
+   "action": "merge",
+   "repdb_id": "incline-bench-press"
+  },
+  {
+   "id": "a1000002-0000-4000-a000-000000000002",
+   "name": "incline dumbbell bench press",
+   "action": "merge",
+   "repdb_id": "incline-db-press"
+  },
+  {
+   "id": "1a0455ba-ea29-4464-9bc4-07e30b481f82",
+   "name": "incline dumbbell curl",
+   "action": "merge",
+   "repdb_id": "incline-db-curl"
+  },
+  {
+   "id": "75438867-0ae2-49d7-a63f-10949f4aa15b",
+   "name": "incline dumbbell fly",
+   "action": "merge",
+   "repdb_id": "incline-dumbbell-fly"
+  },
+  {
+   "id": "8f3f1932-f0e7-47a3-8cc4-452fb4f65fc7",
+   "name": "incline hammer curl",
+   "action": "merge",
+   "repdb_id": "incline-hammer-curl"
+  },
+  {
+   "id": "84656e5f-eaf2-4f3f-b8a7-e6600b381c20",
+   "name": "incline push ups",
+   "action": "merge",
+   "repdb_id": "incline-push-ups"
+  },
+  {
+   "id": "8ee40371-696d-478d-a44e-af7377101031",
+   "name": "inverted row",
+   "action": "keep",
+   "new_name": "inverted row"
+  },
+  {
+   "id": "a1000016-0000-4000-a000-000000000016",
+   "name": "iso lateral chest press",
+   "action": "keep",
+   "new_name": "iso lateral chest press"
+  },
+  {
+   "id": "3ae96025-440d-403f-a14e-a07014084855",
+   "name": "iso lateral high row",
+   "action": "keep",
+   "new_name": "iso lateral high row"
+  },
+  {
+   "id": "b1a496a4-8832-4a8d-9f88-6f693f7b9fef",
+   "name": "iso lateral incline chest press",
+   "action": "keep",
+   "new_name": "iso lateral incline chest press"
+  },
+  {
+   "id": "fdacf391-3724-43bc-b312-8a24f7b56fbb",
+   "name": "iso lateral low row",
+   "action": "keep",
+   "new_name": "iso lateral low row"
+  },
+  {
+   "id": "946c8fec-ed61-4095-8c29-359e83a0713d",
+   "name": "iso lateral machine row",
+   "action": "keep",
+   "new_name": "iso lateral machine row"
+  },
+  {
+   "id": "c938f62d-c6d4-4111-ba8e-1937a356f42b",
+   "name": "iso lateral shoulder press",
+   "action": "keep",
+   "new_name": "iso lateral shoulder press"
+  },
+  {
+   "id": "74861b90-f508-4732-bb04-7f39bd7d5198",
+   "name": "landmine press",
+   "action": "merge",
+   "repdb_id": "landmine-press"
+  },
+  {
+   "id": "e9162aec-3d30-43ab-b8bf-8feadc0a8f3d",
+   "name": "lat pulldown",
+   "action": "merge",
+   "repdb_id": "lat-pulldown"
+  },
+  {
+   "id": "9dd3afa1-74cc-43e9-bc48-15331f33c530",
+   "name": "lat pulldown dual pulley",
+   "action": "keep",
+   "new_name": "cable lat pulldown dual pulley"
+  },
+  {
+   "id": "ee69c2b4-b7bd-463a-b994-d3afe4166c0d",
+   "name": "lat pulldown single pulley",
+   "action": "keep",
+   "new_name": "cable lat pulldown single pulley"
+  },
+  {
+   "id": "a100000b-0000-4000-a000-00000000000b",
+   "name": "leaning triceps extension",
+   "action": "keep",
+   "new_name": "cable leaning triceps extension"
+  },
+  {
+   "id": "df6f4abe-b195-49f6-b4d9-08347e3834ce",
+   "name": "leg extension",
+   "action": "merge",
+   "repdb_id": "leg-extension"
+  },
+  {
+   "id": "f42a60d9-7c40-45d1-8e13-f51300e97f59",
+   "name": "lying leg curl",
+   "action": "merge",
+   "repdb_id": "leg-curl"
+  },
+  {
+   "id": "33ff7c8e-1887-488b-aa92-14f10518bf42",
+   "name": "lying leg raise",
+   "action": "merge",
+   "repdb_id": "lying-leg-raise"
+  },
+  {
+   "id": "1497a22f-dc18-43f5-a7ec-2411fb17ac4e",
+   "name": "lying tricep extension",
+   "action": "keep",
+   "new_name": "barbell lying tricep extension"
+  },
+  {
+   "id": "a1000012-0000-4000-a000-000000000012",
+   "name": "machine bicep curl",
+   "action": "merge",
+   "repdb_id": "machine-bicep-curl"
+  },
+  {
+   "id": "2fb8a819-001d-4213-9d15-91c879fe5f7a",
+   "name": "machine chest press",
+   "action": "merge",
+   "repdb_id": "chest-press-machine"
+  },
+  {
+   "id": "45233a3a-9de5-411e-be2c-ced01954a13d",
+   "name": "machine crunch",
+   "action": "merge",
+   "repdb_id": "machine-seated-crunch"
+  },
+  {
+   "id": "fbd577f0-7372-4784-9194-6db70e91cc72",
+   "name": "machine glute kickback",
+   "action": "keep",
+   "new_name": "machine glute kickback"
+  },
+  {
+   "id": "5d00e010-7402-4811-9251-ee0b950365ec",
+   "name": "machine high row",
+   "action": "keep",
+   "new_name": "machine high row"
+  },
+  {
+   "id": "886784f5-d5c3-4041-9f33-3cbaf8e45612",
+   "name": "machine hip thrust",
+   "action": "keep",
+   "new_name": "machine hip thrust"
+  },
+  {
+   "id": "7e1eab84-6825-483e-a64c-4f85037a11e3",
+   "name": "machine lateral raise",
+   "action": "keep",
+   "new_name": "machine lateral raise"
+  },
+  {
+   "id": "d9de35d4-6a0a-4b17-889a-3c6491ea2789",
+   "name": "machine preacher curl",
+   "action": "merge",
+   "repdb_id": "machine-preacher-curl"
+  },
+  {
+   "id": "33f244fb-487d-449f-9fcf-085793e01062",
+   "name": "machine reverse fly",
+   "action": "merge",
+   "repdb_id": "machine-reverse-fly"
+  },
+  {
+   "id": "a1ad8a22-4c22-4506-9ceb-33acbcdf1766",
+   "name": "machine shoulder press",
+   "action": "merge",
+   "repdb_id": "machine-shoulder-press"
+  },
+  {
+   "id": "41079df2-baf2-413e-b2ff-b40a828846a5",
+   "name": "machine shrugs",
+   "action": "keep",
+   "new_name": "machine shrugs"
+  },
+  {
+   "id": "7f3926d6-0642-4330-ac74-80a946cfbde7",
+   "name": "machine tricep extension",
+   "action": "merge",
+   "repdb_id": "machine-triceps-extension"
+  },
+  {
+   "id": "e198093e-c521-42d1-a4dc-d77c8ec1ed2e",
+   "name": "medicine ball slam",
+   "action": "merge",
+   "repdb_id": "medicine-ball-slam"
+  },
+  {
+   "id": "00b135d4-8cf6-4736-8ace-ab266164a37f",
+   "name": "military press",
+   "action": "merge",
+   "repdb_id": "ohp"
+  },
+  {
+   "id": "cc88f51e-faf7-4e04-baf9-4301e071af6a",
+   "name": "mountain climbers",
+   "action": "merge",
+   "repdb_id": "mountain-climbers"
+  },
+  {
+   "id": "b65a9ff1-a612-4e89-8ecb-1d0bc31ef634",
+   "name": "muscle ups",
+   "action": "merge",
+   "repdb_id": "muscle-ups"
+  },
+  {
+   "id": "3530d60f-5600-4baa-9097-558e3df8cdd4",
+   "name": "one arm cable row",
+   "action": "merge_into",
+   "into": "9751dcfc-d9b1-48ce-aadc-b36f9ec65fb4",
+   "note": "same lift as one arm seated cable row (same user, same weights, never in one workout); the seated row has more uses so it survives"
+  },
+  {
+   "id": "9751dcfc-d9b1-48ce-aadc-b36f9ec65fb4",
+   "name": "one arm seated cable row",
+   "action": "merge",
+   "repdb_id": "one-arm-seated-cable-row"
+  },
+  {
+   "id": "d51320ba-3a5a-4abe-a219-c18d25303a95",
+   "name": "overhead cable triceps extension",
+   "action": "merge",
+   "repdb_id": "cable-overhead-tricep-extension"
+  },
+  {
+   "id": "f0d595f4-21e7-46ec-9847-415ed0e82e6f",
+   "name": "overhead press",
+   "action": "merge_into",
+   "into": "00b135d4-8cf6-4736-8ace-ab266164a37f",
+   "note": "same lift as military press (same user logs both, never in one workout, same weights); military press has more uses so it survives"
+  },
+  {
+   "id": "5a1dff3a-30c2-4dcd-8bd7-e835fed54d80",
+   "name": "pallof press",
+   "action": "merge",
+   "repdb_id": "cable-pallof-press"
+  },
+  {
+   "id": "88f6fc3a-cba3-4cde-ad03-741cc8bb3552",
+   "name": "pec deck pectoral fly",
+   "action": "merge",
+   "repdb_id": "pec-deck"
+  },
+  {
+   "id": "12329b18-1468-4482-a54c-e99d5428799d",
+   "name": "pendlay row",
+   "action": "merge",
+   "repdb_id": "pendlay-row"
+  },
+  {
+   "id": "84aa482b-d36c-4573-a700-cbb84fc2d6bc",
+   "name": "plank",
+   "action": "merge",
+   "repdb_id": "plank"
+  },
+  {
+   "id": "20c3f527-6526-4964-acac-434d81d8d7cf",
+   "name": "pull ups",
+   "action": "merge",
+   "repdb_id": "pull-up"
+  },
+  {
+   "id": "a1000008-0000-4000-a000-000000000008",
+   "name": "push up",
+   "action": "merge",
+   "repdb_id": "push-up"
+  },
+  {
+   "id": "4f3212f2-38c1-4495-94d0-a5301c9de37c",
+   "name": "rack pull",
+   "action": "merge",
+   "repdb_id": "rack-pull"
+  },
+  {
+   "id": "8bd5ac89-64c5-4cd4-8452-fa31658ce687",
+   "name": "rear delt fly",
+   "action": "keep",
+   "new_name": "rear delt fly"
+  },
+  {
+   "id": "1c24c456-dadc-4b12-9b36-69a6b15ef827",
+   "name": "reverse barbell curl",
+   "action": "merge",
+   "repdb_id": "reverse-curl"
+  },
+  {
+   "id": "97be343c-3cd0-4b38-aa93-c904d465afb2",
+   "name": "reverse dumbbell fly",
+   "action": "merge",
+   "repdb_id": "dumbbell-reverse-fly"
+  },
+  {
+   "id": "a1000006-0000-4000-a000-000000000006",
+   "name": "reverse grip triceps extension",
+   "action": "keep",
+   "new_name": "cable reverse grip triceps extension"
+  },
+  {
+   "id": "ebe673b4-bca6-4ed5-b4e9-eee7dd1c13eb",
+   "name": "reverse wrist curl",
+   "action": "keep",
+   "new_name": "barbell reverse wrist curl"
+  },
+  {
+   "id": "6722752a-1efd-41e2-a246-d1449a2e5377",
+   "name": "romanian deadlift",
+   "action": "merge",
+   "repdb_id": "romanian-deadlift"
+  },
+  {
+   "id": "af67b4a8-84e6-4879-a58a-d92d2ae43d0a",
+   "name": "rope tricep pushdown",
+   "action": "keep",
+   "new_name": "cable rope tricep pushdown"
+  },
+  {
+   "id": "794ef601-7045-4d24-9559-d5b84f9c82d6",
+   "name": "rotary torso machine",
+   "action": "keep",
+   "new_name": "rotary torso machine"
+  },
+  {
+   "id": "a100001b-0000-4000-a000-00000000001b",
+   "name": "running",
+   "action": "merge",
+   "repdb_id": "running"
+  },
+  {
+   "id": "b54f3d82-9a13-4dd0-9833-fdb3d95b58a3",
+   "name": "safety bar squat",
+   "action": "keep",
+   "new_name": "safety bar squat",
+   "note": "safety bar is its own bar, not a barbell"
+  },
+  {
+   "id": "0d43f3f7-470e-4fd6-a421-f1beeb211fbe",
+   "name": "seated cable row",
+   "action": "merge",
+   "repdb_id": "seated-cable-row"
+  },
+  {
+   "id": "106c5e56-e3ff-447b-beca-d02b2eec55a2",
+   "name": "seated calf raise",
+   "action": "merge",
+   "repdb_id": "seated-calf-raise"
+  },
+  {
+   "id": "416b0139-4973-4e98-959e-f3976ae9fc98",
+   "name": "seated dumbbell lateral raise",
+   "action": "merge",
+   "repdb_id": "seated-dumbbell-lateral-raise"
+  },
+  {
+   "id": "68b86ade-98fc-4f15-ab52-7115700ba2d2",
+   "name": "seated hammer curl",
+   "action": "keep",
+   "new_name": "dumbbell seated hammer curl"
+  },
+  {
+   "id": "7be49b11-e5d1-44f3-a6d9-5b43565083bc",
+   "name": "seated high to low face pull",
+   "action": "keep",
+   "new_name": "cable seated high to low face pull"
+  },
+  {
+   "id": "9e49c6f6-ae2f-4422-b98d-0d72732051ae",
+   "name": "seated leg curl",
+   "action": "merge",
+   "repdb_id": "seated-leg-curl"
+  },
+  {
+   "id": "27ae9df5-a3fa-4fc0-9936-c64a1d4f9881",
+   "name": "seated leg press",
+   "action": "keep",
+   "new_name": "seated leg press"
+  },
+  {
+   "id": "63fee777-64fe-493a-a6d3-b6f78eedbc14",
+   "name": "seated machine row",
+   "action": "merge",
+   "repdb_id": "chest-supported-machine-row"
+  },
+  {
+   "id": "a28fb4ac-46fc-45e3-b57d-a7e53a3fbe48",
+   "name": "seated wide grip cable row",
+   "action": "merge",
+   "repdb_id": "wide-grip-seated-cable-row"
+  },
+  {
+   "id": "1f4c1a3e-922e-40ec-9f3f-ebe07258553c",
+   "name": "side plank",
+   "action": "merge",
+   "repdb_id": "side-plank"
+  },
+  {
+   "id": "d1365768-4bf8-4ad8-a714-c4a18789b8ec",
+   "name": "single arm tricep pushdown",
+   "action": "merge",
+   "repdb_id": "single-arm-tricep-pushdown"
+  },
+  {
+   "id": "a1000017-0000-4000-a000-000000000017",
+   "name": "single arm triceps extension",
+   "action": "keep",
+   "new_name": "dumbbell single-arm triceps extension"
+  },
+  {
+   "id": "e6a75c85-bacc-4074-9e7f-8ea024603e9c",
+   "name": "single leg deadlift",
+   "action": "keep",
+   "new_name": "dumbbell single leg deadlift"
+  },
+  {
+   "id": "3fb76720-052d-4e69-b5fc-df867c30b73a",
+   "name": "single leg extension",
+   "action": "merge",
+   "repdb_id": "single-leg-extension"
+  },
+  {
+   "id": "70441e34-a5b2-48e4-8422-b344de7cc481",
+   "name": "sit-up",
+   "action": "merge",
+   "repdb_id": "sit-ups"
+  },
+  {
+   "id": "9af5bb3d-6bf1-4de7-8975-439c2171914e",
+   "name": "smith machine bulgarian split squat",
+   "action": "merge",
+   "repdb_id": "smith-machine-bulgarian-split"
+  },
+  {
+   "id": "a10688c3-5c19-42d4-9740-41c6f1435955",
+   "name": "smith machine calf raise",
+   "action": "merge",
+   "repdb_id": "smith-machine-calf-raise"
+  },
+  {
+   "id": "09789cb0-3be7-4f2d-957b-8d56a2aa8723",
+   "name": "smith machine incline bench press",
+   "action": "merge",
+   "repdb_id": "smith-machine-incline-bench-press"
+  },
+  {
+   "id": "a1000004-0000-4000-a000-000000000004",
+   "name": "smith machine overhead press",
+   "action": "merge",
+   "repdb_id": "smith-machine-shoulder-press"
+  },
+  {
+   "id": "89929de8-14e9-4e40-a1e2-c3f0bba1c3e4",
+   "name": "smith machine squat",
+   "action": "merge",
+   "repdb_id": "smith-machine-squat"
+  },
+  {
+   "id": "12d18cc3-8b69-4bd5-9767-d20bf0af7d6e",
+   "name": "spider curl",
+   "action": "merge",
+   "repdb_id": "spider-curl"
+  },
+  {
+   "id": "9a3d3c76-fe3e-4e5a-8c6d-010abd0ace33",
+   "name": "stair machine",
+   "action": "merge",
+   "repdb_id": "stair-climber"
+  },
+  {
+   "id": "09f228db-b2b7-4195-bcc6-855442b8884e",
+   "name": "standing calf raise",
+   "action": "merge",
+   "repdb_id": "standing-calf-raise"
+  },
+  {
+   "id": "fbea4cd8-bfb6-408f-845a-dd8758d440d7",
+   "name": "step up",
+   "action": "keep",
+   "new_name": "dumbbell step up",
+   "note": "was a merge into the bodyweight step-up; ours is the dumbbell version and RepDB has no plain dumbbell step-up"
+  },
+  {
+   "id": "75437f5e-8f01-4cfe-97d1-034f080978a4",
+   "name": "stiff-legged deadlift",
+   "action": "merge",
+   "repdb_id": "stiff-leg-deadlift"
+  },
+  {
+   "id": "a100000c-0000-4000-a000-00000000000c",
+   "name": "straight arm pulldown",
+   "action": "merge",
+   "repdb_id": "straight-arm-pulldown"
+  },
+  {
+   "id": "a1000009-0000-4000-a000-000000000009",
+   "name": "strict curl",
+   "action": "keep",
+   "new_name": "barbell strict curl"
+  },
+  {
+   "id": "a73faa4d-bdf4-49d3-9e4e-cb361bef6c6b",
+   "name": "thruster",
+   "action": "merge",
+   "repdb_id": "thruster"
+  },
+  {
+   "id": "3fb4567d-90e0-4445-8f65-7ba3b76e0faa",
+   "name": "trap bar deadlift",
+   "action": "merge",
+   "repdb_id": "hex-bar-deadlift"
+  },
+  {
+   "id": "da2d6b67-c675-4a94-a07d-19e62ae1b08a",
+   "name": "treadmill",
+   "action": "keep",
+   "new_name": "treadmill"
+  },
+  {
+   "id": "3df61a9f-25b6-4427-ade9-3c85f8a39597",
+   "name": "tri dirty 30",
+   "action": "hide"
+  },
+  {
+   "id": "1c3f8259-d7ba-40cf-a7cf-24886f326007",
+   "name": "tricep extension",
+   "action": "keep",
+   "new_name": "tricep extension",
+   "note": "\"cable tricep extension\" would sit next to the separate \"cable triceps extension\""
+  },
+  {
+   "id": "ea70ca17-f6cc-412a-a0b8-efcb2d7d1619",
+   "name": "tricep kickback",
+   "action": "merge",
+   "repdb_id": "tricep-kickback"
+  },
+  {
+   "id": "5d9af3af-1c5d-4e24-b4bf-d74b39c104e9",
+   "name": "underhand barbell row",
+   "action": "merge",
+   "repdb_id": "reverse-grip-bent-over-row"
+  },
+  {
+   "id": "6a566169-d536-4501-95c5-04a99a564a4c",
+   "name": "volleyball",
+   "action": "hide"
+  },
+  {
+   "id": "ef6ad74a-684f-426d-8865-e2fd3f138944",
+   "name": "walking lunge",
+   "action": "merge",
+   "repdb_id": "walking-lunge"
+  },
+  {
+   "id": "c61db114-e423-49ff-bbe4-1fe41604184d",
+   "name": "yates row",
+   "action": "keep",
+   "new_name": "barbell yates row"
+  }
+ ]
+}
