@@ -63,3 +63,8 @@ env
 .hive-mind/
 .swarm/
 .mcp.json
+
+# private data (real user exports, push tokens) — never commit
+other-apps/
+cw_data_*.csv
+scripts/send_push.py
