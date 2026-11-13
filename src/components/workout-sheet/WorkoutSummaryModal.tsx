@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator, Image, Pressable } from 'react-native';
 import Overlay from '../ui/Overlay';
 import { SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { PortalHost } from '../ui/Portal';
+import { PortalHost, type PortalHostHandle } from '../ui/Portal';
 import { useLingerMount } from '../../hooks/useLingerMount';
 import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring, withTiming, Easing, runOnJS } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -503,6 +503,9 @@ export default function WorkoutSummaryModal(props: Props) {
 
   // Themed confirm-before-exit dialog (just-completed mode only)
   const [confirmExitVisible, setConfirmExitVisible] = useState(false);
+
+  // Historical page: Android back closes an open share sheet / dialog first.
+  const portalHostRef = useRef<PortalHostHandle>(null);
 
   // Local overrides after save so display updates without re-fetch
   const [savedDuration, setSavedDuration] = useState<number | null>(null);
@@ -1143,11 +1146,13 @@ export default function WorkoutSummaryModal(props: Props) {
         animationType="slide"
         presentationStyle="fullScreen"
         statusBarTranslucent
-        onRequestClose={animatedDismiss}
+        onRequestClose={() => {
+          if (!portalHostRef.current?.closeTopLayer()) animatedDismiss();
+        }}
       >
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
           <GestureHandlerRootView style={{ flex: 1 }}>
-            <PortalHost>
+            <PortalHost ref={portalHostRef}>
               <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
               {historicalContent}
               </SafeAreaView>

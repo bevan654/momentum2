@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, BackHandler, useWindowDimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,7 +9,7 @@ import Animated, {
   runOnJS,
   Easing,
 } from 'react-native-reanimated';
-import { Portal } from './Portal';
+import { Portal, useLayerBackHandler } from './Portal';
 
 const ENTER = { fade: 200, slide: 300 };
 const EXIT = { fade: 180, slide: 240 };
@@ -85,14 +85,8 @@ function Overlay({
 
   useEffect(() => () => cancelAnimation(progress), []);
 
-  useEffect(() => {
-    if (!visible) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      onRequestCloseRef.current?.();
-      return true;
-    });
-    return () => sub.remove();
-  }, [visible]);
+  const requestClose = useCallback(() => onRequestCloseRef.current?.(), []);
+  useLayerBackHandler(visible, requestClose);
 
   const animStyle = useAnimatedStyle(() => {
     if (type === 'slide') return { transform: [{ translateY: (1 - progress.value) * height }] };
