@@ -2,10 +2,11 @@
 Exercise Fetcher — searches ExerciseDB with a keyword list, deduplicates,
 lets you keep/skip each exercise, then exports CSV for exercises_catalog.
 
-Usage: python exercise_fetcher.py
+Usage: python scripts/exercise_fetcher.py
 """
 
 import csv
+import os
 import re
 import urllib.request
 import urllib.parse
@@ -16,7 +17,7 @@ from datetime import datetime, timezone
 
 
 API_URL = "https://exercisedb.dev/api/v1/exercises"
-OUTPUT_FILE = "exercises_catalog.csv"
+OUTPUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "supabase", "seed", "exercises_catalog.csv")
 
 COLUMNS = [
     "id", "name", "slug", "primary_muscles", "secondary_muscles",
