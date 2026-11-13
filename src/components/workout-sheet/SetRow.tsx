@@ -40,7 +40,6 @@ interface Props {
   index: number;
   set: ActiveSet;
   prevSet: { kg: number; reps: number } | null;
-  suggestedSet?: { kg: number; reps: number } | null;
   suggestedKg?: string;
   suggestedReps?: string;
   exerciseType?: ExerciseType;
@@ -77,7 +76,7 @@ const isDuration = (t?: ExerciseType) => t === 'duration';
 
 /* ── Component ─────────────────────────────────────────── */
 
-function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps, exerciseType, onUpdate, onToggle, onDelete, onInputFocus, isGhost, ghostResult, isDropSet, dropIndex }: Props) {
+function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType, onUpdate, onToggle, onDelete, onInputFocus, isGhost, ghostResult, isDropSet, dropIndex }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -350,34 +349,6 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
             </Pressable>
           )}
 
-          {/* Suggested — hidden in ghost mode */}
-          {!isGhost && (
-            <Pressable
-              style={styles.suggContainer}
-              onPress={() => {
-                if (!completed && suggestedSet) {
-                  if (showKg(exerciseType) && suggestedSet.kg > 0) {
-                    const kgStr = String(suggestedSet.kg);
-                    setLocalKg(kgStr);
-                    onUpdate('kg', kgStr);
-                  }
-                  const repsStr = String(suggestedSet.reps);
-                  setLocalReps(repsStr);
-                  onUpdate('reps', repsStr);
-                  Haptics.selectionAsync();
-                }
-              }}
-              disabled={completed || !suggestedSet}
-            >
-              <Text
-                style={[styles.suggText, completed && styles.suggTextCompleted]}
-                numberOfLines={1}
-              >
-                {suggestedSet ? formatPrev(suggestedSet, exerciseType) : '—'}
-              </Text>
-            </Pressable>
-          )}
-
           {/* KG input — only for weighted / weighted+bodyweight */}
           {showKg(exerciseType) && (
             <View style={[styles.inputContainer, completed && styles.inputContainerCompleted, !localKg && suggestedKg && styles.inputContainerSuggested]}>
@@ -389,7 +360,7 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
                 onFocus={() => handleFocus(kgRef, localKg)}
                 onBlur={() => { if (localKg !== set.kg) onUpdate('kg', localKg); }}
                 placeholder={suggestedKg || '—'}
-                placeholderTextColor={suggestedKg ? colors.accent + '60' : colors.textTertiary + '50'}
+                placeholderTextColor={suggestedKg ? colors.textSecondary : colors.textTertiary + '50'}
                 keyboardType="decimal-pad"
                 editable={!completed}
               />
@@ -477,7 +448,7 @@ function SetRow({ index, set, prevSet, suggestedSet, suggestedKg, suggestedReps,
                 onFocus={() => handleFocus(repsRef, localReps)}
                 onBlur={() => { if (localReps !== set.reps) onUpdate('reps', localReps); }}
                 placeholder={suggestedReps || '—'}
-                placeholderTextColor={suggestedReps ? colors.accent + '60' : colors.textTertiary + '50'}
+                placeholderTextColor={suggestedReps ? colors.textSecondary : colors.textTertiary + '50'}
                 keyboardType="number-pad"
                 editable={!completed}
               />
@@ -618,22 +589,6 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textTertiary + '80',
     },
 
-    /* ── Suggested ───────────────────────────────────── */
-    suggContainer: {
-      width: sw(46),
-      alignItems: 'center',
-    },
-    suggText: {
-      color: colors.accent,
-      fontSize: ms(10),
-      fontFamily: Fonts.medium,
-      lineHeight: ms(14),
-      textAlign: 'center',
-    },
-    suggTextCompleted: {
-      color: colors.accent + '40',
-    },
-
     /* ── Inputs ──────────────────────────────────────── */
     inputContainer: {
       flex: 1,
@@ -659,8 +614,8 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.accentGreen,
     },
     inputContainerSuggested: {
-      borderColor: colors.accent + '30',
-      backgroundColor: colors.accent + '08',
+      borderColor: colors.textTertiary + '55',
+      borderStyle: 'dashed',
     },
 
     /* ── Reps row with steppers ────────────────────── */
@@ -679,8 +634,8 @@ const createStyles = (colors: ThemeColors) =>
       borderColor: colors.accentGreen + '18',
     },
     repsRowSuggested: {
-      borderColor: colors.accent + '30',
-      backgroundColor: colors.accent + '08',
+      borderColor: colors.textTertiary + '55',
+      borderStyle: 'dashed',
     },
     repsInput: {
       flex: 1,
