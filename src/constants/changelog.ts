@@ -25,7 +25,7 @@ const changelog: ChangelogEntry[] = [
       'Redesigned workout header: your workout name, time and volume, a sets progress strip, and Finish shows how many sets are done',
       'The rest timer now sits right under the set you just finished, with +15s and Skip',
       'Cleaner exercise cards: options live in the ⋯ menu and notes are tucked behind a note icon',
-      'Smoother sheets and menus everywhere: they slide open and closed, and you can drag them down to dismiss',
+      'Smoother sheets and menus everywhere: they now slide open and closed instead of popping in and out',
       "Fixed: removing or reordering an exercise could clear what you'd typed in other exercises",
     ],
     notes: ['Prefer compact cards? Turn charts off in Settings → Workouts'],
