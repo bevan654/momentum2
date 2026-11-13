@@ -1,31 +1,24 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, TouchableWithoutFeedback, ActivityIndicator, ScrollView, StyleSheet, Alert, Modal, StatusBar } from 'react-native';
-import { Canvas, Path as SkiaPath, Rect as SkiaRect, Oval as SkiaOval, Skia, BlurMask, RadialGradient, vec } from '@shopify/react-native-skia';
+import { View, Text, TouchableOpacity, TouchableWithoutFeedback, ActivityIndicator, ScrollView, StyleSheet, Modal, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../theme/useColors';
-import { useThemeStore, type ThemeMode } from '../stores/useThemeStore';
+import { useThemeStore } from '../stores/useThemeStore';
 import { Fonts } from '../theme/typography';
 import { sw, ms, SCREEN_WIDTH, SCREEN_HEIGHT } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
-import { useWeightStore } from '../stores/useWeightStore';
-import { useFoodLogStore } from '../stores/useFoodLogStore';
-import type { WorkoutWithDetails, ExerciseWithSets } from '../stores/useWorkoutStore';
+import type { WorkoutWithDetails } from '../stores/useWorkoutStore';
 import MiniBodyMap from '../components/body/MiniBodyMap';
 import { useMuscleAnalysisStore } from '../stores/useMuscleAnalysisStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import { MUSCLE_SLUGS, toSlug, type Slug } from '../utils/muscleVolume';
 import type { ExtendedBodyPart } from '../components/BodyHighlighter';
-import RankBadge from '../components/workouts/RankBadge';
-import { computeWorkoutRank } from '../utils/strengthScore';
 import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
-import ActivityChart from '../components/workouts/ActivityChart';
 import TodayScheduled from '../components/workouts/TodayScheduled';
-import type { Routine, RoutineExercise } from '../stores/useRoutineStore';
+import type { Routine } from '../stores/useRoutineStore';
 import { navigateWorkoutsStack } from '../lib/navigationBridge';
 
 function toDateKey(iso: string): string {
@@ -37,116 +30,6 @@ function formatVolume(vol: number): string {
   if (vol >= 1000) return `${(vol / 1000).toFixed(1)}k`;
   return `${vol}`;
 }
-
-
-/* ─── Glass border + corner glow (all Skia, no CSS border) ── */
-
-const GLASS_BORDER_WIDTH = 1.5;
-
-const GlassCornerGlow = React.memo(({ width, height, radius, accentColor, borderColor }: {
-  width: number;
-  height: number;
-  radius: number;
-  accentColor: string;
-  borderColor: string;
-}) => {
-  const bw = GLASS_BORDER_WIDTH;
-  const half = bw / 2;
-
-  const borderPath = useMemo(() => {
-    const ir = Math.max(radius - half, 0);
-    const rect = Skia.XYWHRect(half, half, width - bw, height - bw);
-    const rrect = Skia.RRectXY(rect, ir, ir);
-    const p = Skia.Path.Make();
-    p.addRRect(rrect);
-    return p;
-  }, [width, height, radius]);
-
-  const reach = radius * 3.5;
-
-  return (
-    <Canvas style={[StyleSheet.absoluteFill, { width, height }]} pointerEvents="none">
-      {/* ── Base border ── */}
-      <SkiaPath path={borderPath} style="stroke" strokeWidth={bw} color={borderColor} />
-
-      {/* ── Bottom-left: tight bloom ── */}
-      <SkiaPath path={borderPath} style="stroke" strokeWidth={bw + 1}>
-        <RadialGradient
-          c={vec(0, height)}
-          r={reach}
-          colors={[accentColor, `${accentColor}90`, `${accentColor}00`]}
-          positions={[0, 0.35, 1]}
-        />
-        <BlurMask blur={sw(1.5)} style="normal" />
-      </SkiaPath>
-
-      {/* ── Bottom-left: bright sharp core ── */}
-      <SkiaPath path={borderPath} style="stroke" strokeWidth={bw}>
-        <RadialGradient
-          c={vec(0, height)}
-          r={reach}
-          colors={[accentColor, `${accentColor}DD`, `${accentColor}00`]}
-          positions={[0, 0.4, 1]}
-        />
-      </SkiaPath>
-
-      {/* ── Top: 45% from right corner — tight bloom ── */}
-      <SkiaPath path={borderPath} style="stroke" strokeWidth={bw + 1}>
-        <RadialGradient
-          c={vec(width * 0.55, 0)}
-          r={reach}
-          colors={[accentColor, `${accentColor}90`, `${accentColor}00`]}
-          positions={[0, 0.35, 1]}
-        />
-        <BlurMask blur={sw(1.5)} style="normal" />
-      </SkiaPath>
-
-      {/* ── Top: 45% from right corner — bright sharp core ── */}
-      <SkiaPath path={borderPath} style="stroke" strokeWidth={bw}>
-        <RadialGradient
-          c={vec(width * 0.55, 0)}
-          r={reach}
-          colors={[accentColor, `${accentColor}DD`, `${accentColor}00`]}
-          positions={[0, 0.4, 1]}
-        />
-      </SkiaPath>
-
-    </Canvas>
-  );
-});
-
-/* ─── Rest day gradient accent (Skia) ────────────────── */
-
-const RestDayGlow = React.memo(({ width, height, radius, glowColor }: {
-  width: number;
-  height: number;
-  radius: number;
-  glowColor: string;
-}) => {
-  const clipPath = useMemo(() => {
-    const rect = Skia.XYWHRect(0, 0, width, height);
-    const rrect = Skia.RRectXY(rect, radius, radius);
-    const p = Skia.Path.Make();
-    p.addRRect(rrect);
-    return p;
-  }, [width, height, radius]);
-
-  return (
-    <Canvas style={[StyleSheet.absoluteFill, { width, height }]} pointerEvents="none">
-      <SkiaPath path={clipPath} clip>
-        <SkiaRect x={0} y={0} width={width} height={height}>
-          <RadialGradient
-            c={vec(width, 0)}
-            r={width * 0.85}
-            colors={[`${glowColor}2E`, `${glowColor}0F`, `${glowColor}00`]}
-            positions={[0, 0.4, 1]}
-          />
-        </SkiaRect>
-      </SkiaPath>
-    </Canvas>
-  );
-});
-
 
 /* ─── History row with glass glow ────────────────────── */
 
@@ -494,8 +377,6 @@ function WorkoutHistoryScreen() {
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
   const fetchExerciseCatalog = useWorkoutStore((s) => s.fetchExerciseCatalog);
   const deleteWorkout = useWorkoutStore((s) => s.deleteWorkout);
-  const bodyweight = useWeightStore((s) => s.current) ?? 70;
-  const selectedDate = useFoodLogStore((s) => s.selectedDate);
   const colors = useColors();
   const themeMode = useThemeStore((s) => s.mode);
   const analysis = useMuscleAnalysisStore((s) => s.analysis);
@@ -519,10 +400,6 @@ function WorkoutHistoryScreen() {
   const openPlans = useCallback(() => {
     navigateWorkoutsStack('Plans');
   }, []);
-  const [heroSize, setHeroSize] = useState({ w: 0, h: 0 });
-  const [calorieSize, setCalorieSize] = useState({ w: 0, h: 0 });
-  const [bodyMapSize, setBodyMapSize] = useState({ w: 0, h: 0 });
-  const [startBtnSize, setStartBtnSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
     if (userId) {
@@ -535,71 +412,10 @@ function WorkoutHistoryScreen() {
     if (workouts.length > 0) recompute(workouts, catalogMap);
   }, [workouts, catalogMap]);
 
-  const dayWorkouts = useMemo(() => {
-    return workouts.filter((w) => toDateKey(w.created_at) === selectedDate);
-  }, [workouts, selectedDate]);
-
-  const dayStats = useMemo(() => {
-    if (dayWorkouts.length === 0) return null;
-
-    let duration = 0;
-    let sets = 0;
-    let reps = 0;
-    let volume = 0;
-    let prs = 0;
-    const allExercises: ExerciseWithSets[] = [];
-    const muscleSet = new Set<string>();
-
-    for (const w of dayWorkouts) {
-      duration += w.duration;
-      sets += w.completedSets;
-      reps += w.totalReps;
-      volume += w.totalVolume;
-      prs += w.prCount;
-      for (const ex of w.exercises) {
-        allExercises.push(ex);
-        for (const m of ex.primary_muscles) muscleSet.add(m);
-      }
-    }
-
-    return { duration, sets, reps, volume, prs, allExercises, muscleGroups: Array.from(muscleSet) };
-  }, [dayWorkouts]);
-
-  const dayRank = useMemo(() => {
-    if (!dayStats || dayStats.allExercises.length === 0) return null;
-    return computeWorkoutRank({
-      exercises: dayStats.allExercises.map((ex) => ({
-        name: ex.name,
-        exercise_type: ex.exercise_type,
-        sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed })),
-      })),
-      bodyweight,
-      catalog: catalogMap,
-    });
-  }, [dayStats, bodyweight, catalogMap]);
-
-  const calorieAnalysis = useMemo(() => {
-    if (!dayStats) return null;
-    const durationMin = dayStats.duration / 60;
-    const caloriesBurnt = Math.round(durationMin * (bodyweight * 5) / 60);
-    return { caloriesBurnt };
-  }, [dayStats, bodyweight]);
-
   const todayStr = useMemo(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
-
-  const isToday = selectedDate === todayStr;
-  const isFuture = selectedDate > todayStr;
-
-
-  const dateLabel = useMemo(() => {
-    const d = new Date(selectedDate + 'T12:00:00');
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
-  }, [selectedDate, isToday]);
 
   // Selected body part filter — must be before any early return
   const [debugParts, setDebugParts] = useState<string[]>([]);
@@ -657,20 +473,6 @@ function WorkoutHistoryScreen() {
     if (groups.length === 0) return 100;
     return Math.min(...groups.map((g) => g.recoveryPercent ?? 100));
   }, [analysis, debugParts]);
-
-  // Platform glow — derive from the SAME intensity + color array as the body map
-  const platformGlow = useMemo(() => {
-    const intensity = recoveryToIntensity(overallRecovery);
-    const hex = RECOVERY_COLORS[intensity - 1];
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return {
-      uplight: `rgba(${r},${g},${b},0.10)`,
-      outer: `rgba(${r},${g},${b},0.15)`,
-      core: `rgba(${r},${g},${b},0.30)`,
-    };
-  }, [overallRecovery]);
 
   // ── Training Calendar (4 rows × 14 days = last 56 days) ──
   const COLS_PER_ROW = 14;
@@ -776,51 +578,6 @@ function WorkoutHistoryScreen() {
     return map;
   }, [workouts, catalogMap]);
 
-  // Most / least trained within the calendar window
-  const trainedStats = useMemo(() => {
-    const groupSessions: Record<string, number> = {};
-    const allGroups = Object.keys(PART_GROUPS);
-    for (const g of allGroups) groupSessions[g] = 0;
-
-    for (const w of workouts) {
-      const dateKey = toDateKey(w.created_at);
-      if (dateKey < calendarGrid.startKey || dateKey > todayStr) continue;
-
-      const hitGroups = new Set<string>();
-      for (const ex of w.exercises) {
-        let primary = ex.primary_muscles || [];
-        if (primary.length === 0) {
-          const cat = catalogMap[ex.name];
-          if (cat) { primary = cat.primary_muscles || []; }
-        }
-        for (const raw of primary) {
-          const slug = toSlug(raw);
-          if (slug) {
-            const group = SLUG_GROUP[slug];
-            if (group) {
-              for (const [label, groups] of Object.entries(PART_GROUPS)) {
-                if (groups.includes(group)) hitGroups.add(label);
-              }
-            }
-          }
-        }
-      }
-      for (const g of hitGroups) groupSessions[g] = (groupSessions[g] || 0) + 1;
-    }
-
-    let most: string | null = null;
-    let least: string | null = null;
-    let maxCount = 0;
-    let minCount = Infinity;
-
-    for (const [group, count] of Object.entries(groupSessions)) {
-      if (count > maxCount) { maxCount = count; most = group; }
-      if (count < minCount) { minCount = count; least = group; }
-    }
-
-    return { most, least, mostCount: maxCount, leastCount: minCount };
-  }, [workouts, catalogMap, calendarGrid.startKey, todayStr]);
-
   if (loading && workouts.length === 0) {
     return (
       <View style={styles.container}>
@@ -831,9 +588,6 @@ function WorkoutHistoryScreen() {
     );
   }
 
-  const hasWorkout = !!dayStats;
-  const activeMin = dayStats ? Math.round(dayStats.duration / 60) : 0;
-  const caloriesBurnt = calorieAnalysis?.caloriesBurnt ?? 0;
 
   return (
     <View style={styles.container}>
@@ -952,10 +706,6 @@ function WorkoutHistoryScreen() {
         <TouchableOpacity style={styles.bodyMapSection} activeOpacity={0.7} onPress={() => openHistory()}>
           <View
             style={styles.bodyMapFigure}
-            onLayout={(e) => {
-              const { width, height } = e.nativeEvent.layout;
-              setBodyMapSize({ w: width, h: height });
-            }}
           >
             <View style={styles.bodyMapBody}>
               <MiniBodyMap bodyData={recoveryBodyData} colors={RECOVERY_COLORS} scale={0.62} side="front" />

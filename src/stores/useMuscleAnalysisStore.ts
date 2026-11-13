@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 import type { WorkoutWithDetails, CatalogEntry } from './useWorkoutStore';
 import { toSlug } from '../utils/muscleVolume';
-import type { MuscleGroup } from '../components/body/musclePathData';
-import { GROUP_LABELS } from '../components/body/musclePathData';
+import type { MuscleGroup } from '../components/body/muscleGroups';
+import { GROUP_LABELS } from '../components/body/muscleGroups';
 import {
   CANONICAL_TO_SVG_SLUG,
   CATEGORY_MUSCLES,
   RECOVERY_HOURS,
-  CANONICAL_MUSCLES,
   SVG_SLUG_TO_BODY_GROUP,
 } from '../constants/muscles';
 
@@ -34,7 +33,7 @@ const GROUP_RECOVERY_HOURS = RECOVERY_HOURS as Record<MuscleGroup, number>;
 
 /* ─── Types ───────────────────────────────────────────── */
 
-export interface MuscleExerciseEntry {
+interface MuscleExerciseEntry {
   name: string;
   date: string;
   sets: { kg: number; reps: number }[];
@@ -95,7 +94,7 @@ function getWeekBounds(now: Date): { thisStart: Date; thisEnd: Date; prevStart: 
 
 /* ─── Pure analysis function ──────────────────────────── */
 
-export function computeWeeklyAnalysis(
+function computeWeeklyAnalysis(
   workouts: WorkoutWithDetails[],
   catalogMap: Record<string, CatalogEntry>,
 ): WeeklyAnalysis {

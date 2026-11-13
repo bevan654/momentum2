@@ -21,7 +21,7 @@ export interface ProgramDay {
   exercises: ProgramDayExercise[];
 }
 
-export interface Program {
+interface Program {
   id: string;
   name: string;
   start_date: string | null;
@@ -34,7 +34,7 @@ export interface Program {
   updated_at: string;
 }
 
-export interface ProgramProgressEntry {
+interface ProgramProgressEntry {
   week: number;
   day_of_week: number;
   workout_id: string;

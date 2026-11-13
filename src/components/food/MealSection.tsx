@@ -88,10 +88,8 @@ const EntryCard = React.memo(function EntryCard({
   entry, onPress, onEdit, onTogglePlanned, onMoveEntry, styles, colors,
 }: EntryCardProps) {
   const handlePress = useCallback(() => onPress(entry), [entry, onPress]);
-  const handleEdit = useCallback(() => onEdit(entry), [entry, onEdit]);
   const handleToggle = useCallback(() => onTogglePlanned(entry.id), [entry.id, onTogglePlanned]);
   const hour = useMemo(() => getEntryHour(entry), [entry]);
-  const emoji = useMemo(() => getMealEmoji(hour), [hour]);
 
   /* ── Long-press drag to move hour ──────────────────── */
   const isDragging = useSharedValue(0);

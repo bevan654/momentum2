@@ -26,7 +26,7 @@ function diffDays(a: string, b: string): number {
   return Math.round((msA - msB) / 86_400_000);
 }
 
-export interface StreakResult {
+interface StreakResult {
   currentStreak: number;
   longestStreak: number;
 }

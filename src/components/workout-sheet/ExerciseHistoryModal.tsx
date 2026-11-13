@@ -30,7 +30,6 @@ import { useWorkoutStore } from '../../stores/useWorkoutStore';
 /* ─── Constants ─────────────────────────────────────────── */
 
 const SCREEN_W = Dimensions.get('window').width;
-const SCREEN_H = Dimensions.get('window').height;
 const DISMISS_THRESHOLD = 80;
 const VELOCITY_THRESHOLD = 800;
 const BACKDROP_MAX = 0.6;

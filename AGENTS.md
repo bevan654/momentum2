@@ -14,18 +14,17 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
 | Runtime | React Native 0.81.5 + Expo SDK 54 (New Architecture: Fabric + TurboModules), Hermes |
 | Language | TypeScript 5.9 (strict) |
 | React | 19.1 |
-| Navigation | React Navigation 7 — `native-stack`, `material-top-tabs` (used as bottom bar with custom UI), `stack` |
-| State | Zustand 5 (25 stores) |
+| Navigation | React Navigation 7 — `native-stack`, `material-top-tabs` (used as bottom bar with custom UI) |
+| State | Zustand 5 (23 stores) |
 | Animations | Reanimated 4.1 + react-native-worklets — UI-thread only. Never RN `Animated`. |
 | Graphics | @shopify/react-native-skia 2.2 for performance-critical visuals; react-native-svg 15.12 still used in legacy components |
-| 3D | three + @react-three/fiber + @react-three/drei + expo-gl (used sparingly, e.g. AvatarViewer) |
 | Gestures | React Native Gesture Handler 2.28 |
 | Lists | @shopify/flash-list 2.0 |
 | Backend | Supabase (Postgres + Auth + Realtime + Storage). No custom server, no GraphQL. |
 | Auth | Supabase Auth + expo-secure-store for token persistence |
 | Realtime | Supabase Realtime (`postgres_changes` only — presence is not used) |
 | Push | expo-notifications + push token stored on `profiles` |
-| Analytics | posthog-react-native |
+| Analytics | None wired up |
 | Barcode | Open Food Facts (primary) → USDA FoodData Central (fallback, DEMO_KEY) |
 | Fonts | Inter (400/500/600/700/800) via @expo-google-fonts |
 | Updates | expo-updates (EAS OTA) |
@@ -40,7 +39,6 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
 ├── App.tsx                    # Font load, auth gate, theme bootstrap, nav root
 ├── app.config.ts              # Expo config (bundle IDs, plugins, EAS)
 ├── database-schema.md         # Postgres schema reference (some tables missing — see below)
-├── patches/fix-body-highlighter.js  # Postinstall patch for react-native-body-highlighter
 ├── docs/                      # Plans, audits, security review
 ├── scripts/                   # Dev/ops scripts (build stamping, imports, seeding, notifications)
 │
@@ -49,28 +47,25 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
     ├── components/
     │   ├── auth/              # SocialAuthButtons (Google / Apple OAuth)
     │   ├── body/              # Muscle body map (heatmap, mini map)
-    │   ├── BodyHighlighter/   # Male/female SVG wrapper
-    │   ├── dev/               # AvatarViewer (3D), Story/Workout overlays — debug-ish
+    │   ├── BodyHighlighter/   # Vendored male/female SVG body highlighter (no npm dependency)
+    │   ├── dev/               # Story/Workout share overlays, story crop
     │   ├── food/              # Nutrition modals, meal sections, hero gauge, water/supplements
     │   ├── friends/           # Feed, leaderboard, notifications, nudges, comments, search
-    │   ├── home/              # Dashboard widgets and modals
+    │   ├── home/              # Home dashboard cards, feed and modals
     │   ├── lab/               # Recovery/analytics: timers, charts, body metrics, muscle radar
-    │   ├── plus-menu/         # FAB action sheet
-    │   ├── profile/           # Settings sub-views, importer, goal editors
-    │   ├── share/             # Share hub + share modal
-    │   ├── widget-grid/       # Draggable/resizable home widget system
-    │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, confetti, finish flow
+        │   ├── profile/           # Settings sub-views, goal editors
+    │   ├── share/             # Share modal
+        │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, confetti, finish flow
     │   ├── workouts/          # Workout history cards, exercise rows, rank/routine cards
     │   └── SheetWrapper.tsx   # Shared modal-sheet chrome
-    ├── stores/                # 25 Zustand stores (see State Management)
-    ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, CommunityNavigator, navigationRef
-    ├── services/              # importService, liveActivityManager, notificationService, workoutFinishFeedback
+    ├── stores/                # 23 Zustand stores (see State Management)
+    ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, navigationRef
+    ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
     ├── lib/                   # supabase, friendsDatabase, navigationBridge
-    ├── theme/                 # colors.ts, useColors.ts, responsive.ts, typography.ts
+    ├── theme/                 # useColors.ts, responsive.ts, typography.ts
     ├── utils/                 # barcodeApi, displayName, muscleVolume, streakCalculator, strengthScore, uploadWorkoutPhoto, workoutStorage
     ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate)
-    ├── constants/             # buildInfo, changelog, muscles
-    └── types/                 # widget.ts
+    └── constants/             # buildInfo, changelog, muscles
 
 supabase/
 ├── functions/                 # Edge functions: ai-coach, ai-workout-summary, ai-workout-notifications,
@@ -90,8 +85,8 @@ supabase/
   - `TabNavigator` once authenticated and onboarded
 - **`TabNavigator`** uses `MaterialTopTabNavigator` rendered with a **custom bottom tab bar** (animated indicator, central elevated Home button, Community badge). Tabs: **Recovery, Workouts, Home, Nutrition, Community**. Options: `lazy: true`, `freezeOnBlur: true`, `lazyPreloadDistance: 1`.
 - **`WorkoutsNavigator`** (native stack) hosts: `StartWorkout`, plan editors (`CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`), and `WorkoutDetail`. Re-pressing the Workouts tab triggers `showRecoveryOverlay()` via `navigationBridge`.
-- **`CommunityNavigator`** (native stack) hosts: `CommunityHome` (FriendsScreen). Chat was removed.
-- **`navigationBridge`** exposes imperative entry points (open profile sheet, share hub, recovery overlay, workouts nav ref) to non-navigator components.
+- **Community tab** renders `FriendsScreen` directly (no nested navigator). Chat was removed.
+- **`navigationBridge`** exposes imperative entry points (open profile sheet, recovery overlay, workouts nav ref) to non-navigator components.
 - **`ProfileScreen`** is mounted as a 92%-height bottom sheet, opened by long-pressing the Home tab or tapping the avatar.
 
 ---
@@ -122,9 +117,9 @@ supabase/
 
 ### State / Stores
 - Naming: `use[Domain]Store`.
-- Optimistic updates with rollback for critical writes (food, supplements, widgets).
+- Optimistic updates with rollback for critical writes (food, supplements).
 - Fire-and-forget for non-critical (activity feed, streak persist).
-- Debounced persistence: widgets 300ms, theme 100ms.
+- Debounced persistence: theme 100ms.
 - TTL caches: friends 4h, exercise catalog 24h.
 - Cross-store sync where needed (food goals ↔ nutrition store).
 
@@ -161,7 +156,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 
 ---
 
-## State Management — 25 Zustand Stores
+## State Management — 23 Zustand Stores
 
 | Store | Persistence | Responsibility |
 |---|---|---|
@@ -184,8 +179,6 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | `useStreakStore` | Computed + fire-and-forget | Streak from workout dates |
 | `useMuscleAnalysisStore` | Pure compute | Weekly muscle volume |
 | `useFriendsStore` | Supabase (4h cache) | Friends, feed, leaderboard, notifications, paginated |
-| `useImportStore` | Supabase (bulk) | Multi-phase CSV/TSV workout import |
-| `useWidgetStore` | AsyncStorage (300ms debounce) | Widget grid layout/sizes |
 | `useThemeStore` | AsyncStorage (100ms debounce) | Accent + dark/light mode |
 | `useProfileSettingsStore` | AsyncStorage | Local UI prefs |
 | `useChangelogStore` | AsyncStorage | Last-seen changelog version |
@@ -198,7 +191,6 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | Service | Status | Notes |
 |---|---|---|
 | `notificationService` | Active — initialized in `TabNavigator` via `initNotifications(userId)` | Realtime channel `notif:${userId}` for `notifications` table. One persistent websocket per session. |
-| `importService` | On-demand | CSV/TSV → workouts bulk import |
 | `liveActivityManager` | iOS Live Activities for active workouts |
 
 ---
@@ -207,11 +199,10 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 
 Per active session, expect roughly:
 - **1 websocket** for `notificationService` (always-on while authenticated).
-- **1 websocket** for `ActivityFeed` (`feed-realtime` channel) while the Friends/Community tab is mounted.
 - **~2 PostgREST pool workers** on the `authenticator` role (kept warm).
 - **1** transient auth/refresh connection.
 
-Total resting ~5 connections per app instance. Pool ceiling on default Supabase compute is ~60 → realistic ceiling is ~10–12 concurrent users before hitting limits. Plan for: lazy Realtime subscribe-on-focus, channel merging, or compute upgrade when scaling.
+Total resting ~4 connections per app instance. Pool ceiling on default Supabase compute is ~60 → realistic ceiling is ~12–15 concurrent users before hitting limits. Plan for: lazy Realtime subscribe-on-focus, channel merging, or compute upgrade when scaling.
 
 ---
 

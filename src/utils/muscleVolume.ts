@@ -21,7 +21,6 @@ import {
   CANONICAL_TO_SVG_SLUG,
   TARGET_VOLUME,
   CATEGORY_MUSCLES,
-  type CanonicalMuscle,
 } from '../constants/muscles';
 
 /* ─── SVG Slug types (tied to BodyHighlighter SVG assets) ──── */
@@ -90,9 +89,9 @@ const SECONDARY_WEIGHT = 0.25;
 
 // Palette indices: 0 = bg, 1 = inactive, 2–6 = heat gradient, 7 = selected
 export const INACTIVE = 1;
-export const HEAT_MIN = 2;
+const HEAT_MIN = 2;
 export const HEAT_MAX = 6;
-export const HEAT_LEVELS = HEAT_MAX - HEAT_MIN + 1; // 5
+const HEAT_LEVELS = HEAT_MAX - HEAT_MIN + 1; // 5
 
 /**
  * Per-SVG-slug session target volume (kg × reps).
@@ -114,7 +113,7 @@ const DEFAULT_TARGET_VOLUME = 800;
 
 /* ─── Core calculation ────────────────────────────────── */
 
-export interface MuscleVolumeResult {
+interface MuscleVolumeResult {
   bodyData: ExtendedBodyPart[];
   volumeMap: Record<string, number>;
   maxVolume: number;

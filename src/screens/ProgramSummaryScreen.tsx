@@ -10,7 +10,7 @@ import { sw, ms } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
-import { useProgramStore, type ProgramDayExercise } from '../stores/useProgramStore';
+import { useProgramStore } from '../stores/useProgramStore';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

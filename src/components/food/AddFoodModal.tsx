@@ -166,7 +166,6 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   // Saved meals
   const savedMeals = useSavedMealsStore((st) => st.meals);
   const loadSavedMeals = useSavedMealsStore((st) => st.loadMeals);
-  const deleteSavedMeal = useSavedMealsStore((st) => st.deleteMeal);
 
   // Favourites
   const favourites = useFavouritesStore((st) => st.favourites);

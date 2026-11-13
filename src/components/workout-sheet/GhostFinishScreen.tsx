@@ -6,7 +6,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
-import type { WorkoutSummary, GhostExerciseData } from '../../stores/useActiveWorkoutStore';
+import type { WorkoutSummary } from '../../stores/useActiveWorkoutStore';
 
 /* ─── Ghost set comparison ─────────────────────────────── */
 
@@ -111,9 +111,6 @@ function GhostFinishContent({
 
   const verdictColor = results.tied ? colors.textPrimary : results.victory ? '#34C759' : colors.accentRed;
   const verdictText = results.tied ? 'DRAW' : results.victory ? 'VICTORY' : 'DEFEATED';
-
-  const totalVol = results.userTotalVol + results.ghostTotalVol;
-  const userVolPct = totalVol > 0 ? (results.userTotalVol / totalVol) * 100 : 50;
 
   const mins = Math.floor(summaryData.duration / 60);
   const secs = summaryData.duration % 60;

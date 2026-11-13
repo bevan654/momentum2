@@ -28,7 +28,6 @@ export default function Header({ activeTab }: HeaderProps) {
   const unreadCount = useFriendsStore((s) => s.unreadCount);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const isWorkouts = activeTab === 'Workouts';
   const showStreak = true;
 
   const greeting = useMemo(() => {

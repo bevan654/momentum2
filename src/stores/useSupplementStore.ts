@@ -21,7 +21,7 @@ export interface SupplementConfig {
   increments: number[];
 }
 
-export interface SupplementPreset {
+interface SupplementPreset {
   key: string;
   name: string;
   defaultGoal: number;

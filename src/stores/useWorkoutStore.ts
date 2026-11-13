@@ -446,7 +446,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   fetchWorkoutById: async (workoutId: string, userId: string) => {
     try {
       // Fetch the workout
-      const { data: workoutData, error: workoutError } = await supabase
+      const { data: workoutData } = await supabase
         .from('workouts')
         .select('id, created_at, duration, total_exercises, total_sets, ghost_username, coach_headline, coach_notes, programs(name)')
         .eq('id', workoutId)

@@ -4,7 +4,7 @@
  * 17 canonical muscles → 11 body graph groups → 8 strength groups → 7 UI categories.
  *
  * Every file that needs muscle data should import from here.
- * The body graph SVG (musclePathData.ts) is NOT touched — its MuscleGroup type
+ * The body graph SVG (muscleGroups.ts) is NOT touched — its MuscleGroup type
  * is structurally identical to BodyGraphGroup defined here.
  */
 
@@ -30,8 +30,8 @@ export type CanonicalMuscle =
   | 'glutes'
   | 'calves';
 
-/** 11 body-graph groups — mirrors MuscleGroup in musclePathData.ts (do NOT diverge). */
-export type BodyGraphGroup =
+/** 11 body-graph groups — mirrors MuscleGroup in components/body/muscleGroups.ts (do NOT diverge). */
+type BodyGraphGroup =
   | 'chest'
   | 'back'
   | 'shoulders'
@@ -45,7 +45,7 @@ export type BodyGraphGroup =
   | 'calves';
 
 /** 8 coarse groups used for strength ranking / scoring. */
-export type StrengthGroup =
+type StrengthGroup =
   | 'chest'
   | 'back'
   | 'legs'
@@ -56,7 +56,7 @@ export type StrengthGroup =
   | 'calves';
 
 /** 7 UI categories shown in pickers, filters, and radar charts. */
-export type UICategory =
+type UICategory =
   | 'Chest'
   | 'Back'
   | 'Shoulders'
@@ -171,7 +171,7 @@ export const CANONICAL_TO_UI_CATEGORY: Record<CanonicalMuscle, UICategory> = {
 
 // ─── Alias Table (backward compat) ───────────────────────────
 
-export const MUSCLE_ALIASES: Record<string, CanonicalMuscle> = {
+const MUSCLE_ALIASES: Record<string, CanonicalMuscle> = {
   // ── Identity (canonical names map to themselves) ──
   chest: 'chest',
   lats: 'lats',

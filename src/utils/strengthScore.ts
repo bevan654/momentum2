@@ -16,18 +16,6 @@ import { toSlug, MUSCLE_SLUGS } from './muscleVolume';
 import { toCanonical, CANONICAL_TO_STRENGTH_GROUP } from '../constants/muscles';
 
 /* ═══════════════════════════════════════════════════════
-   Workout-level rank result (per-workout scoring)
-   ═══════════════════════════════════════════════════════ */
-
-export interface WorkoutRankResult {
-  exerciseScores: Record<string, ExerciseScoreEntry>;
-  muscleScores: Partial<Record<MuscleGroup, MuscleScoreDetail>>;
-  overallScore: number;
-  rank: RankInfo;
-  diversityBonus: number;
-}
-
-/* ═══════════════════════════════════════════════════════
    Types
    ═══════════════════════════════════════════════════════ */
 
@@ -59,27 +47,6 @@ export type RankName =
   | 'Mythic'
   | 'Legend';
 
-export interface SetInput {
-  kg: number;
-  reps: number;
-  completed?: boolean;
-}
-
-export interface StrengthScoreParams {
-  kg: number;
-  reps: number;
-  bodyweight: number;
-  exerciseType: ExerciseType;
-  rankingWeight: number;
-}
-
-export interface ExerciseStrengthResult {
-  score: number;
-  e1rm: number;
-  ratio: number;
-  bestSet: { kg: number; reps: number };
-}
-
 /** Stored per-exercise result in the rank store. */
 export interface ExerciseScoreEntry {
   name: string;
@@ -91,7 +58,7 @@ export interface ExerciseScoreEntry {
 }
 
 /** One exercise's contribution to a muscle group. */
-export interface MuscleContribution {
+interface MuscleContribution {
   name: string;
   /** Normalised score (already multiplied by weight_multiplier). */
   score: number;
@@ -129,7 +96,7 @@ export interface BestSetEntry {
 }
 
 /** The 16 trainable body slugs used for per-muscle ranking. */
-export const ALL_MUSCLE_SLUGS: string[] = Array.from(MUSCLE_SLUGS);
+const ALL_MUSCLE_SLUGS: string[] = Array.from(MUSCLE_SLUGS);
 
 /** Per-slug score detail (same shape as MuscleScoreDetail but keyed by slug). */
 export interface SlugScoreDetail {
@@ -141,7 +108,7 @@ export interface SlugScoreDetail {
   exercises: { name: string; slotScore: number }[];
 }
 
-export interface FullRankResult {
+interface FullRankResult {
   exerciseScores: Record<string, ExerciseScoreEntry>;
   muscleScores: Partial<Record<MuscleGroup, MuscleScoreDetail>>;
   slugScores: Partial<Record<string, SlugScoreDetail>>;
@@ -165,7 +132,7 @@ const SECONDARY_CONTRIBUTION = 0.5;
 const SLOT_WEIGHTS = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5] as const;
 
 /** How much each muscle group contributes to the overall score. */
-export const MUSCLE_GROUP_WEIGHTS: Record<MuscleGroup, number> = {
+const MUSCLE_GROUP_WEIGHTS: Record<MuscleGroup, number> = {
   chest: 1.0,
   back: 1.2,
   legs: 1.4,
@@ -176,7 +143,7 @@ export const MUSCLE_GROUP_WEIGHTS: Record<MuscleGroup, number> = {
   calves: 0.5,
 };
 
-export const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
+const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
   'chest', 'back', 'legs', 'shoulders', 'biceps', 'triceps', 'abs', 'calves',
 ];
 
@@ -281,59 +248,19 @@ export function effectiveLoad(
   }
 }
 
-/** Per-set strength score = (e1RM / bw) × rankingWeight. */
-export function calculateSetStrengthScore(params: StrengthScoreParams): number {
-  const { kg, reps, bodyweight, exerciseType, rankingWeight } = params;
-  const bw = Math.max(bodyweight, MIN_BODYWEIGHT);
-  const load = effectiveLoad(kg, bw, exerciseType);
-  if (load <= 0 || reps <= 0) return 0;
-  return (estimateOneRepMax(load, reps) / bw) * rankingWeight;
-}
-
-/** Best-set score for an exercise across all its sets. */
-export function calculateExerciseStrengthScore(
-  sets: SetInput[],
-  bodyweight: number,
-  exerciseType: ExerciseType,
-  rankingWeight: number,
-): ExerciseStrengthResult {
-  const bw = Math.max(bodyweight, MIN_BODYWEIGHT);
-  let bestE1rm = 0;
-  let bestSet = { kg: 0, reps: 0 };
-
-  for (const s of sets) {
-    if (s.completed === false || s.reps <= 0) continue;
-    const load = effectiveLoad(s.kg, bw, exerciseType);
-    if (load <= 0) continue;
-    const e1rm = estimateOneRepMax(load, s.reps);
-    if (e1rm > bestE1rm) {
-      bestE1rm = e1rm;
-      bestSet = { kg: s.kg, reps: s.reps };
-    }
-  }
-
-  const ratio = bestE1rm / bw;
-  return {
-    score: ratio * rankingWeight,
-    e1rm: Math.round(bestE1rm * 10) / 10,
-    ratio,
-    bestSet,
-  };
-}
-
 /* ═══════════════════════════════════════════════════════
    Muscle-group helpers
    ═══════════════════════════════════════════════════════ */
 
 /** Map a raw catalog muscle string to one of the 8 broad groups. */
-export function mapToMuscleGroup(muscle: string): MuscleGroup | null {
+function mapToMuscleGroup(muscle: string): MuscleGroup | null {
   const canonical = toCanonical(muscle);
   if (!canonical) return null;
   return CANONICAL_TO_STRENGTH_GROUP[canonical];
 }
 
 /** Return the unique broad groups for an exercise's primary & secondary muscles. */
-export function getExerciseMuscleGroups(
+function getExerciseMuscleGroups(
   primaryMuscles: string[],
   secondaryMuscles: string[],
 ): { primary: MuscleGroup[]; secondary: MuscleGroup[] } {
@@ -373,11 +300,11 @@ export function getOverallRank(score: number): RankInfo {
   return lookupRank(score, OVERALL_THRESHOLDS);
 }
 
-export function getMuscleRank(score: number): RankInfo {
+function getMuscleRank(score: number): RankInfo {
   return lookupRank(score, MUSCLE_THRESHOLDS);
 }
 
-export function getExerciseRank(score: number): RankInfo {
+function getExerciseRank(score: number): RankInfo {
   return lookupRank(score, EXERCISE_THRESHOLDS);
 }
 
@@ -386,7 +313,7 @@ export function getExerciseRank(score: number): RankInfo {
    ═══════════════════════════════════════════════════════ */
 
 /** diversity_bonus = min(unique_exercises × 0.02, 0.1) */
-export function calculateDiversityBonus(uniqueExerciseCount: number): number {
+function calculateDiversityBonus(uniqueExerciseCount: number): number {
   return Math.min(uniqueExerciseCount * 0.02, 0.1);
 }
 
@@ -400,7 +327,7 @@ export function calculateDiversityBonus(uniqueExerciseCount: number): number {
  * Slot 0 (×1.0): the highest-scoring designated main lift, or 0.
  * Slots 1-5 (×0.9 → ×0.5): top 5 remaining exercises.
  */
-export function calculateMuscleGroupScore(
+function calculateMuscleGroupScore(
   contributions: MuscleContribution[],
 ): MuscleScoreDetail & { group: MuscleGroup } {
   // Separate main lifts from others
@@ -639,66 +566,5 @@ export function computeFullRank(params: {
     rank: getOverallRank(overallScore),
     diversityBonus,
     isProvisional: totalWorkouts < PROVISIONAL_WORKOUT_MIN,
-  };
-}
-
-/* ═══════════════════════════════════════════════════════
-   Per-workout rank computation
-   ═══════════════════════════════════════════════════════ */
-
-/**
- * Score a single workout's exercises (not all-time bests).
- * Pure function — no store access, no side effects.
- */
-export function computeWorkoutRank(params: {
-  exercises: {
-    name: string;
-    exercise_type: string;
-    sets: { kg: number; reps: number; completed?: boolean }[];
-  }[];
-  bodyweight: number;
-  catalog: Record<string, CatalogEntry>;
-}): WorkoutRankResult {
-  const { exercises, bodyweight: rawBw, catalog } = params;
-  const bw = Math.max(rawBw, MIN_BODYWEIGHT);
-
-  // Build best-set-per-exercise from this workout only
-  const bestSets: Record<string, BestSetEntry> = {};
-
-  for (const ex of exercises) {
-    const cat = catalog[ex.name];
-    const exType = (ex.exercise_type || cat?.exercise_type || 'weighted') as ExerciseType;
-
-    for (const s of ex.sets) {
-      if (s.completed === false) continue;
-      const kg = Number(s.kg) || 0;
-      const reps = Number(s.reps) || 0;
-      if (reps <= 0) continue;
-
-      const load = effectiveLoad(kg, bw, exType);
-      if (load <= 0) continue;
-
-      const e1rm = estimateOneRepMax(load, reps);
-      const prev = bestSets[ex.name];
-      if (!prev || e1rm > prev.e1rm) {
-        bestSets[ex.name] = { kg, reps, exerciseType: exType, e1rm };
-      }
-    }
-  }
-
-  // Reuse full-rank pipeline with workout-local bests
-  const result = computeFullRank({
-    bestSets,
-    bodyweight: bw,
-    catalog,
-    totalWorkouts: 1, // irrelevant for scoring, avoids provisional flag
-  });
-
-  return {
-    exerciseScores: result.exerciseScores,
-    muscleScores: result.muscleScores,
-    overallScore: result.overallScore,
-    rank: result.rank,
-    diversityBonus: result.diversityBonus,
   };
 }

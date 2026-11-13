@@ -4,7 +4,7 @@ import type { ActiveExercise } from '../stores/useActiveWorkoutStore';
 const KEY = 'active_workout_state';
 const REST_PREF_KEY = 'rest_duration_preference';
 
-export interface PersistedWorkout {
+interface PersistedWorkout {
   startTime: number;
   exercises: ActiveExercise[];
   restDuration: number;

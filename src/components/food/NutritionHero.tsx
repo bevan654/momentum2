@@ -5,7 +5,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { FoodEntry, NutritionGoals } from '../../stores/useFoodLogStore';
-import { useNutrientGoalStore, type MicroGoalConfig } from '../../stores/useNutrientGoalStore';
+import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
 
 /* ─── Micro keys that exist on FoodEntry ─────────────── */
 

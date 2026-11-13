@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
@@ -15,24 +15,20 @@ import CreateMealModal from '../components/food/CreateMealModal';
 import NutritionHero from '../components/food/NutritionHero';
 import DateNavigator from '../components/food/DateNavigator';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
-import type { FoodEntry, MealConfig } from '../stores/useFoodLogStore';
+import type { FoodEntry } from '../stores/useFoodLogStore';
 
 function FoodLoggerScreen() {
   const userId = useAuthStore((s) => s.user?.id);
   const selectedDate = useFoodLogStore((s) => s.selectedDate);
   const entries = useFoodLogStore((s) => s.entries);
-  const mealConfigs = useFoodLogStore((s) => s.mealConfigs);
   const goals = useFoodLogStore((s) => s.goals);
-  const collapsedMeals = useFoodLogStore((s) => s.collapsedMeals);
   const loading = useFoodLogStore((s) => s.loading);
 
   const setDate = useFoodLogStore((s) => s.setDate);
   const fetchDayEntries = useFoodLogStore((s) => s.fetchDayEntries);
   const fetchMealConfigs = useFoodLogStore((s) => s.fetchMealConfigs);
   const fetchGoals = useFoodLogStore((s) => s.fetchGoals);
-  const toggleMealCollapse = useFoodLogStore((s) => s.toggleMealCollapse);
   const deleteEntry = useFoodLogStore((s) => s.deleteEntry);
-  const updateEntry = useFoodLogStore((s) => s.updateEntry);
   const togglePlanned = useFoodLogStore((s) => s.togglePlanned);
   const moveEntryToHour = useFoodLogStore((s) => s.moveEntryToHour);
   const deleteMealGroup = useFoodLogStore((s) => s.deleteMealGroup);

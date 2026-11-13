@@ -144,46 +144,6 @@ const TYPE_OPTIONS: { key: 'log' | 'planned'; label: string; icon: string }[] = 
 
 /* ─── Extracted memo sections ──────────────────────────── */
 
-const NameBadge = React.memo(function NameBadge({
-  name, brand, confidence, s, colors,
-}: {
-  name: string; brand?: string | null; confidence?: string;
-  s: ReturnType<typeof createStyles>; colors: ThemeColors;
-}) {
-  return (
-    <View style={s.nameSection}>
-      <Text style={s.foodName}>{name}</Text>
-      {brand ? <Text style={s.foodBrand}>{brand}</Text> : null}
-      {confidence === 'verified' && (
-        <View style={s.badge}>
-          <Ionicons name="checkmark-circle" size={ms(11)} color={colors.accentGreen} />
-          <Text style={[s.badgeText, { color: colors.accentGreen }]}>Verified</Text>
-        </View>
-      )}
-      {confidence === 'user_submitted' && (
-        <View style={[s.badge, { backgroundColor: colors.textTertiary + '18' }]}>
-          <Ionicons name="person-outline" size={ms(11)} color={colors.textTertiary} />
-          <Text style={[s.badgeText, { color: colors.textTertiary }]}>Unverified</Text>
-        </View>
-      )}
-    </View>
-  );
-});
-
-const MacroChip = React.memo(function MacroChip({
-  label, value, color, s,
-}: { label: string; value: number; color: string; s: ReturnType<typeof createStyles> }) {
-  return (
-    <View style={s.macroChip}>
-      <View style={[s.macroIndicator, { backgroundColor: color }]} />
-      <View style={s.macroChipInner}>
-        <Text style={[s.macroChipVal, { color }]}>{value}g</Text>
-        <Text style={s.macroChipLabel}>{label}</Text>
-      </View>
-    </View>
-  );
-});
-
 const DateChipItem = React.memo(function DateChipItem({
   chip, active, onPress, s,
 }: {
@@ -1002,16 +962,11 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
 
   /* Name */
   nameSection: { alignItems: 'center', gap: sw(4), marginBottom: sw(12) },
-  foodName: {
-    color: c.textPrimary, fontSize: ms(20), lineHeight: ms(26),
-    fontFamily: Fonts.extraBold, textAlign: 'center', letterSpacing: -0.3,
-  },
   foodNameInput: {
     color: c.textPrimary, fontSize: ms(20), lineHeight: ms(26),
     fontFamily: Fonts.extraBold, textAlign: 'center', letterSpacing: -0.3,
     padding: 0, width: '100%',
   },
-  foodBrand: { color: c.textSecondary, fontSize: ms(13), lineHeight: ms(18), fontFamily: Fonts.medium },
   foodBrandInput: {
     color: c.textSecondary, fontSize: ms(13), lineHeight: ms(18),
     fontFamily: Fonts.medium, textAlign: 'center', padding: 0, width: '100%',
@@ -1058,7 +1013,6 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   },
   macroIndicator: { width: sw(4), height: sw(28), borderRadius: sw(2) },
   macroChipInner: { flex: 1 },
-  macroChipVal: { fontSize: ms(15), lineHeight: ms(20), fontFamily: Fonts.bold },
   macroChipInput: {
     fontSize: ms(15), lineHeight: ms(20), fontFamily: Fonts.bold, padding: 0,
   },

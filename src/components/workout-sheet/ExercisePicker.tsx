@@ -27,7 +27,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -109,7 +108,6 @@ const LEADERBOARD_EXERCISE_NAMES = [
   'conventional deadlift',
 ] as const;
 
-const OPEN_SPRING = { damping: 28, stiffness: 280, mass: 0.8 };
 const SNAP_SPRING = { damping: 24, stiffness: 350, mass: 0.7 };
 const CLOSE_CFG = { duration: 250, easing: Easing.in(Easing.cubic) };
 

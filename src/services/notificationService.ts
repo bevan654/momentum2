@@ -30,7 +30,6 @@ import type { NotificationItem } from '../lib/friendsDatabase';
 let channel: ReturnType<typeof supabase.channel> | null = null;
 let currentUserId: string | null = null;
 let appState: AppStateStatus = AppState.currentState;
-let realtimeConnected = false;
 let fallbackTimer: ReturnType<typeof setInterval> | null = null;
 let badgeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let tokenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -220,11 +219,9 @@ export function initNotifications(userId: string): void {
     )
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        realtimeConnected = true;
         stopFallbackPoller();
       }
       if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-        realtimeConnected = false;
         startFallbackPoller();
       }
     });
@@ -282,7 +279,6 @@ export function cleanupNotifications(): void {
   }
 
   currentUserId = null;
-  realtimeConnected = false;
   seenIds.clear();
   viewingNotifications = false;
 }

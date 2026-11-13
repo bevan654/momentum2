@@ -6,7 +6,7 @@ export interface WeightEntry {
   weight: number;
 }
 
-export interface EmaPoint {
+interface EmaPoint {
   date: string;
   value: number;
 }

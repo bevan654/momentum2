@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, TouchableWithoutFeedback, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator, Platform, Dimensions, Image, Pressable } from 'react-native';
-import { useSafeAreaInsets, SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, Alert, TextInput, ActivityIndicator, Image, Pressable } from 'react-native';
+import { SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withDelay, withSpring, withTiming, Easing, runOnJS } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
-import { sw, ms, SCREEN_HEIGHT } from '../../theme/responsive';
+import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { getUICategoryColor } from '../../constants/muscles';
 import MuscleHeatmap from '../body/MuscleHeatmap';
@@ -14,7 +14,7 @@ import DurationPickerModal from './DurationPickerModal';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { supabase } from '../../lib/supabase';
-import { useActiveWorkoutStore, type WorkoutSummary, type SummaryExercise, type GhostExerciseData } from '../../stores/useActiveWorkoutStore';
+import { useActiveWorkoutStore, type WorkoutSummary, type SummaryExercise } from '../../stores/useActiveWorkoutStore';
 import type { WorkoutWithDetails, ExerciseWithSets, CoachExerciseNote } from '../../stores/useWorkoutStore';
 import ShareModal from '../share/ShareModal';
 import WorkoutOverlay from '../dev/WorkoutOverlay';
@@ -435,282 +435,6 @@ function EditableExerciseSection({
   );
 }
 
-/* ── Ghost set comparison logic ────────────────────── */
-
-function compareGhostSet(
-  userKg: number, userReps: number,
-  ghostKg: number, ghostReps: number,
-): 'win' | 'loss' | 'tie' {
-  if (userKg < ghostKg) return 'loss';
-  if (userKg === ghostKg) {
-    if (userReps > ghostReps) return 'win';
-    if (userReps < ghostReps) return 'loss';
-    return 'tie';
-  }
-  const userVol = userKg * userReps;
-  const ghostVol = ghostKg * ghostReps;
-  if (userVol > ghostVol) return 'win';
-  if (userVol < ghostVol) return 'loss';
-  return 'tie';
-}
-
-/* ── Ghost Comparison Section ──────────────────────── */
-
-function GhostComparisonSection({
-  exercises,
-  ghostExercises,
-  ghostUserName,
-  colors,
-}: {
-  exercises: SummaryExercise[];
-  ghostExercises: GhostExerciseData[];
-  ghostUserName: string;
-  colors: ThemeColors;
-}) {
-  const ghostMap = useMemo(() => {
-    const map: Record<string, { sets: { kg: number; reps: number }[] }> = {};
-    for (const gex of ghostExercises) {
-      map[gex.name] = { sets: gex.sets };
-    }
-    return map;
-  }, [ghostExercises]);
-
-  const results = useMemo(() => {
-    let userTotalVol = 0;
-    let ghostTotalVol = 0;
-    let setWins = 0;
-    let setLosses = 0;
-    let setTies = 0;
-
-    const perExercise = exercises.map((ex) => {
-      const completedSets = ex.sets.filter((s) => s.completed);
-      const ghost = ghostMap[ex.name];
-      const ghostSets = ghost?.sets ?? [];
-
-      const userVol = completedSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
-      const ghostVol = ghostSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
-      userTotalVol += userVol;
-      ghostTotalVol += ghostVol;
-
-      let exWins = 0;
-      let exLosses = 0;
-      let exTies = 0;
-      const setResults: ('win' | 'loss' | 'tie')[] = [];
-      const count = Math.min(completedSets.length, ghostSets.length);
-      for (let i = 0; i < count; i++) {
-        const r = compareGhostSet(completedSets[i].kg, completedSets[i].reps, ghostSets[i].kg, ghostSets[i].reps);
-        setResults.push(r);
-        if (r === 'win') { exWins++; setWins++; }
-        else if (r === 'loss') { exLosses++; setLosses++; }
-        else { exTies++; setTies++; }
-      }
-
-      return { name: ex.name, userVol, ghostVol, exWins, exLosses, exTies, setResults, completedSets, ghostSets };
-    });
-
-    const victory = setWins > setLosses;
-    const tied = setWins === setLosses;
-    return { perExercise, userTotalVol, ghostTotalVol, setWins, setLosses, setTies, victory, tied };
-  }, [exercises, ghostMap]);
-
-  const verdictColor = results.tied ? colors.textPrimary : results.victory ? '#34C759' : colors.accentRed;
-  const verdictText = results.tied ? 'DRAW' : results.victory ? 'VICTORY' : 'DEFEATED';
-  const userName = useAuthStore((s) => s.user?.user_metadata?.username || 'You');
-
-  // Volume bar
-  const totalVol = results.userTotalVol + results.ghostTotalVol;
-  const userVolPct = totalVol > 0 ? (results.userTotalVol / totalVol) * 100 : 50;
-
-  return (
-    <View style={{ gap: sw(16) }}>
-      {/* ── Verdict Banner ──────────────────────── */}
-      <View style={{
-        alignItems: 'center',
-        paddingVertical: sw(20),
-        gap: sw(6),
-      }}>
-        <Text style={{
-          fontSize: ms(32),
-          fontFamily: Fonts.extraBold,
-          color: verdictColor,
-          letterSpacing: 2,
-        }}>
-          {verdictText}
-        </Text>
-        <Text style={{
-          fontSize: ms(12),
-          fontFamily: Fonts.medium,
-          color: colors.textTertiary,
-        }}>
-          {userName} vs {ghostUserName}
-        </Text>
-      </View>
-
-      {/* ── Set Score ───────────────────────────── */}
-      <View style={{
-        backgroundColor: colors.surface,
-        borderRadius: sw(12),
-        padding: sw(16),
-      }}>
-        <Text style={{
-          fontSize: ms(10),
-          fontFamily: Fonts.semiBold,
-          color: colors.textTertiary,
-          textAlign: 'center',
-          letterSpacing: 1,
-          marginBottom: sw(10),
-        }}>
-          SET SCORE
-        </Text>
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary, marginBottom: sw(2) }}>
-              {userName}
-            </Text>
-            <Text style={{ fontSize: ms(28), fontFamily: Fonts.extraBold, color: '#34C759' }}>
-              {results.setWins}
-            </Text>
-          </View>
-          <View style={{ alignItems: 'center', paddingHorizontal: sw(12) }}>
-            <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary, marginBottom: sw(2) }}>
-              Ties
-            </Text>
-            <Text style={{ fontSize: ms(22), fontFamily: Fonts.bold, color: colors.textPrimary }}>
-              {results.setTies}
-            </Text>
-          </View>
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary, marginBottom: sw(2) }}>
-              {ghostUserName}
-            </Text>
-            <Text style={{ fontSize: ms(28), fontFamily: Fonts.extraBold, color: colors.accentRed }}>
-              {results.setLosses}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* ── Volume Bar ──────────────────────────── */}
-      <View style={{
-        backgroundColor: colors.surface,
-        borderRadius: sw(12),
-        padding: sw(14),
-        gap: sw(8),
-      }}>
-        <Text style={{
-          fontSize: ms(10),
-          fontFamily: Fonts.semiBold,
-          color: colors.textTertiary,
-          letterSpacing: 1,
-          textAlign: 'center',
-        }}>
-          TOTAL VOLUME
-        </Text>
-        <View style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          marginBottom: sw(4),
-        }}>
-          <Text style={{ fontSize: ms(14), fontFamily: Fonts.bold, color: colors.textPrimary }}>
-            {results.userTotalVol.toLocaleString()} kg
-          </Text>
-          <Text style={{ fontSize: ms(14), fontFamily: Fonts.bold, color: colors.accentRed }}>
-            {results.ghostTotalVol.toLocaleString()} kg
-          </Text>
-        </View>
-        <View style={{
-          flexDirection: 'row',
-          height: sw(8),
-          borderRadius: sw(4),
-          overflow: 'hidden',
-        }}>
-          <View style={{
-            width: `${userVolPct}%` as any,
-            backgroundColor: '#34C759',
-            borderTopLeftRadius: sw(4),
-            borderBottomLeftRadius: sw(4),
-          }} />
-          <View style={{
-            flex: 1,
-            backgroundColor: colors.accentRed,
-            borderTopRightRadius: sw(4),
-            borderBottomRightRadius: sw(4),
-          }} />
-        </View>
-      </View>
-
-      {/* ── Per-Exercise Breakdown ──────────────── */}
-      <View style={{
-        backgroundColor: colors.surface,
-        borderRadius: sw(12),
-        padding: sw(14),
-        gap: sw(12),
-      }}>
-        <Text style={{
-          fontSize: ms(10),
-          fontFamily: Fonts.semiBold,
-          color: colors.textTertiary,
-          letterSpacing: 1,
-          textAlign: 'center',
-        }}>
-          EXERCISE BREAKDOWN
-        </Text>
-        {results.perExercise.map((ex, i) => {
-          const exWon = ex.exWins > ex.exLosses;
-          const exLost = ex.exLosses > ex.exWins;
-          const exColor = exWon ? '#34C759' : exLost ? colors.accentRed : colors.textTertiary;
-          return (
-            <View key={i} style={{ gap: sw(6) }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={{
-                  flex: 1,
-                  fontSize: ms(12),
-                  fontFamily: Fonts.semiBold,
-                  color: colors.textPrimary,
-                }} numberOfLines={1}>
-                  {ex.name}
-                </Text>
-                <Text style={{
-                  fontSize: ms(11),
-                  fontFamily: Fonts.bold,
-                  color: exColor,
-                }}>
-                  {ex.exWins}W — {ex.exTies}T — {ex.exLosses}L
-                </Text>
-              </View>
-              {/* Set-by-set dots */}
-              <View style={{ flexDirection: 'row', gap: sw(4) }}>
-                {ex.setResults.map((r, si) => (
-                  <View key={si} style={{
-                    width: sw(22),
-                    height: sw(22),
-                    borderRadius: sw(4),
-                    backgroundColor: r === 'win' ? '#34C759' + '20' : r === 'loss' ? colors.accentRed + '20' : colors.textPrimary + '15',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}>
-                    <Text style={{
-                      fontSize: ms(9),
-                      fontFamily: Fonts.bold,
-                      color: r === 'win' ? '#34C759' : r === 'loss' ? colors.accentRed : colors.textPrimary,
-                    }}>
-                      S{si + 1}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
 function AnimatedCheckmark({ colors, styles }: { colors: ThemeColors; styles: ReturnType<typeof createStyles> }) {
   const scale = useSharedValue(0);
 
@@ -740,7 +464,6 @@ export default function WorkoutSummaryModal(props: Props) {
   const [deleting, setDeleting] = useState(false);
   const [coachResult, setCoachResult] = useState<CoachResult | null>(null);
   const colors = useColors();
-  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   // ── Crossfade animation for historical modal ────
@@ -753,14 +476,6 @@ export default function WorkoutSummaryModal(props: Props) {
       contentOpacity.value = withTiming(1, { duration: 400, easing: Easing.out(Easing.quad) });
     }
   }, []);
-
-  const contentFadeStyle = useAnimatedStyle(() => ({
-    opacity: contentOpacity.value,
-  }));
-
-  const backdropAnimStyle = useAnimatedStyle(() => ({
-    opacity: backdropOpacity.value,
-  }));
 
   const animatedDismiss = useCallback(() => {
     contentOpacity.value = withTiming(0, { duration: 300, easing: Easing.in(Easing.quad) });
@@ -778,7 +493,7 @@ export default function WorkoutSummaryModal(props: Props) {
 
   // Share modal + workout name
   const [showShare, setShowShare] = useState(false);
-  const [workoutName, setWorkoutName] = useState('');
+  const [workoutName] = useState('');
 
   // Themed confirm-before-exit dialog (just-completed mode only)
   const [confirmExitVisible, setConfirmExitVisible] = useState(false);
@@ -1755,7 +1470,6 @@ function HistoricalPage({
   setShowShare: (v: boolean) => void;
   inline?: boolean;
 }) {
-  const insets = useSafeAreaInsets();
   const ps = useMemo(() => pageStyles(colors), [colors]);
 
   return (

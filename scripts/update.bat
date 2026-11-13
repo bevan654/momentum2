@@ -13,8 +13,8 @@ if %errorlevel% neq 0 (
 set EAS_NO_VCS=1
 
 if "%1"=="all" (
-    eas update --branch production --message "v bump"
-    eas update --branch preview --message "v bump"
+    npx eas-cli update --branch production --message "v bump"
+    npx eas-cli update --branch preview --message "v bump"
 ) else (
-    eas update --branch %1 --message "v bump"
+    npx eas-cli update --branch %1 --message "v bump"
 )

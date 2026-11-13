@@ -17,7 +17,6 @@ import {
   UI_CATEGORY_COLORS,
   DISPLAY_MUSCLES,
   CATEGORY_MUSCLES,
-  CANONICAL_TO_UI_CATEGORY,
   MUSCLE_COLORS,
   type CanonicalMuscle,
 } from '../../constants/muscles';
