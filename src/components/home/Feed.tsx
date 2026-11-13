@@ -575,11 +575,17 @@ const FeedHeader = React.memo(function FeedHeader({
 
 interface FeedProps {
   headerComponent?: React.ReactNode;
+  titleComponent?: React.ReactNode;
   refreshing?: boolean;
   onRefresh?: () => void;
 }
 
-export default function Feed({ headerComponent, refreshing = false, onRefresh }: FeedProps) {
+export default function Feed({
+  headerComponent,
+  titleComponent,
+  refreshing = false,
+  onRefresh,
+}: FeedProps) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -623,10 +629,29 @@ export default function Feed({ headerComponent, refreshing = false, onRefresh }:
   const listHeader = useMemo(() => (
     <View>
       {headerComponent}
-      <FeedHeader
-        feedMode={feedMode}
-        onToggle={() => handleSwitchMode(feedMode === 'friends' ? 'global' : 'friends')}
-      />
+      {titleComponent ? (
+        <>
+          {titleComponent}
+          <View style={styles.scopeOnlyRow}>
+            <TouchableOpacity
+              style={styles.headerSubRow}
+              onPress={() => handleSwitchMode(feedMode === 'friends' ? 'global' : 'friends')}
+              activeOpacity={0.7}
+              accessibilityLabel={`Community feed showing ${feedMode}. Tap to switch.`}
+            >
+              <Text style={styles.headerSub}>
+                {feedMode === 'friends' ? 'Friends' : 'Global'}
+              </Text>
+              <Ionicons name="swap-horizontal" size={ms(11)} color={colors.textTertiary} />
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        <FeedHeader
+          feedMode={feedMode}
+          onToggle={() => handleSwitchMode(feedMode === 'friends' ? 'global' : 'friends')}
+        />
+      )}
       {isLoading && (
         <>
           <FeedRowSkeleton />
@@ -637,7 +662,15 @@ export default function Feed({ headerComponent, refreshing = false, onRefresh }:
         </>
       )}
     </View>
-  ), [headerComponent, feedMode, isLoading, handleSwitchMode]);
+  ), [
+    headerComponent,
+    titleComponent,
+    feedMode,
+    isLoading,
+    handleSwitchMode,
+    colors.textTertiary,
+    styles,
+  ]);
 
   const listFooter = useMemo(() => {
     if (feed.length === 0) return null;
@@ -682,7 +715,6 @@ export default function Feed({ headerComponent, refreshing = false, onRefresh }:
       ListHeaderComponent={listHeader}
       ListFooterComponent={listFooter}
       ListEmptyComponent={listEmpty}
-      estimatedItemSize={sw(520)}
       showsVerticalScrollIndicator={false}
       onEndReached={handleEndReached}
       onEndReachedThreshold={0.6}
@@ -739,6 +771,14 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.bold,
       letterSpacing: 0.5,
       textTransform: 'uppercase',
+    },
+    scopeOnlyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      paddingHorizontal: sw(14),
+      paddingTop: sw(1),
+      paddingBottom: sw(5),
     },
     actionsAnchor: {
       position: 'relative',

@@ -9,6 +9,7 @@ export type NotificationType =
   | 'reaction'
   | 'nudge'
   | 'leaderboard_weekly'
+  | 'leaderboard_overtake'
   | 'ai_nudge';
 
 export interface FriendProfile {
@@ -96,14 +97,21 @@ export interface NotificationItem {
 }
 
 export interface LeaderboardEntry {
-  id: string;
   user_id: string;
-  type: string;
+  type: LeaderboardType;
   value: number;
-  week_start: string;
   profile: { username: string | null; email: string };
-  rank?: number;
+  rank: number;
+  rankChange?: number;
 }
+
+export type LeaderboardType =
+  | 'strength'
+  | 'bench'
+  | 'squat'
+  | 'deadlift'
+  | 'streak'
+  | 'streak_best';
 
 export interface NudgeRow {
   id: string;
@@ -882,46 +890,79 @@ export async function getLastNudge(
 // ── Leaderboards ───────────────────────────────────────
 
 export async function getLeaderboard(
-  type: string,
+  type: LeaderboardType,
   scope: 'friends' | 'global',
   friendIds: string[],
   currentUserId: string,
   blockedIds: string[] = [],
 ): Promise<LeaderboardEntry[]> {
-  let query = supabase
-    .from('leaderboard_entries')
-    .select('*')
-    .eq('type', type)
-    .order('value', { ascending: false })
-    .limit(50);
+  const visibleFriendIds = [...new Set([...friendIds, currentUserId])]
+    .filter((id) => !blockedIds.includes(id));
 
-  if (scope === 'friends') {
-    const allIds = [...friendIds, currentUserId].filter((id) => !blockedIds.includes(id));
-    if (allIds.length === 0) return [];
-    query = query.in('user_id', allIds);
-  } else if (blockedIds.length > 0) {
-    query = query.not('user_id', 'in', `(${blockedIds.join(',')})`);
+  const { data, error } = await supabase.rpc('get_community_leaderboard', {
+    p_type: type,
+    p_scope: scope,
+    p_friend_ids: visibleFriendIds,
+    p_blocked_ids: blockedIds,
+  });
+
+  if (error) {
+    if (__DEV__) {
+      console.warn('Leaderboard RPC failed', {
+        type,
+        scope,
+        message: error.message,
+      });
+    }
+    // Compatibility path for projects where the new leaderboard RPC has not
+    // been deployed yet. The legacy enum calls strength entries `volume`.
+    if (type !== 'strength' && type !== 'streak') return [];
+    const legacyType = type === 'strength' ? 'volume' : 'streak';
+    let legacyQuery = supabase
+      .from('leaderboard_entries')
+      .select('user_id, type, value, week_start')
+      .eq('type', legacyType)
+      .order('week_start', { ascending: false })
+      .order('value', { ascending: false })
+      .limit(200);
+
+    if (scope === 'friends') {
+      if (visibleFriendIds.length === 0) return [];
+      legacyQuery = legacyQuery.in('user_id', visibleFriendIds);
+    } else if (blockedIds.length > 0) {
+      legacyQuery = legacyQuery.not('user_id', 'in', `(${blockedIds.join(',')})`);
+    }
+
+    const { data: legacyData, error: legacyError } = await legacyQuery;
+    if (legacyError || !legacyData || legacyData.length === 0) return [];
+
+    const latestWeek = legacyData[0].week_start;
+    const latestEntries = legacyData
+      .filter((entry: any) => entry.week_start === latestWeek)
+      .slice(0, 50);
+    const userIds = [...new Set(latestEntries.map((entry: any) => entry.user_id))];
+    const { data: profiles } = await supabase.rpc('list_public_profiles', { p_ids: userIds });
+    const usernames = new Map<string, string | null>(
+      (profiles || []).map((profile: any) => [profile.id, profile.username]),
+    );
+
+    return latestEntries.map((entry: any, index: number) => ({
+      user_id: entry.user_id,
+      type,
+      value: Number(entry.value) || 0,
+      profile: { username: usernames.get(entry.user_id) ?? null, email: '' },
+      rank: index + 1,
+    }));
   }
 
-  const { data } = await query;
-  if (!data || data.length === 0) return [];
+  if (!data) return [];
 
-  const userIds = [...new Set(data.map((e: any) => e.user_id))];
-  const { data: profiles } = await supabase.rpc('list_public_profiles', { p_ids: userIds });
-
-  const profileMap = new Map<string, { username: string | null; email: string }>();
-  for (const p of profiles || []) {
-    profileMap.set(p.id, { username: p.username, email: '' });
-  }
-
-  return data.map((e: any, i: number) => ({
-    id: e.id,
-    user_id: e.user_id,
-    type: e.type,
-    value: Number(e.value),
-    week_start: e.week_start,
-    profile: profileMap.get(e.user_id) || { username: null, email: '' },
-    rank: i + 1,
+  return data.map((entry: any) => ({
+    user_id: entry.user_id,
+    type: entry.type as LeaderboardType,
+    value: Number(entry.value) || 0,
+    profile: { username: entry.username ?? null, email: '' },
+    rank: Number(entry.rank) || 0,
   }));
 }
 

@@ -4,6 +4,7 @@ import {
   type ActivityFeedItem,
   type NotificationItem,
   type LeaderboardEntry,
+  type LeaderboardType,
   type SearchResult,
   getFriendsList,
   getFriendIds,
@@ -46,6 +47,16 @@ const MAX_FEED_ITEMS = 500;
 const MAX_NOTIFICATIONS = 100;
 const MAX_COMMENT_THREADS = 30;
 
+type LeaderboardScope = 'friends' | 'global';
+type LeaderboardCacheKey = `${LeaderboardScope}:${LeaderboardType}`;
+
+function leaderboardCacheKey(
+  scope: LeaderboardScope,
+  type: LeaderboardType,
+): LeaderboardCacheKey {
+  return `${scope}:${type}`;
+}
+
 interface FriendsState {
   // Friends list
   friends: FriendProfile[];
@@ -67,9 +78,10 @@ interface FriendsState {
 
   // Leaderboard
   leaderboard: LeaderboardEntry[];
+  leaderboardCache: Partial<Record<LeaderboardCacheKey, LeaderboardEntry[]>>;
   leaderboardLoading: boolean;
-  leaderboardType: 'volume' | 'streak';
-  leaderboardScope: 'friends' | 'global';
+  leaderboardType: LeaderboardType;
+  leaderboardScope: LeaderboardScope;
 
   // Notifications
   notifications: NotificationItem[];
@@ -104,9 +116,9 @@ interface FriendsState {
   // Actions
   fetchFriends: (userId: string, force?: boolean) => Promise<void>;
   fetchFeed: (userId: string, reset?: boolean, force?: boolean) => Promise<void>;
-  fetchLeaderboard: (userId: string) => Promise<void>;
-  setLeaderboardType: (type: 'volume' | 'streak') => void;
-  setLeaderboardScope: (scope: 'friends' | 'global') => void;
+  fetchLeaderboard: (userId: string, force?: boolean) => Promise<void>;
+  setLeaderboardType: (type: LeaderboardType) => void;
+  setLeaderboardScope: (scope: LeaderboardScope) => void;
   fetchNotifications: (userId: string, reset?: boolean) => Promise<void>;
   fetchUnreadCount: (userId: string) => Promise<void>;
   markNotificationRead: (notificationId: string) => Promise<void>;
@@ -182,9 +194,10 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   },
 
   leaderboard: [],
+  leaderboardCache: {},
   leaderboardLoading: false,
-  leaderboardType: 'volume',
-  leaderboardScope: 'friends',
+  leaderboardType: 'strength',
+  leaderboardScope: 'global',
 
   notifications: [],
   notificationsLoading: false,
@@ -282,8 +295,24 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     }
   },
 
-  fetchLeaderboard: async (userId) => {
-    const { leaderboardType, leaderboardScope, friendIds, blockedIds } = get();
+  fetchLeaderboard: async (userId, force = false) => {
+    const {
+      leaderboardType,
+      leaderboardScope,
+      leaderboardCache,
+      friendIds,
+      blockedIds,
+    } = get();
+    const cacheKey = leaderboardCacheKey(leaderboardScope, leaderboardType);
+    const cached = leaderboardCache[cacheKey];
+    // Never let an empty response become sticky for the whole app session.
+    // Empty boards are cheap to refetch and may be the result of a transient
+    // RPC/deployment race rather than genuinely having no ranked users.
+    if (!force && cached !== undefined && cached.length > 0) {
+      set({ leaderboard: cached, leaderboardLoading: false });
+      return;
+    }
+
     set({ leaderboardLoading: true });
     try {
       const entries = await dbGetLeaderboard(
@@ -293,14 +322,52 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
         userId,
         blockedIds,
       );
-      set({ leaderboard: entries });
+      const previousRanks = new Map(
+        (leaderboardCache[cacheKey] ?? []).map((entry) => [entry.user_id, entry.rank]),
+      );
+      const rankedEntries = entries.map((entry) => {
+        const previousRank = previousRanks.get(entry.user_id);
+        return {
+          ...entry,
+          rankChange: previousRank === undefined ? 0 : previousRank - entry.rank,
+        };
+      });
+      set((state) => {
+        const activeKey = leaderboardCacheKey(
+          state.leaderboardScope,
+          state.leaderboardType,
+        );
+        return {
+          leaderboardCache: {
+            ...state.leaderboardCache,
+            [cacheKey]: rankedEntries,
+          },
+          ...(activeKey === cacheKey ? { leaderboard: rankedEntries } : {}),
+        };
+      });
     } finally {
-      set({ leaderboardLoading: false });
+      const activeKey = leaderboardCacheKey(
+        get().leaderboardScope,
+        get().leaderboardType,
+      );
+      if (activeKey === cacheKey) set({ leaderboardLoading: false });
     }
   },
 
-  setLeaderboardType: (type) => set({ leaderboardType: type, leaderboard: [] }),
-  setLeaderboardScope: (scope) => set({ leaderboardScope: scope, leaderboard: [] }),
+  setLeaderboardType: (type) => set((state) => ({
+    leaderboardType: type,
+    leaderboard: state.leaderboardCache[
+      leaderboardCacheKey(state.leaderboardScope, type)
+    ] ?? [],
+    leaderboardLoading: false,
+  })),
+  setLeaderboardScope: (scope) => set((state) => ({
+    leaderboardScope: scope,
+    leaderboard: state.leaderboardCache[
+      leaderboardCacheKey(scope, state.leaderboardType)
+    ] ?? [],
+    leaderboardLoading: false,
+  })),
 
   fetchNotifications: async (userId, reset = false) => {
     const { notifPage, notifHasMore } = get();

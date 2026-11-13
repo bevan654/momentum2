@@ -19,17 +19,9 @@ export const useChangelogStore = create<ChangelogState>((set) => ({
   check: async () => {
     const latest = changelog[0]?.version;
     if (!latest) return;
-    // Dev builds always show the latest entry, so changelog UX is testable
-    // without nuking AsyncStorage between runs.
-    if (__DEV__) {
-      set({ hasUnseen: true });
-      return;
-    }
     try {
       const seen = await AsyncStorage.getItem(STORAGE_KEY);
-      if (seen !== latest) {
-        set({ hasUnseen: true });
-      }
+      set({ hasUnseen: seen !== latest });
     } catch {
       // storage read failed — don't block the user
     }
@@ -37,7 +29,7 @@ export const useChangelogStore = create<ChangelogState>((set) => ({
 
   dismiss: () => {
     const latest = changelog[0]?.version;
-    if (latest && !__DEV__) {
+    if (latest) {
       AsyncStorage.setItem(STORAGE_KEY, latest).catch(() => {});
     }
     set({ hasUnseen: false });

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -16,7 +17,8 @@ interface Props {
 }
 
 function LeaderboardRow({ entry, isCurrentUser, accentColor, valueLabel }: Props) {
-  const rank = entry.rank || 0;
+  const rank = entry.rank;
+  const rankChange = entry.rankChange ?? 0;
   const medal = rank <= 3 ? MEDALS[rank - 1] : null;
   const displayName = entry.profile.username || entry.profile.email;
   const colors = useColors();
@@ -31,6 +33,27 @@ function LeaderboardRow({ entry, isCurrentUser, accentColor, valueLabel }: Props
         ) : (
           <Text style={styles.rankText}>#{rank}</Text>
         )}
+        <View style={styles.rankMovement}>
+          {rankChange === 0 ? (
+            <Text style={[styles.rankMovementText, { color: colors.textTertiary }]}>=</Text>
+          ) : (
+            <>
+              <Ionicons
+                name={rankChange > 0 ? 'arrow-up' : 'arrow-down'}
+                size={ms(9)}
+                color={rankChange > 0 ? colors.accentGreen : colors.accentRed}
+              />
+              <Text
+                style={[
+                  styles.rankMovementText,
+                  { color: rankChange > 0 ? colors.accentGreen : colors.accentRed },
+                ]}
+              >
+                {Math.abs(rankChange)}
+              </Text>
+            </>
+          )}
+        </View>
       </View>
 
       {/* Avatar */}
@@ -58,6 +81,7 @@ function LeaderboardRow({ entry, isCurrentUser, accentColor, valueLabel }: Props
 }
 
 function formatValue(val: number): string {
+  if (!Number.isInteger(val)) return val < 10 ? val.toFixed(2) : val.toFixed(1);
   if (val >= 10000) return `${(val / 1000).toFixed(1)}k`;
   if (val >= 1000) return `${(val / 1000).toFixed(1)}k`;
   return String(val);
@@ -84,8 +108,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: colors.accent + '40',
   },
   rankWrap: {
-    width: sw(30),
+    width: sw(34),
     alignItems: 'center',
+  },
+  rankMovement: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(1),
+    marginTop: sw(1),
+  },
+  rankMovementText: {
+    fontSize: ms(9),
+    lineHeight: ms(11),
+    fontFamily: Fonts.bold,
   },
   medal: {
     fontSize: ms(20),
