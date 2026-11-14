@@ -66,8 +66,8 @@ function toNativeState(snapshot: WorkoutActivitySnapshot): WorkoutLiveActivitySt
   const resting = snapshot.isResting && snapshot.restStartedAt != null;
   // restStartedAt + restDuration is the rest's end. After an adjustment restStartedAt
   // is re-anchored to "now" and restDuration is what's left, so the original start is
-  // end − restTotal. After a crash-restore restTotal is only what was left while
-  // restDuration is still the full length, hence the max.
+  // end − restTotal. restTotal is never meant to be shorter than restDuration (a workout
+  // saved before restTotal was persisted restores it as restDuration); the max guards that.
   const restEndsAt = resting ? snapshot.restStartedAt! + snapshot.restDuration * 1000 : null;
   const restStartedAt = restEndsAt != null
     ? restEndsAt - Math.max(snapshot.restTotal, snapshot.restDuration) * 1000
@@ -180,15 +180,38 @@ function stopTicker(): void {
 
 // ── Public API ─────────────────────────────────────────────
 
-/** A stop still dismissing the previous workout's notification; a start waits for it. */
+/** Bumped by every start and stop, so a start that resolves after a newer call knows it's stale. */
+let _gen = 0;
+/** Legacy path: a start is waiting for an earlier dismiss; updates only record the snapshot meanwhile. */
+let _legacyStarting = false;
+/** Legacy path: dismisses of the sticky notification still in flight. A start waits for them. */
 let _stopping: Promise<void> | null = null;
 
+/**
+ * Dismisses the legacy sticky notification. Replacing a workout stops and starts in the same
+ * tick: a dismiss landing after the next start would remove the new workout's notification,
+ * so starts wait for every pending dismiss (`_stopping`).
+ */
+function dismissLegacy(): Promise<void> {
+  const dismissing = Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch((e) => {
+    if (__DEV__) console.warn('[LiveActivity] dismiss failed:', e);
+  });
+  const stopping = _stopping ? Promise.all([_stopping, dismissing]).then(() => {}) : dismissing;
+  _stopping = stopping;
+  stopping.then(() => { if (_stopping === stopping) _stopping = null; });
+  return stopping;
+}
+
 export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): Promise<void> {
+  const gen = ++_gen;
+  _legacyStarting = false;
+
   if (WorkoutLiveActivity.isSupported()) {
     // Upgrading mid-workout from a build without the module leaves its sticky notification.
-    if (Platform.OS === 'ios') Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
+    if (Platform.OS === 'ios') dismissLegacy();
     _mode = 'native';
     _active = true;
+    // Queued: it runs after any earlier end, and a stop called before it resolves runs after it.
     sendNative(snapshot, 'start');
     return;
   }
@@ -196,28 +219,46 @@ export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): P
   if (Platform.OS !== 'ios') return;
   _mode = 'legacy';
   _active = true;
+  _snapshot = snapshot;
+  _legacyStarting = true;
   try {
-    // Replacing a workout stops and starts in the same tick: a late dismiss would remove the
-    // new workout's notification and clear _active after it was set.
     if (_stopping) await _stopping;
-    await presentNotification(snapshot);
-    startTicker(snapshot);
+    if (gen !== _gen) return; // stopped or restarted while waiting
+    _legacyStarting = false;
+    // Updates while waiting only recorded their snapshot.
+    const latest = _snapshot ?? snapshot;
+    await presentNotification(latest);
+    if (gen !== _gen) {
+      // Stopped while posting: its dismiss may have run before the post landed.
+      if (_mode !== 'legacy') dismissLegacy();
+      return;
+    }
+    startTicker(_snapshot ?? latest);
   } catch (e) {
-    _active = false;
-    _mode = null;
+    if (gen === _gen) {
+      _active = false;
+      _mode = null;
+      _legacyStarting = false;
+      stopTicker();
+    }
     if (__DEV__) console.warn('[LiveActivity] start failed:', e);
   }
 }
 
+/** Sends what's displayed now. Does nothing unless a workout activity was started (and not stopped). */
 export function updateWorkoutActivity(snapshot: WorkoutActivitySnapshot): void {
+  if (!_active) return;
+
   if (_mode === 'native') {
-    if (_active) sendNative(snapshot, 'update');
+    sendNative(snapshot, 'update');
     return;
   }
+  if (_mode !== 'legacy') return;
 
-  if (Platform.OS !== 'ios' || !_active) return;
   const restChanged = _snapshot?.isResting !== snapshot.isResting;
   _snapshot = snapshot;
+  // The start posts the latest snapshot once earlier dismisses are done.
+  if (_legacyStarting) return;
 
   presentNotification(snapshot).catch(() => {});
 
@@ -228,38 +269,41 @@ export function updateWorkoutActivity(snapshot: WorkoutActivitySnapshot): void {
 
 export async function stopWorkoutActivity(): Promise<void> {
   if (!_active) return;
+  const mode = _mode;
+  // Synchronously, so a start in the same tick (Replace) isn't undone when this resolves,
+  // and an in-flight start sees it was stopped.
+  _gen++;
+  _active = false;
+  _mode = null;
+  _legacyStarting = false;
 
-  if (_mode === 'native') {
-    _active = false;
-    _mode = null;
+  if (mode === 'native') {
     _lastNativeKey = '';
+    // Queued after the start, so a stop before the start resolved still ends it.
     enqueueNative('stop', () => WorkoutLiveActivity.end());
     await _nativeQueue;
     return;
   }
 
-  if (Platform.OS !== 'ios') return;
-
   stopTicker();
-  _active = false;
-  _mode = null;
-
-  const stopping = Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch((e) => {
-    if (__DEV__) console.warn('[LiveActivity] stop failed:', e);
-  });
-  _stopping = stopping;
-  await stopping;
-  if (_stopping === stopping) _stopping = null;
+  await dismissLegacy();
 }
 
 /**
  * Ends a workout activity left over from a previous app run (the app was killed
  * mid-workout). `stopWorkoutActivity` can't, because its "active" flag doesn't
  * survive a restart. Call it only when no workout is active.
+ *
+ * A workout started right after this keeps its activity: the native end runs before the
+ * start in the queue and is skipped if a start came first (native start adopts a leftover
+ * activity anyway), and a legacy start waits for the dismiss.
  */
 export function clearStaleWorkoutActivity(): void {
   if (_active) return;
-  enqueueNative('clear stale', () => WorkoutLiveActivity.endAll());
+  const gen = _gen;
+  enqueueNative('clear stale', async () => {
+    if (gen === _gen) await WorkoutLiveActivity.endAll();
+  });
   // A sticky notification from the legacy path (or from the build before this one).
-  if (Platform.OS === 'ios') Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
+  if (Platform.OS === 'ios') dismissLegacy();
 }
