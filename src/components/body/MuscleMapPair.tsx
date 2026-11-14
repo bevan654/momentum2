@@ -29,9 +29,7 @@ function MuscleMapPair({ values, level, colors, height, captions, glow, onRegion
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { front, back } = useBodies();
   const width = bodyWidth(front, height);
-  // box-only: the map's own Pressable takes the touch. Its Skia canvas otherwise swallows taps
-  // and onRegionPress never fires (momentum-muscle-map 0.1.0).
-  const mapStyle = useMemo(() => ({ width, height, pointerEvents: 'box-only' as const }), [width, height]);
+  const mapStyle = useMemo(() => ({ width, height }), [width, height]);
 
   const side = (body: typeof front, caption: string, label: string) => (
     <View style={styles.column}>
