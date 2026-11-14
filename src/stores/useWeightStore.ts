@@ -12,6 +12,7 @@ interface EmaPoint {
 }
 
 interface WeightState {
+  /** Latest weigh-in, however old (bodyweight for ranks and muscle load). The rest covers the fetched window. */
   current: number | null;
   trend: number | null;
   change: number | null;
@@ -76,7 +77,16 @@ export const useWeightStore = create<WeightState>((set, get) => ({
 
         set({ current, trend, change, entries, emaPoints });
       } else {
-        set({ current: null, trend: null, change: null, entries: [], emaPoints: [] });
+        // Nothing in the window, but an older weigh-in is still the user's latest weight.
+        const { data: latest } = await supabase
+          .from('weight_entries')
+          .select('weight')
+          .eq('user_id', userId)
+          .order('date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const current = latest ? Number(latest.weight) : null;
+        set({ current, trend: null, change: null, entries: [], emaPoints: [] });
       }
     } finally {
       set({ loading: false });
