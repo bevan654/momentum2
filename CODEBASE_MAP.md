@@ -42,7 +42,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `dev/` | **Production share UI**, not dev tools | `WorkoutOverlay` = share card, `StoryCropModal`; used by `share/` and the workout summary |
 | `food/` | Nutrition tab: meals, add-food, barcode, AI scan, food detail | `macro-lens/` holds the pieces of `MacroLensModal` (AI photo scan). |
 | `friends/` | Community tab: leaderboard, search, notifications, profiles, reports | `AvatarCircle`, `ReportSheet` are also used by other features |
-| `home/` | Home tab cards (activity, nutrition, water, supplements) | Also holds app-wide pieces: `Header` (global header), `ChangelogModal`, `BetaWelcomeModal`, the Community `Feed` and `NutritionStories`, and weight modals used by `lab/WeightCard` |
+| `home/` | Home tab cards (activity, nutrition, water, supplements) | Also holds app-wide pieces: `Header` (global header), `ChangelogModal`, `BetaWelcomeModal`, the Community `Feed` (its rows and pieces live in `home/feed/`) and `NutritionStories`, and weight modals used by `lab/WeightCard` |
 | `lab/` | **Recovery tab** (screen is `LaboratoryScreen`): body metrics, charts, AI card | |
 | `profile/` | Profile sheet sub-views and goal editors | |
 | `share/` | `ShareModal` | |
