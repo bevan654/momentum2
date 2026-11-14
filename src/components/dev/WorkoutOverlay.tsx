@@ -4,8 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import MiniBodyMap from '../body/MiniBodyMap';
-import type { ExerciseWithSets } from '../../stores/useWorkoutStore';
+import WorkoutMiniMaps from '../body/WorkoutMiniMaps';
 import type { SummaryExercise } from '../../stores/useActiveWorkoutStore';
 
 /* ─── Helpers ──────────────��────────────────────────────── */
@@ -26,30 +25,6 @@ const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function formatDate(date: Date): string {
   return `${DAY_ABBR[date.getDay()]}, ${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`;
-}
-
-/** Convert SummaryExercise[] to the shape MiniBodyMap expects */
-function toBodyMapExercises(exercises: SummaryExercise[], catalogMap?: Record<string, any>): ExerciseWithSets[] {
-  return exercises.map((ex, i) => ({
-    id: String(i),
-    name: ex.name,
-    exercise_order: i + 1,
-    exercise_type: catalogMap?.[ex.name]?.exercise_type || 'weighted',
-    category: ex.category,
-    primary_muscles: catalogMap?.[ex.name]?.primary_muscles || [],
-    secondary_muscles: catalogMap?.[ex.name]?.secondary_muscles || [],
-    hasPR: false,
-    sets: ex.sets.map((s, j) => ({
-      id: `s${i}-${j}`,
-      set_number: j + 1,
-      kg: s.kg,
-      reps: s.reps,
-      completed: s.completed,
-      set_type: s.set_type,
-      parent_set_number: s.parent_set_number ?? null,
-      isPR: false,
-    })),
-  }));
 }
 
 const VALID_MUSCLE_GROUPS = new Set(['chest', 'back', 'shoulders', 'arms', 'legs', 'core', 'cardio']);
@@ -92,7 +67,6 @@ interface WorkoutOverlayData {
   duration: number;
   date?: Date;
   workoutName?: string | null;
-  catalogMap?: Record<string, any>;
 }
 
 interface Props {
@@ -155,8 +129,8 @@ const sharedStyles = StyleSheet.create({
    VARIANT: Classic (original design)
    ━━━━━━━━━���━━━━━━━━━━━━━━━━��━━━━━━━━━━━━��━━━━━━━━━━━━━━━ */
 
-function ClassicVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }: {
-  d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors; bodyMapExercises: ExerciseWithSets[];
+function ClassicVariant({ d, hasImage, backgroundUri, colors }: {
+  d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors;
 }) {
   const styles = useMemo(() => classicStyles(colors, hasImage), [colors, hasImage]);
   const dateStr = formatDate(d.date || new Date());
@@ -194,10 +168,7 @@ function ClassicVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }
             );
           })}
         </View>
-        <View style={styles.bodyMapCol}>
-          <MiniBodyMap exercises={bodyMapExercises} scale={0.25} side="front" backColor="transparent" />
-          <MiniBodyMap exercises={bodyMapExercises} scale={0.25} side="back" backColor="transparent" />
-        </View>
+        <WorkoutMiniMaps exercises={d.exercises} height={sw(100)} style={styles.bodyMapCol} transparentBody />
       </View>
 
       <LinearGradient
@@ -235,8 +206,8 @@ const classicStyles = (colors: ThemeColors, hasImage: boolean) =>
    VARIANT: Minimal — bottom-weighted, negative space hero
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-function MinimalVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }: {
-  d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors; bodyMapExercises: ExerciseWithSets[];
+function MinimalVariant({ d, hasImage, backgroundUri, colors }: {
+  d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors;
 }) {
   const styles = useMemo(() => minimalStyles(colors, hasImage), [colors, hasImage]);
   const date = d.date || new Date();
@@ -281,10 +252,7 @@ function MinimalVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }
       </View>
 
       {/* Body map — below the accent bar */}
-      <View style={styles.bodyMapRow}>
-        <MiniBodyMap exercises={bodyMapExercises} scale={0.25} side="front" backColor="transparent" />
-        <MiniBodyMap exercises={bodyMapExercises} scale={0.25} side="back" backColor="transparent" />
-      </View>
+      <WorkoutMiniMaps exercises={d.exercises} height={sw(100)} style={styles.bodyMapRow} transparentBody />
 
       <Text style={styles.branding}>@momentumfitapp</Text>
     </>
@@ -311,8 +279,8 @@ const minimalStyles = (colors: ThemeColors, hasImage: boolean) =>
    VARIANT: Bold — accent stat blocks, punchy
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━��━━ */
 
-function BoldVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }: {
-  d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors; bodyMapExercises: ExerciseWithSets[];
+function BoldVariant({ d, hasImage, backgroundUri, colors }: {
+  d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors;
 }) {
   const styles = useMemo(() => boldStyles(colors, hasImage), [colors, hasImage]);
   const stats = useMemo(() => computeStats(d.exercises), [d.exercises]);
@@ -363,10 +331,7 @@ function BoldVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }: {
       </View>
 
       {/* Body map */}
-      <View style={styles.bodyMapRow}>
-        <MiniBodyMap exercises={bodyMapExercises} scale={0.35} side="front" backColor="transparent" />
-        <MiniBodyMap exercises={bodyMapExercises} scale={0.35} side="back" backColor="transparent" />
-      </View>
+      <WorkoutMiniMaps exercises={d.exercises} height={sw(140)} style={styles.bodyMapRow} transparentBody />
 
       <Text style={styles.branding}>@momentumfitapp</Text>
     </>
@@ -396,8 +361,8 @@ const boldStyles = (colors: ThemeColors, hasImage: boolean) =>
    VARIANT: Poster — visual-first, magazine cover
    ━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-function PosterVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }: {
-  d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors; bodyMapExercises: ExerciseWithSets[];
+function PosterVariant({ d, hasImage, backgroundUri, colors }: {
+  d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors;
 }) {
   const styles = useMemo(() => posterStyles(colors, hasImage), [colors, hasImage]);
   const stats = useMemo(() => computeStats(d.exercises), [d.exercises]);
@@ -445,10 +410,7 @@ function PosterVariant({ d, hasImage, backgroundUri, colors, bodyMapExercises }:
 
       {/* Body map — only in no-photo mode */}
       {!hasImage && (
-        <View style={styles.bodyMapRow}>
-          <MiniBodyMap exercises={bodyMapExercises} scale={0.3} side="front" backColor="transparent" />
-          <MiniBodyMap exercises={bodyMapExercises} scale={0.3} side="back" backColor="transparent" />
-        </View>
+        <WorkoutMiniMaps exercises={d.exercises} height={sw(120)} style={styles.bodyMapRow} transparentBody />
       )}
 
       <Text style={styles.branding}>@momentumfitapp</Text>
@@ -482,9 +444,8 @@ export default function WorkoutOverlay({ backgroundUri, data, variant = 'classic
   const hasImage = !!backgroundUri;
   const cardHeight = hasImage ? CARD_HEIGHT_STORY : CARD_HEIGHT_FEED;
   const d = data || MOCK_DATA;
-  const bodyMapExercises = useMemo(() => toBodyMapExercises(d.exercises, d.catalogMap), [d.exercises, d.catalogMap]);
 
-  const shared = { d, hasImage, backgroundUri, colors, bodyMapExercises };
+  const shared = { d, hasImage, backgroundUri, colors };
 
   return (
     <View style={[cardStyles.card, { height: cardHeight }]}>

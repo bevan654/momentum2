@@ -44,6 +44,9 @@ export interface ThemeColors {
 
   ring: { track: string; progress: string };
 
+  /** Body map (momentum-muscle-map): silhouette, untrained muscle, and tendons/kneecap. The accent colours trained muscle. */
+  muscleMap: { body: string; rest: string; inert: string };
+
   cardShadow: {
     shadowColor: string;
     shadowOffset: { width: number; height: number };
@@ -129,6 +132,9 @@ interface BasePalette {
   textTertiary: string;
   tabInactive: string;
   ringTrack: string;
+  muscleBody: string;
+  muscleRest: string;
+  muscleInert: string;
   /** How strongly the accent tints surfaces (0–1) */
   tintBackground: number;
   tintNavBar: number;
@@ -157,6 +163,9 @@ const darkBase: BasePalette = {
   textTertiary: '#636366',
   tabInactive: '#636366',
   ringTrack: '#1C1C1E',
+  muscleBody: '#1C1C20',
+  muscleRest: '#2F2F35',
+  muscleInert: '#27272C',
   tintBackground: 0.00,
   tintNavBar: 0.01,
   tintCard: 0.02,
@@ -182,6 +191,9 @@ const lightBase: BasePalette = {
   textTertiary: '#A5A5AA',
   tabInactive: '#A5A5AA',
   ringTrack: '#EEECE8',
+  muscleBody: '#E6E2DC',
+  muscleRest: '#CCC8C1',
+  muscleInert: '#D9D5CF',
   tintBackground: 0.04,
   tintNavBar: 0.03,
   tintCard: 0.02,
@@ -238,6 +250,12 @@ export function getThemeColors(mode: ThemeMode, customAccent?: AccentColor): The
     ring: {
       track: mix(b.ringTrack, accent, b.tintRingTrack),
       progress: '#34D399',
+    },
+
+    muscleMap: {
+      body: b.muscleBody,
+      rest: b.muscleRest,
+      inert: b.muscleInert,
     },
 
     cardShadow: {

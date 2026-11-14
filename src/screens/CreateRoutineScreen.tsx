@@ -22,9 +22,10 @@ import { useWorkoutStore } from '../stores/useWorkoutStore';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import ExerciseCard from '../components/workouts/ExerciseRow';
 import ExercisePicker from '../components/workout-sheet/ExercisePicker';
-import Body, { type ExtendedBodyPart } from '../components/BodyHighlighter';
-import { useThemeStore } from '../stores/useThemeStore';
-import { toSlug, ALL_SLUGS } from '../utils/muscleVolume';
+import MuscleMapPair from '../components/body/MuscleMapPair';
+import { useMuscleMapColors } from '../components/body/useBodyMap';
+import { useRegionWeightLookup } from '../hooks/useRegionWeightLookup';
+import { regionEmphasis, relativeValues } from '../utils/muscleVolume';
 
 interface LocalSet {
   goal_reps: number;
@@ -55,7 +56,6 @@ export default function CreateRoutineScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
-  const themeMode = useThemeStore((s) => s.mode);
   const prevMap = useWorkoutStore((s) => s.prevMap);
 
   const isEditing = !!editRoutineId;
@@ -102,64 +102,17 @@ export default function CreateRoutineScreen() {
     );
   }, []);
 
-  // Aggregate muscles across all exercises for summary body map
-  const CATEGORY_SLUGS: Record<string, string[]> = {
-    Chest: ['chest'], Back: ['upper-back', 'lower-back', 'trapezius'],
-    Shoulders: ['deltoids', 'rear-deltoids'], Arms: ['biceps', 'triceps', 'forearm'],
-    Legs: ['quadriceps', 'hamstring', 'gluteal', 'calves', 'adductors'], Core: ['abs', 'obliques'],
-  };
-
-  const summaryBodyData = useMemo(() => {
-    const primaryHits: Record<string, number> = {};
-    const secondaryHits: Record<string, number> = {};
-
-    for (const ex of exercises) {
-      const entry = catalogMap[ex.name];
-      const primaries: string[] = [];
-      const secondaries: string[] = [];
-
-      if (entry) {
-        for (const m of entry.primary_muscles) {
-          const s = toSlug(m);
-          if (s) primaries.push(s);
-        }
-        for (const m of entry.secondary_muscles) {
-          const s = toSlug(m);
-          if (s) secondaries.push(s);
-        }
-      }
-
-      if (primaries.length === 0 && ex.category) {
-        const slugs = CATEGORY_SLUGS[ex.category];
-        if (slugs) primaries.push(...slugs);
-      }
-
-      for (const s of primaries) primaryHits[s] = (primaryHits[s] || 0) + 1;
-      for (const s of secondaries) secondaryHits[s] = (secondaryHits[s] || 0) + 1;
-    }
-
-    const maxHits = Math.max(...Object.values(primaryHits), 1);
-
-    return ALL_SLUGS.map((slug) => {
-      const p = primaryHits[slug] || 0;
-      const s = secondaryHits[slug] || 0;
-      if (p > 0) {
-        const intensity = 2 + Math.round((p / maxHits) * 4);
-        return { slug, intensity: Math.min(intensity, 6) };
-      }
-      if (s > 0) return { slug, intensity: 2 };
-      return { slug, intensity: 1 };
-    }) as ExtendedBodyPart[];
-  }, [exercises, catalogMap]);
-
-  const summaryPalette = useMemo(() => {
-    const a = colors.accent;
-    if (themeMode === 'dark') {
-      return ['#1A1A1E', '#2A2A2E', a + '60', a + '80', a + 'BB', a + 'DD', a];
-    }
-    return ['#E8E4DE', '#C8C4Be', a + '30', a + '50', a + '70', a + '90', a];
-  }, [themeMode, colors.accent]);
-
+  // Muscles targeted: each region's summed weight across the routine, against the largest.
+  // Regions only worked as a secondary muscle stay below the glow. The values depend only on the
+  // exercises' names and categories, so they're keyed on those: editing a set keeps the same
+  // object and the maps don't redraw on every keystroke.
+  const regionLookup = useRegionWeightLookup();
+  const muscleKey = exercises.map((ex) => `${ex.name}\u0000${ex.category ?? ''}`).join('\u0001');
+  const summaryValues = useMemo(
+    () => relativeValues(regionEmphasis(exercises, regionLookup)),
+    [muscleKey, regionLookup],
+  );
+  const summaryMapColors = useMuscleMapColors();
 
   const handleAddExercise = useCallback((name: string, exerciseType: string, category: string | null) => {
     const prevMap = useWorkoutStore.getState().prevMap;
@@ -350,32 +303,7 @@ export default function CreateRoutineScreen() {
             <>
               <View style={styles.muscleSummary}>
                   <Text style={styles.label}>Muscles Targeted</Text>
-                  <View style={styles.bodyMapRow}>
-                    <View style={styles.bodyMapSide}>
-                      <Body
-                        data={summaryBodyData}
-                        side="front"
-                        gender="male"
-                        scale={0.4}
-                        colors={summaryPalette}
-                        border="none"
-                        backColor={colors.cardBorder}
-                      />
-                      <Text style={styles.bodyMapLabel}>Front</Text>
-                    </View>
-                    <View style={styles.bodyMapSide}>
-                      <Body
-                        data={summaryBodyData}
-                        side="back"
-                        gender="male"
-                        scale={0.4}
-                        colors={summaryPalette}
-                        border="none"
-                        backColor={colors.cardBorder}
-                      />
-                      <Text style={styles.bodyMapLabel}>Back</Text>
-                    </View>
-                  </View>
+                  <MuscleMapPair values={summaryValues} level="muscles" colors={summaryMapColors} height={sw(160)} captions gap={sw(16)} />
               </View>
 
               <Text style={styles.label}>Exercises</Text>
@@ -521,22 +449,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   muscleSummary: {
     marginTop: sw(4),
-  },
-  bodyMapRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: sw(16),
-  },
-  bodyMapSide: {
-    alignItems: 'center',
-    gap: sw(4),
-  },
-  bodyMapLabel: {
-    color: colors.textTertiary,
-    fontSize: ms(10),
-    fontFamily: Fonts.medium,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   exerciseItem: {
     flexDirection: 'row',

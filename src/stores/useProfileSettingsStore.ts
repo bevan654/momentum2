@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Level } from 'momentum-muscle-map/core';
 
 const STORAGE_KEY = 'profile_settings';
 
@@ -72,6 +73,8 @@ interface ProfileSettingsState {
   showProgressCharts: boolean;
   /** Exercise names whose notes section is expanded in the active workout */
   expandedNotes: Record<string, true>;
+  /** Detail level of the interactive body maps (groups / muscles / parts) */
+  muscleMapLevel: Level;
   initialized: boolean;
   setShowStreakOnProfile: (value: boolean) => void;
   setShowStreakOnLeaderboard: (value: boolean) => void;
@@ -86,6 +89,7 @@ interface ProfileSettingsState {
   setDefaultMeasurement: (meas: MeasDefault) => void;
   setShowProgressCharts: (value: boolean) => void;
   toggleNotesExpanded: (exerciseName: string) => void;
+  setMuscleMapLevel: (level: Level) => void;
   loadSettings: () => Promise<void>;
 }
 
@@ -114,6 +118,7 @@ function persist(state: ProfileSettingsState) {
     defaultMeasurement: state.defaultMeasurement,
     showProgressCharts: state.showProgressCharts,
     expandedNotes: state.expandedNotes,
+    muscleMapLevel: state.muscleMapLevel,
   }));
 }
 
@@ -129,6 +134,7 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
   defaultMeasurement: { part: 'chest' as MeasBodyPart, side: 'left' as MeasSide, pump: 'no_pump' as MeasPump },
   showProgressCharts: true,
   expandedNotes: {},
+  muscleMapLevel: 'muscles' as Level,
   initialized: false,
 
   setShowStreakOnProfile: (value: boolean) => {
@@ -202,6 +208,11 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
     persist(get());
   },
 
+  setMuscleMapLevel: (level: Level) => {
+    set({ muscleMapLevel: level });
+    persist(get());
+  },
+
   loadSettings: async () => {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -218,6 +229,7 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
         defaultMeasurement: data.defaultMeasurement ?? { part: 'chest', side: 'left', pump: 'no_pump' },
         showProgressCharts: data.showProgressCharts ?? true,
         expandedNotes: data.expandedNotes ?? {},
+        muscleMapLevel: data.muscleMapLevel ?? 'muscles',
         initialized: true,
       });
     } else {
