@@ -175,10 +175,18 @@ export const FULL_HEAT_VOLUME: Record<CanonicalMuscle, number> = {
  * maps use it: workout and feed totals, leaderboards, PRs and strength score stay kg × reps.
  *
  * Bodyweight is the user's latest weight entry, else their profile's starting weight, else
- * DEFAULT_BODYWEIGHT_KG. Other users' feed cards always use DEFAULT_BODYWEIGHT_KG: the app doesn't
- * have their bodyweight, and the card shouldn't reveal it.
+ * DEFAULT_BODYWEIGHT_KG, skipping any value outside BODYWEIGHT_RANGE_KG. Other users' feed cards
+ * always use DEFAULT_BODYWEIGHT_KG: the app doesn't have their bodyweight, and the card shouldn't
+ * reveal it.
  */
 export const DEFAULT_BODYWEIGHT_KG = 75;
+
+/**
+ * Bodyweights effective load trusts: the range onboarding accepts. The weight log and profile
+ * settings take any positive number, so a typo there would otherwise blow up the heat and the
+ * volume of every bodyweight exercise.
+ */
+export const BODYWEIGHT_RANGE_KG = { min: 30, max: 300 } as const;
 
 /** Fraction of bodyweight a rep lifts when no BODYWEIGHT_FRACTIONS row matches the name. */
 export const DEFAULT_BODYWEIGHT_FRACTION = 0.7;
@@ -190,6 +198,8 @@ export const DEFAULT_BODYWEIGHT_FRACTION = 0.7;
  * locomotion count 0: their reps are usually seconds or distance.
  */
 export const BODYWEIGHT_FRACTIONS: readonly { match: RegExp; fraction: number }[] = [
+  // Holds first, whatever the movement ("superman hold", "chin-up hold"): their reps are seconds
+  { match: /\b(holds?|isometrics?)\b/, fraction: 0 },
   { match: /\bhandstand\b/, fraction: 0.9 },
   { match: /\b(pull ?ups?|chin ?ups?|muscle ?ups?|rope climbs?)\b/, fraction: 1 },
   // Inverted, ring and suspension rows: the feet stay on the floor
@@ -209,7 +219,7 @@ export const BODYWEIGHT_FRACTIONS: readonly { match: RegExp; fraction: number }[
   { match: /\b(abduction|adduction|clamshells?|fire hydrants?|kickbacks?|side kicks?|leg lifts?)\b/, fraction: 0.2 },
   // Suspension-trainer and lean-back moves not matched above: only part of the body is lifted
   { match: /\b(trx|suspension|face pulls?|y fly|curls?|triceps? extensions?|lateral raises?)\b/, fraction: 0.4 },
-  { match: /\b(plank|hang|holds?|wall sit|l sit|hollow|run|running|jog|jogging|sprints?|walk|walking|crawl|mountain climbers?|jumping jacks?)\b/, fraction: 0 },
+  { match: /\b(planks?|hangs?|wall sits?|l sits?|hollow|runs?|running|jogs?|jogging|sprints?|walks?|walking|crawls?|mountain climbers?|jumping jacks?)\b/, fraction: 0 },
 ];
 
 /**

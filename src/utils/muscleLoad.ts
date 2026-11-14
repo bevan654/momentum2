@@ -13,6 +13,7 @@
 
 import {
   BODYWEIGHT_FRACTIONS,
+  BODYWEIGHT_RANGE_KG,
   DEFAULT_BODYWEIGHT_FRACTION,
   DEFAULT_BODYWEIGHT_KG,
 } from '../constants/muscleMap';
@@ -40,13 +41,20 @@ export function makeMuscleLoad(
   return { bodyweightKg, catalogType: (name) => catalogMap[name]?.exercise_type };
 }
 
-/** The signed-in user's bodyweight: latest weight entry, else starting weight, else the default. */
+function isPlausibleBodyweight(kg: number | null | undefined): kg is number {
+  return kg != null && kg >= BODYWEIGHT_RANGE_KG.min && kg <= BODYWEIGHT_RANGE_KG.max;
+}
+
+/**
+ * The signed-in user's bodyweight: latest weight entry, else starting weight, else the default.
+ * A value outside BODYWEIGHT_RANGE_KG (a typo) counts as missing.
+ */
 export function ownBodyweightKg(
   latestEntryKg: number | null | undefined,
   startingWeightKg: number | null | undefined,
 ): number {
-  if (latestEntryKg != null && latestEntryKg > 0) return latestEntryKg;
-  if (startingWeightKg != null && startingWeightKg > 0) return startingWeightKg;
+  if (isPlausibleBodyweight(latestEntryKg)) return latestEntryKg;
+  if (isPlausibleBodyweight(startingWeightKg)) return startingWeightKg;
   return DEFAULT_BODYWEIGHT_KG;
 }
 
