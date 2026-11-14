@@ -1,5 +1,7 @@
 # Codebase Map
 
+**Last verified:** 2026-11-14, against the code at commit `bb3ded2`.
+
 An index of where things live and how they connect. Rules and conventions are in `CLAUDE.md`; database tables are in `database-schema.md`. If `CLAUDE.md`'s Project Structure tree disagrees with this map, this map is current.
 
 ## Overview
@@ -26,7 +28,8 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `targets/workout-activity/` | iOS Live Activity widget (SwiftUI). Native: changes need a store build |
 | `supabase/migrations/` | Dated SQL migrations. Database changes go through bevan |
 | `supabase/functions/` | Deno edge functions (AI coach/summaries, Gemini food scan/search, push, Discord, delete-account) + `_shared/` |
-| `scripts/` | Dev/ops scripts: `stamp-build.js` + `update.bat` (OTA release), `catalog/` (exercise catalog + region-target tooling), one-off admin scripts |
+| `scripts/` | Dev/ops scripts: `stamp-build.js` + `update.bat` (OTA release), `catalog/` (exercise catalog + region-target tooling), `check-codebase-map.js` (`npm run check:map`), one-off admin scripts |
+| `.claude/` | Shared Claude Code setup: `agents/codebase-scout.md`, `rules/navigation.md`, `settings.json` (turns on the TypeScript LSP plugin). Everything else in it is personal and git-ignored |
 | `docs/` | Past plans, audits and the security review. Historical: may describe code that has since changed |
 | `assets/` | `logo.png` (app icon, splash, share cards) |
 | `database-schema.md` | Every public table and column (generated from the live schema) |
@@ -112,10 +115,11 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | App/native config | `app.config.ts` (native changes need a store build) |
 | Database tables / columns | `database-schema.md` (changes go through bevan) |
 | Edge functions | `supabase/functions/<name>/` (Deno; changes go through bevan) |
-| Tests | None. Checks are `npx tsc --noEmit` plus testing on a phone |
+| Tests | None. Checks are `npx tsc --noEmit` (with `noUnusedLocals` on, so unused variables and imports are errors) plus testing on a phone |
+| Unused code (files, exports, packages) | `npm run knip` (config in `knip.json`; runs Knip through `npx`, not installed in the project). It exits with code 1 whenever it finds something. Its results are candidates, not proof: see the cleanup rule in `.claude/rules/navigation.md`. `react-native-svg` is reported unused and is, but removing a native package needs a store build, not an OTA |
 
 ## Known baseline type errors
-`npx tsc --noEmit` reports **24 errors in 11 files** before any change. They aren't caused by your edit. Don't fix them as part of other work: flag them and ask (see `CLAUDE.md`, Existing bugs).
+As of commit `bb3ded2`, `npx tsc --noEmit` reported **24 errors in these 11 files**. Run it before you start to see the current list (some may have been fixed since). Errors that were there before your change aren't caused by your edit. Don't fix them as part of other work: flag them and ask (see `CLAUDE.md`, Existing bugs).
 `app.config.ts`, `src/components/food/MealSection.tsx`, `src/components/food/AddFoodModal.tsx`, `src/components/friends/FriendSearch.tsx`, `src/components/friends/NotificationList.tsx`, `src/components/lab/AiHeroCard.tsx`, `src/components/workout-sheet/SetRow.tsx`, `src/navigation/TabNavigator.tsx`, `src/screens/FoodLoggerScreen.tsx`, `src/screens/ProgramProgressScreen.tsx`, `src/stores/useRankStore.ts`.
 
 ## Ignore
@@ -129,4 +133,4 @@ Treat with care:
 - `docs/` is historical, so verify against the code before trusting it.
 
 ## Maintenance
-Update this file in the same change whenever folders or modules are added, moved, renamed or deleted, or a tab or route changes.
+Update this file in the same change whenever folders or modules are added, moved, renamed or deleted, a tab or route changes, or anything else described here stops being true. Then run `npm run check:map` (checks every path here still exists) and update the **Last verified** line at the top to today's date and the commit on `main` you checked against (`git rev-parse --short origin/main` after syncing). Use a `main` commit, not a branch commit, because branch commits can disappear when a PR is squash-merged.

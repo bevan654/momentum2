@@ -1,6 +1,6 @@
 ---
 name: codebase-scout
-description: Read-only explorer for the Momentum codebase. Use PROACTIVELY before any non-trivial change to locate the relevant code, trace references and dependencies, and list everything else that must change. Skip it for lookups that take only a few tool calls. Not for the pre-PR review (it has no shell, so it can't run git diff). Never edits files.
+description: Read-only explorer for the Momentum codebase. Use PROACTIVELY before any non-trivial change to locate the relevant code, trace references and dependencies, and list everything else that must change. Use it instead of the built-in Explore agent for impact tracing. Skip it for lookups that take only a few tool calls. Not for the pre-PR review (it has no shell, so it can't run git diff). Never edits files.
 tools: Read, Grep, Glob, LSP
 model: opus
 ---

@@ -58,10 +58,11 @@ supabase/.temp/
 env
 
 # Claude Code / claude-flow local state
-# Personal Claude state stays ignored; the shared agent and rules folders are tracked.
+# Personal Claude state stays ignored; the shared agents, rules and settings.json are tracked.
 .claude/*
 !.claude/agents/
 !.claude/rules/
+!.claude/settings.json
 .claude-flow/
 .hive-mind/
 .swarm/
