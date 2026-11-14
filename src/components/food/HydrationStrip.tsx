@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,7 +6,8 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useSupplementStore } from '../../stores/useSupplementStore';
+import { useSupplementStore, type SupplementEntry } from '../../stores/useSupplementStore';
+import SupplementLogSheet from './SupplementLogSheet';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -38,25 +39,26 @@ interface ChipProps {
   unit: string;
   progress: number;
   canAdd: boolean;
-  onAdd?: (key: string, step: number) => void;
-  onLongPress?: () => void;
+  onAdd: (key: string, step: number) => void;
+  /** Long-press: open the day's log for this item (view / delete entries). */
+  onOpenLog: (key: string) => void;
   styles: ReturnType<typeof createStyles>;
 }
 
-const Chip = React.memo(function Chip({ itemKey, label, step, stepText, icon, color, value, goal, unit, progress, canAdd, onAdd, onLongPress, styles }: ChipProps) {
+const Chip = React.memo(function Chip({ itemKey, label, step, stepText, icon, color, value, goal, unit, progress, canAdd, onAdd, onOpenLog, styles }: ChipProps) {
   const done = progress >= 1;
-  const handlePress = useCallback(() => onAdd?.(itemKey, step), [onAdd, itemKey, step]);
+  const handlePress = useCallback(() => onAdd(itemKey, step), [onAdd, itemKey, step]);
+  const handleLongPress = useCallback(() => onOpenLog(itemKey), [onOpenLog, itemKey]);
   return (
     <Pressable
-      style={({ pressed }) => [styles.chip, pressed && canAdd && styles.chipPressed]}
-      onPress={canAdd ? handlePress : undefined}
-      onLongPress={canAdd ? onLongPress : undefined}
-      disabled={!canAdd}
-      accessibilityRole={canAdd ? 'button' : 'text'}
+      style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
+      onPress={canAdd ? handlePress : handleLongPress}
+      onLongPress={handleLongPress}
+      accessibilityRole="button"
       accessibilityLabel={`${label}: ${value} of ${goal} ${unit}`}
-      accessibilityHint={canAdd ? `Adds ${stepText}${onLongPress ? '. Long press to undo the last one' : ''}` : undefined}
-      accessibilityActions={canAdd && onLongPress ? [{ name: 'longpress', label: 'Undo last' }] : undefined}
-      onAccessibilityAction={onLongPress ? (e) => { if (e.nativeEvent.actionName === 'longpress') onLongPress(); } : undefined}
+      accessibilityHint={canAdd ? `Adds ${stepText}. Long press to see or delete entries` : 'Shows this day\'s entries'}
+      accessibilityActions={[{ name: 'longpress', label: 'See entries' }]}
+      onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === 'longpress') handleLongPress(); }}
     >
       <View style={[styles.iconWrap, { backgroundColor: color + '22' }]}>
         <Ionicons name={(done ? 'checkmark' : icon || 'ellipse-outline') as IconName} size={ms(14)} color={color} />
@@ -77,7 +79,7 @@ const Chip = React.memo(function Chip({ itemKey, label, step, stepText, icon, co
 
 /**
  * Water + supplements for the day under the nutrition summary.
- * Tap to add (today only); long-press water to undo the last glass. Past days are read-only.
+ * Tap to add (today only); long-press to see or delete the day's entries (on past days, tap does that too).
  */
 function HydrationStrip({ isToday }: { isToday: boolean }) {
   const colors = useColors();
@@ -90,8 +92,11 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
   const todayTotals = useSupplementStore((s) => s.supplementTotals);
   const dateEntries = useSupplementStore((s) => s.dateEntries);
   const addWater = useSupplementStore((s) => s.addWater);
-  const undoLastWater = useSupplementStore((s) => s.undoLastWater);
   const addSupplement = useSupplementStore((s) => s.addSupplement);
+  const deleteSupplementEntry = useSupplementStore((s) => s.deleteSupplementEntry);
+  // logKey picks what the sheet shows; it stays set while the sheet fades out.
+  const [logKey, setLogKey] = useState<string | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
 
   // Today uses the live totals; a past day adds up that day's entries.
   const { waterMl, totals } = useMemo(() => {
@@ -114,13 +119,26 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
     else addSupplement(userId, key, step);
   }, [userId, addWater, addSupplement]);
 
-  const handleUndoWater = useCallback(() => {
+  const handleOpenLog = useCallback((key: string) => {
+    Haptics.selectionAsync();
+    setLogKey(key);
+    setLogOpen(true);
+  }, []);
+  const handleCloseLog = useCallback(() => setLogOpen(false), []);
+  const handleLogClosed = useCallback(() => setLogKey(null), []);
+  const handleDeleteEntry = useCallback((entry: SupplementEntry) => {
     if (!userId) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    undoLastWater(userId);
-  }, [userId, undoLastWater]);
+    deleteSupplementEntry(userId, entry);
+  }, [userId, deleteSupplementEntry]);
+
+  const logConfig = logKey && logKey !== WATER_KEY ? configs.find((c) => c.key === logKey) : undefined;
+  const logEntries = useMemo(
+    () => (logKey ? dateEntries.filter((e) => e.type === logKey) : []),
+    [logKey, dateEntries],
+  );
 
   return (
+    <>
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
@@ -140,7 +158,7 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
         progress={waterGoal > 0 ? waterMl / waterGoal : 0}
         canAdd={isToday}
         onAdd={handleAdd}
-        onLongPress={handleUndoWater}
+        onOpenLog={handleOpenLog}
         styles={styles}
       />
       {configs.map((c) => {
@@ -161,11 +179,23 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
             progress={c.dailyGoal > 0 ? amount / c.dailyGoal : 0}
             canAdd={isToday && step > 0}
             onAdd={handleAdd}
+            onOpenLog={handleOpenLog}
             styles={styles}
           />
         );
       })}
     </ScrollView>
+    <SupplementLogSheet
+      visible={logOpen}
+      label={logKey === WATER_KEY ? 'Water' : logConfig?.name || ''}
+      unit={logKey === WATER_KEY ? 'ml' : logConfig?.unit || ''}
+      color={logKey === WATER_KEY ? colors.water : logConfig?.color || colors.creatine}
+      entries={logEntries}
+      onDelete={handleDeleteEntry}
+      onClose={handleCloseLog}
+      onClosed={handleLogClosed}
+    />
+    </>
   );
 }
 
