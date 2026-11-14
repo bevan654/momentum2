@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { WorkoutWithDetails, CatalogEntry } from './useWorkoutStore';
 import { toSlug } from '../utils/muscleVolume';
+import { effectiveVolume, makeMuscleLoad } from '../utils/muscleLoad';
 import type { MuscleGroup } from '../components/body/muscleGroups';
 import { GROUP_LABELS } from '../components/body/muscleGroups';
 import {
@@ -97,8 +98,11 @@ function getWeekBounds(now: Date): { thisStart: Date; thisEnd: Date; prevStart: 
 function computeWeeklyAnalysis(
   workouts: WorkoutWithDetails[],
   catalogMap: Record<string, CatalogEntry>,
+  bodyweightKg: number,
 ): WeeklyAnalysis {
   const now = new Date();
+  // Effective volume, so bodyweight sets count (and mark the muscle trained) like loaded ones
+  const load = makeMuscleLoad(catalogMap, bodyweightKg);
   const { thisStart, thisEnd, prevStart, prevEnd } = getWeekBounds(now);
 
   const thisWeek = workouts.filter((w) => {
@@ -135,10 +139,8 @@ function computeWeeklyAnalysis(
     for (const w of wkts) {
       const workoutDate = w.created_at;
       for (const ex of w.exercises) {
-        const vol = ex.sets
-          .filter((s) => s.completed)
-          .reduce((sum, s) => sum + s.kg * s.reps, 0);
-        if (vol === 0) continue;
+        const vol = effectiveVolume(ex, load);
+        if (!(vol > 0)) continue;
 
         if (isThisWeek) exerciseNames.add(ex.name);
         if (!isThisWeek) prevExerciseNames.add(ex.name);
@@ -403,7 +405,7 @@ interface MuscleAnalysisState {
   analysis: WeeklyAnalysis | null;
   selectedMuscle: MuscleGroup | null;
   setSelectedMuscle: (group: MuscleGroup | null) => void;
-  recompute: (workouts: WorkoutWithDetails[], catalogMap: Record<string, CatalogEntry>) => void;
+  recompute: (workouts: WorkoutWithDetails[], catalogMap: Record<string, CatalogEntry>, bodyweightKg: number) => void;
 }
 
 export const useMuscleAnalysisStore = create<MuscleAnalysisState>((set) => ({
@@ -412,8 +414,8 @@ export const useMuscleAnalysisStore = create<MuscleAnalysisState>((set) => ({
 
   setSelectedMuscle: (group) => set({ selectedMuscle: group }),
 
-  recompute: (workouts, catalogMap) => {
-    const analysis = computeWeeklyAnalysis(workouts, catalogMap);
+  recompute: (workouts, catalogMap, bodyweightKg) => {
+    const analysis = computeWeeklyAnalysis(workouts, catalogMap, bodyweightKg);
     set({ analysis });
   },
 }));

@@ -167,6 +167,52 @@ export const FULL_HEAT_VOLUME: Record<CanonicalMuscle, number> = {
 };
 
 /**
+ * PRODUCT DECISION — bodyweight reps count toward muscle heat, Training Balance and recovery.
+ *
+ * A rep of a bodyweight exercise (exercise type bodyweight or weighted+bodyweight) loads the
+ * muscles with bodyweight × the exercise's fraction (BODYWEIGHT_FRACTIONS) + any added kg; an
+ * assisted one with bodyweight × fraction − the assistance (src/utils/muscleLoad.ts). Only these
+ * maps use it: workout and feed totals, leaderboards, PRs and strength score stay kg × reps.
+ *
+ * Bodyweight is the user's latest weight entry, else their profile's starting weight, else
+ * DEFAULT_BODYWEIGHT_KG. Other users' feed cards always use DEFAULT_BODYWEIGHT_KG: the app doesn't
+ * have their bodyweight, and the card shouldn't reveal it.
+ */
+export const DEFAULT_BODYWEIGHT_KG = 75;
+
+/** Fraction of bodyweight a rep lifts when no BODYWEIGHT_FRACTIONS row matches the name. */
+export const DEFAULT_BODYWEIGHT_FRACTION = 0.7;
+
+/**
+ * How much of the body a rep of a bodyweight exercise lifts, by name keywords. Names are matched
+ * lowercase with anything but letters and digits turned into spaces ("Pull-Ups" → "pull ups"),
+ * and the first matching row wins, so specific rows come before general ones. Holds and
+ * locomotion count 0: their reps are usually seconds or distance.
+ */
+export const BODYWEIGHT_FRACTIONS: readonly { match: RegExp; fraction: number }[] = [
+  { match: /\bhandstand\b/, fraction: 0.9 },
+  { match: /\b(pull ?ups?|chin ?ups?|muscle ?ups?|rope climbs?)\b/, fraction: 1 },
+  // Inverted, ring and suspension rows: the feet stay on the floor
+  { match: /\brows?\b/, fraction: 0.6 },
+  { match: /\b(bench|chair|crab|reverse plank) dips?\b/, fraction: 0.5 },
+  { match: /\bdips?\b/, fraction: 1 },
+  { match: /\b(knee|incline|wall)\b.*\b(push|press) ?ups?\b/, fraction: 0.45 },
+  { match: /\bdecline\b.*\b(push|press) ?ups?\b/, fraction: 0.75 },
+  { match: /\b(push|press) ?ups?\b/, fraction: 0.65 },
+  { match: /\b(pistol|shrimp|single leg squats?)\b/, fraction: 0.9 },
+  { match: /\b(squats?|lunges?|step ?ups?|cossack)\b/, fraction: 0.8 },
+  { match: /\bcalf raises?\b/, fraction: 1 },
+  { match: /\b(nordic|glute ham)\b/, fraction: 0.7 },
+  { match: /\b(bridges?|hip thrusts?|back extensions?|hyperextensions?|good mornings?|superman|leg curls?|hamstring curls?)\b/, fraction: 0.5 },
+  { match: /\b(leg raises?|knee raises?|toes to bar|knee tucks?|leg pull ins?|pike|v ups?|jackknife|flutter kicks?|scissor kicks?|windshield wipers?|dragon flags?|copenhagen)\b/, fraction: 0.4 },
+  { match: /\b(crunch(es)?|sit ?ups?|twists?|heel touch(es)?|dead bugs?|bird dogs?)\b/, fraction: 0.3 },
+  { match: /\b(abduction|adduction|clamshells?|fire hydrants?|kickbacks?|side kicks?|leg lifts?)\b/, fraction: 0.2 },
+  // Suspension-trainer and lean-back moves not matched above: only part of the body is lifted
+  { match: /\b(trx|suspension|face pulls?|y fly|curls?|triceps? extensions?|lateral raises?)\b/, fraction: 0.4 },
+  { match: /\b(plank|hang|holds?|wall sit|l sit|hollow|run|running|jog|jogging|sprints?|walk|walking|crawl|mountain climbers?|jumping jacks?)\b/, fraction: 0 },
+];
+
+/**
  * PRODUCT DECISION — secondary-only regions never look "trained hard".
  *
  * Highest value a region can show on a training map (workout summary, feed cards, share images,

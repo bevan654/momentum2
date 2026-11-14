@@ -5,6 +5,7 @@ import { useColors } from '../../theme/useColors';
 import { sw } from '../../theme/responsive';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { useRegionWeightLookup } from '../../hooks/useRegionWeightLookup';
+import { useMuscleLoad } from '../../hooks/useMuscleLoad';
 import {
   partsOf,
   recoveryStatus,
@@ -40,7 +41,8 @@ function RecoveryBodyMap({ groups }: Props) {
   const colors = useColors();
   const workouts = useWorkoutStore((s) => s.workouts);
   const lookup = useRegionWeightLookup();
-  const recovery = useMemo(() => regionRecovery(workouts, lookup), [workouts, lookup]);
+  const load = useMuscleLoad();
+  const recovery = useMemo(() => regionRecovery(workouts, lookup, load), [workouts, lookup, load]);
   const values = useMemo(
     () => recoveryValues(recovery, groups.size > 0 ? (region) => groups.has(regionBodyGroup(region) ?? '') : undefined),
     [recovery, groups],

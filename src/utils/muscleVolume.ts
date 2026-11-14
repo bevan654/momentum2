@@ -4,9 +4,10 @@
  *
  * Model: each exercise works a set of map regions with weights 0..1, from exercise_region_targets
  * when the exercise has rows there, otherwise from its legacy muscle names (primary 1, secondary
- * 0.5). A completed set adds kg × reps × weight to every region the exercise works. Screens then
- * normalise those totals: per workout against FULL_HEAT_VOLUME, over several days against the
- * largest region. A region no exercise worked as a primary muscle is capped at
+ * 0.5). A completed set adds its effective load × reps × weight to every region the exercise works
+ * (effective load: kg, or bodyweight × fraction + kg for bodyweight exercises; utils/muscleLoad.ts).
+ * Screens then normalise those totals: per workout against FULL_HEAT_VOLUME, over several days
+ * against the largest region. A region no exercise worked as a primary muscle is capped at
  * SECONDARY_ONLY_MAX_HEAT, below the glow. Values go to the map linear; the map's own colour curve
  * lifts low values.
  */
@@ -14,6 +15,7 @@
 import { PARTS } from 'momentum-muscle-map/core';
 import type { Level, MuscleValues } from 'momentum-muscle-map/core';
 import type { CatalogEntry } from '../stores/useWorkoutStore';
+import { effectiveVolume, type LoadSource, type MuscleLoad } from './muscleLoad';
 import {
   toCanonical,
   CANONICAL_MUSCLES,
@@ -96,7 +98,7 @@ export interface MuscleSource {
   secondary_muscles?: readonly string[];
 }
 
-export interface VolumeExercise extends MuscleSource {
+export interface VolumeExercise extends MuscleSource, LoadSource {
   sets: readonly { kg: number; reps: number; completed: boolean }[];
 }
 
@@ -177,12 +179,6 @@ export function makeRegionWeightLookup(
 
 /* ─── Totals and normalisation ────────────────────────── */
 
-function completedVolume(ex: VolumeExercise): number {
-  let volume = 0;
-  for (const s of ex.sets) if (s.completed) volume += s.kg * s.reps;
-  return volume;
-}
-
 /** Adds `amount × weight` to every region an exercise works, and notes its primary regions. */
 function addWork(amounts: Record<string, number>, primary: Set<string>, weights: RegionWeights, amount: number) {
   for (const region in weights) {
@@ -192,12 +188,16 @@ function addWork(amounts: Record<string, number>, primary: Set<string>, weights:
   }
 }
 
-/** Weighted volume per region: completed kg × reps × the exercise's weight for the region. */
-export function regionVolume(exercises: readonly VolumeExercise[], lookup: RegionWeightLookup): RegionWork {
+/** Weighted volume per region: completed effective load × reps × the exercise's weight for the region. */
+export function regionVolume(
+  exercises: readonly VolumeExercise[],
+  lookup: RegionWeightLookup,
+  load: MuscleLoad,
+): RegionWork {
   const amounts: Record<string, number> = {};
   const primary = new Set<string>();
   for (const ex of exercises) {
-    const volume = completedVolume(ex);
+    const volume = effectiveVolume(ex, load);
     if (volume > 0) addWork(amounts, primary, lookup(ex), volume);
   }
   return { amounts, primary };
@@ -261,6 +261,7 @@ export type RecoveryStatus = 'fatigued' | 'recovering' | 'ready';
 export function regionRecovery(
   workouts: readonly { created_at: string; exercises: readonly VolumeExercise[] }[],
   lookup: RegionWeightLookup,
+  load: MuscleLoad,
   now: number = Date.now(),
 ): Record<string, RegionRecovery> {
   const start = new Date(now);
@@ -273,7 +274,7 @@ export function regionRecovery(
     const t = new Date(w.created_at).getTime();
     if (!(t >= startMs)) continue;
     for (const ex of w.exercises) {
-      if (!(completedVolume(ex) > 0)) continue;
+      if (!(effectiveVolume(ex, load) > 0)) continue;
       const weights = lookup(ex);
       for (const region in weights) {
         if (weights[region]! >= PRIMARY_WORK_WEIGHT && !((last[region] ?? 0) >= t)) last[region] = t;
