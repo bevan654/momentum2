@@ -121,7 +121,17 @@ function FoodLoggerScreen() {
   }, [userId, selectedDate]);
 
   // Tap entry → open detail modal
+  // Clear the edited entry after the close animation; cancel that if another entry opens first,
+  // or the new one would be wiped and the editor would show nothing.
+  const clearEditTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null); // React.useRef: the redesign drops the named import
+  const clearEditEntrySoon = useCallback(() => {
+    if (clearEditTimer.current) clearTimeout(clearEditTimer.current);
+    clearEditTimer.current = setTimeout(() => setEditEntry(null), 350);
+  }, []);
+  useEffect(() => () => { if (clearEditTimer.current) clearTimeout(clearEditTimer.current); }, []);
+
   const handlePressEntry = useCallback((entry: FoodEntry) => {
+    if (clearEditTimer.current) clearTimeout(clearEditTimer.current);
     setEditEntry(entry);
     setEditDetailVisible(true);
   }, []);
@@ -162,19 +172,19 @@ function FoodLoggerScreen() {
 
   const handleEditDismiss = useCallback(() => {
     setEditDetailVisible(false);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, []);
 
   // When edit detail saves, update the existing entry instead of creating new
   const handleEditSaved = useCallback(() => {
     setEditDetailVisible(false);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, []);
 
   const handleDeleteEntry = useCallback((id: string) => {
     setEditDetailVisible(false);
     deleteEntry(id);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, [deleteEntry]);
 
   // Meal group handlers
@@ -251,6 +261,7 @@ function FoodLoggerScreen() {
         food={editDetailData}
         initialMealSlot={editEntry?.meal_type || 'breakfast'}
         initialIsPlanned={editEntry?.is_planned || false}
+        initialQuantity={editEntry?.quantity || 1}
         onDismiss={handleEditDismiss}
         onAdded={handleEditSaved}
         editEntryId={editEntry?.id}
