@@ -29,6 +29,7 @@ import { supabase } from '../../lib/supabase';
 import type { FoodCatalogItem, FoodEntry } from '../../stores/useFoodLogStore';
 import FoodDetailModal from './FoodDetailModal';
 import type { FoodDetailData, MealItemData } from './FoodDetailModal';
+import { useLayerBackHandler } from '../ui/Portal';
 
 /* ─── Props ────────────────────────────────────────────── */
 
@@ -42,6 +43,8 @@ interface Props {
   mealSlot: string;
   targetHour?: number;
   onDismiss: () => void;
+  /** For screen-level use: Android back only closes this while it returns true (e.g. tab focused). */
+  isBackActive?: () => boolean;
   onLogged: () => void;
   initialMeal?: SavedMeal | null;
   /** When editing a logged meal group, pass the group ID */
@@ -135,7 +138,7 @@ const CatalogRow = React.memo(function CatalogRow({ item, onSelect, s, c }: Cata
 /* ─── Main component ───────────────────────────────────── */
 
 export default function CreateMealModal({
-  visible, mealSlot, targetHour, onDismiss, onLogged, initialMeal,
+  visible, mealSlot, targetHour, onDismiss, isBackActive, onLogged, initialMeal,
   editMealGroupId, editMealGroupEntries,
 }: Props) {
   const colors = useColors();
@@ -147,6 +150,10 @@ export default function CreateMealModal({
   useEffect(() => {
     progress.value = visible ? 1 : 0;
   }, [visible]);
+
+  // Android back closes only this screen, not the whole Add Food sheet underneath.
+  useLayerBackHandler(visible, onDismiss, isBackActive);
+
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
