@@ -27,6 +27,7 @@ import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useRankStore } from '../stores/useRankStore';
+import { useWeightStore } from '../stores/useWeightStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import { useRoutineStore } from '../stores/useRoutineStore';
 const Tab = createMaterialTopTabNavigator();
@@ -247,7 +248,10 @@ export default function TabNavigator() {
       useWorkoutStore.getState().fetchExerciseCatalog(userId);
       useWorkoutStore.getState().fetchPrevData(userId);
       useRankStore.getState().loadRank(userId);
-      useRankStore.getState().computeRank(userId);
+      // Ranks score with the latest weigh-in, so compute them once the weight has loaded.
+      useWeightStore.getState().fetchWeightData(userId)
+        .catch(() => {})
+        .then(() => useRankStore.getState().computeRank(userId));
       useProgramStore.getState().fetchPrograms(userId);
       useRoutineStore.getState().fetchRoutines(userId);
       useFriendsStore.getState().fetchBlockedIds(userId);

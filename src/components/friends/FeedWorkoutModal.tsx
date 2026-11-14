@@ -11,6 +11,8 @@ import { useRoutineStore } from '../../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import Sheet from '../ui/Sheet';
+import { confirmReplaceWorkout } from '../../utils/confirmReplaceWorkout';
+import { resolveLoadType } from '../../utils/muscleLoad';
 
 interface Props {
   item: ActivityFeedItem | null;
@@ -37,6 +39,25 @@ function formatDate(isoString: string): string {
   const min = d.getMinutes().toString().padStart(2, '0');
   const ampm = d.getHours() >= 12 ? 'PM' : 'AM';
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} \u00b7 ${h}:${min} ${ampm}`;
+}
+
+type CatalogTypes = Readonly<Record<string, { exercise_type?: string | null } | undefined>>;
+
+/**
+ * A posted exercise's type: the post's own, else the catalog's, else weighted. Normalised the way
+ * the app reads workout rows (resolveLoadType): legacy spellings are mapped, and a posted
+ * 'weighted' (what older builds stored for everything) gives way to a bodyweight catalog type.
+ */
+function postedExerciseType(name: string, postedType: string | null | undefined, catalogMap: CatalogTypes): string {
+  return resolveLoadType(postedType, catalogMap[name]?.exercise_type);
+}
+
+/**
+ * kg to prefill as a target. Assisted sets store the assistance as negative kg, which the set
+ * row can't take as input, so a negative weight prefills nothing (0).
+ */
+function targetKg(kg: number): number {
+  return kg > 0 ? kg : 0;
 }
 
 /* ── Thin wrapper — always mounted, toggles Sheet visibility ── */
@@ -82,8 +103,8 @@ function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss
       default_reps: ex.best_reps || 10,
       default_rest_seconds: 90,
       set_reps: ex.sets.length > 0 ? ex.sets.map((s) => s.reps) : [],
-      set_weights: ex.sets.length > 0 ? ex.sets.map((s) => s.kg) : [],
-      exercise_type: 'weighted',
+      set_weights: ex.sets.length > 0 ? ex.sets.map((s) => targetKg(s.kg)) : [],
+      exercise_type: postedExerciseType(ex.name, ex.exercise_type, catalogMap),
     }));
     const { error } = await createRoutine(
       userId,
@@ -95,16 +116,16 @@ function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss
     } else {
       Alert.alert('Saved', 'Routine saved to My Routines');
     }
-  }, [userId, exercises, displayName, createRoutine]);
+  }, [userId, exercises, displayName, createRoutine, catalogMap]);
 
   const handleTryWorkout = useCallback(() => {
     const ghostPrevMap: Record<string, { kg: number; reps: number }[]> = {};
     for (const ex of exercises) {
       if (ex.sets && ex.sets.length > 0) {
-        ghostPrevMap[ex.name] = ex.sets.map((s) => ({ kg: s.kg, reps: s.reps }));
+        ghostPrevMap[ex.name] = ex.sets.map((s) => ({ kg: targetKg(s.kg), reps: s.reps }));
       } else if (ex.best_kg > 0 || ex.best_reps > 0) {
         ghostPrevMap[ex.name] = Array.from({ length: ex.sets_count || 3 }, () => ({
-          kg: ex.best_kg,
+          kg: targetKg(ex.best_kg),
           reps: ex.best_reps,
         }));
       }
@@ -114,13 +135,15 @@ function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss
       exercises: exercises.map((ex) => ({
         name: ex.name,
         default_sets: ex.sets_count || 3,
-        exercise_type: 'weighted',
+        exercise_type: postedExerciseType(ex.name, ex.exercise_type, catalogMap),
       })),
     };
     // Close this sheet first and start the workout once its close animation has
     // played, so the workout sheet doesn't open underneath it.
-    onDismiss();
-    setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, displayName), 350);
+    confirmReplaceWorkout(() => {
+      onDismiss();
+      setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, displayName), 350);
+    });
   }, [item.id, exercises, startFromRoutine, catalogMap, onDismiss, displayName]);
 
   return (
@@ -215,34 +238,38 @@ function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss: 
       default_reps: ex.best_reps || 10,
       default_rest_seconds: 90,
       set_reps: ex.sets.length > 0 ? ex.sets.map((s) => s.reps) : [],
-      set_weights: ex.sets.length > 0 ? ex.sets.map((s) => s.kg) : [],
-      exercise_type: 'weighted',
+      set_weights: ex.sets.length > 0 ? ex.sets.map((s) => targetKg(s.kg)) : [],
+      exercise_type: postedExerciseType(ex.name, ex.exercise_type, catalogMap),
     }));
     const { error } = await createRoutine(userId, `${displayName}'s Workout`, routineExercises);
     if (error) Alert.alert('Error', error);
     else Alert.alert('Saved', 'Routine saved to My Routines');
-  }, [userId, exercises, displayName, createRoutine]);
+  }, [userId, exercises, displayName, createRoutine, catalogMap]);
 
   const startChallenge = useCallback((targetName: string, targetExercises: { name: string; sets: { kg: number; reps: number }[] }[]) => {
     const ghostPrevMap: Record<string, { kg: number; reps: number }[]> = {};
     for (const ex of targetExercises) {
       if (ex.sets && ex.sets.length > 0) {
-        ghostPrevMap[ex.name] = ex.sets.map((s) => ({ kg: s.kg, reps: s.reps }));
+        ghostPrevMap[ex.name] = ex.sets.map((s) => ({ kg: targetKg(s.kg), reps: s.reps }));
       }
     }
+    // Ghost exercises carry no type; the post's own exercise of the same name does.
+    const postedTypes = new Map(exercises.map((ex) => [ex.name, ex.exercise_type]));
     const routine = {
       id: `feed-ghost-${item.id}`,
       exercises: targetExercises.map((ex) => ({
         name: ex.name,
         default_sets: ex.sets.length || 3,
-        exercise_type: 'weighted',
+        exercise_type: postedExerciseType(ex.name, postedTypes.get(ex.name), catalogMap),
       })),
     };
     // Close this sheet first and start the workout once its close animation has
     // played, so the workout sheet doesn't open underneath it.
-    onDismiss();
-    setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, targetName), 350);
-  }, [item.id, startFromRoutine, catalogMap, onDismiss]);
+    confirmReplaceWorkout(() => {
+      onDismiss();
+      setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, targetName), 350);
+    });
+  }, [item.id, exercises, startFromRoutine, catalogMap, onDismiss]);
 
   const [showPicker, setShowPicker] = useState(false);
 

@@ -15,6 +15,7 @@ import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import RoutineCard from '../components/workouts/RoutineCard';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
+import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
 
 const DISMISS_THRESHOLD = 120;
 const VELOCITY_THRESHOLD = 800;
@@ -280,8 +281,10 @@ export default function StartWorkoutScreen() {
                 onPlay={() => {
                   // Dismiss the Plans transparent-modal stack first — iOS rejects
                   // presenting ActiveWorkoutSheet's Modal while another modal is on top.
-                  dismiss();
-                  setTimeout(() => startFromRoutine(routine, catalogMap, prevMap), 350);
+                  confirmReplaceWorkout(() => {
+                    dismiss();
+                    setTimeout(() => startFromRoutine(routine, catalogMap, prevMap), 350);
+                  });
                 }}
                 onDelete={async () => {
                   const { error } = await deleteRoutine(routine.id);

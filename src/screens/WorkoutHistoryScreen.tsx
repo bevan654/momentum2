@@ -71,6 +71,7 @@ import {
   CANONICAL_TO_SVG_SLUG,
   CANONICAL_MUSCLES,
 } from '../constants/muscles';
+import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
 
 const SLUG_GROUP: Record<string, string> = (() => {
   const map: Record<string, string> = {};
@@ -766,7 +767,7 @@ function WorkoutHistoryScreen() {
           <Text style={styles.actionBtnLabel}>History</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtnAccent} activeOpacity={0.7} onPress={() => startEmptyWorkout()}>
+        <TouchableOpacity style={styles.actionBtnAccent} activeOpacity={0.7} onPress={() => confirmReplaceWorkout(startEmptyWorkout)}>
           <Ionicons name="add" size={ms(18)} color={colors.textOnAccent} />
           <Text style={styles.actionBtnAccentLabel}>Start Empty</Text>
         </TouchableOpacity>
