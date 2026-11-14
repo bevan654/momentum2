@@ -103,9 +103,15 @@ export default function CreateRoutineScreen() {
   }, []);
 
   // Muscles targeted: each region's summed weight across the routine, against the largest.
-  // Regions only worked as a secondary muscle stay below the glow.
+  // Regions only worked as a secondary muscle stay below the glow. The values depend only on the
+  // exercises' names and categories, so they're keyed on those: editing a set keeps the same
+  // object and the maps don't redraw on every keystroke.
   const regionLookup = useRegionWeightLookup();
-  const summaryValues = useMemo(() => relativeValues(regionEmphasis(exercises, regionLookup)), [exercises, regionLookup]);
+  const muscleKey = exercises.map((ex) => `${ex.name}\u0000${ex.category ?? ''}`).join('\u0001');
+  const summaryValues = useMemo(
+    () => relativeValues(regionEmphasis(exercises, regionLookup)),
+    [muscleKey, regionLookup],
+  );
   const summaryMapColors = useMuscleMapColors();
 
   const handleAddExercise = useCallback((name: string, exerciseType: string, category: string | null) => {
