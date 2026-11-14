@@ -67,7 +67,7 @@ This project is a continuation of an app built with an older model, so expect bu
     ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
     ├── lib/                   # supabase, friendsDatabase, catalogDatabase, navigationBridge
     ├── theme/                 # useColors.ts, responsive.ts, typography.ts
-    ├── utils/                 # barcodeApi, displayName, exerciseCatalog, exerciseProgress, muscleLoad (effective load for heat/recovery), muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, workoutStorage
+    ├── utils/                 # barcodeApi, displayName, exerciseCatalog, exerciseProgress, muscleLoad (effective load for heat/recovery), muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutStorage
     ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights)
     └── constants/             # buildInfo, changelog, muscles, muscleMap (body-map config + heat/recovery reference values, bodyweight fractions), muscleMapLabels
 
@@ -171,7 +171,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | Store | Persistence | Responsibility |
 |---|---|---|
 | `useAuthStore` | Supabase Auth + SecureStore | Session, profile CRUD, email verification, beta-welcome flag |
-| `useActiveWorkoutStore` | AsyncStorage + Supabase | Active workout state, sets, rest timer, finish → DB write (largest store, ~1.2k LOC) |
+| `useActiveWorkoutStore` | AsyncStorage + Supabase | Active workout state, sets, rest timer, finish → one `upsert_workout` RPC keyed by the workout's client-generated id (payload built in `utils/workoutPayload.ts`), Undo reopens under the same id (largest store, ~1.4k LOC) |
 | `useWorkoutStore` | Supabase + AsyncStorage (24h) | History, exercise catalog cache, previous-set lookups |
 | `useRegionTargetsStore` | Supabase + AsyncStorage (24h) | Body-map region weights per catalog exercise (`exercise_region_targets`); empty while the table isn't deployed |
 | `useRoutineStore` | Supabase | Saved routines + exercises |
@@ -239,6 +239,7 @@ Key columns:
 - `food_entries`: macros + 14 micronutrients, `meal_type`, `quantity`, `is_planned`
 - `sets`: `kg`, `reps`, `set_type` (working/warmup/drop/failure), `parent_set_number` (drop-set link); optional `rir`, `completed_at`, `rest_seconds`, `target_kg`/`target_reps`/`target_source`, `side` (left/right, one row per side), `duration_seconds`, `distance_m`
 - `workouts`: `duration` (seconds; 0 = unknown), `program_id`/`program_week`; optional `started_at`/`ended_at`, `timezone`/`utc_offset_min`, `program_day_of_week`/`program_day_label`, `routine_id`, `bodyweight_kg`, `source`
+- Saving: the app writes a workout through `upsert_workout(p jsonb)` (one transaction, idempotent by the client-generated `workouts.id`; modes `create` / `replace` after Undo / `edit` from history, which keeps fields the editor doesn't show via each row's `orig_id`). Older builds still insert `workouts` → `exercises` → `sets` directly, so readers must handle both.
 - `exercises`: `name` is the stored identity; `catalog_id` / `user_exercise_id` are filled by the `exercises_link_identity` trigger (also for inserts from old app builds)
 - `profiles`: `username`, `height`, `age`, `gender`, `push_token`, privacy flags, beta flags
 - `exercises_catalog`: `id` is text; names are stored lowercase and equipment-first ("barbell bench press"). `primary_muscles`, `secondary_muscles`, `other_muscles` (legacy muscle names, see below), `equipment`, `difficulty`, `slug`, `is_main_lift`, `ranking_weight`; `is_hidden` (not offered in the picker, still resolves for history), `exercise_type` (NULL = derive from the bodyweight flags), `repdb_id`, `description`, `instructions`, `tips`, `is_unilateral`, `body_part`

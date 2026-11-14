@@ -29,6 +29,7 @@ import QuickAddModal from './QuickAddModal';
 import Sheet from '../ui/Sheet';
 import ReportSheet from '../friends/ReportSheet';
 import { supabase } from '../../lib/supabase';
+import { makeUuid } from '../../utils/uuid';
 
 /* ─── Props ──────────────────────────────────────────── */
 
@@ -790,16 +791,6 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   );
 }
 
-/** Generates a v4 UUID using the platform crypto when available, otherwise a Math.random fallback. */
-function makeUuid(): string {
-  const g = globalThis as { crypto?: { randomUUID?: () => string } };
-  if (g.crypto?.randomUUID) return g.crypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
 
 /* ─── Styles ─────────────────────────────────────────── */
 

@@ -31,8 +31,10 @@ const NO_EXERCISES: VolumeExercise[] = [];
 
 // ── Edit-mode types ──────────────────────────────────
 
-type EditSet = { kg: string; reps: string; completed: boolean; set_type: string };
-type EditExercise = { name: string; category: string | null; exercise_type?: string; sets: EditSet[] };
+// origId: the row's id before editing (saved workouts only), so the save keeps what the editor
+// doesn't show (set times, rest, targets, notes, supersets). parentOrigId: a drop set's parent.
+type EditSet = { kg: string; reps: string; completed: boolean; set_type: string; origId?: string; parentOrigId?: string | null };
+type EditExercise = { name: string; category: string | null; exercise_type?: string; sets: EditSet[]; origId?: string };
 
 type Props = {
   onDismiss: () => void;
@@ -739,11 +741,16 @@ export default function WorkoutSummaryModal(props: Props) {
         name: ex.name,
         category: ex.category,
         exercise_type: ex.exercise_type,
+        origId: ex.id,
         sets: ex.sets.map((s) => ({
           kg: String(s.kg),
           reps: String(s.reps),
           completed: s.completed,
           set_type: s.set_type || 'working',
+          origId: s.id,
+          parentOrigId: s.parent_set_number != null
+            ? ex.sets.find((p) => p.set_number === s.parent_set_number)?.id ?? null
+            : null,
         })),
       }));
     }
@@ -812,57 +819,37 @@ export default function WorkoutSummaryModal(props: Props) {
 
       const newTotalSets = cleanedExercises.reduce((n, ex) => n + ex.sets.length, 0);
 
-      // 1. Update workout row
-      const { error: wErr } = await supabase
-        .from('workouts')
-        .update({
+      // 1. Save in one transaction (upsert_workout, mode 'edit'). Rows keep their
+      //    origId, so the set times, rest, targets, notes and supersets the editor
+      //    doesn't show survive the edit.
+      const { error: saveErr } = await supabase.rpc('upsert_workout', {
+        p: {
+          id: workoutId,
+          mode: 'edit',
           duration: editDuration,
           total_exercises: cleanedExercises.length,
           total_sets: newTotalSets,
-        })
-        .eq('id', workoutId);
-
-      if (wErr) throw wErr;
-
-      // 2. Delete existing exercises (sets cascade via FK)
-      const { error: delErr } = await supabase
-        .from('exercises')
-        .delete()
-        .eq('workout_id', workoutId);
-
-      if (delErr) throw delErr;
-
-      // 3. Re-insert exercises + sets
-      for (let i = 0; i < cleanedExercises.length; i++) {
-        const ex = cleanedExercises[i];
-        const exerciseType = catalogMap[ex.name]?.exercise_type || 'weighted';
-
-        const { data: exData, error: exErr } = await supabase
-          .from('exercises')
-          .insert({
-            workout_id: workoutId,
+          exercises: cleanedExercises.map((ex) => ({
             name: ex.name,
-            exercise_order: i + 1,
-            exercise_type: exerciseType,
-          })
-          .select('id')
-          .single();
-
-        if (exErr || !exData) continue;
-
-        const setRows = ex.sets.map((s, j) => ({
-          exercise_id: exData.id,
-          set_number: j + 1,
-          kg: parseFloat(s.kg) || 0,
-          reps: parseInt(s.reps, 10) || 0,
-          completed: s.completed,
-          set_type: s.set_type,
-        }));
-
-        if (setRows.length > 0) {
-          await supabase.from('sets').insert(setRows);
-        }
-      }
+            orig_id: ex.origId ?? null,
+            // The exercise's own type; the catalog's only for an exercise added in the editor
+            exercise_type: ex.exercise_type || catalogMap[ex.name]?.exercise_type || 'weighted',
+            sets: ex.sets.map((s, j) => {
+              const parentPos = s.parentOrigId ? ex.sets.findIndex((p) => p.origId === s.parentOrigId) : -1;
+              return {
+                set_number: j + 1,
+                kg: parseFloat(s.kg) || 0,
+                reps: parseInt(s.reps, 10) || 0,
+                completed: s.completed,
+                set_type: s.set_type,
+                parent_set_number: parentPos >= 0 ? parentPos + 1 : null,
+                orig_id: s.origId ?? null,
+              };
+            }),
+          })),
+        },
+      });
+      if (saveErr) throw saveErr;
 
       // 4. Update activity_feed
       const newVolume = Math.round(
