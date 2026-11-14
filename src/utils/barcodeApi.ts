@@ -39,7 +39,8 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeResult> {
   const servingSize = hasServingQty
     ? rawServingQty
     : parsedText ?? 100;
-  const servingUnit = p.serving_quantity_unit || 'g';
+  const textIsMl = !hasServingQty && parsedText != null && /\d\s*ml\b/i.test(String(p.serving_size));
+  const servingUnit = p.serving_quantity_unit || (textIsMl ? 'ml' : 'g');
   // A real serving size is known if OFF gives a quantity or the serving text parses.
   const hasServingSize = hasServingQty || parsedText != null;
 
@@ -264,16 +265,11 @@ function optNum(v: unknown, scale = 1): number | null {
  *  Handles formats like "72 g", "72g", "1 can (72g)", "100 ml", etc. */
 function parseServingSizeText(text: unknown): number | null {
   if (typeof text !== 'string' || !text) return null;
-  // Try to match a number followed by g/ml
-  const m = text.match(/(\d+(?:\.\d+)?)\s*(?:g|ml)\b/i);
+  // Only trust a number with a g/ml unit ("30 g", "1 can (330 ml)", "12,5 g"). A bare count
+  // like "2 biscuits" or "1 cup" isn't a weight, so leave the serving as an estimated 100 g.
+  const m = text.match(/(\d+(?:[.,]\d+)?)\s*(?:g|ml)\b/i);
   if (m) {
-    const n = Number(m[1]);
-    if (Number.isFinite(n) && n > 0) return n;
-  }
-  // Fallback: just grab the first number in the string
-  const m2 = text.match(/(\d+(?:\.\d+)?)/);
-  if (m2) {
-    const n = Number(m2[1]);
+    const n = Number(m[1].replace(',', '.'));
     if (Number.isFinite(n) && n > 0) return n;
   }
   return null;
