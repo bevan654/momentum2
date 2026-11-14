@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toLocalDateString } from '../utils/localDate';
 
 const CONFIGS_KEY = '@momentum_supplement_configs';
 
@@ -49,11 +50,6 @@ const DEFAULT_CONFIGS: SupplementConfig[] = [
 ];
 
 /* ─── Helpers ─────────────────────────────────────────── */
-
-function todayDate() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
 
 function mapRowToConfig(row: any): SupplementConfig {
   return {
@@ -231,7 +227,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   /* ─── Data fetching ─────────────────────────────────── */
 
   fetchTodaySupplements: async (userId: string) => {
-    const date = todayDate();
+    const date = toLocalDateString();
     const { data } = await supabase
       .from('supplement_entries')
       .select('type, amount')
@@ -290,18 +286,18 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       user_id: userId,
       type: 'water',
       amount: ml,
-      date: todayDate(),
+      date: toLocalDateString(),
     });
 
     if (error) {
       set((s) => ({ water: s.water - ml }));
     } else {
-      get().fetchDateSupplements(userId, todayDate());
+      get().fetchDateSupplements(userId, toLocalDateString());
     }
   },
 
   undoLastWater: async (userId: string) => {
-    const date = todayDate();
+    const date = toLocalDateString();
     const { data } = await supabase
       .from('supplement_entries')
       .select('id, amount')
@@ -325,7 +321,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     if (error) {
       set((s) => ({ water: s.water + amount }));
     } else {
-      get().fetchDateSupplements(userId, todayDate());
+      get().fetchDateSupplements(userId, toLocalDateString());
     }
   },
 
@@ -343,7 +339,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       user_id: userId,
       type: key,
       amount,
-      date: todayDate(),
+      date: toLocalDateString(),
     });
 
     if (error) {
@@ -354,7 +350,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
         },
       }));
     } else {
-      get().fetchDateSupplements(userId, todayDate());
+      get().fetchDateSupplements(userId, toLocalDateString());
     }
   },
 
@@ -368,7 +364,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .from('supplement_entries')
       .delete()
       .eq('user_id', userId)
-      .eq('date', todayDate())
+      .eq('date', toLocalDateString())
       .eq('type', key);
 
     if (error) {
@@ -376,7 +372,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
         supplementTotals: { ...s.supplementTotals, [key]: prev },
       }));
     } else {
-      get().fetchDateSupplements(userId, todayDate());
+      get().fetchDateSupplements(userId, toLocalDateString());
     }
   },
 

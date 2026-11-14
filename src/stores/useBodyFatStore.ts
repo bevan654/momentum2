@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { toLocalDateString } from '../utils/localDate';
 
 export type BodyFatMethod = 'tape' | 'calipers' | 'bia' | 'bod_pod' | 'dexa';
 
@@ -55,7 +56,7 @@ export const useBodyFatStore = create<BodyFatState>((set, get) => ({
     try {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
-      const fromDate = cutoff.toISOString().split('T')[0];
+      const fromDate = toLocalDateString(cutoff); // entries are stored under the local date
 
       const { data } = await supabase
         .from('body_fat_entries')
@@ -88,8 +89,7 @@ export const useBodyFatStore = create<BodyFatState>((set, get) => ({
   },
 
   logBodyFat: async (userId: string, value: number, method: BodyFatMethod, days = 365) => {
-    const today = new Date();
-    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const date = toLocalDateString();
 
     const { error } = await supabase.from('body_fat_entries').insert({
       user_id: userId,

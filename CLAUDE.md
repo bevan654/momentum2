@@ -72,7 +72,7 @@ This project is a continuation of an app built with an older model, so expect bu
     ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
     ├── lib/                   # supabase, friendsDatabase, catalogDatabase, navigationBridge
     ├── theme/                 # useColors.ts, responsive.ts, typography.ts
-    ├── utils/                 # barcodeApi, displayName, exerciseCatalog, exerciseProgress, muscleLoad (effective load for heat/recovery), muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutStorage
+    ├── utils/                 # barcodeApi, displayName, exerciseCatalog, exerciseProgress, localDate (local YYYY-MM-DD), muscleLoad (effective load for heat/recovery), muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutStorage
     ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights)
     └── constants/             # buildInfo, changelog, muscles, muscleMap (body-map config + heat/recovery reference values, bodyweight fractions), muscleMapLabels
 

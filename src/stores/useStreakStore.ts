@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { fetchWorkoutDates, getUserStreak, upsertUserStreak } from '../lib/friendsDatabase';
 import { calculateStreak } from '../utils/streakCalculator';
+import { toLocalDateString } from '../utils/localDate';
 
 interface StreakState {
   currentStreak: number;
@@ -8,14 +9,6 @@ interface StreakState {
   loaded: boolean;
   initStreak: (userId: string) => Promise<void>;
   refreshStreak: (userId: string) => Promise<void>;
-}
-
-function todayDateString(): string {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
 }
 
 export const useStreakStore = create<StreakState>((set, get) => ({
@@ -42,7 +35,7 @@ export const useStreakStore = create<StreakState>((set, get) => ({
 
   refreshStreak: async (userId: string) => {
     const dates = await fetchWorkoutDates(userId);
-    const today = todayDateString();
+    const today = toLocalDateString();
     const result = calculateStreak(dates, today);
 
     // Persist to DB (fire-and-forget)

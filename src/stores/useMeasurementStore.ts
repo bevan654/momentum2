@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { toLocalDateString } from '../utils/localDate';
 
 export type PumpState = 'no_pump' | 'pumped';
 
@@ -83,7 +84,7 @@ export const useMeasurementStore = create<MeasurementState>((set, get) => ({
     try {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
-      const fromDate = cutoff.toISOString().split('T')[0];
+      const fromDate = toLocalDateString(cutoff); // entries are stored under the local date
 
       let query = supabase
         .from('measurement_entries')
@@ -134,8 +135,7 @@ export const useMeasurementStore = create<MeasurementState>((set, get) => ({
     pumpState: PumpState,
     days = 30,
   ) => {
-    const today = new Date();
-    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const date = toLocalDateString();
 
     const { error } = await supabase.from('measurement_entries').insert({
       user_id: userId,

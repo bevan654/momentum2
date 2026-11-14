@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useNutritionStore } from './useNutritionStore';
 import { useFoodLogStore } from './useFoodLogStore';
+import { toLocalDateString } from '../utils/localDate';
 
 const ENABLED_KEY = 'protein_powder_enabled';
 
@@ -39,11 +40,6 @@ const DEFAULT_POWDER = {
 };
 
 /* ─── Helpers ──────────────────────────────────────────── */
-
-function todayDate() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
 
 function syncNutrition(userId: string) {
   useNutritionStore.getState().fetchTodayNutrition(userId);
@@ -131,7 +127,7 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
   },
 
   fetchTodayScoops: async (userId: string) => {
-    const date = todayDate();
+    const date = toLocalDateString();
     try {
       const { data, error } = await supabase
         .from('protein_powder_log')
@@ -295,7 +291,7 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
           powder_id: powder.id,
           food_entry_id: foodEntry.id,
           amount,
-          date: todayDate(),
+          date: toLocalDateString(),
         })
         .select('id, powder_id, food_entry_id, amount, date, created_at')
         .single();
