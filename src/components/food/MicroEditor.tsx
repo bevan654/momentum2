@@ -33,8 +33,8 @@ const MicroInputRow = React.memo(function MicroInputRow({
       <TextInput
         style={styles.input}
         value={row.value}
-        onChangeText={(v) => onChange(row.key, v)}
-        keyboardType="decimal-pad"
+        onChangeText={(v) => onChange(row.key, v.replace(',', '.'))}
+        keyboardType="numeric"
         keyboardAppearance={keyboard}
         placeholder="0"
         placeholderTextColor={placeholderColor}

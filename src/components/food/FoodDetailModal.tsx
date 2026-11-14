@@ -366,8 +366,8 @@ export default function FoodDetailModal({
           <TextInput
             style={s.energyInput}
             value={energyUnit === 'kcal' ? customCal : displayEnergy}
-            onChangeText={handleEnergyChange}
-            keyboardType="decimal-pad"
+            onChangeText={(v) => handleEnergyChange(v.replace(',', '.'))}
+            keyboardType="numeric"
             keyboardAppearance={isDark ? 'dark' : 'light'}
             placeholder="0"
             placeholderTextColor={colors.textTertiary}
