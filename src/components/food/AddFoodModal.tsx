@@ -25,6 +25,7 @@ import AddFoodActions from './AddFoodActions';
 import AddFoodResults, { type AddFoodTab } from './AddFoodResults';
 import { useAiFoodSearch } from './useAiFoodSearch';
 import { catalogToDetail } from './foodMapping';
+import { findMealConfig } from './groupEntriesByMeal';
 
 interface Props {
   visible: boolean;
@@ -57,7 +58,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const recentFoods = useFoodLogStore((st) => st.recentFoods);
   const popularFoods = useFoodLogStore((st) => st.popularFoods);
   const fetchDefaultFoods = useFoodLogStore((st) => st.fetchDefaultFoods);
-  const mealLabel = useFoodLogStore((st) => st.mealConfigs.find((m) => m.slot === mealSlot)?.label);
+  const mealLabel = useFoodLogStore((st) => findMealConfig(st.mealConfigs, mealSlot)?.label);
   const savedMeals = useSavedMealsStore((st) => st.meals);
   const loadSavedMeals = useSavedMealsStore((st) => st.loadMeals);
   const favourites = useFavouritesStore((st) => st.favourites);

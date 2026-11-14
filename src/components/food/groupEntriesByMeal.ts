@@ -20,6 +20,21 @@ export interface MealBucket {
 /** Bucket for entries whose meal_type matches no enabled meal (old data, a disabled meal). */
 export const OTHER_SLOT = '__other';
 
+const nameKey = (s: string) => s.trim().toLowerCase().replace(/s$/, '');
+
+/**
+ * The meal config an entry's meal_type belongs to. Matches the slot first, then the meal's
+ * name: many users' meals are stored as meal_1…meal_8 labelled "Breakfast", "Lunch",
+ * "Snacks"…, while food is often saved as breakfast / lunch / snack / dinner.
+ */
+export function findMealConfig(configs: MealConfig[], mealType: string): MealConfig | undefined {
+  return configs.find((c) => c.slot === mealType)
+    ?? configs.find((c) => nameKey(c.label) === nameKey(mealType));
+}
+
+/** Untouched placeholder meals ("Meal 5") are only shown when they have food. */
+const isPlaceholderMeal = (label: string) => /^meal \d+$/i.test(label.trim());
+
 /**
  * Splits a day's entries into one bucket per enabled meal (in the user's order), by each
  * entry's saved meal_type. Logged meals (meal_group_id) stay together as one item.
@@ -29,7 +44,6 @@ export function groupEntriesByMeal(entries: FoodEntry[], configs: MealConfig[]):
   const meals = configs
     .filter((c) => c.enabled)
     .sort((a, b) => a.sort_order - b.sort_order);
-  const known = new Set(meals.map((m) => m.slot));
 
   // A logged meal group stays in one card: the meal of its earliest entry.
   const groupSlot = new Map<string, string>();
@@ -40,15 +54,15 @@ export function groupEntriesByMeal(entries: FoodEntry[], configs: MealConfig[]):
   const bySlot = new Map<string, FoodEntry[]>();
   for (const e of entries) {
     const type = (e.meal_group_id && groupSlot.get(e.meal_group_id)) || e.meal_type;
-    const slot = known.has(type) ? type : OTHER_SLOT;
+    const slot = findMealConfig(meals, type)?.slot ?? OTHER_SLOT;
     const list = bySlot.get(slot);
     if (list) list.push(e);
     else bySlot.set(slot, [e]);
   }
 
-  const buckets: MealBucket[] = meals.map((m) =>
-    makeBucket(m.slot, m.label, m.icon || 'restaurant-outline', m.time_start, bySlot.get(m.slot) || []),
-  );
+  const buckets: MealBucket[] = meals
+    .filter((m) => bySlot.has(m.slot) || !isPlaceholderMeal(m.label))
+    .map((m) => makeBucket(m.slot, m.label, m.icon || 'restaurant-outline', m.time_start, bySlot.get(m.slot) || []));
   const other = bySlot.get(OTHER_SLOT);
   if (other?.length) buckets.push(makeBucket(OTHER_SLOT, 'Other', 'ellipsis-horizontal-circle-outline', '12:00', other));
   return buckets;
