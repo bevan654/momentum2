@@ -403,7 +403,7 @@ Keep the codebase as clean and well-structured as possible. Every file should ha
 
 ## Pre-Commit Checklist
 
-- `npx tsc --noEmit` introduces no new errors. (There is a pre-existing baseline of type errors, partly because `supabase/functions` Deno code is included in the app tsconfig.)
+- `npx tsc --noEmit` introduces no new errors. (There is a pre-existing baseline of type errors in the app code. `supabase/functions` is Deno code and is excluded from the app tsconfig.)
 - No stray debug `console.log`s, commented-out blocks or unrelated changes in the diff.
 - If you added or changed migrations, update `database-schema.md` and tell the user they need to apply them.
 - Ask the user whether to add an entry to `src/constants/changelog.ts`. If yes, prepend a new entry with the next version, today's date and a user-facing summary. Skip purely internal changes (refactors, tooling) unless requested.
