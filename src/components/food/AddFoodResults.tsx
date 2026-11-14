@@ -21,7 +21,8 @@ type ListItem =
   | { kind: 'empty'; key: string; icon: React.ComponentProps<typeof Ionicons>['name']; title: string; subtitle?: string; loading?: boolean };
 
 interface Props {
-  query: string;
+  /** True while there's search text (results replace the tabs). */
+  searching: boolean;
   tab: AddFoodTab;
   loading: boolean;
   /** Search results to show (catalog + cached AI, or the Deep Search answer). */
@@ -36,14 +37,47 @@ interface Props {
   onSelectFood: (item: FoodCatalogItem) => void;
   onReportAi: (item: FoodCatalogItem) => void;
   onOpenSavedMeal: (meal: SavedMeal) => void;
+  /** Space under the last row (home indicator, floating Deep Search button). */
+  bottomPadding: number;
 }
 
 const RECENT_LIMIT = 5;
 
+interface RowProps {
+  item: FoodCatalogItem;
+  reportable: boolean;
+  onSelectFood: (item: FoodCatalogItem) => void;
+  onReportAi: (item: FoodCatalogItem) => void;
+  style: object;
+}
+
+/** A food row with stable handlers, so unchanged rows skip re-rendering. */
+const FoodListRow = React.memo(function FoodListRow({ item, reportable, onSelectFood, onReportAi, style }: RowProps) {
+  const handlePress = useCallback(() => onSelectFood(item), [item, onSelectFood]);
+  const handleLongPress = useCallback(() => onReportAi(item), [item, onReportAi]);
+  return (
+    <View style={style}>
+      <FoodRow
+        name={item.name}
+        subtitle={foodSubtitle(item)}
+        calories={item.calories}
+        protein={item.protein}
+        carbs={item.carbs}
+        fat={item.fat}
+        confidence={item.confidence}
+        onPress={handlePress}
+        onLongPress={reportable ? handleLongPress : undefined}
+        accessibilityHint={reportable ? 'Long press to report an inaccurate estimate' : undefined}
+        trailing={<FavouriteButton item={item} />}
+      />
+    </View>
+  );
+});
+
 /** Everything under the search bar, as one virtualised list (search results or a default tab). */
 function AddFoodResults({
-  query, tab, loading, results, aiMode, recentFoods, popularFoods, favourites, savedMeals,
-  header, onSelectFood, onReportAi, onOpenSavedMeal,
+  searching, tab, loading, results, aiMode, recentFoods, popularFoods, favourites, savedMeals,
+  header, onSelectFood, onReportAi, onOpenSavedMeal, bottomPadding,
 }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -52,7 +86,7 @@ function AddFoodResults({
     const foods = (prefix: string, items: FoodCatalogItem[], reportable = false): ListItem[] =>
       items.map((item, i) => ({ kind: 'food', key: `${prefix}-${item.id}-${i}`, item, reportable }));
 
-    if (query.length > 0) {
+    if (searching) {
       if (loading) return [{ kind: 'empty', key: 'loading', icon: 'search-outline', title: 'Searching…', loading: true }];
       if (results.length === 0) {
         return [{ kind: 'empty', key: 'none', icon: 'search-outline', title: 'No results found', subtitle: 'Try another name, scan the barcode, or use Quick add.' }];
@@ -80,7 +114,7 @@ function AddFoodResults({
       out.push({ kind: 'empty', key: 'nohome', icon: 'nutrition-outline', title: 'Search for a food to add', subtitle: 'Your recent and popular foods will show here.' });
     }
     return out;
-  }, [query, loading, results, aiMode, tab, recentFoods, popularFoods, favourites, savedMeals]);
+  }, [searching, loading, results, aiMode, tab, recentFoods, popularFoods, favourites, savedMeals]);
 
   const renderItem = useCallback(({ item }: { item: ListItem }) => {
     switch (item.kind) {
@@ -107,21 +141,13 @@ function AddFoodResults({
       }
       case 'food':
         return (
-          <View style={styles.gap}>
-            <FoodRow
-              name={item.item.name}
-              subtitle={foodSubtitle(item.item)}
-              calories={item.item.calories}
-              protein={item.item.protein}
-              carbs={item.item.carbs}
-              fat={item.item.fat}
-              confidence={item.item.confidence}
-              onPress={() => onSelectFood(item.item)}
-              onLongPress={item.reportable ? () => onReportAi(item.item) : undefined}
-              accessibilityHint={item.reportable ? 'Long press to report an inaccurate estimate' : undefined}
-              trailing={<FavouriteButton item={item.item} />}
-            />
-          </View>
+          <FoodListRow
+            item={item.item}
+            reportable={item.reportable}
+            onSelectFood={onSelectFood}
+            onReportAi={onReportAi}
+            style={styles.gap}
+          />
         );
     }
   }, [styles, colors, onSelectFood, onReportAi, onOpenSavedMeal]);
@@ -136,7 +162,7 @@ function AddFoodResults({
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={{ paddingBottom: bottomPadding }}
     />
   );
 }
@@ -145,9 +171,6 @@ export default React.memo(AddFoodResults);
 
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    content: {
-      paddingBottom: sw(40),
-    },
     section: {
       color: colors.textTertiary,
       fontSize: ms(11),

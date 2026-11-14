@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Platform, KeyboardAvoidingView, Alert, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -46,6 +47,7 @@ const TABS: SegmentOption<AddFoodTab>[] = [
 export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
 
   const userId = useAuthStore((st) => st.user?.id);
   const catalogResults = useFoodLogStore((st) => st.catalogResults);
@@ -194,7 +196,8 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
 
   /* ── List header: actions, tabs, banners ──────────── */
   const searching = query.length > 0;
-  const listHeader = (
+  const { showAiResults, hideAiResults, aiError } = ai;
+  const listHeader = useMemo(() => (
     <View style={s.listHeader}>
       {!searching && (
         <>
@@ -211,14 +214,14 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
           </Pressable>
         </View>
       )}
-      {searching && ai.showAiResults && (
+      {searching && showAiResults && (
         <View style={s.aiBox}>
           <View style={s.aiTop}>
             <View style={s.aiBadge}>
               <Ionicons name="sparkles" size={ms(11)} color={colors.accent} />
               <Text style={s.aiBadgeText}>AI estimates</Text>
             </View>
-            <Pressable onPress={ai.hideAiResults} hitSlop={8} accessibilityRole="button">
+            <Pressable onPress={hideAiResults} hitSlop={8} accessibilityRole="button">
               <Text style={s.aiBack}>Back to results</Text>
             </Pressable>
           </View>
@@ -228,14 +231,15 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
           </Text>
         </View>
       )}
-      {searching && !!ai.aiError && (
+      {searching && !!aiError && (
         <View style={[s.banner, s.bannerInfo]}>
           <Ionicons name="information-circle-outline" size={ms(15)} color={colors.textSecondary} />
-          <Text style={s.bannerText}>{ai.aiError}</Text>
+          <Text style={s.bannerText}>{aiError}</Text>
         </View>
       )}
     </View>
-  );
+  ), [s, colors, searching, tab, scanNotFound, showAiResults, hideAiResults, aiError,
+    handleOpenScanner, handleOpenLens, handleOpenQuickAdd, handleOpenCreateMeal]);
 
   const showDeepSearch = deepSearchEnabled && query.trim().length > 0 && !ai.showAiResults && !ai.aiSearching;
 
@@ -256,7 +260,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
         />
         <View style={s.flex}>
           <AddFoodResults
-            query={query}
+            searching={query.length > 0}
             tab={tab}
             loading={catalogLoading || ai.aiSearching}
             results={results}
@@ -269,19 +273,21 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
             onSelectFood={handleSelectFood}
             onReportAi={handleReportAi}
             onOpenSavedMeal={handleOpenSavedMeal}
+            bottomPadding={showDeepSearch ? sw(80) + insets.bottom : sw(40) + insets.bottom}
           />
+          {/* Inside the list's view, so it rises with the keyboard instead of hiding under it. */}
+          {showDeepSearch && (
+            <Pressable
+              style={({ pressed }) => [s.deepBtn, { bottom: sw(16) + insets.bottom }, pressed && s.pressed]}
+              onPress={ai.deepSearch}
+              accessibilityRole="button"
+              accessibilityLabel="Deep Search with AI"
+            >
+              <Ionicons name="sparkles" size={ms(15)} color={colors.textOnAccent} />
+              <Text style={s.deepText}>Deep Search</Text>
+            </Pressable>
+          )}
         </View>
-        {showDeepSearch && (
-          <Pressable
-            style={({ pressed }) => [s.deepBtn, pressed && s.pressed]}
-            onPress={ai.deepSearch}
-            accessibilityRole="button"
-            accessibilityLabel="Deep Search with AI"
-          >
-            <Ionicons name="sparkles" size={ms(15)} color={colors.textOnAccent} />
-            <Text style={s.deepText}>Deep Search</Text>
-          </Pressable>
-        )}
       </KeyboardAvoidingView>
 
       {detailVisible && (
@@ -414,7 +420,6 @@ const createStyles = (colors: ThemeColors) =>
     deepBtn: {
       position: 'absolute',
       alignSelf: 'center',
-      bottom: sw(20),
       flexDirection: 'row',
       alignItems: 'center',
       gap: sw(7),

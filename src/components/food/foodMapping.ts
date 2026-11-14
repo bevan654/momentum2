@@ -69,6 +69,7 @@ export function catalogToDetail(item: FoodCatalogItem): FoodDetailData {
     serving_size: item.serving_size,
     serving_unit: item.serving_unit,
     confidence: item.confidence,
+    caffeine: item.caffeine,
   };
   for (const k of MICRO_KEYS) (data as unknown as Row)[k] = item[k];
   return data;
@@ -92,7 +93,7 @@ export function savedMealTotals(meal: SavedMeal) {
   return { calories, protein, carbs, fat };
 }
 
-/** Strip characters that break a PostgREST `.or()` filter (commas, brackets, quotes). */
+/** Strip characters that break a PostgREST `.or()` filter (commas, brackets, double quotes, wildcards). Apostrophes are fine ("mcdonald's"). */
 export function sanitizeForOrFilter(text: string): string {
-  return text.replace(/[,()"'\\%*]/g, ' ').replace(/\s+/g, ' ').trim();
+  return text.replace(/[,()"\\%*]/g, ' ').replace(/\s+/g, ' ').trim();
 }
