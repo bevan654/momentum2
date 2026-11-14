@@ -37,6 +37,14 @@ function generateGroupId(): string {
   return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-${hex()}-${hex()}${hex()}${hex()}`;
 }
 
+/** Micronutrients the meal editor doesn't show; kept from the original entries when editing. */
+const KEPT_MICRO_KEYS = [
+  'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k', 'vitamin_b6', 'vitamin_b12',
+  'folate', 'calcium', 'iron', 'magnesium', 'potassium', 'zinc', 'sodium', 'caffeine',
+] as const;
+
+const round = (v: number, factor: number) => Math.round(v * factor) / factor;
+
 interface Props {
   visible: boolean;
   mealSlot: string;
@@ -408,22 +416,17 @@ export default function CreateMealModal({
     const groupId = editMealGroupId || generateGroupId();
     const groupName = mealName.trim() || 'Meal';
 
-    // If editing an existing group, delete old entries first
-    if (editMealGroupId) {
-      const { error: delErr } = await supabase
-        .from('food_entries')
-        .delete()
-        .eq('meal_group_id', editMealGroupId);
-      if (delErr) {
-        console.error('[CreateMeal] Delete old group error:', delErr);
-        Alert.alert('Update Failed', delErr.message);
-        return;
-      }
-    }
+    // When editing a logged group, keep what the editor doesn't show (micronutrients,
+    // catalog link, planned flag, exact time) from the original entries.
+    const originals = new Map((editMealGroupId && editMealGroupEntries ? editMealGroupEntries : [])
+      .map((e) => [`item-${e.id}`, e]));
+    const firstOriginal = editMealGroupId ? editMealGroupEntries?.[0] : undefined;
 
     // Build created_at timestamp for the target date
     let createdAt: string;
-    if (selectedDate && targetHour != null) {
+    if (firstOriginal?.created_at) {
+      createdAt = firstOriginal.created_at;
+    } else if (selectedDate && targetHour != null) {
       createdAt = new Date(selectedDate + `T${String(targetHour).padStart(2, '0')}:00:00`).toISOString();
     } else if (selectedDate) {
       createdAt = new Date(selectedDate + 'T12:00:00').toISOString();
@@ -434,29 +437,40 @@ export default function CreateMealModal({
     // Build rows for a single batch insert
     const rows = items.map((item) => {
       const qty = item.quantity;
-      return {
+      const orig = originals.get(item.id);
+      const row: Record<string, unknown> = {
         user_id: userId,
         name: item.name,
-        calories: Math.round(item.calories * qty),
-        protein: Math.round(item.protein * qty),
-        carbs: Math.round(item.carbs * qty),
-        fat: Math.round(item.fat * qty),
+        // Kept items keep their stored precision; newly added items are rounded as before.
+        calories: orig ? round(item.calories * qty, 10) : Math.round(item.calories * qty),
+        protein: orig ? round(item.protein * qty, 10) : Math.round(item.protein * qty),
+        carbs: orig ? round(item.carbs * qty, 10) : Math.round(item.carbs * qty),
+        fat: orig ? round(item.fat * qty, 10) : Math.round(item.fat * qty),
         meal_type: mealSlot,
         brand: item.brand || null,
-        food_catalog_id: null,
+        food_catalog_id: orig?.food_catalog_id ?? null,
         serving_size: Number(item.serving_size) || 1,
         serving_unit: item.serving_unit || 'serving',
         quantity: qty,
         fiber: item.fiber != null ? Math.round(item.fiber * qty * 10) / 10 : null,
         sugar: item.sugar != null ? Math.round(item.sugar * qty * 10) / 10 : null,
-        is_planned: false,
+        is_planned: firstOriginal?.is_planned ?? false,
         created_at: createdAt,
         meal_group_id: groupId,
         meal_group_name: groupName,
       };
+      if (orig) {
+        const origQty = orig.quantity || 1;
+        for (const key of KEPT_MICRO_KEYS) {
+          const v = orig[key];
+          row[key] = v != null ? round((Number(v) / origQty) * qty, 100) : null;
+        }
+      }
+      return row;
     });
 
-    const { error } = await supabase.from('food_entries').insert(rows);
+    // Insert the new rows first, then remove the old ones, so a failure never loses the meal.
+    const { data: inserted, error } = await supabase.from('food_entries').insert(rows).select('id');
 
     if (error) {
       console.error('[CreateMeal] Supabase insert error:', error);
@@ -464,12 +478,25 @@ export default function CreateMealModal({
       return;
     }
 
+    if (editMealGroupId && originals.size > 0) {
+      const oldIds = [...originals.values()].map((e) => e.id);
+      const { error: delErr } = await supabase.from('food_entries').delete().in('id', oldIds);
+      if (delErr) {
+        // Undo the insert so the meal isn't duplicated.
+        const newIds = (inserted || []).map((r: { id: string }) => r.id);
+        if (newIds.length) await supabase.from('food_entries').delete().in('id', newIds);
+        console.error('[CreateMeal] Delete old group error:', delErr);
+        Alert.alert('Update Failed', delErr.message);
+        return;
+      }
+    }
+
     // Refetch entries from Supabase to update the view
     await fetchDayEntries(userId, selectedDate);
     // Sync HomeScreen nutrition
     useNutritionStore.getState().fetchTodayNutrition(userId);
     onLogged();
-  }, [userId, items, mealSlot, mealName, selectedDate, targetHour, editMealGroupId, fetchDayEntries, onLogged]);
+  }, [userId, items, mealSlot, mealName, selectedDate, targetHour, editMealGroupId, editMealGroupEntries, fetchDayEntries, onLogged]);
 
   /* ── Search display logic ───────────────────────────── */
   const showResults = query.length > 0 && catalogResults.length > 0;
