@@ -209,6 +209,8 @@ interface ActiveWorkoutState {
     programWeek: number,
   ) => void;
   discardWorkout: () => void;
+  /** True while Finish is saving; starts, discards and edits are ignored until it settles. */
+  isSaving: () => boolean;
   finishWorkout: (userId: string, durationOverride?: number) => Promise<{
     error: string | null;
     incompleteCount?: number;
@@ -425,6 +427,7 @@ async function _restoreSavedWorkout(
   let isResting = false;
   let restRemaining = 0;
   let restStartedAt: number | null = null;
+  let restTotal = 0;
   if (saved.restStartedAt) {
     const restElapsed = Math.floor((Date.now() - saved.restStartedAt) / 1000);
     const remaining = Math.max(0, saved.restDuration - restElapsed);
@@ -432,6 +435,9 @@ async function _restoreSavedWorkout(
       isResting = true;
       restRemaining = remaining;
       restStartedAt = saved.restStartedAt;
+      // Workouts saved before restTotal was persisted: restDuration is the length from
+      // restStartedAt, the closest to the full rest they have.
+      restTotal = Math.max(saved.restTotal ?? saved.restDuration, remaining);
     }
   }
 
@@ -456,7 +462,7 @@ async function _restoreSavedWorkout(
     isResting,
     restRemaining,
     restStartedAt,
-    restTotal: restRemaining,
+    restTotal,
     restEndedAt: null,
   });
 
@@ -923,12 +929,16 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       saveMode: 'create',
       isResting: false,
       restRemaining: 0,
+      restStartedAt: null,
+      restTotal: 0,
       restEndedAt: null,
       showSummary: false,
       summaryData: null,
     });
     clearWorkout();
   },
+
+  isSaving: () => _finishing !== null,
 
   finishWorkout: (userId: string, durationOverride?: number) => {
     // A second call while saving (double tap) shares the first save instead of starting another.
@@ -1593,10 +1603,10 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     if (!_workoutRestored) return; // Don't persist before restore has run
     if (_persistTimeout) clearTimeout(_persistTimeout);
     _persistTimeout = setTimeout(() => {
-      const { isActive, startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode } = get();
+      const { isActive, startTime, exercises, restDuration, restStartedAt, restTotal, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode } = get();
       if (!isActive || !startTime) return;
       const userId = useAuthStore.getState().user?.id ?? null;
-      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode, userId });
+      saveWorkout({ startTime, exercises, restDuration, restStartedAt, restTotal, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode, userId });
     }, 500);
   },
 }));

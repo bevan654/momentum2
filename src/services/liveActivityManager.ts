@@ -180,6 +180,9 @@ function stopTicker(): void {
 
 // ── Public API ─────────────────────────────────────────────
 
+/** A stop still dismissing the previous workout's notification; a start waits for it. */
+let _stopping: Promise<void> | null = null;
+
 export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): Promise<void> {
   if (WorkoutLiveActivity.isSupported()) {
     // Upgrading mid-workout from a build without the module leaves its sticky notification.
@@ -194,6 +197,9 @@ export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): P
   _mode = 'legacy';
   _active = true;
   try {
+    // Replacing a workout stops and starts in the same tick: a late dismiss would remove the
+    // new workout's notification and clear _active after it was set.
+    if (_stopping) await _stopping;
     await presentNotification(snapshot);
     startTicker(snapshot);
   } catch (e) {
@@ -235,15 +241,15 @@ export async function stopWorkoutActivity(): Promise<void> {
   if (Platform.OS !== 'ios') return;
 
   stopTicker();
-
-  try {
-    await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID);
-  } catch (e) {
-    if (__DEV__) console.warn('[LiveActivity] stop failed:', e);
-  }
-
   _active = false;
   _mode = null;
+
+  const stopping = Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch((e) => {
+    if (__DEV__) console.warn('[LiveActivity] stop failed:', e);
+  });
+  _stopping = stopping;
+  await stopping;
+  if (_stopping === stopping) _stopping = null;
 }
 
 /**

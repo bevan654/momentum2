@@ -147,7 +147,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
     transform: [{ translateX: translateX.value }],
   }));
 
-  const ghostFlashColor = ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : ghostResult === 'tie' ? colors.textPrimary : colors.accentGreen;
+  const ghostFlashColor = ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : ghostResult === 'tie' ? colors.textPrimary : colors.accentGreen;
   const flashOverlayStyle = useAnimatedStyle(() => ({
     backgroundColor: isGhost ? ghostFlashColor : colors.accentGreen,
     opacity: interpolate(flashAnim.value, [0, 1], [0, 0.15]),
@@ -303,7 +303,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
           style={[
             styles.row,
             completed && (isGhost && ghostResult
-              ? { backgroundColor: (ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) + '08', borderColor: (ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) + '15' }
+              ? { backgroundColor: (ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) + '08', borderColor: (ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) + '15' }
               : styles.rowCompleted),
             rowSwipeStyle,
           ]}
@@ -316,7 +316,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
 
           {/* Set number / type badge */}
           <View style={[styles.setNumBadge, { backgroundColor: typeConfig.bg }]}>
-            <Text style={[styles.setNumText, { color: completed ? (isGhost && ghostResult ? (ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) : colors.accentGreen) : typeConfig.color }]}>
+            <Text style={[styles.setNumText, { color: completed ? (isGhost && ghostResult ? (ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) : colors.accentGreen) : typeConfig.color }]}>
               {badgeLabel}
             </Text>
           </View>
@@ -354,7 +354,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
             <View style={[styles.inputContainer, completed && styles.inputContainerCompleted, !localKg && suggestedKg && styles.inputContainerSuggested]}>
               <TextInput
                 ref={kgRef}
-                style={[styles.input, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
+                style={[styles.input, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
                 value={localKg}
                 onChangeText={(v) => { setLocalKg(v); onUpdate('kg', v); }}
                 onFocus={() => handleFocus(kgRef, localKg)}
@@ -390,7 +390,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
                 <Ionicons name="timer-outline" size={ms(11)} color={completed ? colors.accentGreen : colors.textTertiary} style={{ marginRight: sw(3) }} />
                 <TextInput
                   ref={repsRef}
-                  style={[styles.repsInput, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
+                  style={[styles.repsInput, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
                   value={localReps ? formatTimeDisplay(localReps) : ''}
                   onChangeText={(v) => {
                     // Strip non-numeric, treat raw input as seconds
@@ -442,7 +442,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
               )}
               <TextInput
                 ref={repsRef}
-                style={[styles.repsInput, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
+                style={[styles.repsInput, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
                 value={localReps}
                 onChangeText={(v) => { setLocalReps(v); onUpdate('reps', v); }}
                 onFocus={() => handleFocus(repsRef, localReps)}
@@ -481,7 +481,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
             <Ionicons
               name={completed ? 'checkmark-circle' : 'ellipse-outline'}
               size={ms(22)}
-              color={completed ? (isGhost && ghostResult ? (ghostResult === 'win' ? '#34C759' : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) : colors.accentGreen) : colors.textTertiary + '60'}
+              color={completed ? (isGhost && ghostResult ? (ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) : colors.accentGreen) : colors.textTertiary + '60'}
             />
           </TouchableOpacity>
         </Animated.View>

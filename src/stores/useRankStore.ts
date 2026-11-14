@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useWeightStore } from './useWeightStore';
+import { useAuthStore } from './useAuthStore';
 import {
   estimateOneRepMax,
   effectiveLoad,
@@ -15,7 +16,7 @@ import {
   type RankInfo,
   type SlugScoreDetail,
 } from '../utils/strengthScore';
-import { isPlausibleBodyweight } from '../utils/muscleLoad';
+import { isPlausibleBodyweight, resolveLoadType, toLoadType, type LoadType } from '../utils/muscleLoad';
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -88,6 +89,17 @@ function catalogLookup(name: string, catalogMap: Record<string, any>, ciCatalog:
   return catalogMap[name] ?? ciCatalog[name.toLowerCase()];
 }
 
+/**
+ * Strength-score type of one set. `resolveLoadType` lets a 'weighted' row take the catalog's
+ * bodyweight type, because older builds stored 'weighted' for everything (a pull-up at 0 kg).
+ * That only applies at 0 kg: a 'weighted' row with load on it scores its kg as before.
+ * LoadType and ExerciseType share one vocabulary.
+ */
+function rankLoadType(resolved: LoadType, rowIsWeighted: boolean, kg: number): ExerciseType {
+  if (rowIsWeighted && kg !== 0) return 'weighted';
+  return resolved;
+}
+
 /* ─── Defaults ───────────────────────────────────────── */
 
 const DEFAULT_RANK: RankInfo = {
@@ -99,10 +111,16 @@ const DEFAULT_RANK: RankInfo = {
 
 /* ─── Store ──────────────────────────────────────────── */
 
-/** Latest weigh-in for strength scores; a typo outside 30–300 kg counts as missing (70 kg). */
+/**
+ * Bodyweight for strength scores, matching the server leaderboard: latest weigh-in, else the
+ * profile's starting weight, else 70 kg. A typo outside 30–300 kg counts as missing.
+ */
 function rankBodyweight(): number {
   const current = useWeightStore.getState().current;
-  return isPlausibleBodyweight(current) ? current : 70;
+  if (isPlausibleBodyweight(current)) return current;
+  const starting = useAuthStore.getState().profile?.starting_weight;
+  if (isPlausibleBodyweight(starting)) return starting;
+  return 70;
 }
 
 export const useRankStore = create<RankState>((set, get) => ({
@@ -181,7 +199,8 @@ export const useRankStore = create<RankState>((set, get) => ({
 
       for (const ex of allExercises) {
         const cat = catalogLookup(ex.name, catalogMap, ciCatalog);
-        const exType = (ex.exercise_type || cat?.exercise_type || 'weighted') as ExerciseType;
+        const exType = resolveLoadType(ex.exercise_type, cat?.exercise_type);
+        const rowIsWeighted = toLoadType(ex.exercise_type) === 'weighted';
         const sets: any[] = ex.sets || [];
 
         for (const s of sets) {
@@ -193,14 +212,15 @@ export const useRankStore = create<RankState>((set, get) => ({
           const reps = Number(s.reps) || 0;
           if (reps <= 0) continue;
 
-          const load = effectiveLoad(kg, bodyweight, exType);
+          const setType = rankLoadType(exType, rowIsWeighted, kg);
+          const load = effectiveLoad(kg, bodyweight, setType);
           if (load <= 0) continue;
 
           const e1rm = estimateOneRepMax(load, reps);
           const prev = bestSets[ex.name];
 
           if (!prev || e1rm > prev.e1rm) {
-            bestSets[ex.name] = { kg, reps, exerciseType: exType, e1rm };
+            bestSets[ex.name] = { kg, reps, exerciseType: setType, e1rm };
           }
         }
       }
@@ -247,7 +267,8 @@ export const useRankStore = create<RankState>((set, get) => ({
 
     for (const ex of exercises) {
       const cat = catalogLookup(ex.name, catalogMap, ciCatalog);
-      const exType = (ex.exercise_type || cat?.exercise_type || 'weighted') as ExerciseType;
+      const exType = resolveLoadType(ex.exercise_type, cat?.exercise_type);
+      const rowIsWeighted = toLoadType(ex.exercise_type) === 'weighted';
 
       for (const s of ex.sets) {
         if (!s.completed) continue;
@@ -257,14 +278,15 @@ export const useRankStore = create<RankState>((set, get) => ({
         const reps = Number(s.reps) || 0;
         if (reps <= 0) continue;
 
-        const load = effectiveLoad(kg, bodyweight, exType);
+        const setType = rankLoadType(exType, rowIsWeighted, kg);
+        const load = effectiveLoad(kg, bodyweight, setType);
         if (load <= 0) continue;
 
         const e1rm = estimateOneRepMax(load, reps);
         const prev = bestSets[ex.name];
 
         if (!prev || e1rm > prev.e1rm) {
-          bestSets[ex.name] = { kg, reps, exerciseType: exType, e1rm };
+          bestSets[ex.name] = { kg, reps, exerciseType: setType, e1rm };
           changed = true;
         }
       }

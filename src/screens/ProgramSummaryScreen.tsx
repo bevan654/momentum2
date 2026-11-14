@@ -12,6 +12,7 @@ import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
+import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -91,8 +92,10 @@ export default function ProgramSummaryScreen() {
     };
     // Dismiss the transparent-modal stack BEFORE flipping sheetVisible — iOS rejects
     // presenting ActiveWorkoutSheet's Modal while another modal is still on top.
-    navigation.popToTop();
-    setTimeout(() => startFromProgram(pseudoRoutine, catalogMap, prevMap, program.id, currentWeek), 350);
+    confirmReplaceWorkout(() => {
+      navigation.popToTop();
+      setTimeout(() => startFromProgram(pseudoRoutine, catalogMap, prevMap, program.id, currentWeek), 350);
+    });
   }, [todaysRoutine, program, catalogMap, prevMap, currentWeek, startFromProgram, navigation]);
 
   const handleActivate = useCallback(async () => {

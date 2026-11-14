@@ -12,6 +12,7 @@ import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import ExerciseMuscleThumb from '../components/body/ExerciseMuscleThumb';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
+import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -43,8 +44,10 @@ export default function RoutineSummaryScreen() {
     if (!routine) return;
     // Dismiss the transparent-modal stack BEFORE flipping sheetVisible — iOS rejects
     // presenting ActiveWorkoutSheet's Modal while another modal is still on top.
-    navigation.popToTop();
-    setTimeout(() => startFromRoutine(routine, catalogMap, prevMap), 350);
+    confirmReplaceWorkout(() => {
+      navigation.popToTop();
+      setTimeout(() => startFromRoutine(routine, catalogMap, prevMap), 350);
+    });
   }, [routine, catalogMap, prevMap, startFromRoutine, navigation]);
 
   // Defer heavy content until after the navigation transition fully settles

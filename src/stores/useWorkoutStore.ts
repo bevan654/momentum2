@@ -474,6 +474,9 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       });
 
       set({ workouts });
+    } catch (e) {
+      // Keep the workouts already shown; the next fetch retries.
+      if (__DEV__) console.warn('[fetchWorkoutHistory] failed:', e);
     } finally {
       set({ loading: false });
     }
