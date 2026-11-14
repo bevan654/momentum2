@@ -25,6 +25,7 @@ import WorkoutOverlay from '../dev/WorkoutOverlay';
 import CoachTakeCard, { type CoachResult } from './CoachTakeCard';
 import { pickAndUploadWorkoutPhoto } from '../../utils/uploadWorkoutPhoto';
 import type { VolumeExercise } from '../../utils/muscleVolume';
+import { feedPreviewSets } from '../../utils/muscleLoad';
 
 const NO_EXERCISES: VolumeExercise[] = [];
 
@@ -662,14 +663,15 @@ export default function WorkoutSummaryModal(props: Props) {
   }, [isJustCompleted, data]);
 
   // Maps for the feed-post preview, built like the post's own maps: from each exercise's
-  // exercise_details.total_volume, which counts every set with a weight or reps entered, ticked
-  // or not.
+  // exercise_details.total_volume and total_reps, which count every set with a weight or reps
+  // entered, ticked or not.
   const previewExercises = useMemo((): VolumeExercise[] => {
     if (!isJustCompleted) return NO_EXERCISES;
     return ((data as WorkoutSummary).exercises || []).map((ex) => ({
       name: ex.name,
       category: ex.category,
-      sets: [{ kg: Math.round(ex.sets.reduce((v, s) => v + (s.kg || 0) * (s.reps || 0), 0)), reps: 1, completed: true }],
+      exercise_type: ex.exercise_type,
+      sets: feedPreviewSets(ex.sets),
     }));
   }, [isJustCompleted, data]);
 
