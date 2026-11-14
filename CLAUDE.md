@@ -362,9 +362,24 @@ Several people push to this repo, so a local copy goes stale fast. Working on ol
 
 ### Pull Requests & Merging
 - **Never merge into `main` yourself unless the user explicitly approves that specific merge.** Approval for one PR doesn't carry over to the next.
-- When the user asks you to commit and push finished work, your job ends at **opening a pull request** (`gh pr create`) with a summary and a test plan, so another agent or reviewer can double-check it. Then give the user the PR link.
+- When the user asks you to commit and push finished work, first run the **pre-PR review** below, then open a pull request (`gh pr create`) and give the user the link. Your job ends there; merging is a separate step (see the review-and-fix loop).
 - Never bypass branch protection (no `gh pr merge --admin`, no force-pushing to `main`, no unlocking or editing protection rules). The only exception is the final merge step of the review loop below.
 - When reviewing someone else's PR outside that loop, report findings as PR comments or back to the user. Don't merge it.
+
+### Before opening a PR: pre-PR review (mandatory)
+Every PR gets reviewed before it's opened, whoever asked for it. Contributors usually can't judge code themselves, so this review is their safety net. When the user says the work is done (or asks to commit, push or open a PR):
+1. **Sync.** Fetch and merge `origin/main` into the branch (a normal merge), resolve conflicts, and run `npm install` if dependencies changed (see "Stay in sync with GitHub").
+2. **Check.** Run `npx tsc --noEmit` (no new errors against the baseline), and check that the app bundles (start Metro and request the iOS bundle, or run the app if a device or simulator is available).
+3. **Independent review.** Start a fresh subagent to review the branch's whole diff against `main`, not your own summary of it, so it isn't marking its own homework. Give it the diff command, this file's conventions and the list below, and ask for concrete findings with `file:line`. It should look for:
+   - bugs, crashes and broken behaviour, including in code that calls what changed (trace callers; don't just read the diff);
+   - performance problems: work on the JS thread during animations or scrolling, long lists not using FlashList, needless re-renders (unstable props, whole-store selectors), large images, polling or extra Realtime channels, unbounded queries;
+   - convention breaks: hardcoded colours, `fontWeight`, RN `Animated`, `react-native-svg` for new graphics, unwrapped components, files that grew past ~400–500 lines;
+   - anything needing a database or backend change (that goes to bevan; see "Who you're working with"), anything that would break older app builds, and anything that needs a native build rather than an OTA;
+   - secrets, debug `console.log`s, leftover files and unrelated changes.
+4. **Fix and repeat.** Fix real findings on the same branch, then run a fresh review pass on the whole diff again. Stop when a pass is clean, or after 3 rounds; then list what's left for the user instead of continuing.
+5. **Open the PR** with: what the feature does in plain words; what the review checked and fixed (round by round); what's still open or needs bevan (database changes, product decisions, native builds); and a test plan of exactly what to try on a phone. Then explain the same to the user in plain words and give them the link.
+
+Don't skip the review because a change looks small, and don't open the PR while a review finding is unresolved unless the user decides to after you've explained it. The merge-time review-and-fix loop below still runs when bevan asks to merge.
 
 ### When the user asks to merge a PR: review-and-fix loop
 A request to merge is the trigger for a review, not an instant merge. Run this as a **background agent** so the user isn't blocked, and tell them it has started.
