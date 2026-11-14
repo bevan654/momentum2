@@ -3,6 +3,7 @@ import { rebuildClient, supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import { cleanupNotifications } from '../services/notificationService';
 import { useWorkoutStore } from './useWorkoutStore';
+import { useActiveWorkoutStore } from './useActiveWorkoutStore';
 import { clearWorkout as clearStoredWorkout } from '../utils/workoutStorage';
 import { AppState, Linking } from 'react-native';
 
@@ -217,6 +218,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const { _pendingWelcome } = get();
+      // Signed out without signOut() (an expired session) or switched accounts:
+      // the active workout belongs to the previous account. Its saved copy stays
+      // and comes back if that account signs in again.
+      const prevUserId = get().user?.id;
+      if (prevUserId && prevUserId !== session?.user?.id) {
+        useActiveWorkoutStore.getState().resetForSignOut();
+      }
       if (session?.user && _pendingWelcome) {
         set({ user: session.user, session, showWelcome: true, _pendingWelcome: false });
       } else {
@@ -441,6 +449,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     cleanupNotifications();
     // Release heavy caches held by stores
     useWorkoutStore.getState().clearCaches();
+    // Drop the active workout from memory; its saved copy only comes back for this account
+    useActiveWorkoutStore.getState().resetForSignOut();
     await supabase.auth.signOut();
     set({ user: null, session: null, profile: null, showWelcome: false, _pendingWelcome: false });
   },
@@ -485,6 +495,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // user signs in on this device.
     cleanupNotifications();
     useWorkoutStore.getState().clearCaches();
+    useActiveWorkoutStore.getState().resetForSignOut();
     try {
       clearStoredWorkout();
     } catch {

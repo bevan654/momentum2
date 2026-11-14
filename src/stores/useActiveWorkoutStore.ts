@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { supabase, rebuildClient } from '../lib/supabase';
-import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference } from '../utils/workoutStorage';
+import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference, addPendingWorkoutDelete, loadPendingWorkoutDeletes, removePendingWorkoutDeletes } from '../utils/workoutStorage';
 import { buildWorkoutPayload } from '../utils/workoutPayload';
 import { suggestSets } from '../utils/exerciseProgress';
 import { makeUuid } from '../utils/uuid';
@@ -135,6 +135,9 @@ let _persistTimeout: ReturnType<typeof setTimeout> | null = null;
 let _workoutRestored = false; // Guard: prevent _persist before restore
 let _restoring: Promise<void> | null = null; // In-flight restore, shared by concurrent callers
 let _finishing: Promise<FinishResult> | null = null; // In-flight finish, shared by concurrent callers
+// Bumped on sign-out: a restore or finish that was in flight then belongs to the
+// previous account and must not write into the store afterwards.
+let _sessionGen = 0;
 let _undoSnapshot: UndoSnapshot | null = null; // The finished workout as it was, for Undo
 let _preferredRestDuration = 90; // Loaded from AsyncStorage at module init
 loadRestPreference().then((d) => { _preferredRestDuration = d; });
@@ -211,6 +214,8 @@ interface ActiveWorkoutState {
     workoutId?: string;
   }>;
   restoreWorkout: () => Promise<void>;
+  /** Signing out: drop the in-memory workout (its saved copy stays for the same account). */
+  resetForSignOut: () => void;
   showSheet: () => void;
   hideSheet: () => void;
   dismissSummary: () => void;
@@ -315,18 +320,43 @@ async function _scheduleRestNotification(seconds: number) {
 
 // ── Store ──────────────────────────────────────────────
 
+/** Retries deletes of discarded (undone) workouts that failed offline. */
+async function _flushPendingDeletes(): Promise<void> {
+  const userId = useAuthStore.getState().user?.id;
+  if (!userId) return;
+  // Only this account's: another account's delete would match no rows under RLS
+  // and be dropped from the queue without ever running.
+  const ids = (await loadPendingWorkoutDeletes()).filter((d) => d.userId === userId).map((d) => d.id);
+  if (ids.length === 0) return;
+  const { error } = await supabase.from('workouts').delete().in('id', ids).eq('user_id', userId);
+  if (error) return; // try again next launch
+  await removePendingWorkoutDeletes(ids);
+  if (useAuthStore.getState().user?.id === userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
+}
+
 /** Loads the persisted workout (if any) into the store. Use `restoreWorkout`, which runs this once. */
 async function _restoreSavedWorkout(
   set: (partial: Partial<ActiveWorkoutState>) => void,
   get: () => ActiveWorkoutState,
 ): Promise<void> {
-  const saved = await loadWorkoutAsync();
+  _flushPendingDeletes().catch(() => {});
+  const gen = _sessionGen;
+  let saved = await loadWorkoutAsync();
   if (_workoutRestored) return; // A workout was started while storage was loading
+  if (gen !== _sessionGen) return; // Signed out while loading; the next sign-in restores again
+  // A workout another account left on this device isn't this user's to continue.
+  // Its copy is left in storage, so it's still there if that account signs back in.
+  const userId = useAuthStore.getState().user?.id;
+  if (saved?.userId && userId && saved.userId !== userId) {
+    saved = null;
+  }
   if (!saved) {
     _workoutRestored = true;
     // The app was closed during a workout that isn't coming back (finished, or an
-    // abandoned empty one): its sticky notification is still showing.
+    // abandoned empty one): its sticky notification and any scheduled rest alert
+    // are still pending.
     clearStaleWorkoutActivity();
+    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
     return;
   }
 
@@ -401,6 +431,7 @@ async function _finishWorkout(
   durationOverride?: number,
 ): Promise<FinishResult> {
   const { exercises, elapsedSeconds, ghostUserName } = get();
+  const gen = _sessionGen;
   if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
 
   // Validate: at least 1 exercise — resurrect timer and bail
@@ -416,6 +447,7 @@ async function _finishWorkout(
 
   const duration = durationOverride ?? elapsedSeconds;
   const restoreTimer = () => {
+    if (gen !== _sessionGen) return; // signed out during the save: there's no workout to resume
     if (!_timerInterval) _timerInterval = setInterval(() => get().tick(), 1000);
   };
 
@@ -495,6 +527,15 @@ async function _finishWorkout(
     return { error: 'Failed to save workout — check your connection and try again.' };
   }
   const workout = { id: workoutId };
+
+  if (gen !== _sessionGen) {
+    // Signed out while saving: the workout is saved under the previous account,
+    // so drop its stored copy, but don't open its summary (or Undo) for whoever
+    // is signed in now.
+    const stored = await loadWorkoutAsync();
+    if (stored?.workoutId === workoutId) clearWorkout();
+    return { error: null, incompleteCount, workoutId };
+  }
 
   console.log('[finishWorkout] done, showing summary');
 
@@ -731,6 +772,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Workout lifecycle ─────────────────────────────
 
   startWorkout: () => {
+    if (_finishing) return; // the workout is being saved; starting another now would be wiped when it finishes
     if (_timerInterval) clearInterval(_timerInterval);
 
     const now = Date.now();
@@ -766,6 +808,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   startFromRoutine: (routine, catalogMap, prevMap, ghostUserName) => {
+    if (_finishing) return; // the workout is being saved; starting another now would be wiped when it finishes
     if (_timerInterval) clearInterval(_timerInterval);
 
     const prevNoteMap = useWorkoutStore.getState().prevNoteMap;
@@ -815,20 +858,28 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   startFromProgram: (routine, catalogMap, prevMap, programId, programWeek) => {
+    if (_finishing) return; // the workout is being saved; starting another now would be wiped when it finishes
     // Reuse startFromRoutine logic, then tag with program context
     get().startFromRoutine(routine, catalogMap, prevMap);
     set({ startedFromProgram: programId, programWeek });
   },
 
   discardWorkout: () => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     // Discarding a workout reopened with Undo deletes the saved copy, as Undo used to.
     const { workoutId, saveMode } = get();
     if (saveMode === 'replace' && workoutId) {
+      const ownerId = useAuthStore.getState().user?.id;
       supabase.from('workouts').delete().eq('id', workoutId).then(({ error }) => {
-        if (error) console.warn('[discardWorkout] delete of the undone workout failed:', error);
+        if (error) {
+          // Offline or failed: retried on the next launch (_flushPendingDeletes)
+          console.warn('[discardWorkout] delete of the undone workout failed:', error);
+          if (ownerId) addPendingWorkoutDelete(workoutId, ownerId).catch(() => {});
+          return;
+        }
         const userId = useAuthStore.getState().user?.id;
         if (userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
-      });
+      }, () => { if (ownerId) addPendingWorkoutDelete(workoutId, ownerId).catch(() => {}); });
     }
     stopWorkoutActivity();
     Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
@@ -862,6 +913,39 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     // A second call while saving (double tap) shares the first save instead of starting another.
     if (!_finishing) _finishing = _finishWorkout(set, get, userId, durationOverride).finally(() => { _finishing = null; });
     return _finishing;
+  },
+
+  resetForSignOut: () => {
+    _sessionGen++;
+    _restoring = null; // an in-flight restore is for the previous account; the next call starts afresh
+    stopWorkoutActivity();
+    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+    if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+    if (_persistTimeout) { clearTimeout(_persistTimeout); _persistTimeout = null; }
+    _workoutRestored = false;
+    _undoSnapshot = null;
+    set({
+      isActive: false,
+      sheetVisible: false,
+      startTime: null,
+      elapsedSeconds: 0,
+      exercises: [],
+      workoutTitle: null,
+      restAnchor: null,
+      startedFromRoutine: null,
+      startedFromProgram: null,
+      programWeek: null,
+      ghostUserName: null,
+      workoutId: null,
+      saveMode: 'create',
+      isResting: false,
+      restRemaining: 0,
+      restStartedAt: null,
+      restEndedAt: null,
+      showSummary: false,
+      summaryData: null,
+      pendingFeedPayload: null,
+    });
   },
 
   restoreWorkout: () => {
@@ -961,6 +1045,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Exercise management ───────────────────────────
 
   addExercise: (name, exerciseType, category, prevSets = []) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     const prevNotes = useWorkoutStore.getState().prevNoteMap[name] || undefined;
     set((s) => ({
       exercises: [
@@ -982,6 +1067,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   removeExercise: (index) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = s.exercises.filter((_, i) => i !== index);
       const a = s.restAnchor;
@@ -1005,6 +1091,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   replaceExercise: (index, name, exerciseType, category, prevSets) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       exercises[index] = {
@@ -1022,6 +1109,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   moveExercise: (fromIndex, direction) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
       if (toIndex < 0 || toIndex >= s.exercises.length) return s;
@@ -1050,6 +1138,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   cycleExerciseType: (index) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = exercises[index];
@@ -1063,6 +1152,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   setExerciseNotes: (index, notes) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       if (!exercises[index]) return s;
@@ -1073,6 +1163,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   setExerciseNoteColor: (index, color) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       if (!exercises[index]) return s;
@@ -1085,6 +1176,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Set management ────────────────────────────────
 
   addSet: (exerciseIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1096,6 +1188,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   addDropSet: (exerciseIndex, parentSetIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1126,6 +1219,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   duplicateSet: (exerciseIndex, setIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1172,6 +1266,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   removeSet: (exerciseIndex, setIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1229,6 +1324,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   updateSet: (exerciseIndex, setIndex, field, value) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1242,6 +1338,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   toggleSetComplete: (exerciseIndex, setIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     const exercises = [...get().exercises];
     const ex = { ...exercises[exerciseIndex] };
     const sets = [...ex.sets];
@@ -1285,6 +1382,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   cycleSetType: (exerciseIndex, setIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1325,6 +1423,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Superset ──────────────────────────────────────
 
   linkSuperset: (exerciseIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const nextIdx = exerciseIndex + 1;
       if (nextIdx >= s.exercises.length) return s;
@@ -1348,6 +1447,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   unlinkSuperset: (exerciseIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const partnerIdx = exercises[exerciseIndex].supersetWith;
@@ -1466,7 +1566,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     _persistTimeout = setTimeout(() => {
       const { isActive, startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode } = get();
       if (!isActive || !startTime) return;
-      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode });
+      const userId = useAuthStore.getState().user?.id ?? null;
+      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode, userId });
     }, 500);
   },
 }));

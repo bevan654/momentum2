@@ -316,25 +316,36 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   fetchWorkoutHistory: async (userId: string) => {
     set({ loading: true });
     try {
-      const { data: workoutsData } = await supabase
+      const { data: workoutsData, error: workoutsErr } = await supabase
         .from('workouts')
         .select('id, created_at, duration, total_exercises, total_sets, ghost_username, program_id, programs(name), coach_headline, coach_notes')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(30);
 
-      if (!workoutsData || workoutsData.length === 0) {
+      // A failed request (offline, timeout) keeps the history we have; only a
+      // successful empty result means the user has no workouts.
+      if (workoutsErr || !workoutsData) {
+        set({ loading: false });
+        return;
+      }
+      if (workoutsData.length === 0) {
         set({ workouts: [], loading: false });
         return;
       }
 
       const workoutIds = workoutsData.map((w) => w.id);
 
-      const { data: exercisesData } = await supabase
+      const { data: exercisesData, error: exercisesErr } = await supabase
         .from('exercises')
         .select('id, workout_id, name, exercise_order, exercise_type, sets(id, set_number, kg, reps, completed, set_type, parent_set_number)')
         .in('workout_id', workoutIds)
         .order('exercise_order', { ascending: true });
+      // Without exercises every workout would show as empty: keep what we have
+      if (exercisesErr || !exercisesData) {
+        set({ loading: false });
+        return;
+      }
 
       // Build exercise map keyed by workout_id
       const exercisesByWorkout: Record<string, any[]> = {};
