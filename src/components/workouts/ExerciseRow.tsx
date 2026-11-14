@@ -12,60 +12,12 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import { useThemeStore } from '../../stores/useThemeStore';
-import { useWorkoutStore } from '../../stores/useWorkoutStore';
-import Body, { type ExtendedBodyPart } from '../BodyHighlighter';
-import { toSlug, ALL_SLUGS } from '../../utils/muscleVolume';
+import ExerciseMuscleThumb from '../body/ExerciseMuscleThumb';
 
 interface LocalSet {
   goal_reps: number;
   goal_weight: number;
 }
-
-/* ─── Focused body map helpers ─────────────────────────── */
-
-const CATEGORY_SLUGS: Record<string, string[]> = {
-  Chest: ['chest'],
-  Back: ['upper-back', 'lower-back', 'trapezius'],
-  Shoulders: ['deltoids', 'rear-deltoids'],
-  Arms: ['biceps', 'triceps', 'forearm'],
-  Legs: ['quadriceps', 'hamstring', 'gluteal', 'calves', 'adductors'],
-  Core: ['abs', 'obliques'],
-};
-
-/** Focus Y position (0-1 fraction of body height) per slug */
-const SLUG_FOCUS: Record<string, { y: number; side: 'front' | 'back' }> = {
-  chest:          { y: 0.32, side: 'front' },
-  deltoids:       { y: 0.26, side: 'front' },
-  'rear-deltoids':{ y: 0.26, side: 'back' },
-  biceps:         { y: 0.37, side: 'front' },
-  triceps:        { y: 0.37, side: 'back' },
-  forearm:        { y: 0.48, side: 'front' },
-  abs:            { y: 0.44, side: 'front' },
-  obliques:       { y: 0.44, side: 'front' },
-  'upper-back':   { y: 0.32, side: 'back' },
-  'lower-back':   { y: 0.44, side: 'back' },
-  trapezius:      { y: 0.23, side: 'back' },
-  quadriceps:     { y: 0.66, side: 'front' },
-  hamstring:      { y: 0.66, side: 'back' },
-  gluteal:        { y: 0.53, side: 'back' },
-  calves:         { y: 0.83, side: 'back' },
-  adductors:      { y: 0.62, side: 'front' },
-  tibialis:       { y: 0.80, side: 'front' },
-};
-
-const CATEGORY_FOCUS: Record<string, { y: number; side: 'front' | 'back' }> = {
-  Chest:     { y: 0.32, side: 'front' },
-  Back:      { y: 0.32, side: 'back' },
-  Shoulders: { y: 0.26, side: 'front' },
-  Arms:      { y: 0.37, side: 'front' },
-  Legs:      { y: 0.66, side: 'front' },
-  Core:      { y: 0.44, side: 'front' },
-};
-
-const BODY_SCALE = 0.35;
-const BODY_W = 200 * BODY_SCALE;
-const BODY_H = 400 * BODY_SCALE;
 
 interface ExerciseCardProps {
   name: string;
@@ -140,66 +92,7 @@ function ExerciseCard({
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [showRestPicker, setShowRestPicker] = useState(false);
-  const catalogMap = useWorkoutStore((s) => s.catalogMap);
-  const themeMode = useThemeStore((s) => s.mode);
-
-  // Build body highlight data + focus region
-  const { bodyData, focusY, bodySide, hasMuscles } = useMemo(() => {
-    const entry = catalogMap[name];
-    const primarySlugs = new Set<string>();
-    const secondarySlugs = new Set<string>();
-
-    if (entry) {
-      for (const m of entry.primary_muscles) {
-        const s = toSlug(m);
-        if (s) primarySlugs.add(s);
-      }
-      for (const m of entry.secondary_muscles) {
-        const s = toSlug(m);
-        if (s) secondarySlugs.add(s);
-      }
-    }
-
-    if (primarySlugs.size === 0 && category) {
-      const slugs = CATEGORY_SLUGS[category];
-      if (slugs) slugs.forEach((s) => primarySlugs.add(s));
-    }
-
-    // Determine focus from first primary slug, fallback to category
-    const firstSlug = [...primarySlugs][0];
-    let focusY = 0.35;
-    let bodySide: 'front' | 'back' = 'front';
-
-    if (firstSlug && SLUG_FOCUS[firstSlug]) {
-      focusY = SLUG_FOCUS[firstSlug].y;
-      bodySide = SLUG_FOCUS[firstSlug].side;
-    } else if (category && CATEGORY_FOCUS[category]) {
-      focusY = CATEGORY_FOCUS[category].y;
-      bodySide = CATEGORY_FOCUS[category].side;
-    }
-
-    const bodyData: ExtendedBodyPart[] = ALL_SLUGS.map((slug) => ({
-      slug,
-      intensity: primarySlugs.has(slug) ? 6 : secondarySlugs.has(slug) ? 3 : 1,
-    }));
-
-    return { bodyData, focusY, bodySide, hasMuscles: primarySlugs.size > 0 };
-  }, [name, category, catalogMap]);
-
-  // Accent-tinted palette for the body map
-  const bodyPalette = useMemo(() => {
-    const a = colors.accent;
-    if (themeMode === 'dark') {
-      return ['#1A1A1E', '#2A2A2E', a + '40', a + '60', a + '80', a, a];
-    }
-    return ['#E8E4DE', '#C8C4BE', a + '40', a + '60', a + '80', a, a];
-  }, [themeMode, colors.accent]);
-
-  // Body map crop offsets
-  const MAP_W = sw(44);
-  const MAP_H = sw(52);
-  const bodyOffsetX = -(BODY_W - MAP_W) / 2;
-  const bodyOffsetY = -(BODY_H * focusY) + MAP_H / 2;
+  const muscleSource = useMemo(() => ({ name, category }), [name, category]);
 
   const repRange = useMemo(() => {
     if (sets.length === 0) return '0';
@@ -264,21 +157,7 @@ function ExerciseCard({
         </View>
 
         {/* Mini body map — focused on target muscles */}
-        {hasMuscles && (
-          <View style={[styles.bodyMapClip, { width: MAP_W, height: MAP_H }]}>
-            <View style={{ position: 'absolute', left: bodyOffsetX, top: bodyOffsetY }}>
-              <Body
-                data={bodyData}
-                side={bodySide}
-                gender="male"
-                scale={BODY_SCALE}
-                colors={bodyPalette}
-                border="none"
-                backColor={colors.cardBorder}
-              />
-            </View>
-          </View>
-        )}
+        <ExerciseMuscleThumb exercise={muscleSource} width={sw(44)} height={sw(52)} style={styles.bodyMapClip} />
 
       </View>
 

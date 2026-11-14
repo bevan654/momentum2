@@ -16,11 +16,11 @@ import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
 import type { ActivityFeedItem } from '../../lib/friendsDatabase';
-import type { ExerciseWithSets } from '../../stores/useWorkoutStore';
+import type { VolumeExercise } from '../../utils/muscleVolume';
 import FeedWorkoutModal from '../friends/FeedWorkoutModal';
 import { useLingerMount } from '../../hooks/useLingerMount';
 import ReportSheet from '../friends/ReportSheet';
-import MiniBodyMap from '../body/MiniBodyMap';
+import WorkoutMiniMaps from '../body/WorkoutMiniMaps';
 
 const PHOTO_WIDTH = SCREEN_WIDTH - sw(16); // small gutter (sw(8) on each side)
 const PHOTO_HEIGHT = Math.round(PHOTO_WIDTH * 0.5625); // 16:9 landscape — denser feed
@@ -100,55 +100,31 @@ const WorkoutSummarySlot = React.memo(function WorkoutSummarySlot({ item }: { it
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const bodyMapExercises: ExerciseWithSets[] = useMemo(
+  // The feed carries each exercise's total volume, not its sets
+  const bodyMapExercises: VolumeExercise[] = useMemo(
     () =>
-      (item.exercise_details || []).map((ex, i) => ({
-        id: `${item.id}-${i}`,
+      (item.exercise_details || []).map((ex) => ({
         name: ex.name,
-        exercise_order: i,
-        exercise_type: 'weighted',
-        sets:
-          ex.total_volume > 0
-            ? [{
-                id: `${item.id}-${i}-0`,
-                set_number: 1,
-                kg: ex.total_volume,
-                reps: 1,
-                completed: true,
-                set_type: null,
-                parent_set_number: null,
-                isPR: false,
-              }]
-            : [],
-        hasPR: false,
         category: ex.category,
         primary_muscles: ex.primary_muscles,
         secondary_muscles: ex.secondary_muscles,
+        sets: [{ kg: ex.total_volume, reps: 1, completed: true }],
       })),
-    [item.exercise_details, item.id],
+    [item.exercise_details],
   );
-
-  const bodyColors = useMemo(() => [
-    '#1A1A1E', '#2A2A2E',
-    colors.accent + '50', colors.accent + '80',
-    colors.accent + 'CC', colors.accent, colors.accent,
-  ], [colors.accent]);
 
   const visibleExercises = (item.exercise_details || []).slice(0, MAX_OVERVIEW_EXERCISES);
   const extra = (item.exercise_details?.length || 0) - visibleExercises.length;
 
   return (
     <View style={styles.summarySlot}>
-      <View style={styles.summaryBody}>
-        <View style={styles.summaryBodyCol}>
-          <Text style={styles.summaryBodyLabel}>FRONT</Text>
-          <MiniBodyMap exercises={bodyMapExercises} scale={0.22} side="front" colors={bodyColors} />
-        </View>
-        <View style={styles.summaryBodyCol}>
-          <Text style={styles.summaryBodyLabel}>BACK</Text>
-          <MiniBodyMap exercises={bodyMapExercises} scale={0.22} side="back" colors={bodyColors} />
-        </View>
-      </View>
+      <WorkoutMiniMaps
+        exercises={bodyMapExercises}
+        height={sw(88)}
+        style={styles.summaryBody}
+        columnStyle={styles.summaryBodyCol}
+        captionStyle={styles.summaryBodyLabel}
+      />
 
       <View style={styles.summaryList}>
         {visibleExercises.length === 0 ? (
