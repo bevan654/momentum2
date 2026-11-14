@@ -204,8 +204,8 @@ interface FoodLogState {
 
 /** Guards fetchDayEntries against out-of-order responses when days are switched quickly. */
 let dayRequestId = 0;
-/** The day whose entries are currently in the store. */
-let loadedEntriesDate: string | null = null;
+/** The user and day (`userId:date`) whose entries are currently in the store. */
+let loadedEntriesKey: string | null = null;
 
 export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   selectedDate: toLocalDateString(),
@@ -244,9 +244,10 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   fetchDayEntries: async (userId: string, date?: string) => {
     const dateStr = date || get().selectedDate;
     const requestId = ++dayRequestId;
-    // Switching to another day: drop the old day's entries so totals never show the wrong day.
-    if (dateStr !== loadedEntriesDate) {
-      loadedEntriesDate = dateStr;
+    // Switching to another day (or account): drop the old entries so totals never show the wrong day.
+    const key = `${userId}:${dateStr}`;
+    if (key !== loadedEntriesKey) {
+      loadedEntriesKey = key;
       set({ entries: [], loading: true });
     } else {
       set({ loading: true });
