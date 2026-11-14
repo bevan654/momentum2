@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { bestSet } from '../utils/feedExerciseDetails';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -532,28 +533,20 @@ async function attachProfilesAndReactions(
     if (!exercisesByWorkout[wid]) exercisesByWorkout[wid] = [];
 
     const completed = ((ex as any).sets || []).filter((s: any) => s.completed || (Number(s.kg) > 0 || Number(s.reps) > 0));
-    let bestKg = 0;
-    let bestReps = 0;
     let totalVol = 0;
     let totalReps = 0;
     for (const s of completed) {
-      const kg = Number(s.kg) || 0;
-      const reps = Number(s.reps) || 0;
-      totalVol += kg * reps;
-      totalReps += reps;
-      // Heaviest set; reps break ties (bodyweight exercises are all 0 kg)
-      if (kg > bestKg || (kg === bestKg && reps > bestReps)) {
-        bestKg = kg;
-        bestReps = reps;
-      }
+      totalVol += (Number(s.kg) || 0) * (Number(s.reps) || 0);
+      totalReps += Number(s.reps) || 0;
     }
+    const best = bestSet(completed.map((s: any) => ({ kg: Number(s.kg) || 0, reps: Number(s.reps) || 0 })));
 
     const cat = catalogMap.get((ex as any).name);
     exercisesByWorkout[wid].push({
       name: (ex as any).name,
       sets_count: completed.length,
-      best_kg: bestKg,
-      best_reps: bestReps,
+      best_kg: best.kg,
+      best_reps: best.reps,
       total_volume: totalVol,
       total_reps: totalReps,
       exercise_type: (ex as any).exercise_type ?? null,
