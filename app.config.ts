@@ -30,6 +30,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'com.momentum.fitnessapp',
+    appleTeamId: '97DRM9BJV7',
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       // Active-workout Live Activity (targets/workout-activity, iOS 16.2+)
