@@ -88,10 +88,12 @@ export default function WelcomeSplashScreen() {
           useNutritionStore.getState().fetchNutritionGoals(userId),
           useSupplementStore.getState().fetchTodaySupplements(userId),
           useSupplementStore.getState().fetchSupplementGoals(userId),
-          useWeightStore.getState().fetchWeightData(userId),
           useStreakStore.getState().initStreak(userId),
           useRankStore.getState().loadRank(userId),
-          useRankStore.getState().computeRank(userId),
+          // Ranks score with the latest weigh-in, so compute them once the weight has loaded.
+          useWeightStore.getState().fetchWeightData(userId)
+            .catch(() => {})
+            .then(() => useRankStore.getState().computeRank(userId)),
           useProgramStore.getState().fetchPrograms(userId),
           useRoutineStore.getState().fetchRoutines(userId),
           useActiveWorkoutStore.getState().restoreWorkout(),
