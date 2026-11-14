@@ -3,8 +3,8 @@
  * public API (its src/data/hierarchy.ts); they are unsided here, and the library applies an
  * unsided value to both sides.
  *
- * The product decisions live in this file: how much volume counts as "fully trained", and when a
- * region counts as fatigued.
+ * The product decisions live in this file: how much volume counts as "fully trained", how far a
+ * region worked only as a secondary muscle can light up, and when a region counts as fatigued.
  */
 import type { CanonicalMuscle } from './muscles';
 
@@ -14,6 +14,12 @@ export const MUSCLE_MAP_ID = 'momentum-muscle-map@0.1';
 /** Legacy weights when an exercise has no exercise_region_targets rows. */
 export const PRIMARY_WEIGHT = 1;
 export const SECONDARY_WEIGHT = 0.5;
+
+/**
+ * Smallest region weight at which an exercise works a region as a primary muscle (legacy primary
+ * = 1, secondary = 0.5). Decides which regions count as trained directly, for heat and recovery.
+ */
+export const PRIMARY_WORK_WEIGHT = 0.75;
 
 /**
  * Every muscle region (part slug) of the map → the legacy canonical muscle it belongs to. Gives a
@@ -155,13 +161,22 @@ export const FULL_HEAT_VOLUME: Record<CanonicalMuscle, number> = {
 };
 
 /**
+ * PRODUCT DECISION — secondary-only regions never look "trained hard".
+ *
+ * Highest value a region can show on a training map (workout summary, feed cards, share images,
+ * Training Balance, a routine's Muscles Targeted) when no exercise worked it as a primary muscle
+ * (weight ≥ PRIMARY_WORK_WEIGHT): e.g. triceps on a bench-only day. The map glows above 0.6
+ * (momentum-muscle-map's glowOpacity), so a capped region looks worked but never glows. Regions
+ * with primary work aren't capped. The old body map capped secondary-only muscles the same way.
+ */
+export const SECONDARY_ONLY_MAX_HEAT = 0.55;
+
+/**
  * PRODUCT DECISION — recovery map. As before: a region is fatigued by a workout in the last
- * RECOVERY_WINDOW_DAYS days that trained it as a primary muscle, and recovers over its group's
- * RECOVERY_HOURS (constants/muscles.ts).
+ * RECOVERY_WINDOW_DAYS days that trained it as a primary muscle (PRIMARY_WORK_WEIGHT), and
+ * recovers over its group's RECOVERY_HOURS (constants/muscles.ts).
  */
 export const RECOVERY_WINDOW_DAYS = 7;
-/** Smallest region weight that counts as a primary muscle (legacy primary = 1, secondary = 0.5). */
-export const RECOVERY_PRIMARY_WEIGHT = 0.75;
 /** Recovery % below which a region is fatigued, and below which it is still recovering. */
 export const RECOVERY_FATIGUED_BELOW = 40;
 export const RECOVERY_READY_FROM = 70;

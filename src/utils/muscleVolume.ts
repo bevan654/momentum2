@@ -6,7 +6,9 @@
  * when the exercise has rows there, otherwise from its legacy muscle names (primary 1, secondary
  * 0.5). A completed set adds kg × reps × weight to every region the exercise works. Screens then
  * normalise those totals: per workout against FULL_HEAT_VOLUME, over several days against the
- * largest region. Values go to the map linear; the map's own colour curve lifts low values.
+ * largest region. A region no exercise worked as a primary muscle is capped at
+ * SECONDARY_ONLY_MAX_HEAT, below the glow. Values go to the map linear; the map's own colour curve
+ * lifts low values.
  */
 
 import { PARTS } from 'momentum-muscle-map/core';
@@ -27,11 +29,12 @@ import {
   LEGACY_NAME_REGIONS,
   NAMED_ONLY_REGIONS,
   PRIMARY_WEIGHT,
+  PRIMARY_WORK_WEIGHT,
   RECOVERY_FATIGUED_BELOW,
-  RECOVERY_PRIMARY_WEIGHT,
   RECOVERY_READY_FROM,
   RECOVERY_WINDOW_DAYS,
   REGION_OWNER,
+  SECONDARY_ONLY_MAX_HEAT,
   SECONDARY_WEIGHT,
 } from '../constants/muscleMap';
 
@@ -77,6 +80,13 @@ export function toSlug(raw: string): Slug | null {
 export type RegionWeights = Readonly<Record<string, number>>;
 /** Map region → an amount summed over exercises (weighted volume, or summed weights). */
 export type RegionAmounts = Readonly<Record<string, number>>;
+
+/** Amounts per region, and which regions got primary-level work. */
+export interface RegionWork {
+  amounts: RegionAmounts;
+  /** Regions some exercise works with a weight ≥ PRIMARY_WORK_WEIGHT. The rest are secondary only. */
+  primary: ReadonlySet<string>;
+}
 
 /** What an exercise row needs for its regions: its name, and legacy muscles if it carries them. */
 export interface MuscleSource {
@@ -173,26 +183,37 @@ function completedVolume(ex: VolumeExercise): number {
   return volume;
 }
 
+/** Adds `amount × weight` to every region an exercise works, and notes its primary regions. */
+function addWork(amounts: Record<string, number>, primary: Set<string>, weights: RegionWeights, amount: number) {
+  for (const region in weights) {
+    const weight = weights[region]!;
+    amounts[region] = (amounts[region] ?? 0) + amount * weight;
+    if (weight >= PRIMARY_WORK_WEIGHT) primary.add(region);
+  }
+}
+
 /** Weighted volume per region: completed kg × reps × the exercise's weight for the region. */
-export function regionVolume(exercises: readonly VolumeExercise[], lookup: RegionWeightLookup): RegionAmounts {
-  const totals: Record<string, number> = {};
+export function regionVolume(exercises: readonly VolumeExercise[], lookup: RegionWeightLookup): RegionWork {
+  const amounts: Record<string, number> = {};
+  const primary = new Set<string>();
   for (const ex of exercises) {
     const volume = completedVolume(ex);
-    if (!(volume > 0)) continue;
-    const weights = lookup(ex);
-    for (const region in weights) totals[region] = (totals[region] ?? 0) + volume * weights[region]!;
+    if (volume > 0) addWork(amounts, primary, lookup(ex), volume);
   }
-  return totals;
+  return { amounts, primary };
 }
 
 /** Summed region weights of a list of exercises, with no volume (a plan's emphasis). */
-export function regionEmphasis(exercises: readonly MuscleSource[], lookup: RegionWeightLookup): RegionAmounts {
-  const totals: Record<string, number> = {};
-  for (const ex of exercises) {
-    const weights = lookup(ex);
-    for (const region in weights) totals[region] = (totals[region] ?? 0) + weights[region]!;
-  }
-  return totals;
+export function regionEmphasis(exercises: readonly MuscleSource[], lookup: RegionWeightLookup): RegionWork {
+  const amounts: Record<string, number> = {};
+  const primary = new Set<string>();
+  for (const ex of exercises) addWork(amounts, primary, lookup(ex), 1);
+  return { amounts, primary };
+}
+
+/** A region's map value, capped below the glow unless it got primary-level work. */
+function capSecondaryOnly(value: number, region: string, primary: ReadonlySet<string>): number {
+  return primary.has(region) ? value : Math.min(value, SECONDARY_ONLY_MAX_HEAT);
 }
 
 const FULL_HEAT_BY_REGION: Record<string, number> = Object.fromEntries(
@@ -200,22 +221,27 @@ const FULL_HEAT_BY_REGION: Record<string, number> = Object.fromEntries(
 );
 
 /** Heat for one workout: each region's weighted volume against its full-heat volume, 0..1. */
-export function heatValues(volume: RegionAmounts): MuscleValues {
+export function heatValues({ amounts, primary }: RegionWork): MuscleValues {
   const values: Record<string, number> = {};
-  for (const region in volume) {
+  for (const region in amounts) {
     const full = FULL_HEAT_BY_REGION[region];
-    if (full) values[region] = Math.min(1, volume[region]! / full);
+    if (full) values[region] = capSecondaryOnly(Math.min(1, amounts[region]! / full), region, primary);
   }
   return values;
 }
 
 /** Each region against the largest one, 0..1. */
-export function relativeValues(amounts: RegionAmounts): MuscleValues {
+export function relativeValues({ amounts, primary }: RegionWork): MuscleValues {
   let max = 0;
   for (const region in amounts) if (amounts[region]! > max) max = amounts[region]!;
   const values: Record<string, number> = {};
-  if (max > 0) for (const region in amounts) values[region] = amounts[region]! / max;
+  if (max > 0) for (const region in amounts) values[region] = capSecondaryOnly(amounts[region]! / max, region, primary);
   return values;
+}
+
+/** Whether any part of a region (at a level) got primary-level work. */
+export function hasPrimaryWork({ primary }: RegionWork, level: Level, key: string): boolean {
+  return partsOf(level, key).some((part) => primary.has(part));
 }
 
 /* ─── Recovery ────────────────────────────────────────── */
@@ -229,7 +255,7 @@ export interface RegionRecovery {
 export type RecoveryStatus = 'fatigued' | 'recovering' | 'ready';
 
 /**
- * Recovery of every region trained as a primary muscle (weight ≥ RECOVERY_PRIMARY_WEIGHT) in the
+ * Recovery of every region trained as a primary muscle (weight ≥ PRIMARY_WORK_WEIGHT) in the
  * last RECOVERY_WINDOW_DAYS days, today included. Regions not in the result are recovered.
  */
 export function regionRecovery(
@@ -250,7 +276,7 @@ export function regionRecovery(
       if (!(completedVolume(ex) > 0)) continue;
       const weights = lookup(ex);
       for (const region in weights) {
-        if (weights[region]! >= RECOVERY_PRIMARY_WEIGHT && !((last[region] ?? 0) >= t)) last[region] = t;
+        if (weights[region]! >= PRIMARY_WORK_WEIGHT && !((last[region] ?? 0) >= t)) last[region] = t;
       }
     }
   }

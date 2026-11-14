@@ -118,7 +118,7 @@ supabase/
 ### Body map (momentum-muscle-map)
 - Render through `src/components/body/` (`MuscleMapPair`, `WorkoutMiniMaps`, `ExerciseMuscleThumb`); bodies follow `profile.gender` and load lazily (`useBodies`), colours come from the theme's `muscleMap` tokens (`useMuscleMapColors`).
 - Heat data: `src/utils/muscleVolume.ts` (region weights per exercise → weighted volume → 0..1). Send linear values at the finest level you have; the map rolls them up and applies its own colour curve. Keep `values` and `colors` referentially stable.
-- Weights come from `exercise_region_targets` (`useRegionTargetsStore`) with a fallback from legacy muscle names (`src/constants/muscleMap.ts`); reference volumes and recovery thresholds live there too.
+- Weights come from `exercise_region_targets` (`useRegionTargetsStore`) with a fallback from legacy muscle names (`src/constants/muscleMap.ts`); reference volumes, the secondary-only heat cap and recovery thresholds live there too.
 - A tappable `MuscleMap` needs `pointerEvents: 'box-only'` in its style (done in `MuscleMapPair`): in 0.1.0 its Skia canvas swallows taps otherwise.
 - `MiniMuscleMap` (group level, static) for lists and share images; never pre-render maps to images.
 

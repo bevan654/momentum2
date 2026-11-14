@@ -3,7 +3,7 @@ import { View, StyleSheet, InteractionManager } from 'react-native';
 import type { PressedRegion } from 'momentum-muscle-map';
 import { sw } from '../../theme/responsive';
 import { useRegionWeightLookup } from '../../hooks/useRegionWeightLookup';
-import { heatValues, partsOf, regionVolume, type VolumeExercise } from '../../utils/muscleVolume';
+import { hasPrimaryWork, heatValues, partsOf, regionVolume, type VolumeExercise } from '../../utils/muscleVolume';
 import { regionLabel } from '../../constants/muscleMapLabels';
 import MuscleMapPair from './MuscleMapPair';
 import LevelToggle from './LevelToggle';
@@ -22,12 +22,12 @@ interface Props {
 
 /**
  * One workout's muscle heat, front and back. Tapping a region shows its weighted volume and how
- * close it got to a full session (FULL_HEAT_VOLUME).
+ * close it got to a full session (FULL_HEAT_VOLUME), or that it only worked as a secondary muscle.
  */
 function MuscleHeatmap({ exercises }: Props) {
   const lookup = useRegionWeightLookup();
-  const volume = useMemo(() => regionVolume(exercises, lookup), [exercises, lookup]);
-  const values = useMemo(() => heatValues(volume), [volume]);
+  const work = useMemo(() => regionVolume(exercises, lookup), [exercises, lookup]);
+  const values = useMemo(() => heatValues(work), [work]);
   const colors = useMuscleMapColors();
   const [level, setLevel] = useMuscleMapLevel();
   const [selected, setSelected] = useState<PressedRegion | null>(null);
@@ -50,11 +50,13 @@ function MuscleHeatmap({ exercises }: Props) {
     let kg = 0;
     let heat = 0;
     for (const part of partsOf(selected.level, selected.key)) {
-      kg = Math.max(kg, volume[part] ?? 0);
+      kg = Math.max(kg, work.amounts[part] ?? 0);
       heat = Math.max(heat, values[part] ?? 0);
     }
-    return kg > 0 ? `${formatKg(kg)} · ${Math.round(heat * 100)}% of a full session` : 'Not trained';
-  }, [selected, volume, values]);
+    if (!(kg > 0)) return 'Not trained';
+    if (!hasPrimaryWork(work, selected.level, selected.key)) return `${formatKg(kg)} · secondary only`;
+    return `${formatKg(kg)} · ${Math.round(heat * 100)}% of a full session`;
+  }, [selected, work, values]);
 
   return (
     <View style={styles.container}>

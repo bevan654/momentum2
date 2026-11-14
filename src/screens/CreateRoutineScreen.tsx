@@ -102,7 +102,8 @@ export default function CreateRoutineScreen() {
     );
   }, []);
 
-  // Muscles targeted: each region's summed weight across the routine, against the largest
+  // Muscles targeted: each region's summed weight across the routine, against the largest.
+  // Regions only worked as a secondary muscle stay below the glow.
   const regionLookup = useRegionWeightLookup();
   const summaryValues = useMemo(() => relativeValues(regionEmphasis(exercises, regionLookup)), [exercises, regionLookup]);
   const summaryMapColors = useMuscleMapColors();

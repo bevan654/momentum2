@@ -21,7 +21,7 @@ import LevelToggle from '../body/LevelToggle';
 import RegionChip from '../body/RegionChip';
 import { useMuscleMapColors, useMuscleMapLevel } from '../body/useBodyMap';
 import { useRegionWeightLookup } from '../../hooks/useRegionWeightLookup';
-import { partsOf, regionVolume, relativeValues, type RegionWeightLookup } from '../../utils/muscleVolume';
+import { hasPrimaryWork, partsOf, regionVolume, relativeValues, type RegionWeightLookup } from '../../utils/muscleVolume';
 import { regionLabel } from '../../constants/muscleMapLabels';
 
 /* ─── Config ─────────────────────────────────────────────── */
@@ -153,11 +153,11 @@ export default function MuscleRadarCard() {
     [workouts, effectiveDays],
   );
   const lookup = useRegionWeightLookup();
-  const regionVol = useMemo(
+  const regionWork = useMemo(
     () => computeRegionVolume(workouts, effectiveDays, lookup),
     [workouts, effectiveDays, lookup],
   );
-  const bodyValues = useMemo(() => relativeValues(regionVol), [regionVol]);
+  const bodyValues = useMemo(() => relativeValues(regionWork), [regionWork]);
   const mapColors = useMuscleMapColors();
   const [level, setLevel] = useMuscleMapLevel();
   const [selected, setSelected] = useState<PressedRegion | null>(null);
@@ -170,11 +170,13 @@ export default function MuscleRadarCard() {
     let kg = 0;
     let share = 0;
     for (const part of partsOf(selected.level, selected.key)) {
-      kg = Math.max(kg, regionVol[part] ?? 0);
+      kg = Math.max(kg, regionWork.amounts[part] ?? 0);
       share = Math.max(share, bodyValues[part] ?? 0);
     }
-    return kg > 0 ? `${formatKg(kg)} · ${Math.round(share * 100)}% of top` : 'Not trained';
-  }, [selected, regionVol, bodyValues]);
+    if (!(kg > 0)) return 'Not trained';
+    if (!hasPrimaryWork(regionWork, selected.level, selected.key)) return `${formatKg(kg)} · secondary only`;
+    return `${formatKg(kg)} · ${Math.round(share * 100)}% of top`;
+  }, [selected, regionWork, bodyValues]);
 
   const dateRangeLabel = useMemo(() => {
     const now = new Date();
