@@ -16,6 +16,20 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.45',
+    date: '2026-11-14',
+    title: "What's New",
+    items: [
+      'Live workout on your Lock Screen and Dynamic Island (iPhone) and in your notifications (Android): your workout timer, current set, next exercise and a live rest countdown',
+      'Workouts now save in one go: no more half-saved or duplicated workouts on a bad connection',
+      'Undo after finishing reopens your exact workout, and editing a saved workout keeps your notes and set details',
+      "Starting a routine while a workout is running now asks before replacing it",
+      'Logging your weight twice in a day updates that day instead of failing',
+      'Fixed: pull-ups and other bodyweight sets from older workouts now count towards your rank',
+      'Fixed: history and recovery no longer go blank when you lose connection',
+    ],
+  },
+  {
     version: '1.0.44',
     date: '2026-11-14',
     title: "What's New",
