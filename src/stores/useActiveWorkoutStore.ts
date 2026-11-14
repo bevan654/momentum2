@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { supabase, rebuildClient } from '../lib/supabase';
-import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference, addPendingWorkoutDelete, loadPendingWorkoutDeletes, setPendingWorkoutDeletes } from '../utils/workoutStorage';
+import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference, addPendingWorkoutDelete, loadPendingWorkoutDeletes, removePendingWorkoutDeletes } from '../utils/workoutStorage';
 import { buildWorkoutPayload } from '../utils/workoutPayload';
 import { suggestSets } from '../utils/exerciseProgress';
 import { makeUuid } from '../utils/uuid';
@@ -135,6 +135,9 @@ let _persistTimeout: ReturnType<typeof setTimeout> | null = null;
 let _workoutRestored = false; // Guard: prevent _persist before restore
 let _restoring: Promise<void> | null = null; // In-flight restore, shared by concurrent callers
 let _finishing: Promise<FinishResult> | null = null; // In-flight finish, shared by concurrent callers
+// Bumped on sign-out: a restore or finish that was in flight then belongs to the
+// previous account and must not write into the store afterwards.
+let _sessionGen = 0;
 let _undoSnapshot: UndoSnapshot | null = null; // The finished workout as it was, for Undo
 let _preferredRestDuration = 90; // Loaded from AsyncStorage at module init
 loadRestPreference().then((d) => { _preferredRestDuration = d; });
@@ -319,13 +322,16 @@ async function _scheduleRestNotification(seconds: number) {
 
 /** Retries deletes of discarded (undone) workouts that failed offline. */
 async function _flushPendingDeletes(): Promise<void> {
-  const ids = await loadPendingWorkoutDeletes();
-  if (ids.length === 0) return;
-  const { error } = await supabase.from('workouts').delete().in('id', ids);
-  if (error) return; // try again next launch
-  await setPendingWorkoutDeletes([]);
   const userId = useAuthStore.getState().user?.id;
-  if (userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
+  if (!userId) return;
+  // Only this account's: another account's delete would match no rows under RLS
+  // and be dropped from the queue without ever running.
+  const ids = (await loadPendingWorkoutDeletes()).filter((d) => d.userId === userId).map((d) => d.id);
+  if (ids.length === 0) return;
+  const { error } = await supabase.from('workouts').delete().in('id', ids).eq('user_id', userId);
+  if (error) return; // try again next launch
+  await removePendingWorkoutDeletes(ids);
+  if (useAuthStore.getState().user?.id === userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
 }
 
 /** Loads the persisted workout (if any) into the store. Use `restoreWorkout`, which runs this once. */
@@ -334,8 +340,10 @@ async function _restoreSavedWorkout(
   get: () => ActiveWorkoutState,
 ): Promise<void> {
   _flushPendingDeletes().catch(() => {});
+  const gen = _sessionGen;
   let saved = await loadWorkoutAsync();
   if (_workoutRestored) return; // A workout was started while storage was loading
+  if (gen !== _sessionGen) return; // Signed out while loading; the next sign-in restores again
   // A workout another account left on this device isn't this user's to continue.
   const userId = useAuthStore.getState().user?.id;
   if (saved?.userId && userId && saved.userId !== userId) {
@@ -423,6 +431,7 @@ async function _finishWorkout(
   durationOverride?: number,
 ): Promise<FinishResult> {
   const { exercises, elapsedSeconds, ghostUserName } = get();
+  const gen = _sessionGen;
   if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
 
   // Validate: at least 1 exercise — resurrect timer and bail
@@ -438,6 +447,7 @@ async function _finishWorkout(
 
   const duration = durationOverride ?? elapsedSeconds;
   const restoreTimer = () => {
+    if (gen !== _sessionGen) return; // signed out during the save: there's no workout to resume
     if (!_timerInterval) _timerInterval = setInterval(() => get().tick(), 1000);
   };
 
@@ -517,6 +527,15 @@ async function _finishWorkout(
     return { error: 'Failed to save workout — check your connection and try again.' };
   }
   const workout = { id: workoutId };
+
+  if (gen !== _sessionGen) {
+    // Signed out while saving: the workout is saved under the previous account,
+    // so drop its stored copy, but don't open its summary (or Undo) for whoever
+    // is signed in now.
+    const stored = await loadWorkoutAsync();
+    if (stored?.workoutId === workoutId) clearWorkout();
+    return { error: null, incompleteCount, workoutId };
+  }
 
   console.log('[finishWorkout] done, showing summary');
 
@@ -753,6 +772,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Workout lifecycle ─────────────────────────────
 
   startWorkout: () => {
+    if (_finishing) return; // the workout is being saved; starting another now would be wiped when it finishes
     if (_timerInterval) clearInterval(_timerInterval);
 
     const now = Date.now();
@@ -788,6 +808,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   startFromRoutine: (routine, catalogMap, prevMap, ghostUserName) => {
+    if (_finishing) return; // the workout is being saved; starting another now would be wiped when it finishes
     if (_timerInterval) clearInterval(_timerInterval);
 
     const prevNoteMap = useWorkoutStore.getState().prevNoteMap;
@@ -837,6 +858,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   startFromProgram: (routine, catalogMap, prevMap, programId, programWeek) => {
+    if (_finishing) return; // the workout is being saved; starting another now would be wiped when it finishes
     // Reuse startFromRoutine logic, then tag with program context
     get().startFromRoutine(routine, catalogMap, prevMap);
     set({ startedFromProgram: programId, programWeek });
@@ -847,16 +869,17 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     // Discarding a workout reopened with Undo deletes the saved copy, as Undo used to.
     const { workoutId, saveMode } = get();
     if (saveMode === 'replace' && workoutId) {
+      const ownerId = useAuthStore.getState().user?.id;
       supabase.from('workouts').delete().eq('id', workoutId).then(({ error }) => {
         if (error) {
           // Offline or failed: retried on the next launch (_flushPendingDeletes)
           console.warn('[discardWorkout] delete of the undone workout failed:', error);
-          addPendingWorkoutDelete(workoutId).catch(() => {});
+          if (ownerId) addPendingWorkoutDelete(workoutId, ownerId).catch(() => {});
           return;
         }
         const userId = useAuthStore.getState().user?.id;
         if (userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
-      }, () => { addPendingWorkoutDelete(workoutId).catch(() => {}); });
+      }, () => { if (ownerId) addPendingWorkoutDelete(workoutId, ownerId).catch(() => {}); });
     }
     stopWorkoutActivity();
     Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
@@ -893,6 +916,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   resetForSignOut: () => {
+    _sessionGen++;
+    _restoring = null; // an in-flight restore is for the previous account; the next call starts afresh
     stopWorkoutActivity();
     Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
     if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }

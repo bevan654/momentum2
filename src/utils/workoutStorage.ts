@@ -100,23 +100,34 @@ export async function loadRestPreference(): Promise<number> {
 
 const PENDING_DELETES_KEY = 'pending_workout_deletes';
 
-export async function loadPendingWorkoutDeletes(): Promise<string[]> {
+/** A workout to delete, and the account that owns it (RLS only lets that account delete it). */
+export interface PendingWorkoutDelete {
+  id: string;
+  userId: string;
+}
+
+export async function loadPendingWorkoutDeletes(): Promise<PendingWorkoutDelete[]> {
   try {
     const raw = await AsyncStorage.getItem(PENDING_DELETES_KEY);
-    const ids = raw ? JSON.parse(raw) : [];
-    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
+    const items = raw ? JSON.parse(raw) : [];
+    return Array.isArray(items)
+      ? items.filter((d): d is PendingWorkoutDelete =>
+          !!d && typeof d.id === 'string' && typeof d.userId === 'string')
+      : [];
   } catch {
     return [];
   }
 }
 
-export async function addPendingWorkoutDelete(id: string): Promise<void> {
-  const ids = await loadPendingWorkoutDeletes();
-  if (!ids.includes(id)) ids.push(id);
-  await AsyncStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(ids)).catch(() => {});
+export async function addPendingWorkoutDelete(id: string, userId: string): Promise<void> {
+  const items = await loadPendingWorkoutDeletes();
+  if (!items.some((d) => d.id === id)) items.push({ id, userId });
+  await AsyncStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(items)).catch(() => {});
 }
 
-export async function setPendingWorkoutDeletes(ids: string[]): Promise<void> {
-  if (ids.length === 0) await AsyncStorage.removeItem(PENDING_DELETES_KEY).catch(() => {});
-  else await AsyncStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(ids)).catch(() => {});
+/** Drops the given ids from the queue (re-reading it, so ids added meanwhile are kept). */
+export async function removePendingWorkoutDeletes(ids: string[]): Promise<void> {
+  const items = (await loadPendingWorkoutDeletes()).filter((d) => !ids.includes(d.id));
+  if (items.length === 0) await AsyncStorage.removeItem(PENDING_DELETES_KEY).catch(() => {});
+  else await AsyncStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(items)).catch(() => {});
 }
