@@ -104,11 +104,11 @@ export const useWeightStore = create<WeightState>((set, get) => ({
     const today = new Date();
     const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-    const { error } = await supabase.from('weight_entries').insert({
-      user_id: userId,
-      weight,
-      date,
-    });
+    // One entry per day (unique user_id, date): a second weigh-in today replaces the first.
+    const { error } = await supabase.from('weight_entries').upsert(
+      { user_id: userId, weight, date },
+      { onConflict: 'user_id,date' },
+    );
 
     if (error) return { error: error.message };
 

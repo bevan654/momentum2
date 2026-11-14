@@ -209,6 +209,8 @@ interface ActiveWorkoutState {
     programWeek: number,
   ) => void;
   discardWorkout: () => void;
+  /** True while Finish is saving; starts, discards and edits are ignored until it settles. */
+  isSaving: () => boolean;
   finishWorkout: (userId: string, durationOverride?: number) => Promise<{
     error: string | null;
     incompleteCount?: number;
@@ -886,6 +888,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     });
     clearWorkout();
   },
+
+  isSaving: () => _finishing !== null,
 
   finishWorkout: (userId: string, durationOverride?: number) => {
     // A second call while saving (double tap) shares the first save instead of starting another.

@@ -60,6 +60,24 @@ function targetKg(kg: number): number {
   return kg > 0 ? kg : 0;
 }
 
+/**
+ * Per-set reps and kg for a routine saved from a post. Posts from older builds have no `sets`,
+ * so those fall back to the best set repeated `sets_count` (or 3) times, as "Try workout" does.
+ */
+function routineSetTargets(ex: FeedExerciseDetail): { set_reps: number[]; set_weights: number[] } {
+  if (ex.sets && ex.sets.length > 0) {
+    return { set_reps: ex.sets.map((s) => s.reps), set_weights: ex.sets.map((s) => targetKg(s.kg)) };
+  }
+  if (ex.best_kg > 0 || ex.best_reps > 0) {
+    const count = ex.sets_count || 3;
+    return {
+      set_reps: Array.from({ length: count }, () => ex.best_reps || 10),
+      set_weights: Array.from({ length: count }, () => targetKg(ex.best_kg)),
+    };
+  }
+  return { set_reps: [], set_weights: [] };
+}
+
 /* ── Thin wrapper — always mounted, toggles Sheet visibility ── */
 
 export default function FeedWorkoutModal({ item, onDismiss }: Props) {
@@ -102,8 +120,7 @@ function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss
       default_sets: ex.sets_count || 3,
       default_reps: ex.best_reps || 10,
       default_rest_seconds: 90,
-      set_reps: ex.sets.length > 0 ? ex.sets.map((s) => s.reps) : [],
-      set_weights: ex.sets.length > 0 ? ex.sets.map((s) => targetKg(s.kg)) : [],
+      ...routineSetTargets(ex),
       exercise_type: postedExerciseType(ex.name, ex.exercise_type, catalogMap),
     }));
     const { error } = await createRoutine(
@@ -237,8 +254,7 @@ function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss: 
       default_sets: ex.sets_count || 3,
       default_reps: ex.best_reps || 10,
       default_rest_seconds: 90,
-      set_reps: ex.sets.length > 0 ? ex.sets.map((s) => s.reps) : [],
-      set_weights: ex.sets.length > 0 ? ex.sets.map((s) => targetKg(s.kg)) : [],
+      ...routineSetTargets(ex),
       exercise_type: postedExerciseType(ex.name, ex.exercise_type, catalogMap),
     }));
     const { error } = await createRoutine(userId, `${displayName}'s Workout`, routineExercises);
@@ -259,7 +275,7 @@ function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss: 
       id: `feed-ghost-${item.id}`,
       exercises: targetExercises.map((ex) => ({
         name: ex.name,
-        default_sets: ex.sets.length || 3,
+        default_sets: ex.sets?.length || 3,
         exercise_type: postedExerciseType(ex.name, postedTypes.get(ex.name), catalogMap),
       })),
     };
