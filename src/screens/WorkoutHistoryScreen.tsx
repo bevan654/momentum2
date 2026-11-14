@@ -817,7 +817,6 @@ function WorkoutHistoryScreen() {
           <RoutinePreviewOverlay
             routine={previewRoutine}
             colors={colors}
-            catalogMap={catalogMap}
             prevMap={prevMap}
             onDismiss={() => setPreviewRoutine(null)}
           />
@@ -835,11 +834,10 @@ function WorkoutHistoryScreen() {
 const PREVIEW_SHEET_HEIGHT = SCREEN_HEIGHT * 0.92;
 
 const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
-  routine, colors, catalogMap, prevMap, onDismiss,
+  routine, colors, prevMap, onDismiss,
 }: {
   routine: Routine;
   colors: ThemeColors;
-  catalogMap: Record<string, any>;
   prevMap: Record<string, any[]>;
   onDismiss: () => void;
 }) {

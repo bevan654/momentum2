@@ -15,11 +15,7 @@ import Sheet from '../ui/Sheet';
 
 /* ─── Header ────────────────────────────────────────────── */
 
-interface HeaderProps {
-  activeTab?: string;
-}
-
-export default function Header({ activeTab }: HeaderProps) {
+export default function Header() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const username = useAuthStore((s) => s.profile?.username ?? null);

@@ -77,7 +77,6 @@ function getMealEmoji(hour: number): string {
 interface EntryCardProps {
   entry: FoodEntry;
   onPress: (entry: FoodEntry) => void;
-  onEdit: (entry: FoodEntry) => void;
   onTogglePlanned: (id: string) => void;
   onMoveEntry?: (entryId: string, hour: number) => void;
   styles: ReturnType<typeof createStyles>;
@@ -85,7 +84,7 @@ interface EntryCardProps {
 }
 
 const EntryCard = React.memo(function EntryCard({
-  entry, onPress, onEdit, onTogglePlanned, onMoveEntry, styles, colors,
+  entry, onPress, onTogglePlanned, onMoveEntry, styles, colors,
 }: EntryCardProps) {
   const handlePress = useCallback(() => onPress(entry), [entry, onPress]);
   const handleToggle = useCallback(() => onTogglePlanned(entry.id), [entry.id, onTogglePlanned]);
@@ -219,7 +218,6 @@ interface HourRowProps {
   colors: ThemeColors;
   onAddFood: (slot: string, hour: number) => void;
   onPressEntry: (entry: FoodEntry) => void;
-  onEditEntry: (entry: FoodEntry) => void;
   onTogglePlanned: (id: string) => void;
   onMoveEntry?: (entryId: string, hour: number) => void;
   onPressMealGroup?: (groupId: string, entries: FoodEntry[]) => void;
@@ -229,7 +227,7 @@ interface HourRowProps {
 
 const HourRow = React.memo(function HourRow({
   hour, items, entries, isFirst, isLast, hasSection, accentColor,
-  styles, colors, onAddFood, onPressEntry, onEditEntry, onTogglePlanned, onMoveEntry,
+  styles, colors, onAddFood, onPressEntry, onTogglePlanned, onMoveEntry,
   onPressMealGroup, onDeleteMealGroup, onDeleteSupplement,
 }: HourRowProps) {
   const hasEntries = entries.length > 0 || items.length > 0;
@@ -279,7 +277,6 @@ const HourRow = React.memo(function HourRow({
               key={item.entry.id}
               entry={item.entry}
               onPress={onPressEntry}
-              onEdit={onEditEntry}
               onTogglePlanned={onTogglePlanned}
               onMoveEntry={onMoveEntry}
               styles={styles}
@@ -449,7 +446,6 @@ interface Props {
   onTogglePlanned: (id: string) => void;
   onAddFood: (mealSlot: string, hour?: number) => void;
   onPressEntry: (entry: FoodEntry) => void;
-  onEditEntry: (entry: FoodEntry) => void;
   onMoveEntry?: (entryId: string, hour: number) => void;
   onPressMealGroup?: (groupId: string, entries: FoodEntry[]) => void;
   onDeleteMealGroup?: (groupId: string) => void;
@@ -458,7 +454,7 @@ interface Props {
   isToday?: boolean;
 }
 
-function MealSection({ entries, supplementEntries, onTogglePlanned, onAddFood, onPressEntry, onEditEntry, onMoveEntry, onPressMealGroup, onDeleteMealGroup, onDeleteSupplement, nowRef, isToday = true }: Props) {
+function MealSection({ entries, supplementEntries, onTogglePlanned, onAddFood, onPressEntry, onMoveEntry, onPressMealGroup, onDeleteMealGroup, onDeleteSupplement, nowRef, isToday = true }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -591,7 +587,6 @@ function MealSection({ entries, supplementEntries, onTogglePlanned, onAddFood, o
               colors={colors}
               onAddFood={onAddFood}
               onPressEntry={onPressEntry}
-              onEditEntry={onEditEntry}
               onTogglePlanned={onTogglePlanned}
               onMoveEntry={onMoveEntry}
               onPressMealGroup={onPressMealGroup}

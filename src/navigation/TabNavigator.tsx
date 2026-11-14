@@ -158,17 +158,12 @@ function BottomTabBar({
   navigation,
   position,
   onOpenProfile,
-  onTabChange,
   onTabRepress,
-}: MaterialTopTabBarProps & { onOpenProfile: () => void; onTabChange: (name: string) => void; onTabRepress: (name: string) => void }) {
+}: MaterialTopTabBarProps & { onOpenProfile: () => void; onTabRepress: (name: string) => void }) {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const unreadCount = useFriendsStore((s) => s.unreadCount);
   const styles = useMemo(() => createStyles(colors), [colors]);
-
-  useEffect(() => {
-    onTabChange(state.routes[state.index].name);
-  }, [state.index]);
 
   const translateX = position.interpolate({
     inputRange: state.routes.map((_, i) => i),
@@ -239,7 +234,6 @@ function BottomTabBar({
 export default function TabNavigator() {
   const userId = useAuthStore((s) => s.user?.id);
   const [profileVisible, setProfileVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState('Home');
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -286,13 +280,13 @@ export default function TabNavigator() {
     }
   }, []);
   const renderTabBar = useCallback(
-    (props: MaterialTopTabBarProps) => <BottomTabBar {...props} onOpenProfile={openProfile} onTabChange={setActiveTab} onTabRepress={handleTabRepress} />,
+    (props: MaterialTopTabBarProps) => <BottomTabBar {...props} onOpenProfile={openProfile} onTabRepress={handleTabRepress} />,
     [openProfile, handleTabRepress]
   );
 
   return (
     <View style={styles.root}>
-      <Header activeTab={activeTab} />
+      <Header />
       <View style={{ flex: 1, overflow: 'hidden', backgroundColor: colors.background }}>
         <Tab.Navigator
           tabBar={renderTabBar}

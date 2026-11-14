@@ -37,12 +37,10 @@ function formatDate(dateStr: string): string {
 const SwipeableRow = React.memo(function SwipeableRow({
   item,
   onDelete,
-  colors,
   styles,
 }: {
   item: WeightEntry;
   onDelete?: (date: string) => void;
-  colors: ThemeColors;
   styles: ReturnType<typeof createStyles>;
 }) {
   const translateX = useSharedValue(0);
@@ -124,7 +122,6 @@ export default function WeightHistoryModal({ visible, onClose, entries, onDelete
             <SwipeableRow
               item={item}
               onDelete={onDelete}
-              colors={colors}
               styles={styles}
             />
           )}

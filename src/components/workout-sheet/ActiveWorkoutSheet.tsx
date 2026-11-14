@@ -405,7 +405,6 @@ const SheetOverlay = React.memo(function SheetOverlay({
                 exercise={ex}
                 exerciseIndex={i}
                 isLast={i === exercises.length - 1}
-                totalExercises={exercises.length}
                 isCurrent={i === activeIndex}
                 showGhostSets={i === activeIndex}
                 onReplace={onOpenReplace}

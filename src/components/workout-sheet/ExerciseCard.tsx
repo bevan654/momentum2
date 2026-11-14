@@ -60,7 +60,6 @@ interface Props {
   exercise: ActiveExercise;
   exerciseIndex: number;
   isLast: boolean;
-  totalExercises: number;
   isCurrent?: boolean;
   /** Ghost mode: show the friend's sets under this card (current exercise only). */
   showGhostSets?: boolean;
@@ -70,7 +69,7 @@ interface Props {
   onTitlePress?: (exerciseName: string) => void;
 }
 
-function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurrent, showGhostSets, onReplace, onExerciseFocus, onInputFocus, onTitlePress }: Props) {
+function ExerciseCard({ exercise, exerciseIndex, isLast, isCurrent, showGhostSets, onReplace, onExerciseFocus, onInputFocus, onTitlePress }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const addSet = useActiveWorkoutStore((s) => s.addSet);

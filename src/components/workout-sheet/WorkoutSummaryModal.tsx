@@ -1104,7 +1104,6 @@ export default function WorkoutSummaryModal(props: Props) {
           statsContent={statsContent}
           exerciseContent={exerciseContent}
           editFooter={editFooter}
-          saving={saving}
           setShowShare={setShowShare}
           inline={inline}
         />
@@ -1438,7 +1437,7 @@ export default function WorkoutSummaryModal(props: Props) {
 function HistoricalPage({
   data, colors, styles, editing, onDismiss, onDelete, handleDelete, deleting,
   startEditing, workoutId, statsContent, exerciseContent,
-  editFooter, saving, setShowShare, inline,
+  editFooter, setShowShare, inline,
 }: {
   data: WorkoutWithDetails;
   colors: ThemeColors;
@@ -1453,7 +1452,6 @@ function HistoricalPage({
   statsContent: React.ReactNode;
   exerciseContent: React.ReactNode;
   editFooter: React.ReactNode;
-  saving: boolean;
   setShowShare: (v: boolean) => void;
   inline?: boolean;
 }) {
