@@ -6,8 +6,9 @@
  * Both timers tick natively, so JS only sends a snapshot when what's displayed
  * changes (exercise, set, next exercise, rest start/end), never per tick.
  *
- * Legacy path (older iOS binaries, iOS < 16.2, Live Activities turned off): a
- * sticky expo-notification re-posted by a JS ticker (1s while resting, 30s idle).
+ * Legacy path (older iOS binaries, iOS < 16.2, Live Activities turned off, or the
+ * native start failed): a sticky expo-notification re-posted by a JS ticker
+ * (1s while resting, 30s idle).
  *
  * Plain module, no React state.
  */
@@ -52,13 +53,25 @@ let _lastNativeKey = '';
 /** Keeps native calls in order (an update can't overtake the start it follows). */
 let _nativeQueue: Promise<unknown> = Promise.resolve();
 
+/** Latest snapshot of the running activity (either path); the legacy ticker re-posts it. */
+let _snapshot: WorkoutActivitySnapshot | null = null;
+
 // Legacy path
 let _tickInterval: ReturnType<typeof setInterval> | null = null;
-let _snapshot: WorkoutActivitySnapshot | null = null;
 let _currentTickMs = 0;
-let _presenting = false;
 let _lastTitle = '';
 let _lastBody = '';
+
+interface PendingPost {
+  snapshot: WorkoutActivitySnapshot;
+  /** `_gen` when the post was requested; a post from before a stop is skipped or dismissed. */
+  gen: number;
+  waiters: { resolve: () => void; reject: (e: unknown) => void }[];
+}
+/** The newest post waiting for the one in flight; a newer request replaces its snapshot. */
+let _pendingPost: PendingPost | null = null;
+/** The loop posting notifications one at a time, while it runs. */
+let _posting: Promise<void> | null = null;
 
 // ── Native path ────────────────────────────────────────────
 
@@ -89,12 +102,12 @@ function enqueueNative(label: string, call: () => Promise<unknown>): void {
   });
 }
 
-function sendNative(snapshot: WorkoutActivitySnapshot, kind: 'start' | 'update'): void {
+function sendNative(snapshot: WorkoutActivitySnapshot): void {
   const state = toNativeState(snapshot);
   const key = JSON.stringify(state);
-  if (kind === 'update' && key === _lastNativeKey) return;
+  if (key === _lastNativeKey) return;
   _lastNativeKey = key;
-  enqueueNative(kind, () => (kind === 'start' ? WorkoutLiveActivity.start(state) : WorkoutLiveActivity.update(state)));
+  enqueueNative('update', () => WorkoutLiveActivity.update(state));
 }
 
 // ── Legacy path: notification content ─────────────────────
@@ -125,30 +138,57 @@ function buildNotifContent(snapshot: WorkoutActivitySnapshot): {
   return { title, body };
 }
 
-async function presentNotification(snapshot: WorkoutActivitySnapshot, force = false): Promise<void> {
-  if (_presenting) return;
+/**
+ * Posts the sticky notification. Posts run one at a time: a request made while one is in
+ * flight isn't dropped but waits, and only the newest waiting snapshot is posted. Resolves
+ * once this request's snapshot (or a newer one that replaced it) is posted or skipped.
+ */
+function presentNotification(snapshot: WorkoutActivitySnapshot): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const waiters = _pendingPost?.waiters ?? [];
+    waiters.push({ resolve, reject });
+    _pendingPost = { snapshot, gen: _gen, waiters };
+    if (!_posting) {
+      _posting = drainPosts().finally(() => { _posting = null; });
+    }
+  });
+}
 
-  const { title, body } = buildNotifContent(snapshot);
-  if (!force && title === _lastTitle && body === _lastBody) return;
-
-  _presenting = true;
-  try {
-    _lastTitle = title;
-    _lastBody = body;
-    await Notifications.scheduleNotificationAsync({
-      identifier: WORKOUT_NOTIF_ID,
-      content: {
-        title,
-        body,
-        sticky: true,
-        autoDismiss: false,
-        sound: false,
-        data: { type: 'workout_active' },
-      },
-      trigger: null,
-    });
-  } finally {
-    _presenting = false;
+async function drainPosts(): Promise<void> {
+  while (_pendingPost) {
+    const { snapshot, gen, waiters } = _pendingPost;
+    _pendingPost = null;
+    try {
+      // Stopped (or restarted) since it was requested.
+      if (gen !== _gen || _mode !== 'legacy') {
+        waiters.forEach((w) => w.resolve());
+        continue;
+      }
+      const { title, body } = buildNotifContent(snapshot);
+      if (title !== _lastTitle || body !== _lastBody) {
+        _lastTitle = title;
+        _lastBody = body;
+        await Notifications.scheduleNotificationAsync({
+          identifier: WORKOUT_NOTIF_ID,
+          content: {
+            title,
+            body,
+            sticky: true,
+            autoDismiss: false,
+            sound: false,
+            data: { type: 'workout_active' },
+          },
+          trigger: null,
+        });
+        // Stop wins: a finish/discard whose dismiss ran while this post was in flight would
+        // leave the notification showing. Dismiss again before posting anything newer, so a
+        // workout started meanwhile (its post is queued behind this one) keeps its own.
+        if (gen !== _gen) await dismissLegacy();
+      }
+      waiters.forEach((w) => w.resolve());
+    } catch (e) {
+      waiters.forEach((w) => w.reject(e));
+    }
   }
 }
 
@@ -202,21 +242,31 @@ function dismissLegacy(): Promise<void> {
   return stopping;
 }
 
-export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): Promise<void> {
-  const gen = ++_gen;
-  _legacyStarting = false;
+/**
+ * Native start, queued: it runs after any earlier end, and a stop called before it resolves
+ * runs after it. On iOS, if no activity comes up (`Activity.request` throws, e.g. when the
+ * app was launched in the background to restore a workout), this workout falls back to the
+ * legacy notification, unless it was stopped or replaced meanwhile.
+ */
+function startNative(snapshot: WorkoutActivitySnapshot, gen: number): void {
+  const state = toNativeState(snapshot);
+  _lastNativeKey = JSON.stringify(state);
+  _nativeQueue = _nativeQueue.then(async () => {
+    let id: string | null = null;
+    try {
+      id = await WorkoutLiveActivity.start(state);
+    } catch (e) {
+      if (__DEV__) console.warn('[LiveActivity] start failed:', e);
+    }
+    if (id != null || Platform.OS !== 'ios') return;
+    if (gen !== _gen || _mode !== 'native') return;
+    _lastNativeKey = '';
+    // Not awaited: the native queue shouldn't wait on the notification.
+    startLegacy(gen, _snapshot ?? snapshot);
+  });
+}
 
-  if (WorkoutLiveActivity.isSupported()) {
-    // Upgrading mid-workout from a build without the module leaves its sticky notification.
-    if (Platform.OS === 'ios') dismissLegacy();
-    _mode = 'native';
-    _active = true;
-    // Queued: it runs after any earlier end, and a stop called before it resolves runs after it.
-    sendNative(snapshot, 'start');
-    return;
-  }
-
-  if (Platform.OS !== 'ios') return;
+async function startLegacy(gen: number, snapshot: WorkoutActivitySnapshot): Promise<void> {
   _mode = 'legacy';
   _active = true;
   _snapshot = snapshot;
@@ -227,12 +277,9 @@ export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): P
     _legacyStarting = false;
     // Updates while waiting only recorded their snapshot.
     const latest = _snapshot ?? snapshot;
+    // A stop while this posts is handled by the post itself (it dismisses again).
     await presentNotification(latest);
-    if (gen !== _gen) {
-      // Stopped while posting: its dismiss may have run before the post landed.
-      if (_mode !== 'legacy') dismissLegacy();
-      return;
-    }
+    if (gen !== _gen) return;
     startTicker(_snapshot ?? latest);
   } catch (e) {
     if (gen === _gen) {
@@ -245,12 +292,32 @@ export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): P
   }
 }
 
+export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): Promise<void> {
+  const gen = ++_gen;
+  _legacyStarting = false;
+
+  if (WorkoutLiveActivity.isSupported()) {
+    // Upgrading mid-workout from a build without the module leaves its sticky notification.
+    if (Platform.OS === 'ios') dismissLegacy();
+    _mode = 'native';
+    _active = true;
+    _snapshot = snapshot;
+    startNative(snapshot, gen);
+    return;
+  }
+
+  if (Platform.OS !== 'ios') return;
+  await startLegacy(gen, snapshot);
+}
+
 /** Sends what's displayed now. Does nothing unless a workout activity was started (and not stopped). */
 export function updateWorkoutActivity(snapshot: WorkoutActivitySnapshot): void {
   if (!_active) return;
 
   if (_mode === 'native') {
-    sendNative(snapshot, 'update');
+    // Kept for a fallback to the legacy path if the native start fails.
+    _snapshot = snapshot;
+    sendNative(snapshot);
     return;
   }
   if (_mode !== 'legacy') return;
@@ -279,6 +346,7 @@ export async function stopWorkoutActivity(): Promise<void> {
 
   if (mode === 'native') {
     _lastNativeKey = '';
+    _snapshot = null;
     // Queued after the start, so a stop before the start resolved still ends it.
     enqueueNative('stop', () => WorkoutLiveActivity.end());
     await _nativeQueue;
