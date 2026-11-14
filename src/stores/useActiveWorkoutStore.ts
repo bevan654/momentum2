@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { supabase, rebuildClient } from '../lib/supabase';
-import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference } from '../utils/workoutStorage';
+import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference, addPendingWorkoutDelete, loadPendingWorkoutDeletes, setPendingWorkoutDeletes } from '../utils/workoutStorage';
 import { buildWorkoutPayload } from '../utils/workoutPayload';
 import { suggestSets } from '../utils/exerciseProgress';
 import { makeUuid } from '../utils/uuid';
@@ -317,11 +317,23 @@ async function _scheduleRestNotification(seconds: number) {
 
 // ── Store ──────────────────────────────────────────────
 
+/** Retries deletes of discarded (undone) workouts that failed offline. */
+async function _flushPendingDeletes(): Promise<void> {
+  const ids = await loadPendingWorkoutDeletes();
+  if (ids.length === 0) return;
+  const { error } = await supabase.from('workouts').delete().in('id', ids);
+  if (error) return; // try again next launch
+  await setPendingWorkoutDeletes([]);
+  const userId = useAuthStore.getState().user?.id;
+  if (userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
+}
+
 /** Loads the persisted workout (if any) into the store. Use `restoreWorkout`, which runs this once. */
 async function _restoreSavedWorkout(
   set: (partial: Partial<ActiveWorkoutState>) => void,
   get: () => ActiveWorkoutState,
 ): Promise<void> {
+  _flushPendingDeletes().catch(() => {});
   let saved = await loadWorkoutAsync();
   if (_workoutRestored) return; // A workout was started while storage was loading
   // A workout another account left on this device isn't this user's to continue.
@@ -836,10 +848,15 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     const { workoutId, saveMode } = get();
     if (saveMode === 'replace' && workoutId) {
       supabase.from('workouts').delete().eq('id', workoutId).then(({ error }) => {
-        if (error) console.warn('[discardWorkout] delete of the undone workout failed:', error);
+        if (error) {
+          // Offline or failed: retried on the next launch (_flushPendingDeletes)
+          console.warn('[discardWorkout] delete of the undone workout failed:', error);
+          addPendingWorkoutDelete(workoutId).catch(() => {});
+          return;
+        }
         const userId = useAuthStore.getState().user?.id;
         if (userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
-      });
+      }, () => { addPendingWorkoutDelete(workoutId).catch(() => {}); });
     }
     stopWorkoutActivity();
     Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});

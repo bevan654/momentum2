@@ -95,3 +95,28 @@ export async function loadRestPreference(): Promise<number> {
   } catch {}
   return 90;
 }
+
+// ── Deletes that couldn't reach the server (Discard after Undo, offline) ──
+
+const PENDING_DELETES_KEY = 'pending_workout_deletes';
+
+export async function loadPendingWorkoutDeletes(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_DELETES_KEY);
+    const ids = raw ? JSON.parse(raw) : [];
+    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function addPendingWorkoutDelete(id: string): Promise<void> {
+  const ids = await loadPendingWorkoutDeletes();
+  if (!ids.includes(id)) ids.push(id);
+  await AsyncStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(ids)).catch(() => {});
+}
+
+export async function setPendingWorkoutDeletes(ids: string[]): Promise<void> {
+  if (ids.length === 0) await AsyncStorage.removeItem(PENDING_DELETES_KEY).catch(() => {});
+  else await AsyncStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(ids)).catch(() => {});
+}
