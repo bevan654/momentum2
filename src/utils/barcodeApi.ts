@@ -40,10 +40,12 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeResult> {
     ? rawServingQty
     : parsedText ?? 100;
   const servingUnit = p.serving_quantity_unit || 'g';
+  // A real serving size is known if OFF gives a quantity or the serving text parses.
+  const hasServingSize = hasServingQty || parsedText != null;
 
   // Scale factor: per-serving values need no scaling;
   // per-100g values get scaled to the actual serving size.
-  const scale = hasServing ? 1 : (hasServingQty ? servingSize / 100 : 1);
+  const scale = hasServing ? 1 : (hasServingSize ? servingSize / 100 : 1);
 
   const cal = num((hasServing ? n['energy-kcal_serving'] : n['energy-kcal_100g']) * scale);
   const protein = num((hasServing ? n.proteins_serving : n.proteins_100g) * scale);
@@ -54,7 +56,7 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeResult> {
   const sodium = optNum(hasServing ? n.sodium_serving : n.sodium_100g, scale * 1000); // g → mg
 
   // Micronutrients (always per-100 g in OFF; scale to serving)
-  const microScale = hasServingQty ? servingSize / 100 : 1;
+  const microScale = hasServingSize ? servingSize / 100 : 1;
 
   const food: FoodDetailData = {
     name: p.product_name || p.product_name_en || 'Unknown Product',
