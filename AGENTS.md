@@ -67,9 +67,9 @@ This project is a continuation of an app built with an older model, so expect bu
     ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
     ├── lib/                   # supabase, friendsDatabase, catalogDatabase, navigationBridge
     ├── theme/                 # useColors.ts, responsive.ts, typography.ts
-    ├── utils/                 # barcodeApi, displayName, exerciseCatalog, exerciseProgress, muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, workoutStorage
-    ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate), useLingerMount, useRegionWeightLookup (body-map weights)
-    └── constants/             # buildInfo, changelog, muscles, muscleMap (body-map config + heat/recovery reference values), muscleMapLabels
+    ├── utils/                 # barcodeApi, displayName, exerciseCatalog, exerciseProgress, muscleLoad (effective load for heat/recovery), muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, workoutStorage
+    ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights)
+    └── constants/             # buildInfo, changelog, muscles, muscleMap (body-map config + heat/recovery reference values, bodyweight fractions), muscleMapLabels
 
 supabase/
 ├── functions/                 # Edge functions: ai-coach, ai-workout-summary, ai-workout-notifications,
@@ -120,7 +120,7 @@ supabase/
 
 ### Body map (momentum-muscle-map)
 - Render through `src/components/body/` (`MuscleMapPair`, `WorkoutMiniMaps`, `ExerciseMuscleThumb`); bodies follow `profile.gender` and load lazily (`useBodies`), colours come from the theme's `muscleMap` tokens (`useMuscleMapColors`).
-- Heat data: `src/utils/muscleVolume.ts` (region weights per exercise → weighted volume → 0..1). Send linear values at the finest level you have; the map rolls them up and applies its own colour curve. Keep `values` and `colors` referentially stable.
+- Heat data: `src/utils/muscleVolume.ts` (region weights per exercise → weighted volume → 0..1). Volume there is effective load × reps (`src/utils/muscleLoad.ts`, context from `useMuscleLoad`): bodyweight exercises count bodyweight × a fraction from `BODYWEIGHT_FRACTIONS` + added kg, assisted ones subtract the assistance. Only heat, Training Balance and recovery use it; workout/feed totals, leaderboards, PRs and strength score stay kg × reps. Send linear values at the finest level you have; the map rolls them up and applies its own colour curve. Keep `values` and `colors` referentially stable.
 - Weights come from `exercise_region_targets` (`useRegionTargetsStore`) with a fallback from legacy muscle names (`src/constants/muscleMap.ts`); reference volumes, the secondary-only heat cap and recovery thresholds live there too.
 - Pass `onRegionPress` to make a `MuscleMap` tappable; no `pointerEvents` workaround is needed (0.1.0's canvas swallowed taps; 0.1.1 fixed it).
 - `MiniMuscleMap` (group level, static) for lists and share images; never pre-render maps to images.
