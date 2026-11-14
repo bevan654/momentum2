@@ -116,7 +116,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | Database tables / columns | `database-schema.md` (changes go through bevan) |
 | Edge functions | `supabase/functions/<name>/` (Deno; changes go through bevan) |
 | Tests | None. Checks are `npx tsc --noEmit` (with `noUnusedLocals` on, so unused variables and imports are errors) plus testing on a phone |
-| Unused code (files, exports, packages) | `npm run knip` (config in `knip.json`; runs Knip through `npx`, not installed in the project). It exits with code 1 whenever it finds something. Its results are candidates, not proof: see the cleanup rule in `.claude/rules/navigation.md`. `react-native-svg` is reported unused and is, but removing a native package needs a store build, not an OTA |
+| Unused code (files, exports, packages) | `npm run knip` (config in `knip.json`; runs Knip through `npx`, not installed in the project). It exits with code 1 whenever it finds something. Every feature and fix runs it before the PR (see "No new unused code" in `.claude/rules/navigation.md`); for clearing out older unused code, its results are candidates, not proof (see the cleanup rule there). `react-native-svg` is reported unused and is, but removing a native package needs a store build, not an OTA |
 
 ## Known baseline type errors
 As of commit `bb3ded2`, `npx tsc --noEmit` reported **24 errors in these 11 files**. Run it before you start to see the current list (some may have been fixed since). Errors that were there before your change aren't caused by your edit. Don't fix them as part of other work: flag them and ask (see `CLAUDE.md`, Existing bugs).
