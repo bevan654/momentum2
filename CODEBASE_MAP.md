@@ -61,13 +61,13 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
   | Community | `screens/FriendsScreen.tsx` (+ `components/friends/`, `home/Feed.tsx`) |
 
   It also mounts the global `Header`, `ActiveWorkoutSheet`, `FloatingWorkoutBanner`, `WorkoutSummaryModal`, `GhostFinishScreen`, `FriendProfileModal`, and `ProfileScreen` inside a `Sheet`.
-- `src/navigation/WorkoutsNavigator.tsx`: the base layer is `WorkoutHistoryScreen` (recovery body map + today's plan), shown or hidden through `navigationBridge`. The route `StartWorkout` renders nothing but is load-bearing: on focus it registers the workouts nav ref and shows the recovery overlay. Don't delete it. The plans screen is the route **`Plans`** → `StartWorkoutScreen`. Other routes: `CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`, `WorkoutDetail`.
+- `src/navigation/WorkoutsNavigator.tsx`: the base layer is `WorkoutHistoryScreen` (recovery body map + today's plan), shown or hidden through `navigationBridge`. The route `StartWorkout` renders nothing but is load-bearing: on mount it registers the workouts nav ref, and on each focus it shows the recovery overlay. Don't delete it. The plans screen is the route **`Plans`** → `StartWorkoutScreen`. Other routes: `CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`, `WorkoutDetail`.
 
 ## How the pieces connect
-- **Usual flow:** screen → feature components → Zustand store (`src/stores/`) → `supabase` client (`src/lib/supabase.ts`) → Postgres (with RLS). Social data goes store → `src/lib/friendsDatabase.ts` → Supabase.
-- **Exceptions:** some screens and components call Supabase, edge functions or external APIs directly: `screens/OnboardingScreen`, `screens/SignUpScreen`, `food/MacroLensModal`, `food/AddFoodModal`, `food/CreateMealModal`, `lab/AiHeroCard`, `workout-sheet/CoachTakeCard`, `workout-sheet/ExercisePicker` (wger API), `workout-sheet/WorkoutSummaryModal` (edit-save), `workout-sheet/ExerciseHistoryModal`.
+- **Usual flow:** screen → feature components → Zustand store (`src/stores/`) → `supabase` client (`src/lib/supabase.ts`) → Postgres (with RLS). Social data mostly goes store → `src/lib/friendsDatabase.ts` → Supabase; `friends/FriendProfileModal` and `friends/NotificationList` call `friendsDatabase` directly, and the finished-workout feed post (`activity_feed`) is written by `useActiveWorkoutStore` and the `WorkoutSummaryModal` edit-save.
+- **Exceptions:** some screens, components and hooks call Supabase, edge functions or external APIs directly: `hooks/useForceUpdate` (`app_config`), `screens/OnboardingScreen`, `screens/SignUpScreen`, `food/MacroLensModal`, `food/AddFoodModal`, `food/CreateMealModal`, `lab/AiHeroCard`, `workout-sheet/CoachTakeCard`, `workout-sheet/ExercisePicker` (wger API), `workout-sheet/WorkoutSummaryModal` (edit-save), `workout-sheet/ExerciseHistoryModal`.
 - **Active workout:** `components/workout-sheet/*` → `useActiveWorkoutStore` (AsyncStorage while active) → on finish, `utils/workoutPayload.ts` builds the payload → one `upsert_workout` RPC. It also drives `services/liveActivityManager.ts` → `modules/workout-live-activity`. History is read through `useWorkoutStore`.
-- **Notifications:** `services/notificationService.ts` opens a Realtime channel on the `notifications` table. It is started by `screens/FriendsScreen.tsx` when the Community tab is focused (only if the user has friends) and closed again on blur, so it isn't always on. Push-token registration and the 5-minute fallback poll only run while it is started (`CLAUDE.md`'s Services and Connection Footprint sections are out of date here). Push tokens are stored on `profiles`.
+- **Notifications:** `services/notificationService.ts` opens a Realtime channel on the `notifications` table. It is started by `screens/FriendsScreen.tsx` when the Community tab is focused (only if the user has friends) and closed again on blur, so it isn't always on. It is also cleaned up on sign-out (`useAuthStore`). Push-token registration only happens while it is started, and the 5-minute fallback poll only runs while it is started and the Realtime channel is down (`CLAUDE.md`'s Services and Connection Footprint sections are out of date here). Push tokens are stored on `profiles`.
 - **Navigation from outside navigators:** `src/lib/navigationBridge.ts` (open profile sheet, recovery overlay, workouts nav ref).
 - **Theme:** components call `useColors()`, `sw()/ms()/sh()` and `Fonts`; pure code uses `getThemeColors()`.
 
@@ -82,7 +82,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | `src/stores/useWorkoutStore.ts` | ~31 files |
 | `src/lib/supabase.ts` | ~27 files |
 | `src/stores/useActiveWorkoutStore.ts` | ~26 files; saves workouts, 1.6k lines. Older app builds write workouts differently, so see the Compatibility rule in `CLAUDE.md` |
-| `src/lib/friendsDatabase.ts` | ~13 files; all social reads/writes |
+| `src/lib/friendsDatabase.ts` | ~13 files; most social reads/writes |
 | `src/utils/localDate.ts` | ~13 files; day boundaries |
 | `src/constants/muscles.ts` | ~9 files; legacy muscle names that every app build understands |
 
@@ -101,7 +101,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | Food logging, macros, AI food scan | `components/food/`, `stores/useFoodLogStore.ts`, `stores/useNutritionStore.ts`, `stores/useNutrientGoalStore.ts` |
 | Barcode lookup | `utils/barcodeApi.ts` |
 | Water, creatine, supplements | `stores/useSupplementStore.ts`, `components/home/SupplementsCard.tsx`, `components/home/WaterCard.tsx` |
-| Weight, body fat, measurements | `components/lab/`, `stores/useWeightStore.ts`, `useBodyFatStore.ts`, `useMeasurementStore.ts` |
+| Weight, body fat, measurements | `components/lab/`, `stores/useWeightStore.ts`, `stores/useBodyFatStore.ts`, `stores/useMeasurementStore.ts` |
 | Feed, friends, leaderboard, comments | `components/friends/`, `components/home/Feed.tsx`, `stores/useFriendsStore.ts`, `lib/friendsDatabase.ts` |
 | Global header | `components/home/Header.tsx` |
 | Profile, settings | `screens/ProfileScreen.tsx`, `components/profile/`, `stores/useProfileSettingsStore.ts` |
