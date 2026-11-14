@@ -218,6 +218,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const { _pendingWelcome } = get();
+      // Signed out without signOut() (an expired session) or switched accounts:
+      // the active workout belongs to the previous account. Its saved copy stays
+      // and comes back if that account signs in again.
+      const prevUserId = get().user?.id;
+      if (prevUserId && prevUserId !== session?.user?.id) {
+        useActiveWorkoutStore.getState().resetForSignOut();
+      }
       if (session?.user && _pendingWelcome) {
         set({ user: session.user, session, showWelcome: true, _pendingWelcome: false });
       } else {
