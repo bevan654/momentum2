@@ -11,6 +11,7 @@ import { useRoutineStore } from '../../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import Sheet from '../ui/Sheet';
+import { confirmReplaceWorkout } from '../../utils/confirmReplaceWorkout';
 
 interface Props {
   item: ActivityFeedItem | null;
@@ -119,8 +120,10 @@ function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss
     };
     // Close this sheet first and start the workout once its close animation has
     // played, so the workout sheet doesn't open underneath it.
-    onDismiss();
-    setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, displayName), 350);
+    confirmReplaceWorkout(() => {
+      onDismiss();
+      setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, displayName), 350);
+    });
   }, [item.id, exercises, startFromRoutine, catalogMap, onDismiss, displayName]);
 
   return (
@@ -240,8 +243,10 @@ function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss: 
     };
     // Close this sheet first and start the workout once its close animation has
     // played, so the workout sheet doesn't open underneath it.
-    onDismiss();
-    setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, targetName), 350);
+    confirmReplaceWorkout(() => {
+      onDismiss();
+      setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, targetName), 350);
+    });
   }, [item.id, startFromRoutine, catalogMap, onDismiss]);
 
   const [showPicker, setShowPicker] = useState(false);
