@@ -411,7 +411,9 @@ function WorkoutHistoryScreen() {
 
   // Recompute recovery data when workouts change
   useEffect(() => {
-    if (workouts.length > 0) recompute(workouts, catalogMap, bodyweightKg);
+    // Also when the list empties (the last workout was deleted), so recovery doesn't keep showing it.
+    // Skipped only before anything was computed, so first load doesn't flash an empty analysis.
+    if (workouts.length > 0 || useMuscleAnalysisStore.getState().analysis) recompute(workouts, catalogMap, bodyweightKg);
   }, [workouts, catalogMap, bodyweightKg]);
 
   const todayStr = useMemo(() => {
