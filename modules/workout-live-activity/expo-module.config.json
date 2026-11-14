@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["WorkoutLiveActivityModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.workoutliveactivity.WorkoutLiveActivityModule"]
+  }
+}
