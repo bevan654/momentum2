@@ -12,6 +12,7 @@ import FoodSubScreen from './ui/FoodSubScreen';
 import PrimaryActionBar from './ui/PrimaryActionBar';
 import NumberField from './ui/NumberField';
 import MacroSplitBar from './MacroSplitBar';
+import { findMealConfig } from './groupEntriesByMeal';
 
 interface Props {
   visible: boolean;
@@ -35,7 +36,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
   const userId = useAuthStore((st) => st.user?.id);
   const addEntry = useFoodLogStore((st) => st.addEntry);
   const selectedDate = useFoodLogStore((st) => st.selectedDate);
-  const mealLabel = useFoodLogStore((st) => st.mealConfigs.find((m) => m.slot === mealSlot)?.label);
+  const mealLabel = useFoodLogStore((st) => findMealConfig(st.mealConfigs, mealSlot)?.label);
   const microGoals = useNutrientGoalStore((st) => st.microGoals);
   const loaded = useNutrientGoalStore((st) => st.loaded);
   const loadConfigs = useNutrientGoalStore((st) => st.loadConfigs);
