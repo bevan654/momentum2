@@ -1,6 +1,6 @@
 {
  "_about": "Hand-tuned region weights for the deep muscle map, read by region_targets.py. They replace the generated weights for that exercise completely. exercises: catalog id -> {name, regions}. name is our own name for the row (as in decisions.json), for reading only. regions: unsided part or muscle slug of map_id -> weight; the strongest region is exactly 1.0, prime movers 0.9-1.0, major synergists 0.4-0.7, minor muscles and stabilisers 0.15-0.3, trivial ones left out. A muscle slug stands for all of its parts at that weight. no_targets: catalog ids that work no muscle, with the reason. Holds no RepDB content.",
- "map_id": "momentum-muscle-map@0.1.0",
+ "map_id": "momentum-muscle-map@0.1",
  "no_targets": {
   "1ecfb89f-a62b-5cfc-9ced-1987461a7857": "A lying relaxation pose: no muscle is worked."
  },

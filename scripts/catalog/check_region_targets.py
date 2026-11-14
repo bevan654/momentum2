@@ -56,7 +56,11 @@ class MapVocab:
         with open(os.path.join(map_dir, 'package.json')) as f:
             pkg = json.load(f)
         self.version = pkg['version']
-        self.map_id = f"{pkg['name']}@{self.version}"
+        # map_id tracks the region-id set, not the full version (advice from the map's maintainers):
+        # 0.x minors may rename regions, so 0.x maps to '@0.<minor>'; from 1.0 on only a major can,
+        # so it maps to '@<major>'. A patch release never needs new rows.
+        major, minor = self.version.split('.')[:2]
+        self.map_id = f"{pkg['name']}@{major}.{minor}" if major == '0' else f"{pkg['name']}@{major}"
         # The commit that last changed the region ids, so unrelated renderer commits don't matter.
         self.commit = _git(map_dir, 'log', '-1', '--format=%H', '--', HIERARCHY) or None
         if _git(map_dir, 'status', '--porcelain', '--', HIERARCHY, 'package.json'):

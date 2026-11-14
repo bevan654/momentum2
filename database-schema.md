@@ -223,7 +223,7 @@ CREATE TABLE public.exercise_muscle_targets (
 
 CREATE TABLE public.exercise_region_targets (
   catalog_id text NOT NULL,  -- Catalog exercise.
-  map_id text NOT NULL,  -- Renderer and version whose region ids these are, e.g. momentum-muscle-map@0.1.0.
+  map_id text NOT NULL,  -- Renderer and version whose region ids these are, e.g. momentum-muscle-map@0.1.
   region text NOT NULL,  -- Unsided region slug of that map, at part or muscle level (e.g. pectoralis_major_clavicular). Never a non-muscle region.
   weight numeric(3,2) NOT NULL,  -- How hard the exercise works the region, 0-1; the strongest region of each exercise is 1. Prime movers 0.9-1, major synergists 0.4-0.7, minor/stabilisers 0.15-0.3.
   source text NOT NULL,  -- hand = tuned by hand (scripts/catalog/region_overrides.json); rule = derived from exercise_muscle_targets plus name keyword rules.
