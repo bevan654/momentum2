@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Platform, KeyboardAvoidingView, Alert, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Alert, Pressable } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -26,6 +27,7 @@ import AddFoodResults, { type AddFoodTab } from './AddFoodResults';
 import { useAiFoodSearch } from './useAiFoodSearch';
 import { catalogToDetail } from './foodMapping';
 import { findMealConfig } from './groupEntriesByMeal';
+import { useKeyboardInset } from './ui/useKeyboardInset';
 
 interface Props {
   visible: boolean;
@@ -49,6 +51,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
+  const kbInset = useKeyboardInset();
 
   const userId = useAuthStore((st) => st.user?.id);
   const catalogResults = useFoodLogStore((st) => st.catalogResults);
@@ -246,7 +249,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
 
   return (
     <Sheet visible={visible} onClose={onDismiss} height="95%">
-      <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Animated.View ref={kbInset.ref} style={[s.flex, kbInset.style]}>
         <FoodSheetHeader
           title="Log food"
           subtitle={mealLabel ? `to ${mealLabel}` : undefined}
@@ -289,7 +292,7 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
             </Pressable>
           )}
         </View>
-      </KeyboardAvoidingView>
+      </Animated.View>
 
       {detailVisible && (
         <FoodDetailModal

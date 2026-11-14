@@ -87,7 +87,8 @@ function AddFoodResults({
       items.map((item, i) => ({ kind: 'food', key: `${prefix}-${item.id}-${i}`, item, reportable }));
 
     if (searching) {
-      if (loading) return [{ kind: 'empty', key: 'loading', icon: 'search-outline', title: 'Searching…', loading: true }];
+      // Keep current results on screen while a refined search loads; spinner only when empty.
+      if (loading && results.length === 0) return [{ kind: 'empty', key: 'loading', icon: 'search-outline', title: 'Searching…', loading: true }];
       if (results.length === 0) {
         return [{ kind: 'empty', key: 'none', icon: 'search-outline', title: 'No results found', subtitle: 'Try another name, scan the barcode, or use Quick add.' }];
       }
