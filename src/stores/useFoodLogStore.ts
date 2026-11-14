@@ -188,7 +188,6 @@ interface FoodLogState {
   fetchGoals: (userId: string) => Promise<void>;
   addEntry: (userId: string, entry: Omit<FoodEntry, 'id' | 'user_id' | 'created_at'>, targetDate?: string, targetHour?: number) => Promise<void>;
   updateEntry: (entryId: string, updates: Partial<Omit<FoodEntry, 'id' | 'user_id' | 'created_at'>>) => Promise<void>;
-  moveEntryToHour: (entryId: string, hour: number) => Promise<void>;
   deleteEntry: (entryId: string) => Promise<void>;
   togglePlanned: (entryId: string) => Promise<void>;
   toggleMealCollapse: (mealSlot: string) => void;
@@ -430,32 +429,6 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     } else {
       const uid = prev.find((e) => e.id === entryId)?.user_id;
       if (uid) syncNutrition(uid);
-    }
-  },
-
-  moveEntryToHour: async (entryId: string, hour: number) => {
-    const prev = get().entries;
-    const entry = prev.find((e) => e.id === entryId);
-    if (!entry) return;
-
-    const d = new Date(entry.created_at);
-    d.setHours(hour, 0, 0, 0);
-    const newCreatedAt = d.toISOString();
-
-    // Optimistic update
-    set((s) => ({
-      entries: s.entries.map((e) =>
-        e.id === entryId ? { ...e, created_at: newCreatedAt } : e,
-      ),
-    }));
-
-    const { error } = await supabase
-      .from('food_entries')
-      .update({ created_at: newCreatedAt })
-      .eq('id', entryId);
-
-    if (error) {
-      set({ entries: prev });
     }
   },
 
