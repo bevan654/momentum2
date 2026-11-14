@@ -14,3 +14,14 @@ verify_jwt = false
 
 [functions.ai-workout-summary]
 verify_jwt = false
+
+# Called by database webhooks, authenticated by the x-webhook-secret header
+# (_shared/webhookAuth.ts), not a user JWT. Matches what's deployed.
+[functions.discord-signup]
+verify_jwt = false
+
+[functions.discord-onboarding]
+verify_jwt = false
+
+[functions.send-push-notification]
+verify_jwt = false
