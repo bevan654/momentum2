@@ -6,6 +6,8 @@
  *   bodyweight, weighted+bodyweight  bodyweight × fraction + kg (kg is the added weight)
  *   assisted, or kg below 0          max(0, bodyweight × fraction − |kg|) (kg is the assistance)
  *   duration                         kg (unchanged: their sets carry no load)
+ *   weighted at 0 kg, not in the     bodyweight × fraction (a custom or unknown exercise logged
+ *   catalog                          with no weight is bodyweight work: custom pull-ups, dips)
  *
  * Only for those maps. Workout and feed totals, leaderboards, PRs and strength score keep their
  * own kg × reps (and strengthScore's effectiveLoad) and don't use this file.
@@ -31,14 +33,20 @@ export interface LoadSource {
 export interface MuscleLoad {
   bodyweightKg: number;
   catalogType: (name: string) => string | null | undefined;
+  /** Whether the name is a catalog exercise (false for the user's own exercises and unknown names). */
+  inCatalog: (name: string) => boolean;
 }
 
 /** A MuscleLoad from a catalog map (useWorkoutStore's catalogMap, aliases included). */
 export function makeMuscleLoad(
-  catalogMap: Readonly<Record<string, { exercise_type?: string | null } | undefined>>,
+  catalogMap: Readonly<Record<string, { exercise_type?: string | null; catalog_id?: string } | undefined>>,
   bodyweightKg: number,
 ): MuscleLoad {
-  return { bodyweightKg, catalogType: (name) => catalogMap[name]?.exercise_type };
+  return {
+    bodyweightKg,
+    catalogType: (name) => catalogMap[name]?.exercise_type,
+    inCatalog: (name) => !!catalogMap[name]?.catalog_id,
+  };
 }
 
 function isPlausibleBodyweight(kg: number | null | undefined): kg is number {
@@ -113,22 +121,26 @@ export interface ExerciseLoad {
   fraction: number;
   assisted: boolean;
   bodyweightKg: number;
+  /** A 'weighted' exercise outside the catalog: its 0 kg sets count as bodyweight reps. */
+  zeroKgIsBodyweight: boolean;
 }
 
 export function exerciseLoad(ex: LoadSource, load: MuscleLoad): ExerciseLoad {
+  const type = resolveLoadType(ex.exercise_type, load.catalogType(ex.name));
   return {
-    type: resolveLoadType(ex.exercise_type, load.catalogType(ex.name)),
+    type,
     fraction: bodyweightFraction(ex.name),
     assisted: isAssisted(ex.name),
     bodyweightKg: load.bodyweightKg,
+    zeroKgIsBodyweight: type === 'weighted' && !load.inCatalog(ex.name),
   };
 }
 
 /** Effective load of one rep, in kg. */
-export function repLoad(kg: number, { type, fraction, assisted, bodyweightKg }: ExerciseLoad): number {
+export function repLoad(kg: number, { type, fraction, assisted, bodyweightKg, zeroKgIsBodyweight }: ExerciseLoad): number {
   if (type === 'duration') return kg;
   if (assisted || kg < 0) return Math.max(0, bodyweightKg * fraction - Math.abs(kg));
-  if (type === 'weighted') return kg;
+  if (type === 'weighted') return kg === 0 && zeroKgIsBodyweight ? bodyweightKg * fraction : kg;
   return bodyweightKg * fraction + kg;
 }
 
