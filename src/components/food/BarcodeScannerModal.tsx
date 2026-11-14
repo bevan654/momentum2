@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -40,18 +40,27 @@ export default function BarcodeScannerModal({
   const [permission, requestPermission] = useCameraPermissions();
   const [torch, setTorch] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
+  // Refs, not state: the camera reports a code on every frame, faster than a re-render,
+  // so a state flag let several lookups start for one scan.
+  const busyRef = useRef(false);
+  const lastCodeRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const handleBarcodeScanned = useCallback(
     async (result: BarcodeScanningResult) => {
       const code = result.data;
-      if (scanning || code === lastScannedCode) return;
-
+      if (busyRef.current || code === lastCodeRef.current) return;
+      busyRef.current = true;
+      lastCodeRef.current = code;
       setScanning(true);
-      setLastScannedCode(code);
 
       try {
         const { found, food } = await lookupBarcode(code);
+        if (!mountedRef.current) return; // closed while looking up
         if (found && food) {
           // Fire-and-forget: save to shared barcode_foods table
           const userId = useAuthStore.getState().user?.id;
@@ -63,18 +72,20 @@ export default function BarcodeScannerModal({
           onNotFound(code);
         }
       } catch {
-        onNotFound(code);
+        if (mountedRef.current) onNotFound(code);
       } finally {
+        busyRef.current = false;
         setScanning(false);
       }
     },
-    [scanning, lastScannedCode, onFoodFound, onNotFound],
+    [onFoodFound, onNotFound],
   );
 
   // Reset state each time modal opens
+  // (The scanner remounts each time it opens, so the scan-lock refs start fresh; resetting
+  // them here, after the slide-in, could unlock a lookup that's still running.)
   const handleShow = useCallback(() => {
     setScanning(false);
-    setLastScannedCode(null);
     setTorch(false);
   }, []);
 
@@ -113,7 +124,7 @@ export default function BarcodeScannerModal({
   };
 
   return (
-    <Overlay visible animationType="slide" onShow={handleShow}>
+    <Overlay visible animationType="slide" onShow={handleShow} onRequestClose={onDismiss}>
       <View style={styles.container}>
         {permission?.granted ? (
           <>
