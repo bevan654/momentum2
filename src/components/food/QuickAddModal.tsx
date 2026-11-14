@@ -121,10 +121,11 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
     if (!userId || !canSubmit) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const cal = Number(calories) || 0;
     const pro = Number(protein) || 0;
     const c = Number(carbs) || 0;
     const f = Number(fat) || 0;
+    // Calories left blank: save what the preview shows (worked out from the macros).
+    const cal = Number(calories) > 0 ? Number(calories) : Math.round(pro * 4 + c * 4 + f * 9);
 
     // Build micro fields from form
     const microFields: Record<string, number | null> = {};
