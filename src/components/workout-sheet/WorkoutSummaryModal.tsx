@@ -26,6 +26,7 @@ import CoachTakeCard, { type CoachResult } from './CoachTakeCard';
 import { pickAndUploadWorkoutPhoto } from '../../utils/uploadWorkoutPhoto';
 import type { VolumeExercise } from '../../utils/muscleVolume';
 import { feedPreviewSets } from '../../utils/muscleLoad';
+import { bestSet, buildFeedExerciseDetails } from '../../utils/feedExerciseDetails';
 
 const NO_EXERCISES: VolumeExercise[] = [];
 
@@ -649,18 +650,14 @@ export default function WorkoutSummaryModal(props: Props) {
     if (!isJustCompleted) return [];
     const exs = (data as WorkoutSummary).exercises || [];
     return exs.map((ex) => {
-      const completed = ex.sets.filter((s) => s.kg > 0 || s.reps > 0);
-      let bestKg = 0;
-      let bestReps = 0;
-      for (const s of completed) {
-        // Heaviest set; reps break ties (bodyweight exercises are all 0 kg)
-        if (s.kg > bestKg || (s.kg === bestKg && s.reps > bestReps)) { bestKg = s.kg; bestReps = s.reps; }
-      }
+      // Same sets as the post: anything with a weight (assisted is negative) or reps entered
+      const completed = ex.sets.filter((s) => s.kg !== 0 || s.reps > 0);
+      const best = bestSet(completed);
       return {
         name: ex.name,
         sets_count: completed.length,
-        best_kg: bestKg,
-        best_reps: bestReps,
+        best_kg: best.kg,
+        best_reps: best.reps,
       };
     });
   }, [isJustCompleted, data]);
@@ -866,6 +863,15 @@ export default function WorkoutSummaryModal(props: Props) {
           exercise_names: exerciseNames,
           total_exercises: cleanedExercises.length,
           total_sets: newTotalSets,
+          // The card's per-exercise rows and muscle maps come from this, so rebuild it too
+          exercise_details: buildFeedExerciseDetails(
+            cleanedExercises.map((ex) => ({
+              name: ex.name,
+              exercise_type: ex.exercise_type || catalogMap[ex.name]?.exercise_type || 'weighted',
+              sets: ex.sets,
+            })),
+            catalogMap,
+          ),
         })
         .eq('workout_id', workoutId);
 

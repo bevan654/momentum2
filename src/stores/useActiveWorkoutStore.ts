@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { supabase, rebuildClient } from '../lib/supabase';
 import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference } from '../utils/workoutStorage';
 import { buildWorkoutPayload } from '../utils/workoutPayload';
+import { buildFeedExerciseDetails } from '../utils/feedExerciseDetails';
 import { suggestSets } from '../utils/exerciseProgress';
 import { makeUuid } from '../utils/uuid';
 import { useWorkoutStore } from './useWorkoutStore';
@@ -536,9 +537,8 @@ async function _finishWorkout(
       const prog = programs.find((p) => p.id === get().startedFromProgram);
       console.log('[finishWorkout] matched program:', prog?.name ?? 'NOT FOUND');
       if (prog) {
-        const jsDay = new Date().getDay();
-        const dow = jsDay === 0 ? 6 : jsDay - 1;
-        const dayEntry = prog.days.find((d) => d.day_of_week === dow);
+        // The day the workout was started on, as saved on the workout row
+        const dayEntry = prog.days.find((d) => d.day_of_week === programDayOfWeek);
         programFeedData = {
           program_id: prog.id,
           program_name: prog.name,
@@ -551,35 +551,7 @@ async function _finishWorkout(
 
     // Build per-exercise detail snapshot for the feed
     const { catalogMap } = useWorkoutStore.getState();
-    const exerciseDetailsJson = filteredExercises.map((ex) => {
-      const completedSets = ex.sets.filter((s) => s.kg.trim() !== '' || s.reps.trim() !== '');
-      let bestKg = 0;
-      let bestReps = 0;
-      let vol = 0;
-      let totalReps = 0;
-      for (const s of completedSets) {
-        const kg = parseFloat(s.kg) || 0;
-        const reps = parseInt(s.reps, 10) || 0;
-        vol += kg * reps;
-        totalReps += reps;
-        // Heaviest set; reps break ties, so bodyweight (all 0 kg) exercises get their best reps
-        if (kg > bestKg || (kg === bestKg && reps > bestReps)) { bestKg = kg; bestReps = reps; }
-      }
-      const cat = catalogMap[ex.name];
-      return {
-        name: ex.name,
-        sets_count: completedSets.length,
-        best_kg: bestKg,
-        best_reps: bestReps,
-        total_volume: Math.round(vol),
-        // For the card's muscle map: bodyweight reps count there (utils/muscleLoad.ts)
-        total_reps: totalReps,
-        exercise_type: ex.exercise_type,
-        category: cat?.category || null,
-        primary_muscles: cat?.primary_muscles || [],
-        secondary_muscles: cat?.secondary_muscles || [],
-      };
-    });
+    const exerciseDetailsJson = buildFeedExerciseDetails(filteredExercises, catalogMap);
 
     const feedPayload = {
       user_id: userId,
