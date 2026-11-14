@@ -29,9 +29,11 @@ Where the weights come from:
 Only facts are used: RepDB's muscle lists and the exercise names. No RepDB text reaches the output.
 
 Re-tuning after the migration has been applied: never edit an applied migration. Create a new one
-that contains only the two marker lines and pass it as --migration; its block replaces every row of
-the map_id. For a new map version, update map_id in region_overrides.json after checking that the
-region ids still mean the same; rows of the old map_id stay for builds that still render it.
+that contains only `begin;`, the two marker lines and `commit;`, and pass it as --migration; its
+block replaces every row of the map_id. The transaction is needed: the block's temp table is dropped
+on commit, so outside one it is gone before the next statement. For a new map version, update map_id
+in region_overrides.json after checking that the region ids still mean the same; rows of the old
+map_id stay for builds that still render it.
 """
 import argparse
 import json
