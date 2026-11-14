@@ -522,8 +522,9 @@ export default function FoodDetailModal({
   const fatPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: fatScale.value }] }));
 
   /* ── Reset ─────────────────────────────────────────── */
+  // Reset every time the screen opens, so reopening the same entry drops unsaved edits.
   useEffect(() => {
-    if (food) {
+    if (food && visible) {
       setMealSlot(initialMealSlot);
       setQuantity(String(initialQuantity && initialQuantity > 0 ? initialQuantity : 1));
       setServingSize(String(food.serving_size));
@@ -550,7 +551,7 @@ export default function FoodDetailModal({
       microManualRef.current = false;
 
     }
-  }, [food, initialMealSlot, initialIsPlanned, initialQuantity]);
+  }, [food, visible, initialMealSlot, initialIsPlanned, initialQuantity]);
 
   /* ── Alt source ────────────────────────────────────── */
   const handleAltSource = useCallback(async () => {
