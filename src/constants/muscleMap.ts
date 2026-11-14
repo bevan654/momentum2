@@ -175,10 +175,18 @@ export const FULL_HEAT_VOLUME: Record<CanonicalMuscle, number> = {
  * maps use it: workout and feed totals, leaderboards, PRs and strength score stay kg × reps.
  *
  * Bodyweight is the user's latest weight entry, else their profile's starting weight, else
- * DEFAULT_BODYWEIGHT_KG. Other users' feed cards always use DEFAULT_BODYWEIGHT_KG: the app doesn't
- * have their bodyweight, and the card shouldn't reveal it.
+ * DEFAULT_BODYWEIGHT_KG, skipping any value outside BODYWEIGHT_RANGE_KG. Other users' feed cards
+ * always use DEFAULT_BODYWEIGHT_KG: the app doesn't have their bodyweight, and the card shouldn't
+ * reveal it.
  */
 export const DEFAULT_BODYWEIGHT_KG = 75;
+
+/**
+ * Bodyweights effective load trusts: the range onboarding accepts. The weight log and profile
+ * settings take any positive number, so a typo there would otherwise blow up the heat and the
+ * volume of every bodyweight exercise.
+ */
+export const BODYWEIGHT_RANGE_KG = { min: 30, max: 300 } as const;
 
 /** Fraction of bodyweight a rep lifts when no BODYWEIGHT_FRACTIONS row matches the name. */
 export const DEFAULT_BODYWEIGHT_FRACTION = 0.7;
