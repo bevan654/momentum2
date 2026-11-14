@@ -45,7 +45,10 @@ export default function BarcodeScannerModal({
   const busyRef = useRef(false);
   const lastCodeRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const handleBarcodeScanned = useCallback(
     async (result: BarcodeScanningResult) => {
