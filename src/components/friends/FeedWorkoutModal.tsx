@@ -12,6 +12,7 @@ import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import Sheet from '../ui/Sheet';
 import { confirmReplaceWorkout } from '../../utils/confirmReplaceWorkout';
+import { resolveLoadType } from '../../utils/muscleLoad';
 
 interface Props {
   item: ActivityFeedItem | null;
@@ -42,9 +43,13 @@ function formatDate(isoString: string): string {
 
 type CatalogTypes = Readonly<Record<string, { exercise_type?: string | null } | undefined>>;
 
-/** A posted exercise's type: the post's own when it has one, else the catalog's, else weighted. */
+/**
+ * A posted exercise's type: the post's own, else the catalog's, else weighted. Normalised the way
+ * the app reads workout rows (resolveLoadType): legacy spellings are mapped, and a posted
+ * 'weighted' (what older builds stored for everything) gives way to a bodyweight catalog type.
+ */
 function postedExerciseType(name: string, postedType: string | null | undefined, catalogMap: CatalogTypes): string {
-  return postedType || catalogMap[name]?.exercise_type || 'weighted';
+  return resolveLoadType(postedType, catalogMap[name]?.exercise_type);
 }
 
 /**
