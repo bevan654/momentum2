@@ -342,6 +342,14 @@ Then implement it, following the Git & GitHub Practices below.
 
 Keep the repo clean and the history readable.
 
+### Stay in sync with GitHub
+Several people push to this repo, so a local copy goes stale fast. Working on old code causes conflicts, re-fixes bugs that are already fixed, and builds on files that have since changed.
+- **At the start of every session**, and before creating a branch, run `git fetch origin` and `git status`. Tell the user in plain words where they stand: whether `main` is behind (and by how many commits), whether they have uncommitted changes, and which branch they're on. If they have uncommitted work, ask what to do with it before switching or pulling, and never discard it.
+- **Update before you start:** `git checkout main && git pull`. If the pull fails (local changes or a conflict), stop and explain it; don't force anything.
+- **If `package.json` or `package-lock.json` changed in the pull, run `npm install`.** Missing packages are the most common reason the app or `expo` commands suddenly fail after updating.
+- **Before opening a PR** on a branch that has been open a while, fetch again and merge `origin/main` into the branch (a normal merge, not a rebase or force-push), fix any conflicts, and re-run the typecheck.
+- **Check open PRs before starting** (`gh pr list`): if someone else is already changing the same files or feature, tell the user so they can coordinate instead of duplicating work.
+
 ### Branches
 - Never commit directly to `main`. Branch from an up-to-date `main` (`git checkout main && git pull`) for every piece of work. The only exception is review-loop fix branches, which branch off the PR under review (see below).
 - **Naming: `{user}/{type}/{short-name}`.**
