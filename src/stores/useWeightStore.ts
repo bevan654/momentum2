@@ -46,6 +46,11 @@ function computeEma(entries: WeightEntry[], alpha = 0.2): EmaPoint[] {
   return emaPoints;
 }
 
+/** Local calendar date (YYYY-MM-DD); weight_entries.date is the user's local day. */
+function toLocalDateString(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export const useWeightStore = create<WeightState>((set, get) => ({
   current: null,
   trend: null,
@@ -59,7 +64,7 @@ export const useWeightStore = create<WeightState>((set, get) => ({
     try {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
-      const fromDate = cutoff.toISOString().split('T')[0];
+      const fromDate = toLocalDateString(cutoff);
 
       const { data } = await supabase
         .from('weight_entries')
@@ -101,8 +106,7 @@ export const useWeightStore = create<WeightState>((set, get) => ({
   },
 
   logWeight: async (userId: string, weight: number, days = 30) => {
-    const today = new Date();
-    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const date = toLocalDateString(new Date());
 
     // One entry per day (unique user_id, date): a second weigh-in today replaces the first.
     const { error } = await supabase.from('weight_entries').upsert(
