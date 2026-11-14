@@ -11,6 +11,7 @@ import { useSupplementStore } from '../../stores/useSupplementStore';
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 const WATER_STEP_ML = 250;
+const WATER_KEY = 'water';
 
 /** Water in litres when the goal is a litre or more (e.g. 0.75 / 3 L), otherwise ml. */
 function formatWater(ml: number, inLitres: boolean): string {
@@ -24,6 +25,12 @@ function formatAmount(v: number): string {
 }
 
 interface ChipProps {
+  /** Supplement key passed back to onAdd (water uses its own handlers). */
+  itemKey: string;
+  label: string;
+  step: number;
+  /** Spoken amount one tap adds, e.g. "250 ml". */
+  stepText: string;
   icon: string;
   color: string;
   value: string;
@@ -31,22 +38,28 @@ interface ChipProps {
   unit: string;
   progress: number;
   canAdd: boolean;
-  onPress?: () => void;
+  onAdd?: (key: string, step: number) => void;
   onLongPress?: () => void;
   styles: ReturnType<typeof createStyles>;
 }
 
-const Chip = React.memo(function Chip({ icon, color, value, goal, unit, progress, canAdd, onPress, onLongPress, styles }: ChipProps) {
+const Chip = React.memo(function Chip({ itemKey, label, step, stepText, icon, color, value, goal, unit, progress, canAdd, onAdd, onLongPress, styles }: ChipProps) {
   const done = progress >= 1;
+  const handlePress = useCallback(() => onAdd?.(itemKey, step), [onAdd, itemKey, step]);
   return (
     <Pressable
       style={({ pressed }) => [styles.chip, pressed && canAdd && styles.chipPressed]}
-      onPress={canAdd ? onPress : undefined}
+      onPress={canAdd ? handlePress : undefined}
       onLongPress={canAdd ? onLongPress : undefined}
       disabled={!canAdd}
+      accessibilityRole={canAdd ? 'button' : 'text'}
+      accessibilityLabel={`${label}: ${value} of ${goal} ${unit}`}
+      accessibilityHint={canAdd ? `Adds ${stepText}${onLongPress ? '. Long press to undo the last one' : ''}` : undefined}
+      accessibilityActions={canAdd && onLongPress ? [{ name: 'longpress', label: 'Undo last' }] : undefined}
+      onAccessibilityAction={onLongPress ? (e) => { if (e.nativeEvent.actionName === 'longpress') onLongPress(); } : undefined}
     >
       <View style={[styles.iconWrap, { backgroundColor: color + '22' }]}>
-        <Ionicons name={(done ? 'checkmark' : icon) as IconName} size={ms(14)} color={color} />
+        <Ionicons name={(done ? 'checkmark' : icon || 'ellipse-outline') as IconName} size={ms(14)} color={color} />
       </View>
       <View style={styles.chipBody}>
         <Text style={styles.chipText} numberOfLines={1}>
@@ -94,23 +107,18 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
 
   const waterInLitres = waterGoal >= 1000;
 
-  const handleAddWater = useCallback(() => {
+  const handleAdd = useCallback((key: string, step: number) => {
     if (!userId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    addWater(userId, WATER_STEP_ML);
-  }, [userId, addWater]);
+    if (key === WATER_KEY) addWater(userId, step);
+    else addSupplement(userId, key, step);
+  }, [userId, addWater, addSupplement]);
 
   const handleUndoWater = useCallback(() => {
     if (!userId) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     undoLastWater(userId);
   }, [userId, undoLastWater]);
-
-  const handleAddSupplement = useCallback((key: string, amount: number) => {
-    if (!userId) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    addSupplement(userId, key, amount);
-  }, [userId, addSupplement]);
 
   return (
     <ScrollView
@@ -120,6 +128,10 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
       style={styles.scroll}
     >
       <Chip
+        itemKey={WATER_KEY}
+        label="Water"
+        step={WATER_STEP_ML}
+        stepText={`${WATER_STEP_ML} ml`}
         icon="water-outline"
         color={colors.water}
         value={formatWater(waterMl, waterInLitres)}
@@ -127,7 +139,7 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
         unit={waterInLitres ? 'L' : 'ml'}
         progress={waterGoal > 0 ? waterMl / waterGoal : 0}
         canAdd={isToday}
-        onPress={handleAddWater}
+        onAdd={handleAdd}
         onLongPress={handleUndoWater}
         styles={styles}
       />
@@ -137,6 +149,10 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
         return (
           <Chip
             key={c.key}
+            itemKey={c.key}
+            label={c.name}
+            step={step}
+            stepText={`${formatAmount(step)} ${c.unit}`}
             icon={c.icon}
             color={c.color}
             value={formatAmount(amount)}
@@ -144,7 +160,7 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
             unit={c.unit}
             progress={c.dailyGoal > 0 ? amount / c.dailyGoal : 0}
             canAdd={isToday && step > 0}
-            onPress={() => handleAddSupplement(c.key, step)}
+            onAdd={handleAdd}
             styles={styles}
           />
         );

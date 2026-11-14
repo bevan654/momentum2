@@ -54,7 +54,14 @@ function NutritionHero({ entries, goals }: Props) {
 
   return (
     <>
-      <TouchableOpacity style={styles.card} onPress={handleOpen} activeOpacity={0.8}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={handleOpen}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={`${totals.calories} of ${goals.calorie_goal} calories eaten`}
+        accessibilityHint="Opens the full nutrition breakdown"
+      >
         <View style={styles.row}>
           <View style={styles.ringCol}>
             <CalorieRing eaten={totals.calories} goal={goals.calorie_goal} />
