@@ -85,7 +85,7 @@ export interface SummaryExercise {
   sets: { kg: number; reps: number; completed: boolean; set_type: string; parent_set_number: number | null }[];
 }
 
-export interface GhostExerciseData {
+interface GhostExerciseData {
   name: string;
   sets: { kg: number; reps: number }[];
 }

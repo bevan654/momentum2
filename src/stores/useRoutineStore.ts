@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 
-export interface RoutineExercise {
+interface RoutineExercise {
   id?: string;
   name: string;
   exercise_order: number;

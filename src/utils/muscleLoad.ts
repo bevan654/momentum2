@@ -101,7 +101,7 @@ function normaliseName(name: string): string {
 const fractionCache = new Map<string, number>();
 
 /** Fraction of bodyweight one rep lifts, from the exercise's name (BODYWEIGHT_FRACTIONS). */
-export function bodyweightFraction(name: string): number {
+function bodyweightFraction(name: string): number {
   let fraction = fractionCache.get(name);
   if (fraction === undefined) {
     const key = normaliseName(name);
@@ -112,12 +112,12 @@ export function bodyweightFraction(name: string): number {
 }
 
 /** Assisted machine or band exercises, whose kg is the assistance. */
-export function isAssisted(name: string): boolean {
+function isAssisted(name: string): boolean {
   return /\bassist(ed|ance)?\b/.test(normaliseName(name));
 }
 
 /** How one exercise's sets turn kg into effective load. */
-export interface ExerciseLoad {
+interface ExerciseLoad {
   type: LoadType;
   fraction: number;
   assisted: boolean;
@@ -126,7 +126,7 @@ export interface ExerciseLoad {
   zeroKgIsBodyweight: boolean;
 }
 
-export function exerciseLoad(ex: LoadSource, load: MuscleLoad): ExerciseLoad {
+function exerciseLoad(ex: LoadSource, load: MuscleLoad): ExerciseLoad {
   const type = resolveLoadType(ex.exercise_type, load.catalogType(ex.name));
   return {
     type,
@@ -138,7 +138,7 @@ export function exerciseLoad(ex: LoadSource, load: MuscleLoad): ExerciseLoad {
 }
 
 /** Effective load of one rep, in kg. */
-export function repLoad(kg: number, { type, fraction, assisted, bodyweightKg, zeroKgIsBodyweight }: ExerciseLoad): number {
+function repLoad(kg: number, { type, fraction, assisted, bodyweightKg, zeroKgIsBodyweight }: ExerciseLoad): number {
   if (type === 'duration') return kg;
   if (assisted || kg < 0) return Math.max(0, bodyweightKg * fraction - Math.abs(kg));
   if (type === 'weighted') return kg === 0 && zeroKgIsBodyweight ? bodyweightKg * fraction : kg;
@@ -164,7 +164,7 @@ type TotalSets = { kg: number; reps: number; completed: boolean }[];
  * Sets for an exercise known only by its totals: all its reps at the average kg, so its effective
  * volume is bodyweight × fraction × reps + kg × reps, and a weighted one's is its total volume.
  */
-export function setsFromTotals(totalVolume: number, totalReps: number): TotalSets {
+function setsFromTotals(totalVolume: number, totalReps: number): TotalSets {
   if (totalReps > 0) return [{ kg: totalVolume / totalReps, reps: totalReps, completed: true }];
   // No rep count: the volume as one rep, as feed cards always drew it
   return totalVolume > 0 ? [{ kg: totalVolume, reps: 1, completed: true }] : [];

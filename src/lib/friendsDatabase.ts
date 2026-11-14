@@ -4,7 +4,7 @@ import { toLocalDateString } from '../utils/localDate';
 
 // ── Types ──────────────────────────────────────────────
 
-export type FriendshipStatus = 'pending' | 'accepted' | 'blocked';
+type FriendshipStatus = 'pending' | 'accepted' | 'blocked';
 export type NotificationType =
   | 'friend_request'
   | 'friend_accepted'
@@ -34,7 +34,7 @@ interface FriendshipRow {
   };
 }
 
-export interface FeedSetDetail {
+interface FeedSetDetail {
   kg: number;
   reps: number;
   set_number: number;
@@ -84,7 +84,7 @@ export interface ActivityFeedItem {
 
 const PHOTO_BUCKET = 'workout_photos';
 
-export interface ReactionSummary {
+interface ReactionSummary {
   emoji: string;
   count: number;
   reacted: boolean;

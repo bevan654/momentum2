@@ -17,7 +17,7 @@ export interface CoachExerciseNote {
   hasKg: boolean;
 }
 
-export interface SetData {
+interface SetData {
   id: string;
   set_number: number;
   kg: number;

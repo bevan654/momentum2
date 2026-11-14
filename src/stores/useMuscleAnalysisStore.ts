@@ -41,7 +41,7 @@ interface MuscleExerciseEntry {
   isPrimary: boolean;
 }
 
-export interface MuscleGroupAnalysis {
+interface MuscleGroupAnalysis {
   weeklyVolume: number;
   prevWeekVolume: number;
   volumeRatio: number;       // 0-1 relative to maxGroupVolume

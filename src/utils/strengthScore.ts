@@ -35,7 +35,7 @@ export type MuscleGroup =
   | 'abs'
   | 'calves';
 
-export type RankName =
+type RankName =
   | 'Novice'
   | 'Apprentice'
   | 'Intermediate'

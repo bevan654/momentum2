@@ -81,7 +81,7 @@ export function toSlug(raw: string): Slug | null {
 /** Map region (unsided part slug) → how hard an exercise works it, 0..1. */
 export type RegionWeights = Readonly<Record<string, number>>;
 /** Map region → an amount summed over exercises (weighted volume, or summed weights). */
-export type RegionAmounts = Readonly<Record<string, number>>;
+type RegionAmounts = Readonly<Record<string, number>>;
 
 /** Amounts per region, and which regions got primary-level work. */
 export interface RegionWork {
@@ -127,7 +127,7 @@ function legacyNameRegions(raw: string): readonly string[] {
  * Region weights from legacy muscle names: primary 1, secondary 0.5. Without a usable primary
  * muscle, the category's muscles count as primary.
  */
-export function legacyRegionWeights(
+function legacyRegionWeights(
   primary: readonly string[] | undefined,
   secondary: readonly string[] | undefined,
   category: string | null | undefined,
