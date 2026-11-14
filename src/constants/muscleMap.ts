@@ -198,6 +198,8 @@ export const DEFAULT_BODYWEIGHT_FRACTION = 0.7;
  * locomotion count 0: their reps are usually seconds or distance.
  */
 export const BODYWEIGHT_FRACTIONS: readonly { match: RegExp; fraction: number }[] = [
+  // Holds first, whatever the movement ("superman hold", "chin-up hold"): their reps are seconds
+  { match: /\b(holds?|isometrics?)\b/, fraction: 0 },
   { match: /\bhandstand\b/, fraction: 0.9 },
   { match: /\b(pull ?ups?|chin ?ups?|muscle ?ups?|rope climbs?)\b/, fraction: 1 },
   // Inverted, ring and suspension rows: the feet stay on the floor
@@ -217,7 +219,7 @@ export const BODYWEIGHT_FRACTIONS: readonly { match: RegExp; fraction: number }[
   { match: /\b(abduction|adduction|clamshells?|fire hydrants?|kickbacks?|side kicks?|leg lifts?)\b/, fraction: 0.2 },
   // Suspension-trainer and lean-back moves not matched above: only part of the body is lifted
   { match: /\b(trx|suspension|face pulls?|y fly|curls?|triceps? extensions?|lateral raises?)\b/, fraction: 0.4 },
-  { match: /\b(plank|hang|holds?|wall sit|l sit|hollow|run|running|jog|jogging|sprints?|walk|walking|crawl|mountain climbers?|jumping jacks?)\b/, fraction: 0 },
+  { match: /\b(planks?|hangs?|wall sits?|l sits?|hollow|runs?|running|jogs?|jogging|sprints?|walks?|walking|crawls?|mountain climbers?|jumping jacks?)\b/, fraction: 0 },
 ];
 
 /**
