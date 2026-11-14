@@ -21,7 +21,7 @@ This project is a continuation of an app built with an older model, so expect bu
 | State | Zustand 5 (24 stores) |
 | Animations | Reanimated 4.1 + react-native-worklets — UI-thread only. Never RN `Animated`. |
 | Graphics | @shopify/react-native-skia 2.2 for performance-critical visuals; react-native-svg 15.12 is still installed but no longer imported (removing it needs a native build) |
-| Body map | `momentum-muscle-map` (our own library, git dependency pinned to a commit): Skia + Reanimated renderer, JS only, so OTA-safe |
+| Body map | `momentum-muscle-map` (our own library, git dependency pinned to a release tag; the lockfile pins its commit): Skia + Reanimated renderer, JS only, so OTA-safe |
 | Gestures | React Native Gesture Handler 2.28 |
 | Lists | @shopify/flash-list 2.0 |
 | Backend | Supabase (Postgres + Auth + Realtime + Storage). No custom server, no GraphQL. |
@@ -122,7 +122,7 @@ supabase/
 - Render through `src/components/body/` (`MuscleMapPair`, `WorkoutMiniMaps`, `ExerciseMuscleThumb`); bodies follow `profile.gender` and load lazily (`useBodies`), colours come from the theme's `muscleMap` tokens (`useMuscleMapColors`).
 - Heat data: `src/utils/muscleVolume.ts` (region weights per exercise → weighted volume → 0..1). Send linear values at the finest level you have; the map rolls them up and applies its own colour curve. Keep `values` and `colors` referentially stable.
 - Weights come from `exercise_region_targets` (`useRegionTargetsStore`) with a fallback from legacy muscle names (`src/constants/muscleMap.ts`); reference volumes, the secondary-only heat cap and recovery thresholds live there too.
-- A tappable `MuscleMap` needs `pointerEvents: 'box-only'` in its style (done in `MuscleMapPair`): in 0.1.0 its Skia canvas swallows taps otherwise.
+- Pass `onRegionPress` to make a `MuscleMap` tappable; no `pointerEvents` workaround is needed (0.1.0's canvas swallowed taps; 0.1.1 fixed it).
 - `MiniMuscleMap` (group level, static) for lists and share images; never pre-render maps to images.
 
 ### State / Stores
