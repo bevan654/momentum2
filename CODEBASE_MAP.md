@@ -1,6 +1,6 @@
 # Codebase Map
 
-**Last verified:** 2026-11-14, against the code at commit `bb3ded2`.
+**Last verified:** 2026-11-15, against the code at commit `5b879bc` (plus the Nutrition tab redesign branch).
 
 An index of where things live and how they connect. Rules and conventions are in `CLAUDE.md`; database tables are in `database-schema.md`. If `CLAUDE.md`'s Project Structure tree disagrees with this map, this map is current.
 
@@ -40,7 +40,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `auth/` | Login/sign-up social buttons | |
 | `body/` | Body map wrappers around `momentum-muscle-map` | `useBodyMap.ts` exports `useBodies`, `useMuscleMapColors` and other helpers, but no `useBodyMap` |
 | `dev/` | **Production share UI**, not dev tools | `WorkoutOverlay` = share card, `StoryCropModal`; used by `share/` and the workout summary |
-| `food/` | Nutrition tab: meals, add-food, barcode, AI scan, food detail | |
+| `food/` | Nutrition tab: day summary (`NutritionHero`: calorie ring, macro bars), water/supplement strip, meal cards, add-food, barcode, AI scan, food detail | Meal cards: `MealList` → `MealCard`; entries are grouped by `groupEntriesByMeal.ts`, which matches `meal_type` to the user's `meal_config` by slot, then by name (many accounts use `meal_1`… labelled Breakfast…) |
 | `friends/` | Community tab: leaderboard, search, notifications, profiles, reports | `AvatarCircle`, `ReportSheet` are also used by other features |
 | `home/` | Home tab cards (activity, nutrition, water, supplements) | Also holds app-wide pieces: `Header` (global header), `ChangelogModal`, `BetaWelcomeModal`, the Community `Feed` and `NutritionStories`, and weight modals used by `lab/WeightCard` |
 | `lab/` | **Recovery tab** (screen is `LaboratoryScreen`): body metrics, charts, AI card | |
@@ -119,8 +119,8 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | Unused code (files, exports, packages) | `npm run knip` (config in `knip.json`; runs Knip through `npx`, not installed in the project). It exits with code 1 whenever it finds something. Every feature and fix runs it before the PR (see "No new unused code" in `.claude/rules/navigation.md`); for clearing out older unused code, its results are candidates, not proof (see the cleanup rule there). `react-native-svg` is reported unused and is, but removing a native package needs a store build, not an OTA |
 
 ## Known baseline type errors
-As of commit `bb3ded2`, `npx tsc --noEmit` reported **24 errors in these 11 files**. Run it before you start to see the current list (some may have been fixed since). Errors that were there before your change aren't caused by your edit. Don't fix them as part of other work: flag them and ask (see `CLAUDE.md`, Existing bugs).
-`app.config.ts`, `src/components/food/MealSection.tsx`, `src/components/food/AddFoodModal.tsx`, `src/components/friends/FriendSearch.tsx`, `src/components/friends/NotificationList.tsx`, `src/components/lab/AiHeroCard.tsx`, `src/components/workout-sheet/SetRow.tsx`, `src/navigation/TabNavigator.tsx`, `src/screens/FoodLoggerScreen.tsx`, `src/screens/ProgramProgressScreen.tsx`, `src/stores/useRankStore.ts`.
+As of commit `bb3ded2`, `npx tsc --noEmit` reported **24 errors in 11 files**; the Nutrition tab redesign deleted `MealSection.tsx` and its 7, leaving **17 in these 10 files**. Run it before you start to see the current list (some may have been fixed since). Errors that were there before your change aren't caused by your edit. Don't fix them as part of other work: flag them and ask (see `CLAUDE.md`, Existing bugs).
+`app.config.ts`, `src/components/food/AddFoodModal.tsx`, `src/components/friends/FriendSearch.tsx`, `src/components/friends/NotificationList.tsx`, `src/components/lab/AiHeroCard.tsx`, `src/components/workout-sheet/SetRow.tsx`, `src/navigation/TabNavigator.tsx`, `src/screens/FoodLoggerScreen.tsx`, `src/screens/ProgramProgressScreen.tsx`, `src/stores/useRankStore.ts`.
 
 ## Ignore
 Don't read or edit:
