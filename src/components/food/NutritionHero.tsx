@@ -1,35 +1,22 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
-import Overlay from '../ui/Overlay';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { FoodEntry, NutritionGoals } from '../../stores/useFoodLogStore';
 import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
-
-/* ─── Micro keys that exist on FoodEntry ─────────────── */
-
-const ENTRY_MICRO_KEYS = new Set([
-  'caffeine', 'sodium', 'fiber', 'sugar', 'calcium', 'iron', 'potassium', 'magnesium', 'zinc',
-  'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k',
-  'vitamin_b6', 'vitamin_b12', 'folate',
-]);
-
-function formatMicroValue(value: number, unit: string): string {
-  if (unit === 'mcg' || unit === 'mg') {
-    return value % 1 === 0 ? String(value) : value.toFixed(1);
-  }
-  return String(Math.round(value));
-}
-
-/* ─── Main component ──────────────────────────────────── */
+import CalorieRing from './CalorieRing';
+import MacroBars, { type MacroBarItem } from './MacroBars';
+import NutrientDetailOverlay from './NutrientDetailOverlay';
+import { sumMacros, sumMicros } from './dayTotals';
 
 interface Props {
   entries: FoodEntry[];
   goals: NutritionGoals;
 }
 
+/** Day summary: calorie ring (what's left) beside protein / carbs / fat bars. Tap for the full breakdown. */
 function NutritionHero({ entries, goals }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -44,439 +31,127 @@ function NutritionHero({ entries, goals }: Props) {
     if (!loaded) loadConfigs();
   }, [loaded, loadConfigs]);
 
-  const totals = useMemo(() => {
-    let cal = 0, protein = 0, carbs = 0, fat = 0;
-    for (const e of entries) {
-      if (!e.is_planned) {
-        cal += e.calories;
-        protein += e.protein;
-        carbs += e.carbs;
-        fat += e.fat;
-      }
-    }
-    return { calories: Math.round(cal), protein: Math.round(protein), carbs: Math.round(carbs), fat: Math.round(fat) };
-  }, [entries]);
+  const totals = useMemo(() => sumMacros(entries), [entries]);
 
-  const isOver = totals.calories > goals.calorie_goal;
-  const remaining = Math.max(0, goals.calorie_goal - totals.calories);
-
-  const enabledSet = useMemo(() => new Set(enabledMacros), [enabledMacros]);
-
-  const macros = useMemo(() => {
-    const all = [
+  const macros: MacroBarItem[] = useMemo(() => {
+    const enabled = new Set(enabledMacros);
+    return [
       { key: 'protein', label: 'Protein', eaten: totals.protein, goal: goals.protein_goal, color: colors.protein },
       { key: 'carbs', label: 'Carbs', eaten: totals.carbs, goal: goals.carbs_goal, color: colors.carbs },
       { key: 'fat', label: 'Fat', eaten: totals.fat, goal: goals.fat_goal, color: colors.fat },
-    ];
-    return all.filter((m) => enabledSet.has(m.key));
-  }, [totals, goals, colors, enabledSet]);
+    ].filter((m) => enabled.has(m.key));
+  }, [totals, goals, colors, enabledMacros]);
 
-  // Aggregate micro totals from Consumed entries
-  const microTotals = useMemo(() => {
-    if (microGoals.length === 0) return {};
-    const sums: Record<string, number> = {};
-    for (const e of entries) {
-      if (e.is_planned) continue;
-      for (const g of microGoals) {
-        if (!ENTRY_MICRO_KEYS.has(g.key)) continue;
-        const val = (e as any)[g.key];
-        if (val != null) {
-          sums[g.key] = (sums[g.key] || 0) + Number(val);
-        }
-      }
-    }
-    return sums;
-  }, [entries, microGoals]);
+  // Micronutrient totals are only needed while the breakdown is open.
+  const microKeys = useMemo(() => microGoals.map((g) => g.key), [microGoals]);
+  const microTotals = useMemo(
+    () => (expanded ? sumMicros(entries, microKeys) : {}),
+    [expanded, entries, microKeys],
+  );
 
   const handleOpen = useCallback(() => setExpanded(true), []);
   const handleClose = useCallback(() => setExpanded(false), []);
 
   return (
     <>
-      <TouchableOpacity style={styles.container} onPress={handleOpen} activeOpacity={0.7}>
-        {/* Hero row: big calories + stats on the right */}
-        <View style={styles.heroRow}>
-          <View style={styles.heroLeft}>
-            <Text style={[styles.heroNumber, isOver && { color: colors.accentRed }]}>
-              {totals.calories.toLocaleString()}
+      <TouchableOpacity style={styles.card} onPress={handleOpen} activeOpacity={0.8}>
+        <View style={styles.row}>
+          <View style={styles.ringCol}>
+            <CalorieRing eaten={totals.calories} goal={goals.calorie_goal} />
+            <Text style={styles.caption}>
+              <Text style={styles.captionStrong}>{totals.calories.toLocaleString()}</Text>
+              {' eaten · '}
+              {goals.calorie_goal.toLocaleString()}
+              {' goal'}
             </Text>
-            <Text style={styles.heroLabel}>Consumed</Text>
           </View>
-
-          <View style={styles.heroRight}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{goals.calorie_goal.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>Goal</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, isOver && { color: colors.accentRed }]}>
-                {isOver ? `+${(totals.calories - goals.calorie_goal).toLocaleString()}` : remaining.toLocaleString()}
-              </Text>
-              <Text style={[styles.statLabel, isOver && { color: colors.accentRed }]}>
-                {isOver ? 'Over' : 'Left'}
-              </Text>
-            </View>
-          </View>
+          {macros.length > 0 && <MacroBars items={macros} />}
         </View>
 
-        {/* Macro columns (always visible) */}
-        {macros.length > 0 && (
-          <View style={styles.macroRow}>
-            {macros.map((m) => {
-              const progress = Math.min(m.goal > 0 ? m.eaten / m.goal : 0, 1);
-              const over = m.eaten > m.goal;
-              return (
-                <View key={m.key} style={styles.macroCol}>
-                  <View style={[styles.macroAccent, { backgroundColor: m.color }]} />
-                  <View style={styles.macroContent}>
-                    <Text style={[styles.macroEaten, over && { color: colors.accentRed }]}>
-                      {m.eaten}g
-                    </Text>
-                    <Text style={styles.macroGoal}>/ {m.goal}g {m.label}</Text>
-                    <View style={styles.macroBarTrack}>
-                      <View
-                        style={[
-                          styles.macroBarFill,
-                          { width: `${progress * 100}%`, backgroundColor: over ? colors.accentRed : m.color },
-                        ]}
-                      />
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Micro tracking dots hint (only if micros are being tracked) */}
-        {microGoals.length > 0 && (
-          <View style={styles.dotsRow}>
-            <View style={styles.dotsWrap}>
+        <View style={styles.footer}>
+          {microGoals.length > 0 && (
+            <View style={styles.dots}>
               {microGoals.map((g) => (
                 <View key={g.key} style={[styles.dot, { backgroundColor: g.color }]} />
               ))}
             </View>
-            <Ionicons name="chevron-down" size={ms(14)} color={colors.textTertiary} />
-          </View>
-        )}
+          )}
+          <Text style={styles.footerText}>{microGoals.length > 0 ? 'Micronutrients' : 'Details'}</Text>
+          <Ionicons name="chevron-forward" size={ms(12)} color={colors.textTertiary} />
+        </View>
       </TouchableOpacity>
 
-      {/* Expanded detail modal */}
-      <Overlay visible={expanded} animationType="fade" onRequestClose={handleClose}>
-        <Pressable style={styles.backdrop} onPress={handleClose}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            {/* Calories summary */}
-            <View style={styles.sheetHeroRow}>
-              <View>
-                <Text style={[styles.heroNumber, isOver && { color: colors.accentRed }]}>
-                  {totals.calories.toLocaleString()}
-                </Text>
-                <Text style={styles.heroLabel}>Consumed</Text>
-              </View>
-              <View style={styles.heroRight}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{goals.calorie_goal.toLocaleString()}</Text>
-                  <Text style={styles.statLabel}>Goal</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={[styles.statValue, isOver && { color: colors.accentRed }]}>
-                    {isOver ? `+${(totals.calories - goals.calorie_goal).toLocaleString()}` : remaining.toLocaleString()}
-                  </Text>
-                  <Text style={[styles.statLabel, isOver && { color: colors.accentRed }]}>
-                    {isOver ? 'Over' : 'Left'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Macro columns */}
-            {macros.length > 0 && (
-              <>
-                <Text style={styles.sheetSectionLabel}>Macronutrients</Text>
-                <View style={styles.macroRow}>
-                  {macros.map((m) => {
-                    const progress = Math.min(m.goal > 0 ? m.eaten / m.goal : 0, 1);
-                    const over = m.eaten > m.goal;
-                    return (
-                      <View key={m.key} style={styles.macroCol}>
-                        <View style={[styles.macroAccent, { backgroundColor: m.color }]} />
-                        <View style={styles.macroContent}>
-                          <Text style={[styles.macroEaten, over && { color: colors.accentRed }]}>
-                            {m.eaten}g
-                          </Text>
-                          <Text style={styles.macroGoal}>/ {m.goal}g {m.label}</Text>
-                          <View style={styles.macroBarTrack}>
-                            <View
-                              style={[
-                                styles.macroBarFill,
-                                { width: `${progress * 100}%`, backgroundColor: over ? colors.accentRed : m.color },
-                              ]}
-                            />
-                          </View>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              </>
-            )}
-
-            {/* Micro rows */}
-            {microGoals.length > 0 && (
-              <>
-                <Text style={styles.sheetSectionLabel}>Micronutrients</Text>
-                <View style={styles.microSection}>
-                  {microGoals.map((g) => {
-                    const eaten = microTotals[g.key] || 0;
-                    const progress = Math.min(g.dailyGoal > 0 ? eaten / g.dailyGoal : 0, 1);
-                    const over = eaten > g.dailyGoal;
-                    return (
-                      <View key={g.key} style={styles.microRow}>
-                        <View style={[styles.microDot, { backgroundColor: g.color }]} />
-                        <Text style={styles.microLabel}>{g.name}</Text>
-                        <View style={styles.microBarTrack}>
-                          <View
-                            style={[
-                              styles.microBarFill,
-                              { width: `${progress * 100}%`, backgroundColor: over ? colors.accentRed : g.color },
-                            ]}
-                          />
-                        </View>
-                        <Text style={[styles.microValue, over && { color: colors.accentRed }]}>
-                          {formatMicroValue(eaten, g.unit)}
-                        </Text>
-                        <Text style={styles.microGoalText}>/ {formatMicroValue(g.dailyGoal, g.unit)} {g.unit}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </>
-            )}
-
-            {/* Close button */}
-            <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.7}>
-              <Text style={styles.closeBtnText}>Done</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Overlay>
+      <NutrientDetailOverlay
+        visible={expanded}
+        onClose={handleClose}
+        eaten={totals.calories}
+        goal={goals.calorie_goal}
+        macros={macros}
+        microGoals={microGoals}
+        microTotals={microTotals}
+      />
     </>
   );
 }
 
 export default React.memo(NutritionHero);
 
-/* ─── Styles ──────────────────────────────────────────── */
-
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    /* Compact hero (always visible) */
-    container: {
+    card: {
+      marginHorizontal: sw(16),
+      marginTop: sw(8),
       paddingHorizontal: sw(16),
-      paddingTop: sw(12),
-      paddingBottom: sw(8),
-      gap: sw(14),
+      paddingTop: sw(16),
+      paddingBottom: sw(12),
+      borderRadius: sw(20),
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      gap: sw(12),
     },
-    heroRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      justifyContent: 'space-between',
-    },
-    heroLeft: {
-      gap: sw(0),
-    },
-    heroNumber: {
-      color: colors.textPrimary,
-      fontSize: ms(42),
-      lineHeight: ms(46),
-      fontFamily: Fonts.extraBold,
-      letterSpacing: -1.5,
-    },
-    heroLabel: {
-      color: colors.textTertiary,
-      fontSize: ms(12),
-      lineHeight: ms(16),
-      fontFamily: Fonts.medium,
-      marginTop: sw(-2),
-    },
-    heroRight: {
+    row: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: sw(12),
-      marginBottom: sw(4),
+      gap: sw(20),
     },
-    statItem: {
-      alignItems: 'flex-end',
+    ringCol: {
+      alignItems: 'center',
+      gap: sw(8),
     },
-    statValue: {
-      color: colors.textPrimary,
-      fontSize: ms(16),
-      lineHeight: ms(22),
-      fontFamily: Fonts.bold,
-      letterSpacing: -0.3,
-    },
-    statLabel: {
+    caption: {
       color: colors.textTertiary,
       fontSize: ms(10),
       lineHeight: ms(14),
       fontFamily: Fonts.medium,
     },
-    statDivider: {
-      width: sw(1),
-      height: sw(26),
-      backgroundColor: colors.ring.track,
+    captionStrong: {
+      color: colors.textSecondary,
+      fontFamily: Fonts.semiBold,
     },
-
-    /* Tracking dots hint */
-    dotsRow: {
+    footer: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      justifyContent: 'flex-end',
+      gap: sw(6),
+      paddingTop: sw(10),
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.cardBorder,
     },
-    dotsWrap: {
+    dots: {
       flexDirection: 'row',
-      gap: sw(4),
+      gap: sw(3),
+      marginRight: 'auto',
     },
     dot: {
       width: sw(6),
       height: sw(6),
       borderRadius: sw(3),
     },
-
-    /* Modal backdrop + sheet */
-    backdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.6)',
-      justifyContent: 'center',
-      paddingHorizontal: sw(20),
-    },
-    sheet: {
-      backgroundColor: colors.card,
-      borderRadius: sw(16),
-      padding: sw(20),
-      gap: sw(16),
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-    },
-    sheetHeroRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      justifyContent: 'space-between',
-    },
-    sheetSectionLabel: {
+    footerText: {
       color: colors.textTertiary,
-      fontSize: ms(10),
-      lineHeight: ms(14),
-      fontFamily: Fonts.semiBold,
-      textTransform: 'uppercase',
-      letterSpacing: 0.6,
-    },
-
-    /* Macro columns (inside modal) */
-    macroRow: {
-      flexDirection: 'row',
-      gap: sw(10),
-    },
-    macroCol: {
-      flex: 1,
-      flexDirection: 'row',
-      gap: sw(8),
-    },
-    macroAccent: {
-      width: sw(3),
-      borderRadius: sw(1.5),
-    },
-    macroContent: {
-      flex: 1,
-      gap: sw(2),
-    },
-    macroEaten: {
-      color: colors.textPrimary,
-      fontSize: ms(15),
-      lineHeight: ms(20),
-      fontFamily: Fonts.bold,
-      letterSpacing: -0.2,
-    },
-    macroGoal: {
-      color: colors.textTertiary,
-      fontSize: ms(9),
-      lineHeight: ms(12),
-      fontFamily: Fonts.medium,
-    },
-    macroBarTrack: {
-      height: sw(3),
-      borderRadius: sw(1.5),
-      backgroundColor: colors.ring.track,
-      overflow: 'hidden',
-      marginTop: sw(2),
-    },
-    macroBarFill: {
-      height: '100%',
-      borderRadius: sw(1.5),
-    },
-
-    /* Micro rows (inside modal) */
-    microSection: {
-      gap: sw(8),
-    },
-    microRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: sw(6),
-    },
-    microDot: {
-      width: sw(6),
-      height: sw(6),
-      borderRadius: sw(3),
-    },
-    microLabel: {
-      color: colors.textSecondary,
       fontSize: ms(11),
       lineHeight: ms(15),
       fontFamily: Fonts.medium,
-      width: sw(72),
-    },
-    microBarTrack: {
-      flex: 1,
-      height: sw(3),
-      borderRadius: sw(1.5),
-      backgroundColor: colors.ring.track,
-      overflow: 'hidden',
-    },
-    microBarFill: {
-      height: '100%',
-      borderRadius: sw(1.5),
-    },
-    microValue: {
-      color: colors.textPrimary,
-      fontSize: ms(11),
-      lineHeight: ms(15),
-      fontFamily: Fonts.semiBold,
-      textAlign: 'right',
-      minWidth: sw(32),
-    },
-    microGoalText: {
-      color: colors.textTertiary,
-      fontSize: ms(9),
-      lineHeight: ms(12),
-      fontFamily: Fonts.medium,
-      width: sw(58),
-    },
-
-    /* Close button */
-    closeBtn: {
-      backgroundColor: colors.surface,
-      borderRadius: sw(10),
-      paddingVertical: sw(12),
-      alignItems: 'center',
-      marginTop: sw(4),
-    },
-    closeBtnText: {
-      color: colors.textPrimary,
-      fontSize: ms(14),
-      lineHeight: ms(20),
-      fontFamily: Fonts.semiBold,
     },
   });

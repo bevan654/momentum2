@@ -13,6 +13,7 @@ import AddFoodModal from '../components/food/AddFoodModal';
 import FoodDetailModal from '../components/food/FoodDetailModal';
 import CreateMealModal from '../components/food/CreateMealModal';
 import NutritionHero from '../components/food/NutritionHero';
+import HydrationStrip from '../components/food/HydrationStrip';
 import DateNavigator from '../components/food/DateNavigator';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
@@ -210,7 +211,6 @@ function FoodLoggerScreen() {
 
   return (
     <View style={styles.screen}>
-      <NutritionHero entries={entries} goals={goals} />
       <DateNavigator selectedDate={selectedDate} onDateSelect={setDate} />
       <ScrollView
         ref={scrollRef}
@@ -224,6 +224,9 @@ function FoodLoggerScreen() {
         }
       >
         <View ref={contentRef} collapsable={false}>
+          <NutritionHero entries={entries} goals={goals} />
+          <HydrationStrip isToday={isToday} />
+          <View style={styles.mealsGap} />
           <MealSection
             entries={entries}
             supplementEntries={supplementEntries}
@@ -311,6 +314,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  mealsGap: {
+    height: sw(12),
   },
   diaryPage: {
     flex: 1,
