@@ -38,12 +38,14 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeResult> {
   const servingSizeEstimated = !hasServingQty && parsedText == null;
   const servingSize = hasServingQty
     ? rawServingQty
-    : parsedText ?? 100;
-  const servingUnit = p.serving_quantity_unit || 'g';
+    : parsedText?.size ?? 100;
+  const servingUnit = p.serving_quantity_unit || (!hasServingQty && parsedText ? parsedText.unit : 'g');
+  // A real serving size is known if OFF gives a quantity or the serving text parses.
+  const hasServingSize = hasServingQty || parsedText != null;
 
   // Scale factor: per-serving values need no scaling;
   // per-100g values get scaled to the actual serving size.
-  const scale = hasServing ? 1 : (hasServingQty ? servingSize / 100 : 1);
+  const scale = hasServing ? 1 : (hasServingSize ? servingSize / 100 : 1);
 
   const cal = num((hasServing ? n['energy-kcal_serving'] : n['energy-kcal_100g']) * scale);
   const protein = num((hasServing ? n.proteins_serving : n.proteins_100g) * scale);
@@ -54,7 +56,7 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeResult> {
   const sodium = optNum(hasServing ? n.sodium_serving : n.sodium_100g, scale * 1000); // g → mg
 
   // Micronutrients (always per-100 g in OFF; scale to serving)
-  const microScale = hasServingQty ? servingSize / 100 : 1;
+  const microScale = hasServingSize ? servingSize / 100 : 1;
 
   const food: FoodDetailData = {
     name: p.product_name || p.product_name_en || 'Unknown Product',
@@ -260,19 +262,15 @@ function optNum(v: unknown, scale = 1): number | null {
 
 /** Extract a numeric gram value from OFF's serving_size text field.
  *  Handles formats like "72 g", "72g", "1 can (72g)", "100 ml", etc. */
-function parseServingSizeText(text: unknown): number | null {
+function parseServingSizeText(text: unknown): { size: number; unit: 'g' | 'ml' } | null {
   if (typeof text !== 'string' || !text) return null;
-  // Try to match a number followed by g/ml
-  const m = text.match(/(\d+(?:\.\d+)?)\s*(?:g|ml)\b/i);
+  // Only trust a number with a g/ml unit ("30 g", "1 can (330 ml)", "12,5 g"). A bare count
+  // like "2 biscuits" or "1 cup" isn't a weight, so leave the serving as an estimated 100 g.
+  // A comma is a decimal mark only with 1–2 digits after it ("12,5 g"), not "1,000 ml".
+  const m = text.match(/(?<![\d.,])(\d+(?:[.,]\d{1,2})?)(?!\d)\s*(g|ml)\b/i);
   if (m) {
-    const n = Number(m[1]);
-    if (Number.isFinite(n) && n > 0) return n;
-  }
-  // Fallback: just grab the first number in the string
-  const m2 = text.match(/(\d+(?:\.\d+)?)/);
-  if (m2) {
-    const n = Number(m2[1]);
-    if (Number.isFinite(n) && n > 0) return n;
+    const n = Number(m[1].replace(',', '.'));
+    if (Number.isFinite(n) && n > 0) return { size: n, unit: m[2].toLowerCase() === 'ml' ? 'ml' : 'g' };
   }
   return null;
 }
