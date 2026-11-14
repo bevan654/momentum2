@@ -19,6 +19,8 @@ interface PersistedWorkout {
   /** Database id for the workout (generated at start); see upsert_workout. */
   workoutId?: string | null;
   saveMode?: 'create' | 'replace';
+  /** Account the workout belongs to; another account signing in on the device doesn't restore it. */
+  userId?: string | null;
 }
 
 export function saveWorkout(state: PersistedWorkout): void {
@@ -68,6 +70,7 @@ export async function loadWorkoutAsync(): Promise<PersistedWorkout | null> {
       ghostUserName: typeof parsed.ghostUserName === 'string' && parsed.ghostUserName ? parsed.ghostUserName : null,
       workoutId: typeof parsed.workoutId === 'string' && UUID_RE.test(parsed.workoutId) ? parsed.workoutId : null,
       saveMode: parsed.saveMode === 'replace' ? 'replace' : 'create',
+      userId: typeof parsed.userId === 'string' ? parsed.userId : null,
     };
   } catch {
     return null;

@@ -211,6 +211,8 @@ interface ActiveWorkoutState {
     workoutId?: string;
   }>;
   restoreWorkout: () => Promise<void>;
+  /** Signing out: drop the in-memory workout (its saved copy stays for the same account). */
+  resetForSignOut: () => void;
   showSheet: () => void;
   hideSheet: () => void;
   dismissSummary: () => void;
@@ -320,13 +322,21 @@ async function _restoreSavedWorkout(
   set: (partial: Partial<ActiveWorkoutState>) => void,
   get: () => ActiveWorkoutState,
 ): Promise<void> {
-  const saved = await loadWorkoutAsync();
+  let saved = await loadWorkoutAsync();
   if (_workoutRestored) return; // A workout was started while storage was loading
+  // A workout another account left on this device isn't this user's to continue.
+  const userId = useAuthStore.getState().user?.id;
+  if (saved?.userId && userId && saved.userId !== userId) {
+    clearWorkout();
+    saved = null;
+  }
   if (!saved) {
     _workoutRestored = true;
     // The app was closed during a workout that isn't coming back (finished, or an
-    // abandoned empty one): its sticky notification is still showing.
+    // abandoned empty one): its sticky notification and any scheduled rest alert
+    // are still pending.
     clearStaleWorkoutActivity();
+    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
     return;
   }
 
@@ -821,6 +831,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   discardWorkout: () => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     // Discarding a workout reopened with Undo deletes the saved copy, as Undo used to.
     const { workoutId, saveMode } = get();
     if (saveMode === 'replace' && workoutId) {
@@ -862,6 +873,37 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     // A second call while saving (double tap) shares the first save instead of starting another.
     if (!_finishing) _finishing = _finishWorkout(set, get, userId, durationOverride).finally(() => { _finishing = null; });
     return _finishing;
+  },
+
+  resetForSignOut: () => {
+    stopWorkoutActivity();
+    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+    if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+    if (_persistTimeout) { clearTimeout(_persistTimeout); _persistTimeout = null; }
+    _workoutRestored = false;
+    _undoSnapshot = null;
+    set({
+      isActive: false,
+      sheetVisible: false,
+      startTime: null,
+      elapsedSeconds: 0,
+      exercises: [],
+      workoutTitle: null,
+      restAnchor: null,
+      startedFromRoutine: null,
+      startedFromProgram: null,
+      programWeek: null,
+      ghostUserName: null,
+      workoutId: null,
+      saveMode: 'create',
+      isResting: false,
+      restRemaining: 0,
+      restStartedAt: null,
+      restEndedAt: null,
+      showSummary: false,
+      summaryData: null,
+      pendingFeedPayload: null,
+    });
   },
 
   restoreWorkout: () => {
@@ -961,6 +1003,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Exercise management ───────────────────────────
 
   addExercise: (name, exerciseType, category, prevSets = []) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     const prevNotes = useWorkoutStore.getState().prevNoteMap[name] || undefined;
     set((s) => ({
       exercises: [
@@ -982,6 +1025,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   removeExercise: (index) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = s.exercises.filter((_, i) => i !== index);
       const a = s.restAnchor;
@@ -1005,6 +1049,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   replaceExercise: (index, name, exerciseType, category, prevSets) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       exercises[index] = {
@@ -1022,6 +1067,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   moveExercise: (fromIndex, direction) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
       if (toIndex < 0 || toIndex >= s.exercises.length) return s;
@@ -1050,6 +1096,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   cycleExerciseType: (index) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = exercises[index];
@@ -1063,6 +1110,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   setExerciseNotes: (index, notes) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       if (!exercises[index]) return s;
@@ -1073,6 +1121,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   setExerciseNoteColor: (index, color) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       if (!exercises[index]) return s;
@@ -1085,6 +1134,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Set management ────────────────────────────────
 
   addSet: (exerciseIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1096,6 +1146,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   addDropSet: (exerciseIndex, parentSetIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1126,6 +1177,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   duplicateSet: (exerciseIndex, setIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1172,6 +1224,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   removeSet: (exerciseIndex, setIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1229,6 +1282,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   updateSet: (exerciseIndex, setIndex, field, value) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1242,6 +1296,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   toggleSetComplete: (exerciseIndex, setIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     const exercises = [...get().exercises];
     const ex = { ...exercises[exerciseIndex] };
     const sets = [...ex.sets];
@@ -1285,6 +1340,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   cycleSetType: (exerciseIndex, setIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const ex = { ...exercises[exerciseIndex] };
@@ -1325,6 +1381,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   // ── Superset ──────────────────────────────────────
 
   linkSuperset: (exerciseIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const nextIdx = exerciseIndex + 1;
       if (nextIdx >= s.exercises.length) return s;
@@ -1348,6 +1405,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   unlinkSuperset: (exerciseIndex) => {
+    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
     set((s) => {
       const exercises = [...s.exercises];
       const partnerIdx = exercises[exerciseIndex].supersetWith;
@@ -1466,7 +1524,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     _persistTimeout = setTimeout(() => {
       const { isActive, startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode } = get();
       if (!isActive || !startTime) return;
-      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode });
+      const userId = useAuthStore.getState().user?.id ?? null;
+      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode, userId });
     }, 500);
   },
 }));
