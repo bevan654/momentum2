@@ -8,12 +8,14 @@
  *
  * Legacy path (older iOS binaries, iOS < 16.2, Live Activities turned off, or the
  * native start failed): a sticky expo-notification re-posted by a JS ticker
- * (1s while resting, 30s idle).
+ * (1s while resting, 30s idle). After a failed native start, the native start is
+ * retried when the app comes back to the foreground.
  *
  * Plain module, no React state.
  */
 
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
+import type { NativeEventSubscription } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as WorkoutLiveActivity from '../../modules/workout-live-activity';
 import type { WorkoutLiveActivityState } from '../../modules/workout-live-activity';
@@ -52,6 +54,10 @@ let _mode: 'native' | 'legacy' | null = null;
 let _lastNativeKey = '';
 /** Keeps native calls in order (an update can't overtake the start it follows). */
 let _nativeQueue: Promise<unknown> = Promise.resolve();
+/** While the running workout is on the legacy path after a failed native start: retries it on foreground. */
+let _retrySub: NativeEventSubscription | null = null;
+/** A native retry is queued or running; at most one at a time. */
+let _retrying = false;
 
 /** Latest snapshot of the running activity (either path); the legacy ticker re-posts it. */
 let _snapshot: WorkoutActivitySnapshot | null = null;
@@ -166,8 +172,6 @@ async function drainPosts(): Promise<void> {
       }
       const { title, body } = buildNotifContent(snapshot);
       if (title !== _lastTitle || body !== _lastBody) {
-        _lastTitle = title;
-        _lastBody = body;
         await Notifications.scheduleNotificationAsync({
           identifier: WORKOUT_NOTIF_ID,
           content: {
@@ -180,10 +184,18 @@ async function drainPosts(): Promise<void> {
           },
           trigger: null,
         });
-        // Stop wins: a finish/discard whose dismiss ran while this post was in flight would
-        // leave the notification showing. Dismiss again before posting anything newer, so a
-        // workout started meanwhile (its post is queued behind this one) keeps its own.
-        if (gen !== _gen) await dismissLegacy();
+        // Recorded only once posted, so a failed post is retried by the next request. Not
+        // after a stop (it cleared them and dismissed the notification) or a switch to native.
+        if (gen === _gen && _mode === 'legacy') {
+          _lastTitle = title;
+          _lastBody = body;
+        } else {
+          // Stop wins: a finish/discard whose dismiss ran while this post was in flight would
+          // leave the notification showing, as would a native retry that took over meanwhile.
+          // Dismiss again before posting anything newer, so a workout started meanwhile (its
+          // post is queued behind this one) keeps its own.
+          await dismissLegacy();
+        }
       }
       waiters.forEach((w) => w.resolve());
     } catch (e) {
@@ -263,7 +275,66 @@ function startNative(snapshot: WorkoutActivitySnapshot, gen: number): void {
     _lastNativeKey = '';
     // Not awaited: the native queue shouldn't wait on the notification.
     startLegacy(gen, _snapshot ?? snapshot);
+    watchForNativeRetry();
   });
+}
+
+/** Retries the native start each time the app comes to the foreground, until it works or the workout stops. */
+function watchForNativeRetry(): void {
+  if (_retrySub) return;
+  _retrySub = AppState.addEventListener('change', (state) => {
+    if (state === 'active') retryNative();
+  });
+}
+
+function stopWatchingForNativeRetry(): void {
+  _retrySub?.remove();
+  _retrySub = null;
+}
+
+/**
+ * Queued like any native call, so it runs after the failed start and before a later stop's or
+ * start's native calls. On success the workout moves to the native path and the fallback
+ * notification is dismissed; on failure it stays on the legacy path until the next foreground.
+ */
+function retryNative(): void {
+  if (_retrying || !_active || _mode !== 'legacy') return;
+  if (!WorkoutLiveActivity.isSupported()) return;
+  const gen = _gen;
+  _retrying = true;
+  _nativeQueue = _nativeQueue
+    .then(async () => {
+      if (gen !== _gen || _mode !== 'legacy' || !_snapshot) return;
+      const state = toNativeState(_snapshot);
+      let id: string | null = null;
+      try {
+        id = await WorkoutLiveActivity.start(state);
+      } catch (e) {
+        if (__DEV__) console.warn('[LiveActivity] retry start failed:', e);
+      }
+      if (id == null) return;
+      if (gen !== _gen || _mode !== 'legacy') {
+        // Stopped or replaced while starting. A legacy stop doesn't end native activities,
+        // so end this one here, before any newer start in the queue runs.
+        await WorkoutLiveActivity.end();
+        return;
+      }
+      stopWatchingForNativeRetry();
+      _mode = 'native';
+      _legacyStarting = false;
+      _lastNativeKey = JSON.stringify(state);
+      const latest = _snapshot;
+      // Ends the fallback notification; a post in flight dismisses again when it lands.
+      stopTicker();
+      _snapshot = latest;
+      dismissLegacy();
+      // An update that came in while the start was in flight.
+      if (latest) sendNative(latest);
+    })
+    .catch((e) => {
+      if (__DEV__) console.warn('[LiveActivity] retry failed:', e);
+    })
+    .finally(() => { _retrying = false; });
 }
 
 async function startLegacy(gen: number, snapshot: WorkoutActivitySnapshot): Promise<void> {
@@ -279,14 +350,16 @@ async function startLegacy(gen: number, snapshot: WorkoutActivitySnapshot): Prom
     const latest = _snapshot ?? snapshot;
     // A stop while this posts is handled by the post itself (it dismisses again).
     await presentNotification(latest);
-    if (gen !== _gen) return;
+    // Stopped, restarted, or a native retry took over.
+    if (gen !== _gen || _mode !== 'legacy') return;
     startTicker(_snapshot ?? latest);
   } catch (e) {
-    if (gen === _gen) {
+    if (gen === _gen && _mode === 'legacy') {
       _active = false;
       _mode = null;
       _legacyStarting = false;
       stopTicker();
+      stopWatchingForNativeRetry();
     }
     if (__DEV__) console.warn('[LiveActivity] start failed:', e);
   }
@@ -295,6 +368,7 @@ async function startLegacy(gen: number, snapshot: WorkoutActivitySnapshot): Prom
 export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): Promise<void> {
   const gen = ++_gen;
   _legacyStarting = false;
+  stopWatchingForNativeRetry();
 
   if (WorkoutLiveActivity.isSupported()) {
     // Upgrading mid-workout from a build without the module leaves its sticky notification.
@@ -343,6 +417,7 @@ export async function stopWorkoutActivity(): Promise<void> {
   _active = false;
   _mode = null;
   _legacyStarting = false;
+  stopWatchingForNativeRetry();
 
   if (mode === 'native') {
     _lastNativeKey = '';
