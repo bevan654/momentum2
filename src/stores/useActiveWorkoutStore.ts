@@ -739,7 +739,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
           const reps = parseInt(s.reps, 10) || 0;
           vol += kg * reps;
           totalReps += reps;
-          if (kg > bestKg) { bestKg = kg; bestReps = reps; }
+          // Heaviest set; reps break ties, so bodyweight (all 0 kg) exercises get their best reps
+          if (kg > bestKg || (kg === bestKg && reps > bestReps)) { bestKg = kg; bestReps = reps; }
         }
         const cat = catalogMap[ex.name];
         return {

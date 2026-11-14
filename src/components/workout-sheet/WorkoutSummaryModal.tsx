@@ -651,7 +651,8 @@ export default function WorkoutSummaryModal(props: Props) {
       let bestKg = 0;
       let bestReps = 0;
       for (const s of completed) {
-        if (s.kg > bestKg) { bestKg = s.kg; bestReps = s.reps; }
+        // Heaviest set; reps break ties (bodyweight exercises are all 0 kg)
+        if (s.kg > bestKg || (s.kg === bestKg && s.reps > bestReps)) { bestKg = s.kg; bestReps = s.reps; }
       }
       return {
         name: ex.name,

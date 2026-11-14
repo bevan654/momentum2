@@ -541,7 +541,8 @@ async function attachProfilesAndReactions(
       const reps = Number(s.reps) || 0;
       totalVol += kg * reps;
       totalReps += reps;
-      if (kg > bestKg) {
+      // Heaviest set; reps break ties (bodyweight exercises are all 0 kg)
+      if (kg > bestKg || (kg === bestKg && reps > bestReps)) {
         bestKg = kg;
         bestReps = reps;
       }
