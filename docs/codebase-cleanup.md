@@ -9,7 +9,7 @@ Delete this file once the branch is merged.
 | 0 | Baseline + phone smoke checklist | done |
 | 2 | Fix known bugs | done (needs phone test) |
 | 1 | Remove unused code (Knip + ignored props) | done (needs phone test) |
-| 3 | Split oversized files (no behaviour change) | todo |
+| 3 | Split oversized files (no behaviour change) | in progress: `WorkoutSummaryModal` done (2659 → 691 + 8 files in `workout-sheet/summary/`) |
 | 4 | Performance audit, fix top findings (judge on a release build) | todo |
 | 5 | Turn on `noUnusedLocals` / `noUnusedParameters` | todo |
 
@@ -42,6 +42,10 @@ Not bugs after checking: `WorkoutSummaryModal` `saving` prop (the edit footer al
 ## Open questions / for bevan
 - Routine + program-day editors pass move up/down to `ExerciseRow`, but the buttons were removed in `cae9aae` (March redesign). Restore reorder or delete the props? (ask tv)
 - `CLAUDE.md` says `initNotifications` runs in `TabNavigator`; it actually runs from `FriendsScreen` on focus. bevan's file: tell him.
+
+## Phase 3 notes
+- Split order (largest/lowest risk first, `useActiveWorkoutStore` last): `WorkoutSummaryModal` ✅, `WorkoutHistoryScreen`, `MacroLensModal`, `Feed`, `friendsDatabase`, `CreateMealModal`, `FoodDetailModal`, `ExercisePicker`, `AddFoodModal`, `ProfileSettingsView`, then the 650–950 line files, `useActiveWorkoutStore` last.
+- Found in `WorkoutSummaryModal` (left as is): the historical "crossfade" animates two shared values nothing reads, so closing just waits ~350 ms; `workoutName` state never set; `totalVolume` ternary returns the same value both ways.
 
 ## Phase 4 candidates (found along the way)
 - All 5 tabs stay mounted and re-render in the background (no freeze). Option: `react-freeze` on tabs more than one away from the current one (neighbours must stay live for swipe).
