@@ -17,6 +17,7 @@ import Sheet from '../ui/Sheet';
 import MacroGoalEditor from './MacroGoalEditor';
 import MicroGoalEditor from './MicroGoalEditor';
 import DeleteAccountModal from './DeleteAccountModal';
+import { isPlausibleBodyweight } from '../../utils/muscleLoad';
 
 interface Props {
   onBack: () => void;
@@ -218,7 +219,8 @@ function BodyStatsEditor() {
 
   const handleWeightBlur = useCallback(() => {
     const val = parseFloat(weight);
-    if (!isNaN(val) && val > 0) {
+    // Same range as onboarding; a typo here skews strength scores and muscle load
+    if (isPlausibleBodyweight(val)) {
       updateProfile({ starting_weight: val });
     } else {
       setWeight(String(profile?.starting_weight || ''));
@@ -227,7 +229,7 @@ function BodyStatsEditor() {
 
   const handleGoalWeightBlur = useCallback(() => {
     const val = parseFloat(goalWeight);
-    if (!isNaN(val) && val > 0) {
+    if (isPlausibleBodyweight(val)) {
       updateProfile({ goal_weight: val });
     } else {
       setGoalWeight(String(profile?.goal_weight || ''));

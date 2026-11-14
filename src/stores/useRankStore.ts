@@ -15,6 +15,7 @@ import {
   type RankInfo,
   type SlugScoreDetail,
 } from '../utils/strengthScore';
+import { isPlausibleBodyweight } from '../utils/muscleLoad';
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -98,6 +99,12 @@ const DEFAULT_RANK: RankInfo = {
 
 /* ─── Store ──────────────────────────────────────────── */
 
+/** Latest weigh-in for strength scores; a typo outside 30–300 kg counts as missing (70 kg). */
+function rankBodyweight(): number {
+  const current = useWeightStore.getState().current;
+  return isPlausibleBodyweight(current) ? current : 70;
+}
+
 export const useRankStore = create<RankState>((set, get) => ({
   bestSets: {},
   exerciseScores: {},
@@ -168,7 +175,7 @@ export const useRankStore = create<RankState>((set, get) => ({
       // 3. Derive best working set per exercise (highest e1RM)
       const catalogMap = useWorkoutStore.getState().catalogMap;
       const ciCatalog = getCiCatalog(catalogMap);
-      const bodyweight = useWeightStore.getState().current ?? 70;
+      const bodyweight = rankBodyweight();
 
       const bestSets: Record<string, BestSetEntry> = {};
 
@@ -233,7 +240,7 @@ export const useRankStore = create<RankState>((set, get) => ({
     const { bestSets: prevBest, totalWorkouts } = get();
     const catalogMap = useWorkoutStore.getState().catalogMap;
     const ciCatalog = getCiCatalog(catalogMap);
-    const bodyweight = useWeightStore.getState().current ?? 70;
+    const bodyweight = rankBodyweight();
 
     const bestSets = { ...prevBest };
     let changed = false;

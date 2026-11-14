@@ -14,6 +14,8 @@ import Overlay from '../ui/Overlay';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
+import { BODYWEIGHT_RANGE_KG } from '../../constants/muscleMap';
+import { isPlausibleBodyweight } from '../../utils/muscleLoad';
 
 interface Props {
   visible: boolean;
@@ -29,8 +31,8 @@ export default function WeightLogModal({ visible, onClose, onSave }: Props) {
 
   const handleSave = async () => {
     const weight = parseFloat(value);
-    if (!weight || weight <= 0) {
-      Alert.alert('Error', 'Enter a valid weight');
+    if (!isPlausibleBodyweight(weight)) {
+      Alert.alert('Error', `Enter a weight between ${BODYWEIGHT_RANGE_KG.min} and ${BODYWEIGHT_RANGE_KG.max} kg`);
       return;
     }
     setSaving(true);
