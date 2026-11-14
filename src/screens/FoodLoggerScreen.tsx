@@ -13,6 +13,7 @@ import AddFoodModal from '../components/food/AddFoodModal';
 import FoodDetailModal from '../components/food/FoodDetailModal';
 import CreateMealModal from '../components/food/CreateMealModal';
 import NutritionHero from '../components/food/NutritionHero';
+import HydrationStrip from '../components/food/HydrationStrip';
 import DateNavigator from '../components/food/DateNavigator';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
@@ -41,10 +42,7 @@ function FoodLoggerScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const scrollRef = useRef<ScrollView>(null);
-  const contentRef = useRef<View>(null);
   const nowRef = useRef<View>(null);
-  const hasScrolledRef = useRef(false);
 
   // Add food modal state
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -70,31 +68,13 @@ function FoodLoggerScreen() {
   // Fetch entries when date changes
   useEffect(() => {
     if (!userId) return;
-    hasScrolledRef.current = false;
     fetchDayEntries(userId, selectedDate);
     fetchDateSupplements(userId, selectedDate);
   }, [userId, selectedDate]);
 
-  // Auto-scroll to current time after layout (only for today)
+  // No auto-scroll to the current hour: the day summary at the top should stay in view.
   const todayStr = useMemo(() => toLocalDateString(), []);
   const isToday = selectedDate === todayStr;
-
-  useEffect(() => {
-    if (loading || hasScrolledRef.current || !isToday) return;
-    const timer = setTimeout(() => {
-      if (nowRef.current && contentRef.current) {
-        nowRef.current.measureLayout(
-          contentRef.current as any,
-          (_x: number, y: number) => {
-            scrollRef.current?.scrollTo({ y: Math.max(0, y - sw(80)), animated: true });
-            hasScrolledRef.current = true;
-          },
-          () => {},
-        );
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [loading]);
 
   const handleAddFood = useCallback((mealSlot: string, hour?: number) => {
     setAddMealSlot(mealSlot);
@@ -118,7 +98,9 @@ function FoodLoggerScreen() {
   const handleRefresh = useCallback(() => {
     if (!userId) return;
     fetchDayEntries(userId, selectedDate);
-  }, [userId, selectedDate]);
+    fetchDateSupplements(userId, selectedDate);
+    if (isToday) useSupplementStore.getState().fetchTodaySupplements(userId);
+  }, [userId, selectedDate, isToday]);
 
   // Tap entry → open detail modal
   const handlePressEntry = useCallback((entry: FoodEntry) => {
@@ -210,10 +192,8 @@ function FoodLoggerScreen() {
 
   return (
     <View style={styles.screen}>
-      <NutritionHero entries={entries} goals={goals} />
       <DateNavigator selectedDate={selectedDate} onDateSelect={setDate} />
       <ScrollView
-        ref={scrollRef}
         style={styles.diaryPage}
         showsVerticalScrollIndicator={false}
         bounces={false}
@@ -223,7 +203,10 @@ function FoodLoggerScreen() {
           <RefreshControl refreshing={loading} onRefresh={handleRefresh} />
         }
       >
-        <View ref={contentRef} collapsable={false}>
+        <View>
+          <NutritionHero entries={entries} goals={goals} />
+          <HydrationStrip isToday={isToday} />
+          <View style={styles.mealsGap} />
           <MealSection
             entries={entries}
             supplementEntries={supplementEntries}
@@ -311,6 +294,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  mealsGap: {
+    height: sw(12),
   },
   diaryPage: {
     flex: 1,
