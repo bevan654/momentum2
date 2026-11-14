@@ -525,8 +525,11 @@ export default function FoodDetailModal({
   // Reset every time the screen opens, so reopening the same entry drops unsaved edits.
   useEffect(() => {
     if (food && visible) {
+      // Fill the fields already scaled to the starting quantity: when the same entry is
+      // reopened, neither `food` nor the scale changes, so the scale effect won't re-run.
+      const q = initialQuantity && initialQuantity > 0 ? initialQuantity : 1;
       setMealSlot(initialMealSlot);
-      setQuantity(String(initialQuantity && initialQuantity > 0 ? initialQuantity : 1));
+      setQuantity(String(q));
       setServingSize(String(food.serving_size));
       setIsPlanned(initialIsPlanned);
       setTargetDate(selectedDate);
@@ -534,18 +537,18 @@ export default function FoodDetailModal({
       setAltLoading(false);
       setCustomName(food.name);
       setCustomBrand(food.brand || '');
-      setCustomCal(String(Math.round(food.calories)));
+      setCustomCal(String(Math.round(food.calories * q)));
       setEnergyUnit('kcal');
       setDisplayEnergy('');
-      setCustomPro(String(Math.round(food.protein * 10) / 10));
-      setCustomCarb(String(Math.round(food.carbs * 10) / 10));
-      setCustomFat(String(Math.round(food.fat * 10) / 10));
+      setCustomPro(String(Math.round(food.protein * q * 10) / 10));
+      setCustomCarb(String(Math.round(food.carbs * q * 10) / 10));
+      setCustomFat(String(Math.round(food.fat * q * 10) / 10));
       macroManualRef.current = false;
       // Initialize micro overrides
       const initMicros: Record<string, string> = {};
       for (const m of MICROS) {
         const v = (food as any)[m.key];
-        if (v != null) initMicros[m.key] = String(Math.round(Number(v) * 10) / 10);
+        if (v != null) initMicros[m.key] = String(Math.round(Number(v) * q * 10) / 10);
       }
       setCustomMicros(initMicros);
       microManualRef.current = false;

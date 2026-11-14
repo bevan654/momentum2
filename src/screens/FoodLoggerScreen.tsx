@@ -123,7 +123,7 @@ function FoodLoggerScreen() {
   // Tap entry → open detail modal
   // Clear the edited entry after the close animation; cancel that if another entry opens first,
   // or the new one would be wiped and the editor would show nothing.
-  const clearEditTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearEditTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null); // React.useRef: the redesign drops the named import
   const clearEditEntrySoon = useCallback(() => {
     if (clearEditTimer.current) clearTimeout(clearEditTimer.current);
     clearEditTimer.current = setTimeout(() => setEditEntry(null), 350);
