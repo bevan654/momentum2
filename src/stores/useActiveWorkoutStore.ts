@@ -10,7 +10,7 @@ import { useRankStore } from './useRankStore';
 import { useProgramStore } from './useProgramStore';
 import { useRoutineStore } from './useRoutineStore';
 import { useAuthStore } from './useAuthStore';
-import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity } from '../services/liveActivityManager';
+import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity, clearStaleWorkoutActivity } from '../services/liveActivityManager';
 import type { WorkoutActivitySnapshot } from '../services/liveActivityManager';
 
 const REST_NOTIF_ID = 'rest-timer';
@@ -125,6 +125,7 @@ const SET_TYPE_CYCLE: Record<string, string> = {
 let _timerInterval: ReturnType<typeof setInterval> | null = null;
 let _persistTimeout: ReturnType<typeof setTimeout> | null = null;
 let _workoutRestored = false; // Guard: prevent _persist before restore
+let _restoring: Promise<void> | null = null; // In-flight restore, shared by concurrent callers
 let _preferredRestDuration = 90; // Loaded from AsyncStorage at module init
 loadRestPreference().then((d) => { _preferredRestDuration = d; });
 
@@ -299,6 +300,73 @@ async function _scheduleRestNotification(seconds: number) {
 }
 
 // ── Store ──────────────────────────────────────────────
+
+/** Loads the persisted workout (if any) into the store. Use `restoreWorkout`, which runs this once. */
+async function _restoreSavedWorkout(
+  set: (partial: Partial<ActiveWorkoutState>) => void,
+  get: () => ActiveWorkoutState,
+): Promise<void> {
+  const saved = await loadWorkoutAsync();
+  if (_workoutRestored) return; // A workout was started while storage was loading
+  if (!saved) {
+    _workoutRestored = true;
+    // The app was closed during a workout that isn't coming back (finished, or an
+    // abandoned empty one): its sticky notification is still showing.
+    clearStaleWorkoutActivity();
+    return;
+  }
+
+  if (_timerInterval) clearInterval(_timerInterval);
+
+  // Back-fill category for exercises saved before category field was added
+  const { catalogMap } = useWorkoutStore.getState();
+  const exercises = saved.exercises.map((ex) => ({
+    ...ex,
+    // Workouts saved before exercises had ids
+    id: ex.id || _newExerciseId(),
+    category: ex.category || catalogMap[ex.name]?.category || null,
+  }));
+
+  // Recover rest timer if it was active and hasn't expired
+  let isResting = false;
+  let restRemaining = 0;
+  let restStartedAt: number | null = null;
+  if (saved.restStartedAt) {
+    const restElapsed = Math.floor((Date.now() - saved.restStartedAt) / 1000);
+    const remaining = Math.max(0, saved.restDuration - restElapsed);
+    if (remaining > 0) {
+      isResting = true;
+      restRemaining = remaining;
+      restStartedAt = saved.restStartedAt;
+    }
+  }
+
+  const elapsed = Math.floor((Date.now() - saved.startTime) / 1000);
+
+  set({
+    isActive: true,
+    sheetVisible: false,
+    startTime: saved.startTime,
+    elapsedSeconds: elapsed,
+    exercises,
+    restDuration: saved.restDuration,
+    workoutTitle: saved.workoutTitle ?? null,
+    restAnchor: saved.restAnchor ?? null,
+    startedFromRoutine: saved.startedFromRoutine,
+    startedFromProgram: saved.startedFromProgram || null,
+    programWeek: saved.programWeek || null,
+    ghostUserName: saved.ghostUserName ?? null,
+    isResting,
+    restRemaining,
+    restStartedAt,
+    restTotal: restRemaining,
+    restEndedAt: null,
+  });
+
+  _workoutRestored = true;
+  _timerInterval = setInterval(() => get().tick(), 1000);
+  startWorkoutActivity(_buildSnapshot(get()));
+}
 
 export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   isActive: false,
@@ -789,62 +857,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     return { error: null, incompleteCount, workoutId: workout!.id };
   },
 
-  restoreWorkout: async () => {
-    const saved = await loadWorkoutAsync();
-    if (!saved) {
-      _workoutRestored = true;
-      return;
-    }
-
-    if (_timerInterval) clearInterval(_timerInterval);
-
-    // Back-fill category for exercises saved before category field was added
-    const { catalogMap } = useWorkoutStore.getState();
-    const exercises = saved.exercises.map((ex) => ({
-      ...ex,
-      // Workouts saved before exercises had ids
-      id: ex.id || _newExerciseId(),
-      category: ex.category || catalogMap[ex.name]?.category || null,
-    }));
-
-    // Recover rest timer if it was active and hasn't expired
-    let isResting = false;
-    let restRemaining = 0;
-    let restStartedAt: number | null = null;
-    if (saved.restStartedAt) {
-      const restElapsed = Math.floor((Date.now() - saved.restStartedAt) / 1000);
-      const remaining = Math.max(0, saved.restDuration - restElapsed);
-      if (remaining > 0) {
-        isResting = true;
-        restRemaining = remaining;
-        restStartedAt = saved.restStartedAt;
-      }
-    }
-
-    const elapsed = Math.floor((Date.now() - saved.startTime) / 1000);
-
-    set({
-      isActive: true,
-      sheetVisible: false,
-      startTime: saved.startTime,
-      elapsedSeconds: elapsed,
-      exercises,
-      restDuration: saved.restDuration,
-      workoutTitle: saved.workoutTitle ?? null,
-      restAnchor: saved.restAnchor ?? null,
-      startedFromRoutine: saved.startedFromRoutine,
-      startedFromProgram: saved.startedFromProgram || null,
-      programWeek: saved.programWeek || null,
-      isResting,
-      restRemaining,
-      restStartedAt,
-      restTotal: restRemaining,
-      restEndedAt: null,
-    });
-
-    _workoutRestored = true;
-    _timerInterval = setInterval(() => get().tick(), 1000);
-    startWorkoutActivity(_buildSnapshot(get()));
+  restoreWorkout: () => {
+    // Called from both the splash preload and TabNavigator. Only the first call
+    // restores; a second one would reset the timer and overwrite the store with
+    // the saved copy, dropping anything changed in between.
+    if (_workoutRestored) return Promise.resolve();
+    if (!_restoring) _restoring = _restoreSavedWorkout(set, get).finally(() => { _restoring = null; });
+    return _restoring;
   },
 
   showSheet: () => set({ sheetVisible: true }),
@@ -1430,9 +1449,9 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     if (!_workoutRestored) return; // Don't persist before restore has run
     if (_persistTimeout) clearTimeout(_persistTimeout);
     _persistTimeout = setTimeout(() => {
-      const { isActive, startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor } = get();
+      const { isActive, startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName } = get();
       if (!isActive || !startTime) return;
-      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor });
+      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName });
     }, 500);
   },
 }));
