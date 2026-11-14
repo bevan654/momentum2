@@ -818,4 +818,31 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center' as const,
       justifyContent: 'center' as const,
     },
+    entryEmoji: {
+      fontSize: ms(13),
+      lineHeight: ms(17),
+    },
+    entryCalPill: {
+      backgroundColor: colors.textTertiary + '15',
+      borderRadius: sw(6),
+      paddingHorizontal: sw(6),
+      paddingVertical: sw(1.5),
+    },
+    entryCalText: {
+      color: colors.textSecondary,
+      fontSize: ms(10),
+      lineHeight: ms(13),
+      fontFamily: Fonts.semiBold,
+    },
+    entryMetaSpacer: {
+      flex: 1,
+    },
+    editBtn: {
+      width: sw(26),
+      height: sw(26),
+      borderRadius: sw(8),
+      backgroundColor: colors.textTertiary + '15',
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
   });
