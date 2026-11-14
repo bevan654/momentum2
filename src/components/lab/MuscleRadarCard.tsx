@@ -21,7 +21,9 @@ import LevelToggle from '../body/LevelToggle';
 import RegionChip from '../body/RegionChip';
 import { useMuscleMapColors, useMuscleMapLevel } from '../body/useBodyMap';
 import { useRegionWeightLookup } from '../../hooks/useRegionWeightLookup';
+import { useMuscleLoad } from '../../hooks/useMuscleLoad';
 import { hasPrimaryWork, partsOf, regionVolume, relativeValues, type RegionWeightLookup } from '../../utils/muscleVolume';
+import type { MuscleLoad } from '../../utils/muscleLoad';
 import { regionLabel } from '../../constants/muscleMapLabels';
 
 /* ─── Config ─────────────────────────────────────────────── */
@@ -98,8 +100,8 @@ function computeGroupSets(
   return counts;
 }
 
-/** Weighted volume per map region over the last `days` days. */
-function computeRegionVolume(workouts: WorkoutWithDetails[], days: number, lookup: RegionWeightLookup) {
+/** Weighted effective volume per map region over the last `days` days. */
+function computeRegionVolume(workouts: WorkoutWithDetails[], days: number, lookup: RegionWeightLookup, load: MuscleLoad) {
   const now = new Date();
   const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
   cutoff.setHours(0, 0, 0, 0);
@@ -107,7 +109,7 @@ function computeRegionVolume(workouts: WorkoutWithDetails[], days: number, looku
   const exercises = workouts
     .filter((w) => new Date(w.created_at).getTime() >= cutoffMs)
     .flatMap((w) => w.exercises);
-  return regionVolume(exercises, lookup);
+  return regionVolume(exercises, lookup, load);
 }
 
 function formatKg(kg: number): string {
@@ -153,9 +155,10 @@ export default function MuscleRadarCard() {
     [workouts, effectiveDays],
   );
   const lookup = useRegionWeightLookup();
+  const load = useMuscleLoad();
   const regionWork = useMemo(
-    () => computeRegionVolume(workouts, effectiveDays, lookup),
-    [workouts, effectiveDays, lookup],
+    () => computeRegionVolume(workouts, effectiveDays, lookup, load),
+    [workouts, effectiveDays, lookup, load],
   );
   const bodyValues = useMemo(() => relativeValues(regionWork), [regionWork]);
   const mapColors = useMuscleMapColors();

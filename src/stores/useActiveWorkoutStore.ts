@@ -733,10 +733,12 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         let bestKg = 0;
         let bestReps = 0;
         let vol = 0;
+        let totalReps = 0;
         for (const s of completedSets) {
           const kg = parseFloat(s.kg) || 0;
           const reps = parseInt(s.reps, 10) || 0;
           vol += kg * reps;
+          totalReps += reps;
           if (kg > bestKg) { bestKg = kg; bestReps = reps; }
         }
         const cat = catalogMap[ex.name];
@@ -746,6 +748,9 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
           best_kg: bestKg,
           best_reps: bestReps,
           total_volume: Math.round(vol),
+          // For the card's muscle map: bodyweight reps count there (utils/muscleLoad.ts)
+          total_reps: totalReps,
+          exercise_type: ex.exercise_type,
           category: cat?.category || null,
           primary_muscles: cat?.primary_muscles || [],
           secondary_muscles: cat?.secondary_muscles || [],

@@ -14,6 +14,7 @@ import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import type { WorkoutWithDetails } from '../stores/useWorkoutStore';
 import RecoveryBodyMap from '../components/workouts/RecoveryBodyMap';
 import { useMuscleAnalysisStore } from '../stores/useMuscleAnalysisStore';
+import { useOwnBodyweightKg } from '../hooks/useMuscleLoad';
 import { useProgramStore } from '../stores/useProgramStore';
 import { toSlug } from '../utils/muscleVolume';
 import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
@@ -381,6 +382,7 @@ function WorkoutHistoryScreen() {
   const themeMode = useThemeStore((s) => s.mode);
   const analysis = useMuscleAnalysisStore((s) => s.analysis);
   const recompute = useMuscleAnalysisStore((s) => s.recompute);
+  const bodyweightKg = useOwnBodyweightKg();
   const activeProgram = useProgramStore((s) => s.activeProgram);
   const getCurrentWeek = useProgramStore((s) => s.getCurrentWeek);
   const getDurationWeeks = useProgramStore((s) => s.getDurationWeeks);
@@ -409,8 +411,8 @@ function WorkoutHistoryScreen() {
 
   // Recompute recovery data when workouts change
   useEffect(() => {
-    if (workouts.length > 0) recompute(workouts, catalogMap);
-  }, [workouts, catalogMap]);
+    if (workouts.length > 0) recompute(workouts, catalogMap, bodyweightKg);
+  }, [workouts, catalogMap, bodyweightKg]);
 
   const todayStr = useMemo(() => {
     const d = new Date();

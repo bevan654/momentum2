@@ -3,6 +3,7 @@ import { View, StyleSheet, InteractionManager } from 'react-native';
 import type { PressedRegion } from 'momentum-muscle-map';
 import { sw } from '../../theme/responsive';
 import { useRegionWeightLookup } from '../../hooks/useRegionWeightLookup';
+import { useMuscleLoad } from '../../hooks/useMuscleLoad';
 import { hasPrimaryWork, heatValues, partsOf, regionVolume, type VolumeExercise } from '../../utils/muscleVolume';
 import { regionLabel } from '../../constants/muscleMapLabels';
 import MuscleMapPair from './MuscleMapPair';
@@ -26,7 +27,8 @@ interface Props {
  */
 function MuscleHeatmap({ exercises }: Props) {
   const lookup = useRegionWeightLookup();
-  const work = useMemo(() => regionVolume(exercises, lookup), [exercises, lookup]);
+  const load = useMuscleLoad();
+  const work = useMemo(() => regionVolume(exercises, lookup, load), [exercises, lookup, load]);
   const values = useMemo(() => heatValues(work), [work]);
   const colors = useMuscleMapColors();
   const [level, setLevel] = useMuscleMapLevel();

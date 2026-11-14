@@ -17,6 +17,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useFriendsStore } from '../../stores/useFriendsStore';
 import type { ActivityFeedItem } from '../../lib/friendsDatabase';
 import type { VolumeExercise } from '../../utils/muscleVolume';
+import { feedDetailSets } from '../../utils/muscleLoad';
+import { DEFAULT_BODYWEIGHT_KG } from '../../constants/muscleMap';
 import FeedWorkoutModal from '../friends/FeedWorkoutModal';
 import { useLingerMount } from '../../hooks/useLingerMount';
 import ReportSheet from '../friends/ReportSheet';
@@ -100,18 +102,21 @@ const WorkoutSummarySlot = React.memo(function WorkoutSummarySlot({ item }: { it
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  // The feed carries each exercise's total volume, not its sets
+  // The feed carries each exercise's totals, not its sets
   const bodyMapExercises: VolumeExercise[] = useMemo(
     () =>
       (item.exercise_details || []).map((ex) => ({
         name: ex.name,
         category: ex.category,
+        exercise_type: ex.exercise_type,
         primary_muscles: ex.primary_muscles,
         secondary_muscles: ex.secondary_muscles,
-        sets: [{ kg: ex.total_volume, reps: 1, completed: true }],
+        sets: feedDetailSets(ex),
       })),
     [item.exercise_details],
   );
+  // Other users' bodyweight isn't known (or shown): their cards count the default
+  const isSelf = useAuthStore((s) => s.user?.id === item.user_id);
 
   const visibleExercises = (item.exercise_details || []).slice(0, MAX_OVERVIEW_EXERCISES);
   const extra = (item.exercise_details?.length || 0) - visibleExercises.length;
@@ -120,6 +125,7 @@ const WorkoutSummarySlot = React.memo(function WorkoutSummarySlot({ item }: { it
     <View style={styles.summarySlot}>
       <WorkoutMiniMaps
         exercises={bodyMapExercises}
+        bodyweightKg={isSelf ? undefined : DEFAULT_BODYWEIGHT_KG}
         height={sw(88)}
         style={styles.summaryBody}
         columnStyle={styles.summaryBodyCol}

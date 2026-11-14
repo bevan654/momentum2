@@ -44,6 +44,9 @@ export interface FeedExerciseDetail {
   best_kg: number;
   best_reps: number;
   total_volume: number;
+  /** Reps over all sets. Missing on posts from builds before it was added. */
+  total_reps?: number | null;
+  exercise_type?: string | null;
   category: string | null;
   primary_muscles: string[];
   secondary_muscles: string[];
@@ -424,7 +427,7 @@ async function attachProfilesAndReactions(
     workoutIds.length > 0
       ? supabase
           .from('exercises')
-          .select('workout_id, name, exercise_order, sets(kg, reps, completed, set_number)')
+          .select('workout_id, name, exercise_order, exercise_type, sets(kg, reps, completed, set_number)')
           .in('workout_id', workoutIds)
           .order('exercise_order', { ascending: true })
       : Promise.resolve({ data: [] as any[] }),
@@ -532,10 +535,12 @@ async function attachProfilesAndReactions(
     let bestKg = 0;
     let bestReps = 0;
     let totalVol = 0;
+    let totalReps = 0;
     for (const s of completed) {
       const kg = Number(s.kg) || 0;
       const reps = Number(s.reps) || 0;
       totalVol += kg * reps;
+      totalReps += reps;
       if (kg > bestKg) {
         bestKg = kg;
         bestReps = reps;
@@ -549,6 +554,8 @@ async function attachProfilesAndReactions(
       best_kg: bestKg,
       best_reps: bestReps,
       total_volume: totalVol,
+      total_reps: totalReps,
+      exercise_type: (ex as any).exercise_type ?? null,
       category: cat?.category || null,
       primary_muscles: cat?.primary_muscles || [],
       secondary_muscles: cat?.secondary_muscles || [],
@@ -586,6 +593,8 @@ async function attachProfilesAndReactions(
           best_kg: fd.best_kg ?? 0,
           best_reps: fd.best_reps ?? 0,
           total_volume: fd.total_volume ?? 0,
+          total_reps: fd.total_reps ?? null,
+          exercise_type: fd.exercise_type ?? null,
           category: fd.category || cat?.category || null,
           primary_muscles: pm,
           secondary_muscles: sm,

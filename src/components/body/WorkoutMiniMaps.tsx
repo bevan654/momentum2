@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { MiniMuscleMap } from 'momentum-muscle-map';
 import { useRegionWeightLookup } from '../../hooks/useRegionWeightLookup';
+import { useMuscleLoad } from '../../hooks/useMuscleLoad';
 import { heatValues, regionVolume, type VolumeExercise } from '../../utils/muscleVolume';
 import { bodyWidth, useBodies, useMuscleMapColors } from './useBodyMap';
 
@@ -16,15 +17,18 @@ interface Props {
   captionStyle?: StyleProp<TextStyle>;
   /** No silhouette behind the muscles, for share images over a photo. */
   transparentBody?: boolean;
+  /** Bodyweight for bodyweight exercises. Defaults to the signed-in user's; other users' feed cards pass DEFAULT_BODYWEIGHT_KG. */
+  bodyweightKg?: number;
 }
 
 /**
  * Static front and back maps of one workout's heat, at group level, for feed cards and share
  * images. Cheap enough for many in a list.
  */
-function WorkoutMiniMaps({ exercises, height, style, columnStyle, captionStyle, transparentBody }: Props) {
+function WorkoutMiniMaps({ exercises, height, style, columnStyle, captionStyle, transparentBody, bodyweightKg }: Props) {
   const lookup = useRegionWeightLookup();
-  const values = useMemo(() => heatValues(regionVolume(exercises, lookup)), [exercises, lookup]);
+  const load = useMuscleLoad(bodyweightKg);
+  const values = useMemo(() => heatValues(regionVolume(exercises, lookup, load)), [exercises, lookup, load]);
   const { front, back } = useBodies();
   const colors = useMuscleMapColors(undefined, transparentBody ? 'transparent' : undefined);
   const width = bodyWidth(front, height);
