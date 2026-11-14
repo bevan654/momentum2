@@ -91,10 +91,15 @@ export const REGION_OWNER: Record<string, CanonicalMuscle> = {
   peroneus_longus: 'calves',
 };
 
-/** Regions a canonical muscle name doesn't light on its own; only a finer name below does. */
+/**
+ * Regions a canonical muscle name doesn't light on its own; only a finer name below does.
+ * teres_major recovers with the lats, but the map draws it in its shoulders group, so lighting it
+ * from 'lats' would light the shoulders on every lat day at group level (feed cards, share images).
+ */
 export const NAMED_ONLY_REGIONS: ReadonlySet<string> = new Set([
   'sternocleidomastoid',
   'levator_scapulae',
+  'teres_major',
   'serratus_anterior_1',
   'serratus_anterior_2',
   'serratus_anterior_3',
@@ -116,6 +121,7 @@ export const LEGACY_NAME_REGIONS: Record<string, readonly string[]> = {
   'side delts': ['deltoid_lateral'],
   'lateral deltoid': ['deltoid_lateral'],
   rhomboids: ['rhomboids'],
+  'teres major': ['teres_major'],
   brachialis: ['brachialis'],
   anconeus: ['anconeus'],
   'serratus anterior': ['serratus_anterior_1', 'serratus_anterior_2', 'serratus_anterior_3'],
