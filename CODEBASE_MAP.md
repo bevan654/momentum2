@@ -1,6 +1,6 @@
 # Codebase Map
 
-**Last verified:** 2026-11-14, against the code at commit `bb3ded2`.
+**Last verified:** 2026-11-14, against the code at commit `5b879bc`.
 
 An index of where things live and how they connect. Rules and conventions are in `CLAUDE.md`; database tables are in `database-schema.md`. If `CLAUDE.md`'s Project Structure tree disagrees with this map, this map is current.
 
@@ -48,7 +48,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `share/` | `ShareModal` | |
 | `ui/` | Shared primitives: `Sheet`, `Overlay`, `Portal` | `SheetWrapper.tsx` sits at `components/` root |
 | `workout-sheet/` | Active workout sheet, sets, rest timer, finish flow | Also `WorkoutSummaryModal` (post-workout/history summary), `ExercisePicker` (used by routines too), `GhostFinishScreen` (a component, not a route) |
-| `workouts/` | Workouts tab: recovery body map, routines, today's plan | `ExerciseRow.tsx` exports a component named `ExerciseCard`. `WorkoutsTab.mockup.jsx` is an unused mockup |
+| `workouts/` | Workouts tab: recovery body map, routines, today's plan | `ExerciseRow.tsx` exports a component named `ExerciseCard`. |
 
 ## Entry points
 - `package.json` `main` → `index.ts` → `App.tsx`.
