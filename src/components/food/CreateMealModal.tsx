@@ -468,7 +468,10 @@ export default function CreateMealModal({
           const origQty = orig.quantity || 1;
           // If the serving was changed in the editor, scale micros the way the macros were scaled.
           const origCalPerUnit = orig.calories / origQty;
-          const servingRatio = origCalPerUnit > 0 ? item.calories / origCalPerUnit : 1;
+          const origServing = Number(orig.serving_size) || 0;
+          const servingRatio = origServing > 0 && item.serving_size > 0
+            ? item.serving_size / origServing
+            : origCalPerUnit > 0 ? item.calories / origCalPerUnit : 1;
           for (const key of KEPT_MICRO_KEYS) {
             const v = orig[key];
             row[key] = v != null ? round((Number(v) / origQty) * servingRatio * qty, 100) : null;
