@@ -12,6 +12,8 @@ interface Props {
   title: string;
   subtitle?: string;
   onBack: () => void;
+  /** Screen-level use: Android back only closes this while it returns true (e.g. tab focused). */
+  isBackActive?: () => boolean;
   right?: React.ReactNode;
   /** Pinned under the scroll content (e.g. the main action button). */
   footer?: React.ReactNode;
@@ -23,7 +25,7 @@ interface Props {
  * fades in over the sheet, back button + Android back close only this screen,
  * scrollable body with a pinned footer that respects the home indicator and keyboard.
  */
-function FoodSubScreen({ visible, title, subtitle, onBack, right, footer, children }: Props) {
+function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, footer, children }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -34,7 +36,7 @@ function FoodSubScreen({ visible, title, subtitle, onBack, right, footer, childr
   }, [visible]);
   const animStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
 
-  useLayerBackHandler(visible, onBack);
+  useLayerBackHandler(visible, onBack, isBackActive);
 
   return (
     <Animated.View
