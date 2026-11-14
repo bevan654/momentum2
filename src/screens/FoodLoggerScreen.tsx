@@ -251,6 +251,7 @@ function FoodLoggerScreen() {
         food={editDetailData}
         initialMealSlot={editEntry?.meal_type || 'breakfast'}
         initialIsPlanned={editEntry?.is_planned || false}
+        initialQuantity={editEntry?.quantity || 1}
         onDismiss={handleEditDismiss}
         onAdded={handleEditSaved}
         editEntryId={editEntry?.id}

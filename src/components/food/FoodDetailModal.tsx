@@ -85,6 +85,8 @@ interface Props {
   food: FoodDetailData | null;
   initialMealSlot: string;
   initialIsPlanned: boolean;
+  /** Quantity to start from when editing an existing entry or meal item (default 1). */
+  initialQuantity?: number;
   targetHour?: number;
   onDismiss: () => void;
   onAdded: () => void;
@@ -414,7 +416,7 @@ const DateSection = React.memo(function DateSection({
 /* ─── Main component ───────────────────────────────────── */
 
 export default function FoodDetailModal({
-  visible, food, initialMealSlot, initialIsPlanned,
+  visible, food, initialMealSlot, initialIsPlanned, initialQuantity,
   targetHour, onDismiss, onAdded, editEntryId, onDelete, onFoodSwap,
   onAddToMeal,
 }: Props) {
@@ -523,7 +525,7 @@ export default function FoodDetailModal({
   useEffect(() => {
     if (food) {
       setMealSlot(initialMealSlot);
-      setQuantity('1');
+      setQuantity(String(initialQuantity && initialQuantity > 0 ? initialQuantity : 1));
       setServingSize(String(food.serving_size));
       setIsPlanned(initialIsPlanned);
       setTargetDate(selectedDate);
@@ -548,7 +550,7 @@ export default function FoodDetailModal({
       microManualRef.current = false;
 
     }
-  }, [food, initialMealSlot, initialIsPlanned]);
+  }, [food, initialMealSlot, initialIsPlanned, initialQuantity]);
 
   /* ── Alt source ────────────────────────────────────── */
   const handleAltSource = useCallback(async () => {
