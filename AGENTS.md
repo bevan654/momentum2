@@ -308,6 +308,14 @@ Before coding, research the best way to meet **all** the requirements:
 - Follow the Library-First order (Reanimated → Gesture Handler → FlashList → Skia → Zustand). For backend logic, decide whether it belongs in the client, a Postgres function/RPC or an edge function.
 - Present a short recommendation (approach, libraries, trade-offs, anything that can't be met) and get the user's go-ahead.
 
+### Use subagents for in-depth research and code reading
+When a feature or fix needs deep research or reading a lot of code (a whole flow across stores, screens, `lib/` and SQL; an audit; library or API research; tracing every caller of something you're changing), spawn subagents to do it instead of reading everything in the main session. This keeps the main context focused on decisions and the change itself, and lets the reading be thorough instead of skimmed.
+- Brief each subagent like a peer who knows nothing: the goal, the files and docs to start from (this file, `database-schema.md`, the relevant migrations), what's already ruled out, and the exact output you want back (e.g. "the current flow step by step with `file:line`, defects ranked by severity, open questions").
+- Ask it to read the code in full rather than excerpts and to verify every claim against the code, so nothing is missed. Don't hand it your conclusion to confirm.
+- Keep each one's scope narrow; run independent ones in parallel.
+- Research subagents are read-only: no edits, no commits, no database writes. Act on their findings yourself, and check anything critical (data loss, migrations, RLS) in the code before relying on it.
+- Skip it for a lookup you can do in a few tool calls.
+
 ### 3. Build on a branch
 Then implement it, following the Git & GitHub Practices below.
 
