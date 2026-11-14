@@ -404,98 +404,109 @@ export default function CreateMealModal({
 
   /* ── Log meal ───────────────────────────────────────── */
   const isEditingGroup = !!editMealGroupId;
+  const loggingRef = useRef(false);
 
   const handleLog = useCallback(async () => {
     if (!userId) return;
-    if (items.length === 0) {
-      Alert.alert('No Items', 'Add at least one food item to log.');
-      return;
-    }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    const groupId = editMealGroupId || generateGroupId();
-    const groupName = mealName.trim() || 'Meal';
-
-    // When editing a logged group, keep what the editor doesn't show (micronutrients,
-    // catalog link, planned flag, exact time) from the original entries.
-    const originals = new Map((editMealGroupId && editMealGroupEntries ? editMealGroupEntries : [])
-      .map((e) => [`item-${e.id}`, e]));
-    const firstOriginal = editMealGroupId ? editMealGroupEntries?.[0] : undefined;
-
-    // Build created_at timestamp for the target date
-    let createdAt: string;
-    if (firstOriginal?.created_at) {
-      createdAt = firstOriginal.created_at;
-    } else if (selectedDate && targetHour != null) {
-      createdAt = new Date(selectedDate + `T${String(targetHour).padStart(2, '0')}:00:00`).toISOString();
-    } else if (selectedDate) {
-      createdAt = new Date(selectedDate + 'T12:00:00').toISOString();
-    } else {
-      createdAt = new Date().toISOString();
-    }
-
-    // Build rows for a single batch insert
-    const rows = items.map((item) => {
-      const qty = item.quantity;
-      const orig = originals.get(item.id);
-      const row: Record<string, unknown> = {
-        user_id: userId,
-        name: item.name,
-        // Kept items keep their stored precision; newly added items are rounded as before.
-        calories: orig ? round(item.calories * qty, 10) : Math.round(item.calories * qty),
-        protein: orig ? round(item.protein * qty, 10) : Math.round(item.protein * qty),
-        carbs: orig ? round(item.carbs * qty, 10) : Math.round(item.carbs * qty),
-        fat: orig ? round(item.fat * qty, 10) : Math.round(item.fat * qty),
-        meal_type: mealSlot,
-        brand: item.brand || null,
-        food_catalog_id: orig?.food_catalog_id ?? null,
-        serving_size: Number(item.serving_size) || 1,
-        serving_unit: item.serving_unit || 'serving',
-        quantity: qty,
-        fiber: item.fiber != null ? Math.round(item.fiber * qty * 10) / 10 : null,
-        sugar: item.sugar != null ? Math.round(item.sugar * qty * 10) / 10 : null,
-        is_planned: firstOriginal?.is_planned ?? false,
-        created_at: createdAt,
-        meal_group_id: groupId,
-        meal_group_name: groupName,
-      };
-      if (orig) {
-        const origQty = orig.quantity || 1;
-        for (const key of KEPT_MICRO_KEYS) {
-          const v = orig[key];
-          row[key] = v != null ? round((Number(v) / origQty) * qty, 100) : null;
-        }
-      }
-      return row;
-    });
-
-    // Insert the new rows first, then remove the old ones, so a failure never loses the meal.
-    const { data: inserted, error } = await supabase.from('food_entries').insert(rows).select('id');
-
-    if (error) {
-      console.error('[CreateMeal] Supabase insert error:', error);
-      Alert.alert('Log Failed', error.message);
-      return;
-    }
-
-    if (editMealGroupId && originals.size > 0) {
-      const oldIds = [...originals.values()].map((e) => e.id);
-      const { error: delErr } = await supabase.from('food_entries').delete().in('id', oldIds);
-      if (delErr) {
-        // Undo the insert so the meal isn't duplicated.
-        const newIds = (inserted || []).map((r: { id: string }) => r.id);
-        if (newIds.length) await supabase.from('food_entries').delete().in('id', newIds);
-        console.error('[CreateMeal] Delete old group error:', delErr);
-        Alert.alert('Update Failed', delErr.message);
+    // Ignore a second tap while a save is in flight, so the meal isn't logged twice.
+    if (loggingRef.current) return;
+    loggingRef.current = true;
+    try {
+      if (items.length === 0) {
+        Alert.alert('No Items', 'Add at least one food item to log.');
         return;
       }
-    }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Refetch entries from Supabase to update the view
-    await fetchDayEntries(userId, selectedDate);
-    // Sync HomeScreen nutrition
-    useNutritionStore.getState().fetchTodayNutrition(userId);
-    onLogged();
+      const groupId = editMealGroupId || generateGroupId();
+      const groupName = mealName.trim() || 'Meal';
+
+      // When editing a logged group, keep what the editor doesn't show (micronutrients,
+      // catalog link, planned flag, exact time) from the original entries.
+      const originals = new Map((editMealGroupId && editMealGroupEntries ? editMealGroupEntries : [])
+        .map((e) => [`item-${e.id}`, e]));
+      const firstOriginal = editMealGroupId ? editMealGroupEntries?.[0] : undefined;
+
+      // Build created_at timestamp for the target date
+      let createdAt: string;
+      if (firstOriginal?.created_at) {
+        createdAt = firstOriginal.created_at;
+      } else if (selectedDate && targetHour != null) {
+        createdAt = new Date(selectedDate + `T${String(targetHour).padStart(2, '0')}:00:00`).toISOString();
+      } else if (selectedDate) {
+        createdAt = new Date(selectedDate + 'T12:00:00').toISOString();
+      } else {
+        createdAt = new Date().toISOString();
+      }
+
+      // Build rows for a single batch insert
+      const rows = items.map((item) => {
+        const qty = item.quantity;
+        const orig = originals.get(item.id);
+        const row: Record<string, unknown> = {
+          user_id: userId,
+          name: item.name,
+          // Kept items keep their stored precision; newly added items are rounded as before.
+          calories: orig ? round(item.calories * qty, 10) : Math.round(item.calories * qty),
+          protein: orig ? round(item.protein * qty, 10) : Math.round(item.protein * qty),
+          carbs: orig ? round(item.carbs * qty, 10) : Math.round(item.carbs * qty),
+          fat: orig ? round(item.fat * qty, 10) : Math.round(item.fat * qty),
+          meal_type: mealSlot,
+          brand: item.brand || null,
+          food_catalog_id: orig?.food_catalog_id ?? null,
+          serving_size: Number(item.serving_size) || 1,
+          serving_unit: item.serving_unit || 'serving',
+          quantity: qty,
+          fiber: item.fiber != null ? Math.round(item.fiber * qty * 10) / 10 : null,
+          sugar: item.sugar != null ? Math.round(item.sugar * qty * 10) / 10 : null,
+          is_planned: firstOriginal?.is_planned ?? false,
+          created_at: createdAt,
+          meal_group_id: groupId,
+          meal_group_name: groupName,
+        };
+        if (orig) {
+          const origQty = orig.quantity || 1;
+          // If the serving was changed in the editor, scale micros the way the macros were scaled.
+          const origCalPerUnit = orig.calories / origQty;
+          const servingRatio = origCalPerUnit > 0 ? item.calories / origCalPerUnit : 1;
+          for (const key of KEPT_MICRO_KEYS) {
+            const v = orig[key];
+            row[key] = v != null ? round((Number(v) / origQty) * servingRatio * qty, 100) : null;
+          }
+        }
+        return row;
+      });
+
+      // Insert the new rows first, then remove the old ones, so a failure never loses the meal.
+      const { data: inserted, error } = await supabase.from('food_entries').insert(rows).select('id');
+
+      if (error) {
+        console.error('[CreateMeal] Supabase insert error:', error);
+        Alert.alert('Log Failed', error.message);
+        return;
+      }
+
+      if (editMealGroupId && originals.size > 0) {
+        const oldIds = [...originals.values()].map((e) => e.id);
+        const { error: delErr } = await supabase.from('food_entries').delete().in('id', oldIds);
+        if (delErr) {
+          // Undo the insert so the meal isn't duplicated.
+          const newIds = (inserted || []).map((r: { id: string }) => r.id);
+          if (newIds.length) await supabase.from('food_entries').delete().in('id', newIds);
+          console.error('[CreateMeal] Delete old group error:', delErr);
+          Alert.alert('Update Failed', delErr.message);
+          return;
+        }
+      }
+
+      // Refetch entries from Supabase to update the view
+      await fetchDayEntries(userId, selectedDate);
+      // Sync HomeScreen nutrition
+      useNutritionStore.getState().fetchTodayNutrition(userId);
+      onLogged();
+    } finally {
+      loggingRef.current = false;
+    }
   }, [userId, items, mealSlot, mealName, selectedDate, targetHour, editMealGroupId, editMealGroupEntries, fetchDayEntries, onLogged]);
 
   /* ── Search display logic ───────────────────────────── */
