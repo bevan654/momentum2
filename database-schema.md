@@ -1,6 +1,6 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
--- Generated from the live schema (production + supabase/migrations up to 20261118).
+-- Generated from the live schema (production + supabase/migrations up to 20261119).
 -- Column comments are shown as trailing -- notes.
 
 CREATE TABLE public.activity_feed (
@@ -642,7 +642,7 @@ CREATE TABLE public.sets (
   parent_set_number integer,
   rir numeric(3,1),  -- Reps in reserve (0-10, 5 = "5 or more"). Optional. RPE = 10 - rir.
   completed_at timestamp with time zone,  -- When the set was ticked off on the device.
-  rest_seconds integer,  -- Rest actually taken before this set, measured by the rest timer.
+  rest_seconds integer,  -- Seconds between the previous set being ticked off and this one (rest plus this set's own time). NULL for the first set or a gap over an hour.
   target_kg numeric,  -- Planned weight for this set (see target_source).
   target_reps integer,  -- Planned reps for this set (see target_source).
   target_source text,  -- Where the target came from: routine | program | progression | previous.
@@ -787,6 +787,9 @@ CREATE TABLE public.workout_finish_feedback (
   CONSTRAINT workout_finish_feedback_source_check CHECK ((source = 'post_workout'::text))
 );
 
+-- The app saves a workout (workouts + exercises + sets) through upsert_workout(p jsonb), one
+-- transaction keyed by a client-generated workouts.id (modes: create / replace / edit; see
+-- supabase/migrations/20261119_upsert_workout_rpc.sql). Older builds still insert the three tables directly.
 CREATE TABLE public.workouts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid,

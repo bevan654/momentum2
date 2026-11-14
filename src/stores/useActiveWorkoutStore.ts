@@ -4,12 +4,16 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { supabase, rebuildClient } from '../lib/supabase';
 import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference } from '../utils/workoutStorage';
+import { buildWorkoutPayload } from '../utils/workoutPayload';
+import { suggestSets } from '../utils/exerciseProgress';
+import { makeUuid } from '../utils/uuid';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useStreakStore } from './useStreakStore';
 import { useRankStore } from './useRankStore';
 import { useProgramStore } from './useProgramStore';
 import { useRoutineStore } from './useRoutineStore';
 import { useAuthStore } from './useAuthStore';
+import { useWeightStore } from './useWeightStore';
 import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity, clearStaleWorkoutActivity } from '../services/liveActivityManager';
 import type { WorkoutActivitySnapshot } from '../services/liveActivityManager';
 
@@ -51,6 +55,10 @@ export interface ActiveSet {
   completed: boolean;
   set_type: 'working' | 'warmup' | 'drop' | 'failure';
   parent_set_number: number | null;
+  /** When the set was ticked off (ms). Cleared when it's unticked. */
+  completedAt?: number | null;
+  /** The weight and reps the app suggested when the set was ticked off. */
+  target?: { kg: number; reps: number; source: 'progression' | 'previous' } | null;
 }
 
 export interface ActiveExercise {
@@ -126,6 +134,8 @@ let _timerInterval: ReturnType<typeof setInterval> | null = null;
 let _persistTimeout: ReturnType<typeof setTimeout> | null = null;
 let _workoutRestored = false; // Guard: prevent _persist before restore
 let _restoring: Promise<void> | null = null; // In-flight restore, shared by concurrent callers
+let _finishing: Promise<FinishResult> | null = null; // In-flight finish, shared by concurrent callers
+let _undoSnapshot: UndoSnapshot | null = null; // The finished workout as it was, for Undo
 let _preferredRestDuration = 90; // Loaded from AsyncStorage at module init
 loadRestPreference().then((d) => { _preferredRestDuration = d; });
 
@@ -174,6 +184,10 @@ interface ActiveWorkoutState {
   startedFromProgram: string | null;
   programWeek: number | null;
   ghostUserName: string | null;
+  /** The workout's id in the database, generated when it starts so saving it twice can't duplicate it. */
+  workoutId: string | null;
+  /** 'replace' after Undo: the workout is already saved, and finishing again overwrites it. */
+  saveMode: 'create' | 'replace';
 
   // Workout lifecycle
   startWorkout: () => void;
@@ -356,6 +370,9 @@ async function _restoreSavedWorkout(
     startedFromProgram: saved.startedFromProgram || null,
     programWeek: saved.programWeek || null,
     ghostUserName: saved.ghostUserName ?? null,
+    // Workouts saved by builds before workoutId get one now.
+    workoutId: saved.workoutId ?? makeUuid(),
+    saveMode: saved.saveMode ?? 'create',
     isResting,
     restRemaining,
     restStartedAt,
@@ -366,6 +383,311 @@ async function _restoreSavedWorkout(
   _workoutRestored = true;
   _timerInterval = setInterval(() => get().tick(), 1000);
   startWorkoutActivity(_buildSnapshot(get()));
+}
+
+type FinishResult = { error: string | null; incompleteCount?: number; workoutId?: string };
+
+/** The workout as it was when finished, so Undo can reopen it exactly (same id, sets, notes, context). */
+type UndoSnapshot = Pick<
+  ActiveWorkoutState,
+  'exercises' | 'startTime' | 'restDuration' | 'workoutTitle' | 'startedFromRoutine' | 'startedFromProgram' | 'programWeek' | 'ghostUserName'
+> & { workoutId: string };
+
+/** Saves the active workout and opens the summary. Use `finishWorkout`, which runs one at a time. */
+async function _finishWorkout(
+  set: (partial: Partial<ActiveWorkoutState>) => void,
+  get: () => ActiveWorkoutState,
+  userId: string,
+  durationOverride?: number,
+): Promise<FinishResult> {
+  const { exercises, elapsedSeconds, ghostUserName } = get();
+  if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+
+  // Validate: at least 1 exercise — resurrect timer and bail
+  if (exercises.length === 0) {
+    if (!_timerInterval) _timerInterval = setInterval(() => get().tick(), 1000);
+    return { error: 'Add at least one exercise before finishing.' };
+  }
+
+  // Count incomplete sets
+  const incompleteCount = exercises.reduce(
+    (n, ex) => n + ex.sets.filter((s) => !s.completed).length, 0
+  );
+
+  const duration = durationOverride ?? elapsedSeconds;
+  const restoreTimer = () => {
+    if (!_timerInterval) _timerInterval = setInterval(() => get().tick(), 1000);
+  };
+
+  const { startTime, startedFromRoutine, startedFromProgram, programWeek, saveMode } = get();
+  let workoutId = get().workoutId;
+  if (!workoutId) {
+    // Only a workout restored from a build before workoutId could get here; restore assigns one.
+    workoutId = makeUuid();
+    set({ workoutId });
+  }
+
+  const endTime = Date.now();
+  const start = startTime ?? endTime - duration * 1000;
+  // Program day: the weekday the workout was started on (0 = Monday)
+  let programDayOfWeek: number | null = null;
+  let programDayLabel: string | null = null;
+  if (startedFromProgram) {
+    const jsDay = new Date(start).getDay();
+    programDayOfWeek = jsDay === 0 ? 6 : jsDay - 1;
+    const prog = useProgramStore.getState().programs.find((p) => p.id === startedFromProgram);
+    programDayLabel = prog?.days.find((d) => d.day_of_week === programDayOfWeek)?.label || null;
+  }
+
+  // Drops sets with nothing entered and exercises left with no sets
+  const built = buildWorkoutPayload(exercises, {
+    workoutId,
+    mode: saveMode,
+    startTime: start,
+    endTime,
+    duration,
+    ghostUserName,
+    routineId: startedFromRoutine,
+    programId: startedFromProgram,
+    programWeek,
+    programDayOfWeek,
+    programDayLabel,
+    bodyweightKg: useWeightStore.getState().current,
+  });
+  const filteredExercises = built.saved;
+
+  if (filteredExercises.length === 0) {
+    restoreTimer();
+    return { error: 'No valid sets to save.' };
+  }
+
+  const totalVolume = built.totalVolume;
+  const totalSets = built.totalSets;
+  const exerciseNames = filteredExercises.map((ex) => ex.name);
+
+  // One call saves the workout, its exercises and sets in a single transaction
+  // (upsert_workout). It's keyed by workoutId, so retrying after a timeout or a
+  // lost response can't save the workout twice.
+  console.log('[finishWorkout] saving workout', workoutId, built.payload.mode);
+  try {
+    const { error: saveErr } = await runWithRecovery(() =>
+      supabase.rpc('upsert_workout', { p: built.payload })
+    );
+    if (saveErr) {
+      console.error('[finishWorkout] save error:', saveErr);
+      restoreTimer();
+      return { error: 'Failed to save workout — check your connection and try again.' };
+    }
+  } catch (e: any) {
+    console.error('[finishWorkout] save threw:', e);
+    restoreTimer();
+    return { error: 'Failed to save workout — check your connection and try again.' };
+  }
+  const workout = { id: workoutId };
+
+  console.log('[finishWorkout] done, showing summary');
+
+  // Non-critical operations — fire and forget, never block summary
+  try {
+    let ghostResult: string | null = null;
+    if (ghostUserName) {
+      let w = 0, l = 0;
+      for (const ex of filteredExercises) {
+        const completed = ex.sets.filter((s: any) => s.completed);
+        for (let i = 0; i < Math.min(completed.length, ex.prevSets.length); i++) {
+          const uk = parseFloat(completed[i].kg) || 0, ur = parseInt(completed[i].reps) || 0;
+          const gk = ex.prevSets[i].kg, gr = ex.prevSets[i].reps;
+          if (uk < gk) l++;
+          else if (uk === gk) { if (ur > gr) w++; else if (ur < gr) l++; }
+          else { if (uk * ur > gk * gr) w++; else if (uk * ur < gk * gr) l++; }
+        }
+      }
+      ghostResult = w > l ? 'victory' : l > w ? 'defeated' : 'draw';
+    }
+    console.log('[finishWorkout] feed insert starting, ghost:', ghostUserName, ghostResult);
+
+    // Resolve routine context for feed
+    let routineFeedData: Record<string, any> = {};
+    if (get().startedFromRoutine) {
+      const routines = useRoutineStore.getState().routines;
+      const routine = routines.find((r) => r.id === get().startedFromRoutine);
+      if (routine) {
+        routineFeedData = { routine_name: routine.name };
+      }
+    }
+
+    // Resolve program context for feed
+    let programFeedData: Record<string, any> = {};
+    console.log('[finishWorkout] program context:', get().startedFromProgram, get().programWeek);
+    if (get().startedFromProgram) {
+      const { programs, getDurationWeeks } = useProgramStore.getState();
+      console.log('[finishWorkout] programs in store:', programs.length);
+      const prog = programs.find((p) => p.id === get().startedFromProgram);
+      console.log('[finishWorkout] matched program:', prog?.name ?? 'NOT FOUND');
+      if (prog) {
+        const jsDay = new Date().getDay();
+        const dow = jsDay === 0 ? 6 : jsDay - 1;
+        const dayEntry = prog.days.find((d) => d.day_of_week === dow);
+        programFeedData = {
+          program_id: prog.id,
+          program_name: prog.name,
+          program_week: get().programWeek,
+          program_total_weeks: getDurationWeeks(prog) || null,
+          program_day_label: dayEntry?.label || null,
+        };
+      }
+    }
+
+    // Build per-exercise detail snapshot for the feed
+    const { catalogMap } = useWorkoutStore.getState();
+    const exerciseDetailsJson = filteredExercises.map((ex) => {
+      const completedSets = ex.sets.filter((s) => s.kg.trim() !== '' || s.reps.trim() !== '');
+      let bestKg = 0;
+      let bestReps = 0;
+      let vol = 0;
+      let totalReps = 0;
+      for (const s of completedSets) {
+        const kg = parseFloat(s.kg) || 0;
+        const reps = parseInt(s.reps, 10) || 0;
+        vol += kg * reps;
+        totalReps += reps;
+        // Heaviest set; reps break ties, so bodyweight (all 0 kg) exercises get their best reps
+        if (kg > bestKg || (kg === bestKg && reps > bestReps)) { bestKg = kg; bestReps = reps; }
+      }
+      const cat = catalogMap[ex.name];
+      return {
+        name: ex.name,
+        sets_count: completedSets.length,
+        best_kg: bestKg,
+        best_reps: bestReps,
+        total_volume: Math.round(vol),
+        // For the card's muscle map: bodyweight reps count there (utils/muscleLoad.ts)
+        total_reps: totalReps,
+        exercise_type: ex.exercise_type,
+        category: cat?.category || null,
+        primary_muscles: cat?.primary_muscles || [],
+        secondary_muscles: cat?.secondary_muscles || [],
+      };
+    });
+
+    const feedPayload = {
+      user_id: userId,
+      workout_id: workout!.id,
+      duration,
+      total_volume: Math.round(totalVolume),
+      exercise_names: exerciseNames,
+      total_exercises: filteredExercises.length,
+      total_sets: totalSets,
+      exercise_details: exerciseDetailsJson,
+      ...routineFeedData,
+      ...programFeedData,
+      ...(ghostUserName ? {
+        ghost_username: ghostUserName,
+        ghost_result: ghostResult,
+        ghost_exercises: filteredExercises.map((ex) => ({
+          name: ex.name,
+          sets: ex.prevSets.map((ps: any) => ({ kg: ps.kg, reps: ps.reps })),
+        })),
+      } : {}),
+    };
+    console.log('[finishWorkout] feed payload prepared, deferred until share confirm');
+    // Deferred: actual insert happens when the user taps Post on the Share screen
+    // (or skips, in which case it does not post). See commitFeedPost / dismissShare.
+    set({ pendingFeedPayload: feedPayload });
+  } catch (feedCrash) {
+    console.error('[finishWorkout] feed block crashed:', feedCrash);
+  }
+
+  try {
+    const { refreshStreak } = useStreakStore.getState();
+    refreshStreak(userId).catch(() => {});
+  } catch {}
+
+  try {
+    useRankStore.getState().updateFromWorkout(
+      filteredExercises.map((ex) => ({
+        name: ex.name,
+        exercise_type: ex.exercise_type,
+        sets: ex.sets.map((s) => ({
+          kg: parseFloat(s.kg) || 0,
+          reps: parseInt(s.reps, 10) || 0,
+          completed: s.completed,
+          set_type: s.set_type,
+        })),
+      })),
+      userId,
+    );
+  } catch {}
+
+  const summaryExercises: SummaryExercise[] = filteredExercises.map((ex) => ({
+    name: ex.name,
+    category: ex.category,
+    exercise_type: ex.exercise_type,
+    sets: ex.sets.map((s) => ({
+      kg: parseFloat(s.kg) || 0,
+      reps: parseInt(s.reps, 10) || 0,
+      completed: s.completed,
+      set_type: s.set_type,
+      parent_set_number: s.parent_set_number,
+    })),
+  }));
+
+  const summaryData: WorkoutSummary = {
+    workoutId: workout!.id,
+    duration,
+    totalVolume: Math.round(totalVolume),
+    totalSets,
+    totalExercises: filteredExercises.length,
+    exerciseNames,
+    exercises: summaryExercises,
+    prCount: 0,
+    ghostUserName: ghostUserName || null,
+    ghostExercises: ghostUserName ? filteredExercises.map((ex) => ({
+      name: ex.name,
+      sets: ex.prevSets.map((s) => ({ kg: s.kg, reps: s.reps })),
+    })) : undefined,
+    prevMap: { ...useWorkoutStore.getState().prevMap },
+  };
+
+  _undoSnapshot = {
+    workoutId,
+    exercises,
+    startTime: start,
+    restDuration: get().restDuration,
+    workoutTitle: get().workoutTitle,
+    startedFromRoutine,
+    startedFromProgram,
+    programWeek,
+    ghostUserName,
+  };
+
+  stopWorkoutActivity();
+  Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+  if (_persistTimeout) { clearTimeout(_persistTimeout); _persistTimeout = null; }
+  _workoutRestored = false;
+  set({
+    isActive: false,
+    sheetVisible: false,
+    exercises: [],
+    workoutTitle: null,
+    restAnchor: null,
+    startedFromRoutine: null,
+    startedFromProgram: null,
+    programWeek: null,
+    ghostUserName: null,
+    workoutId: null,
+    saveMode: 'create',
+    isResting: false,
+    restRemaining: 0,
+    restStartedAt: null,
+    restEndedAt: null,
+    showSummary: true,
+    summaryData,
+  });
+
+  clearWorkout();
+  return { error: null, incompleteCount, workoutId: workout!.id };
+
 }
 
 export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
@@ -392,6 +714,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   startedFromProgram: null,
   programWeek: null,
   ghostUserName: null,
+  workoutId: null,
+  saveMode: 'create',
 
   // ── Workout lifecycle ─────────────────────────────
 
@@ -413,6 +737,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       startedFromProgram: null,
       programWeek: null,
       ghostUserName: null,
+      workoutId: makeUuid(),
+      saveMode: 'create',
       isResting: false,
       restRemaining: 0,
       restStartedAt: null,
@@ -460,6 +786,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       restAnchor: null,
       startedFromRoutine: routine.id,
       ghostUserName: ghostUserName || null,
+      workoutId: makeUuid(),
+      saveMode: 'create',
       isResting: false,
       restRemaining: 0,
       restStartedAt: null,
@@ -482,6 +810,15 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   },
 
   discardWorkout: () => {
+    // Discarding a workout reopened with Undo deletes the saved copy, as Undo used to.
+    const { workoutId, saveMode } = get();
+    if (saveMode === 'replace' && workoutId) {
+      supabase.from('workouts').delete().eq('id', workoutId).then(({ error }) => {
+        if (error) console.warn('[discardWorkout] delete of the undone workout failed:', error);
+        const userId = useAuthStore.getState().user?.id;
+        if (userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
+      });
+    }
     stopWorkoutActivity();
     Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
     if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
@@ -499,6 +836,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       startedFromProgram: null,
       programWeek: null,
       ghostUserName: null,
+      workoutId: null,
+      saveMode: 'create',
       isResting: false,
       restRemaining: 0,
       restEndedAt: null,
@@ -508,359 +847,10 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     clearWorkout();
   },
 
-  finishWorkout: async (userId: string, durationOverride?: number) => {
-    const { exercises, elapsedSeconds, ghostUserName } = get();
-    if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
-
-    // Validate: at least 1 exercise — resurrect timer and bail
-    if (exercises.length === 0) {
-      if (!_timerInterval) _timerInterval = setInterval(() => get().tick(), 1000);
-      return { error: 'Add at least one exercise before finishing.' };
-    }
-
-    // Count incomplete sets
-    const incompleteCount = exercises.reduce(
-      (n, ex) => n + ex.sets.filter((s) => !s.completed).length, 0
-    );
-
-    // Filter: remove empty sets, then remove empty exercises
-    const filteredExercises = exercises
-      .map((ex) => ({
-        ...ex,
-        sets: ex.sets.filter((s) => s.kg.trim() !== '' || s.reps.trim() !== ''),
-      }))
-      .filter((ex) => ex.sets.length > 0);
-
-    if (filteredExercises.length === 0) {
-      if (!_timerInterval) _timerInterval = setInterval(() => get().tick(), 1000);
-      return { error: 'No valid sets to save.' };
-    }
-
-    // Calculate summary
-    let totalVolume = 0;
-    let totalSets = 0;
-    const exerciseNames: string[] = [];
-
-    for (const ex of filteredExercises) {
-      exerciseNames.push(ex.name);
-      for (const s of ex.sets) {
-        totalSets++;
-        totalVolume += (parseFloat(s.kg) || 0) * (parseInt(s.reps, 10) || 0);
-      }
-    }
-
-    const duration = durationOverride ?? elapsedSeconds;
-
-    const restoreTimer = () => {
-      if (!_timerInterval) _timerInterval = setInterval(() => get().tick(), 1000);
-    };
-
-    // Insert workout
-    console.log('[finishWorkout] inserting workout...');
-    let workout: { id: string } | null = null;
-    try {
-      const { data, error: workoutErr } = await runWithRecovery(() =>
-        supabase
-          .from('workouts')
-          .insert({
-            user_id: userId,
-            duration,
-            total_exercises: filteredExercises.length,
-            total_sets: totalSets,
-            ...(ghostUserName ? { ghost_username: ghostUserName } : {}),
-            ...(get().startedFromProgram ? { program_id: get().startedFromProgram, program_week: get().programWeek } : {}),
-          })
-          .select('id')
-          .single()
-      );
-      if (workoutErr || !data) {
-        console.error('[finishWorkout] workout insert error:', workoutErr);
-        restoreTimer();
-        return { error: workoutErr?.message || 'Failed to save workout' };
-      }
-      workout = data;
-      console.log('[finishWorkout] workout saved:', workout.id);
-    } catch (e: any) {
-      console.error('[finishWorkout] workout insert threw:', e);
-      restoreTimer();
-      return { error: 'Failed to save workout — check your connection and try again.' };
-    }
-
-    // Bulk-insert exercises
-    console.log('[finishWorkout] inserting exercises...');
-    try {
-      const exerciseRows = filteredExercises.map((ex, i) => ({
-        workout_id: workout!.id,
-        name: ex.name,
-        exercise_order: i + 1,
-        exercise_type: ex.exercise_type,
-      }));
-
-      const { data: exDataArr, error: exErr } = await runWithRecovery(() =>
-        supabase
-          .from('exercises')
-          .insert(exerciseRows)
-          .select('id, exercise_order')
-      );
-
-      if (exErr || !exDataArr || exDataArr.length === 0) {
-        console.error('[finishWorkout] exercises insert error:', exErr);
-        restoreTimer();
-        return { error: exErr?.message || 'Failed to save exercises — please try again.' };
-      }
-
-      console.log('[finishWorkout] exercises saved, inserting sets...');
-
-      // Map exercise_order → exercise id for set assignment
-      const orderToId = new Map<number, string>();
-      for (const row of exDataArr) orderToId.set(row.exercise_order, row.id);
-
-      // Build all set rows at once
-      const allSetRows: {
-        exercise_id: string;
-        set_number: number;
-        kg: number;
-        reps: number;
-        completed: boolean;
-        set_type: string;
-        parent_set_number: number | null;
-      }[] = [];
-
-      for (let i = 0; i < filteredExercises.length; i++) {
-        const exId = orderToId.get(i + 1);
-        if (!exId) continue;
-        for (let j = 0; j < filteredExercises[i].sets.length; j++) {
-          const s = filteredExercises[i].sets[j];
-          allSetRows.push({
-            exercise_id: exId,
-            set_number: j + 1,
-            kg: parseFloat(s.kg) || 0,
-            reps: parseInt(s.reps, 10) || 0,
-            completed: s.completed,
-            set_type: s.set_type,
-            parent_set_number: s.parent_set_number,
-          });
-        }
-      }
-
-      if (allSetRows.length > 0) {
-        const { error: setErr } = await runWithRecovery(() =>
-          supabase.from('sets').insert(allSetRows)
-        );
-        if (setErr) {
-          console.warn('[finishWorkout] sets insert error:', setErr);
-        } else {
-          console.log('[finishWorkout] sets saved');
-        }
-      }
-
-      // Best-effort: persist per-exercise notes. Fire-and-forget so a missing
-      // `notes` column (until the migration is run) can never break the save.
-      for (let i = 0; i < filteredExercises.length; i++) {
-        const note = filteredExercises[i].notes?.trim();
-        const exId = orderToId.get(i + 1);
-        if (note && exId) {
-          supabase
-            .from('exercises')
-            .update({ notes: note, note_color: filteredExercises[i].noteColor ?? null })
-            .eq('id', exId)
-            .then(() => {}, () => {});
-        }
-      }
-    } catch (e: any) {
-      console.error('[finishWorkout] exercises/sets threw:', e);
-      restoreTimer();
-      return { error: 'Failed to save exercises — check your connection and try again.' };
-    }
-
-    console.log('[finishWorkout] done, showing summary');
-
-    // Non-critical operations — fire and forget, never block summary
-    try {
-      let ghostResult: string | null = null;
-      if (ghostUserName) {
-        let w = 0, l = 0;
-        for (const ex of filteredExercises) {
-          const completed = ex.sets.filter((s: any) => s.completed);
-          for (let i = 0; i < Math.min(completed.length, ex.prevSets.length); i++) {
-            const uk = parseFloat(completed[i].kg) || 0, ur = parseInt(completed[i].reps) || 0;
-            const gk = ex.prevSets[i].kg, gr = ex.prevSets[i].reps;
-            if (uk < gk) l++;
-            else if (uk === gk) { if (ur > gr) w++; else if (ur < gr) l++; }
-            else { if (uk * ur > gk * gr) w++; else if (uk * ur < gk * gr) l++; }
-          }
-        }
-        ghostResult = w > l ? 'victory' : l > w ? 'defeated' : 'draw';
-      }
-      console.log('[finishWorkout] feed insert starting, ghost:', ghostUserName, ghostResult);
-
-      // Resolve routine context for feed
-      let routineFeedData: Record<string, any> = {};
-      if (get().startedFromRoutine) {
-        const routines = useRoutineStore.getState().routines;
-        const routine = routines.find((r) => r.id === get().startedFromRoutine);
-        if (routine) {
-          routineFeedData = { routine_name: routine.name };
-        }
-      }
-
-      // Resolve program context for feed
-      let programFeedData: Record<string, any> = {};
-      console.log('[finishWorkout] program context:', get().startedFromProgram, get().programWeek);
-      if (get().startedFromProgram) {
-        const { programs, getDurationWeeks } = useProgramStore.getState();
-        console.log('[finishWorkout] programs in store:', programs.length);
-        const prog = programs.find((p) => p.id === get().startedFromProgram);
-        console.log('[finishWorkout] matched program:', prog?.name ?? 'NOT FOUND');
-        if (prog) {
-          const jsDay = new Date().getDay();
-          const dow = jsDay === 0 ? 6 : jsDay - 1;
-          const dayEntry = prog.days.find((d) => d.day_of_week === dow);
-          programFeedData = {
-            program_id: prog.id,
-            program_name: prog.name,
-            program_week: get().programWeek,
-            program_total_weeks: getDurationWeeks(prog) || null,
-            program_day_label: dayEntry?.label || null,
-          };
-        }
-      }
-
-      // Build per-exercise detail snapshot for the feed
-      const { catalogMap } = useWorkoutStore.getState();
-      const exerciseDetailsJson = filteredExercises.map((ex) => {
-        const completedSets = ex.sets.filter((s) => s.kg.trim() !== '' || s.reps.trim() !== '');
-        let bestKg = 0;
-        let bestReps = 0;
-        let vol = 0;
-        let totalReps = 0;
-        for (const s of completedSets) {
-          const kg = parseFloat(s.kg) || 0;
-          const reps = parseInt(s.reps, 10) || 0;
-          vol += kg * reps;
-          totalReps += reps;
-          // Heaviest set; reps break ties, so bodyweight (all 0 kg) exercises get their best reps
-          if (kg > bestKg || (kg === bestKg && reps > bestReps)) { bestKg = kg; bestReps = reps; }
-        }
-        const cat = catalogMap[ex.name];
-        return {
-          name: ex.name,
-          sets_count: completedSets.length,
-          best_kg: bestKg,
-          best_reps: bestReps,
-          total_volume: Math.round(vol),
-          // For the card's muscle map: bodyweight reps count there (utils/muscleLoad.ts)
-          total_reps: totalReps,
-          exercise_type: ex.exercise_type,
-          category: cat?.category || null,
-          primary_muscles: cat?.primary_muscles || [],
-          secondary_muscles: cat?.secondary_muscles || [],
-        };
-      });
-
-      const feedPayload = {
-        user_id: userId,
-        workout_id: workout!.id,
-        duration,
-        total_volume: Math.round(totalVolume),
-        exercise_names: exerciseNames,
-        total_exercises: filteredExercises.length,
-        total_sets: totalSets,
-        exercise_details: exerciseDetailsJson,
-        ...routineFeedData,
-        ...programFeedData,
-        ...(ghostUserName ? {
-          ghost_username: ghostUserName,
-          ghost_result: ghostResult,
-          ghost_exercises: filteredExercises.map((ex) => ({
-            name: ex.name,
-            sets: ex.prevSets.map((ps: any) => ({ kg: ps.kg, reps: ps.reps })),
-          })),
-        } : {}),
-      };
-      console.log('[finishWorkout] feed payload prepared, deferred until share confirm');
-      // Deferred: actual insert happens when the user taps Post on the Share screen
-      // (or skips, in which case it does not post). See commitFeedPost / dismissShare.
-      set({ pendingFeedPayload: feedPayload });
-    } catch (feedCrash) {
-      console.error('[finishWorkout] feed block crashed:', feedCrash);
-    }
-
-    try {
-      const { refreshStreak } = useStreakStore.getState();
-      refreshStreak(userId).catch(() => {});
-    } catch {}
-
-    try {
-      useRankStore.getState().updateFromWorkout(
-        filteredExercises.map((ex) => ({
-          name: ex.name,
-          exercise_type: ex.exercise_type,
-          sets: ex.sets.map((s) => ({
-            kg: parseFloat(s.kg) || 0,
-            reps: parseInt(s.reps, 10) || 0,
-            completed: s.completed,
-            set_type: s.set_type,
-          })),
-        })),
-        userId,
-      );
-    } catch {}
-
-    const summaryExercises: SummaryExercise[] = filteredExercises.map((ex) => ({
-      name: ex.name,
-      category: ex.category,
-      exercise_type: ex.exercise_type,
-      sets: ex.sets.map((s) => ({
-        kg: parseFloat(s.kg) || 0,
-        reps: parseInt(s.reps, 10) || 0,
-        completed: s.completed,
-        set_type: s.set_type,
-        parent_set_number: s.parent_set_number,
-      })),
-    }));
-
-    const summaryData: WorkoutSummary = {
-      workoutId: workout!.id,
-      duration,
-      totalVolume: Math.round(totalVolume),
-      totalSets,
-      totalExercises: filteredExercises.length,
-      exerciseNames,
-      exercises: summaryExercises,
-      prCount: 0,
-      ghostUserName: ghostUserName || null,
-      ghostExercises: ghostUserName ? filteredExercises.map((ex) => ({
-        name: ex.name,
-        sets: ex.prevSets.map((s) => ({ kg: s.kg, reps: s.reps })),
-      })) : undefined,
-      prevMap: { ...useWorkoutStore.getState().prevMap },
-    };
-
-    stopWorkoutActivity();
-    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
-    if (_persistTimeout) { clearTimeout(_persistTimeout); _persistTimeout = null; }
-    _workoutRestored = false;
-    set({
-      isActive: false,
-      sheetVisible: false,
-      exercises: [],
-      workoutTitle: null,
-      restAnchor: null,
-      startedFromRoutine: null,
-      startedFromProgram: null,
-      programWeek: null,
-      ghostUserName: null,
-      isResting: false,
-      restRemaining: 0,
-      restStartedAt: null,
-      restEndedAt: null,
-      showSummary: true,
-      summaryData,
-    });
-
-    clearWorkout();
-    return { error: null, incompleteCount, workoutId: workout!.id };
+  finishWorkout: (userId: string, durationOverride?: number) => {
+    // A second call while saving (double tap) shares the first save instead of starting another.
+    if (!_finishing) _finishing = _finishWorkout(set, get, userId, durationOverride).finally(() => { _finishing = null; });
+    return _finishing;
   },
 
   restoreWorkout: () => {
@@ -875,14 +865,17 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   showSheet: () => set({ sheetVisible: true }),
   hideSheet: () => set({ sheetVisible: false }),
 
-  dismissSummary: () => set({
-    showSummary: false,
-    summaryData: null,
-    pendingFeedPayload: null,
-    sheetVisible: false,
-    startTime: null,
-    elapsedSeconds: 0,
-  }),
+  dismissSummary: () => {
+    _undoSnapshot = null;
+    set({
+      showSummary: false,
+      summaryData: null,
+      pendingFeedPayload: null,
+      sheetVisible: false,
+      startTime: null,
+      elapsedSeconds: 0,
+    });
+  },
 
   commitFeedPost: async (opts) => {
     const payload = get().pendingFeedPayload;
@@ -917,48 +910,41 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
   undoFinish: () => {
     const { summaryData } = get();
-    if (!summaryData) return;
+    const snap = _undoSnapshot;
+    if (!summaryData || !snap) return;
+    _undoSnapshot = null;
 
-    // Delete the already-saved workout from DB so re-finish is a clean insert
-    if (summaryData.workoutId) {
-      supabase.from('workouts').delete().eq('id', summaryData.workoutId).then(() => {
-        // Also refresh workout history so it doesn't show the deleted entry
-        const userId = useAuthStore.getState().user?.id;
-        if (userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
-      });
-    }
-
-    const catalogMap = useWorkoutStore.getState().catalogMap;
-    const prevMap = useWorkoutStore.getState().prevMap;
-
-    const exercises: ActiveExercise[] = summaryData.exercises.map((ex) => {
-      const catalogEntry = catalogMap[ex.name];
-      return {
-        id: _newExerciseId(),
-        name: ex.name,
-        exercise_type: (catalogEntry?.exercise_type as ActiveExercise['exercise_type']) || 'weighted',
-        category: ex.category,
-        sets: ex.sets.map((s) => ({
-          kg: String(s.kg),
-          reps: String(s.reps),
-          completed: s.completed,
-          set_type: (s.set_type as ActiveSet['set_type']) || 'working',
-          parent_set_number: null,
-        })),
-        prevSets: prevMap[ex.name] || [],
-        supersetWith: null,
-      };
-    });
-
+    // The workout stays saved; it's reopened under the same id, and finishing it
+    // again replaces the saved copy (Discard deletes it). Nothing is deleted
+    // here, so the workout can't be lost between Undo and finishing again.
+    if (_timerInterval) clearInterval(_timerInterval);
+    _workoutRestored = true;
     set({
       isActive: true,
       sheetVisible: true,
-      exercises,
-      startTime: Date.now() - summaryData.duration * 1000,
-      elapsedSeconds: summaryData.duration,
+      exercises: snap.exercises,
+      startTime: snap.startTime,
+      elapsedSeconds: snap.startTime ? Math.floor((Date.now() - snap.startTime) / 1000) : summaryData.duration,
+      restDuration: snap.restDuration,
+      workoutTitle: snap.workoutTitle,
+      restAnchor: null,
+      startedFromRoutine: snap.startedFromRoutine,
+      startedFromProgram: snap.startedFromProgram,
+      programWeek: snap.programWeek,
+      ghostUserName: snap.ghostUserName,
+      workoutId: snap.workoutId,
+      saveMode: 'replace',
+      isResting: false,
+      restRemaining: 0,
+      restStartedAt: null,
+      restEndedAt: null,
       showSummary: false,
       summaryData: null,
+      pendingFeedPayload: null,
     });
+    _timerInterval = setInterval(() => get().tick(), 1000);
+    get()._persist();
+    startWorkoutActivity(_buildSnapshot(get()));
   },
 
   // ── Exercise management ───────────────────────────
@@ -1260,7 +1246,19 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         return;
       }
     }
-    sets[setIndex] = { ...sets[setIndex], completed: !wasCompleted };
+    if (wasCompleted) {
+      sets[setIndex] = { ...sets[setIndex], completed: false, completedAt: null, target: null };
+    } else {
+      // What the set row was suggesting (the friend's set in ghost mode, else the progression hint)
+      const ghostPrev = get().ghostUserName ? ex.prevSets[setIndex] : undefined;
+      const suggested = ghostPrev ? null : suggestSets(ex.sets, ex.prevSets, ex.exercise_type)[setIndex];
+      const target = ghostPrev
+        ? { kg: ghostPrev.kg, reps: ghostPrev.reps, source: 'previous' as const }
+        : suggested
+          ? { kg: suggested.kg, reps: suggested.reps, source: 'progression' as const }
+          : null;
+      sets[setIndex] = { ...sets[setIndex], completed: true, completedAt: Date.now(), target };
+    }
     ex.sets = sets;
     exercises[exerciseIndex] = ex;
     set({ exercises });
@@ -1455,9 +1453,9 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     if (!_workoutRestored) return; // Don't persist before restore has run
     if (_persistTimeout) clearTimeout(_persistTimeout);
     _persistTimeout = setTimeout(() => {
-      const { isActive, startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName } = get();
+      const { isActive, startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode } = get();
       if (!isActive || !startTime) return;
-      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName });
+      saveWorkout({ startTime, exercises, restDuration, restStartedAt, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode });
     }, 500);
   },
 }));

@@ -16,6 +16,9 @@ interface PersistedWorkout {
   restAnchor?: { exerciseIndex: number; setIndex: number } | null;
   /** Set when racing a friend's workout ("vs <name>"); the ghost's sets are each exercise's prevSets. */
   ghostUserName?: string | null;
+  /** Database id for the workout (generated at start); see upsert_workout. */
+  workoutId?: string | null;
+  saveMode?: 'create' | 'replace';
 }
 
 export function saveWorkout(state: PersistedWorkout): void {
@@ -29,6 +32,8 @@ export function saveWorkout(state: PersistedWorkout): void {
  * coming back with a huge elapsed time.
  */
 const EMPTY_WORKOUT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parseRestAnchor(value: unknown): PersistedWorkout['restAnchor'] {
   if (!value || typeof value !== 'object') return null;
@@ -61,6 +66,8 @@ export async function loadWorkoutAsync(): Promise<PersistedWorkout | null> {
       workoutTitle: typeof parsed.workoutTitle === 'string' ? parsed.workoutTitle : null,
       restAnchor: parseRestAnchor(parsed.restAnchor),
       ghostUserName: typeof parsed.ghostUserName === 'string' && parsed.ghostUserName ? parsed.ghostUserName : null,
+      workoutId: typeof parsed.workoutId === 'string' && UUID_RE.test(parsed.workoutId) ? parsed.workoutId : null,
+      saveMode: parsed.saveMode === 'replace' ? 'replace' : 'create',
     };
   } catch {
     return null;
