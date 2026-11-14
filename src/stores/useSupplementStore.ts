@@ -127,6 +127,8 @@ function refreshDateEntriesIfToday(get: () => SupplementState, userId: string) {
 /** Latest date asked for by fetchDateSupplements, and a counter so older responses are ignored. */
 let latestDateRequest: string | null = null;
 let dateRequestId = 0;
+/** The user and day (`userId:date`) whose entries are in `dateEntries`. */
+let loadedDateKey: string | null = null;
 
 export const useSupplementStore = create<SupplementState>((set, get) => ({
   water: 0,
@@ -282,8 +284,12 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   fetchDateSupplements: async (userId: string, date: string) => {
     latestDateRequest = date;
     const requestId = ++dateRequestId;
-    // Switching day: drop the old day's list so it never shows under the new date.
-    if (date !== get().dateEntriesDate) set({ dateEntries: [], dateEntriesDate: null });
+    // Switching day (or account): drop the old list so it never shows under the new date.
+    const key = `${userId}:${date}`;
+    if (key !== loadedDateKey) {
+      loadedDateKey = key;
+      set({ dateEntries: [], dateEntriesDate: null });
+    }
     const { data } = await supabase
       .from('supplement_entries')
       .select('id, type, amount, created_at')
