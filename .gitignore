@@ -68,3 +68,10 @@ env
 other-apps/
 cw_data_*.csv
 scripts/send_push.py
+
+# Local-only admin scripts (contain credentials; never commit)
+scripts/admin_reset_password.py
+scripts/check_push_notification.py
+scripts/fix_serving_sizes.js
+scripts/normalize_food_catalog_grams.js
+scripts/seed_food_catalog.py
