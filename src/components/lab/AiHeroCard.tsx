@@ -521,7 +521,7 @@ const createStyles = (colors: ThemeColors, insetTop: number) =>
       color: colors.accent,
       fontSize: ms(10),
       lineHeight: ms(13),
-      fontFamily: Fonts.semibold,
+      fontFamily: Fonts.semiBold,
     },
 
     modalHostRoot: {
