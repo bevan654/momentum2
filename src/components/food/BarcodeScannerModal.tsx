@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,8 @@ export default function BarcodeScannerModal({
   // so a state flag let several lookups start for one scan.
   const busyRef = useRef(false);
   const lastCodeRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const handleBarcodeScanned = useCallback(
     async (result: BarcodeScanningResult) => {
@@ -55,6 +57,7 @@ export default function BarcodeScannerModal({
 
       try {
         const { found, food } = await lookupBarcode(code);
+        if (!mountedRef.current) return; // closed while looking up
         if (found && food) {
           // Fire-and-forget: save to shared barcode_foods table
           const userId = useAuthStore.getState().user?.id;
@@ -66,7 +69,7 @@ export default function BarcodeScannerModal({
           onNotFound(code);
         }
       } catch {
-        onNotFound(code);
+        if (mountedRef.current) onNotFound(code);
       } finally {
         busyRef.current = false;
         setScanning(false);
@@ -76,9 +79,9 @@ export default function BarcodeScannerModal({
   );
 
   // Reset state each time modal opens
+  // (The scanner remounts each time it opens, so the scan-lock refs start fresh; resetting
+  // them here, after the slide-in, could unlock a lookup that's still running.)
   const handleShow = useCallback(() => {
-    busyRef.current = false;
-    lastCodeRef.current = null;
     setScanning(false);
     setTorch(false);
   }, []);

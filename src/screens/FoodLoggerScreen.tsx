@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { sw, ms } from '../theme/responsive';
@@ -39,6 +40,17 @@ function FoodLoggerScreen() {
   const deleteSupplementEntry = useSupplementStore((s) => s.deleteSupplementEntry);
 
   const colors = useColors();
+
+  // Whether the Nutrition tab is showing, kept in a ref by navigation events: the tab freezes
+  // when hidden, so its sheets can't re-render to drop their Android back listeners.
+  const navigation = useNavigation();
+  const focusedRef = useRef(navigation.isFocused());
+  useEffect(() => {
+    const onFocus = navigation.addListener('focus', () => { focusedRef.current = true; });
+    const onBlur = navigation.addListener('blur', () => { focusedRef.current = false; });
+    return () => { onFocus(); onBlur(); };
+  }, [navigation]);
+  const isScreenFocused = useCallback(() => focusedRef.current, []);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const scrollRef = useRef<ScrollView>(null);
@@ -248,6 +260,7 @@ function FoodLoggerScreen() {
       />
       <FoodDetailModal
         visible={editDetailVisible}
+        isBackActive={isScreenFocused}
         food={editDetailData}
         initialMealSlot={editEntry?.meal_type || 'breakfast'}
         initialIsPlanned={editEntry?.is_planned || false}
@@ -258,6 +271,7 @@ function FoodLoggerScreen() {
       />
       <CreateMealModal
         visible={editGroupModalVisible}
+        isBackActive={isScreenFocused}
         mealSlot={addMealSlot}
         targetHour={addHour}
         onDismiss={handleDismissGroupEdit}
