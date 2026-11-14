@@ -132,7 +132,7 @@ const sharedStyles = StyleSheet.create({
 function ClassicVariant({ d, hasImage, backgroundUri, colors }: {
   d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors;
 }) {
-  const styles = useMemo(() => classicStyles(colors, hasImage), [colors, hasImage]);
+  const styles = useMemo(() => classicStyles(hasImage), [hasImage]);
   const dateStr = formatDate(d.date || new Date());
   const label = d.workoutName || DAY_NAMES[(d.date || new Date()).getDay()];
 
@@ -182,7 +182,7 @@ function ClassicVariant({ d, hasImage, backgroundUri, colors }: {
   );
 }
 
-const classicStyles = (colors: ThemeColors, hasImage: boolean) =>
+const classicStyles = (hasImage: boolean) =>
   StyleSheet.create({
     accentGlow: { position: 'absolute', top: -sw(60), left: '20%', width: '60%', height: sw(120), borderRadius: sw(60) },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: sw(20), paddingTop: sw(20) },
@@ -209,7 +209,7 @@ const classicStyles = (colors: ThemeColors, hasImage: boolean) =>
 function MinimalVariant({ d, hasImage, backgroundUri, colors }: {
   d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors;
 }) {
-  const styles = useMemo(() => minimalStyles(colors, hasImage), [colors, hasImage]);
+  const styles = useMemo(() => minimalStyles(hasImage), [hasImage]);
   const date = d.date || new Date();
   const dayName = d.workoutName || DAY_NAMES[date.getDay()];
   const stats = useMemo(() => computeStats(d.exercises), [d.exercises]);
@@ -259,7 +259,7 @@ function MinimalVariant({ d, hasImage, backgroundUri, colors }: {
   );
 }
 
-const minimalStyles = (colors: ThemeColors, hasImage: boolean) =>
+const minimalStyles = (hasImage: boolean) =>
   StyleSheet.create({
     topRow: { flexDirection: 'row', alignItems: 'center', gap: sw(8), paddingHorizontal: sw(24), paddingTop: sw(20) },
     topLogo: { width: sw(26), height: sw(26), borderRadius: sw(7) },
@@ -282,7 +282,7 @@ const minimalStyles = (colors: ThemeColors, hasImage: boolean) =>
 function BoldVariant({ d, hasImage, backgroundUri, colors }: {
   d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors;
 }) {
-  const styles = useMemo(() => boldStyles(colors, hasImage), [colors, hasImage]);
+  const styles = useMemo(() => boldStyles(hasImage), [hasImage]);
   const stats = useMemo(() => computeStats(d.exercises), [d.exercises]);
   const dateStr = formatDate(d.date || new Date());
   const label = d.workoutName || DAY_NAMES[(d.date || new Date()).getDay()];
@@ -338,7 +338,7 @@ function BoldVariant({ d, hasImage, backgroundUri, colors }: {
   );
 }
 
-const boldStyles = (colors: ThemeColors, hasImage: boolean) =>
+const boldStyles = (hasImage: boolean) =>
   StyleSheet.create({
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: sw(20), paddingTop: sw(20) },
     dateText: { color: hasImage ? '#FFFFFFAA' : '#636366', fontSize: ms(11), lineHeight: ms(15), fontFamily: Fonts.medium, ...(hasImage && TEXT_SHADOW) },
@@ -364,7 +364,7 @@ const boldStyles = (colors: ThemeColors, hasImage: boolean) =>
 function PosterVariant({ d, hasImage, backgroundUri, colors }: {
   d: WorkoutOverlayData; hasImage: boolean; backgroundUri?: string | null; colors: ThemeColors;
 }) {
-  const styles = useMemo(() => posterStyles(colors, hasImage), [colors, hasImage]);
+  const styles = useMemo(() => posterStyles(hasImage), [hasImage]);
   const stats = useMemo(() => computeStats(d.exercises), [d.exercises]);
   const dateStr = formatDate(d.date || new Date());
 
@@ -418,7 +418,7 @@ function PosterVariant({ d, hasImage, backgroundUri, colors }: {
   );
 }
 
-const posterStyles = (colors: ThemeColors, hasImage: boolean) =>
+const posterStyles = (hasImage: boolean) =>
   StyleSheet.create({
     topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: sw(20), paddingTop: sw(20) },
     logoImage: { width: sw(30), height: sw(30), borderRadius: sw(8) },

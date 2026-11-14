@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["scripts/**/*.js"],
+  "project": ["*.{ts,tsx,js}", "src/**/*.{ts,tsx,js,jsx}", "modules/**/*.{ts,tsx}", "scripts/**/*.js"],
+  "ignoreDependencies": ["supabase"]
+}

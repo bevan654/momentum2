@@ -60,7 +60,7 @@ export default function AiHeroCard() {
   const userId = useAuthStore((s) => s.user?.id);
   const aiCoachEnabled = useAuthStore((s) => s.profile?.ai_coach_enabled ?? false);
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(colors, insets.top, insets.bottom), [colors, insets.top, insets.bottom]);
+  const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -425,7 +425,7 @@ export default function AiHeroCard() {
 }
 
 
-const createStyles = (colors: ThemeColors, insetTop: number, insetBottom: number) =>
+const createStyles = (colors: ThemeColors, insetTop: number) =>
   StyleSheet.create({
     card: {
       flex: 65,
