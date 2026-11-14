@@ -114,6 +114,13 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
     setMicroValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  /* ── Computed cal preview ─── */
+  const previewCal = useMemo(() => {
+    const fromMacros = Math.round((Number(protein) || 0) * 4 + (Number(carbs) || 0) * 4 + (Number(fat) || 0) * 9);
+    const entered = Number(calories) || 0;
+    return entered > 0 ? entered : fromMacros;
+  }, [calories, protein, carbs, fat]);
+
   /* ── Submit ─── */
   const canSubmit = Number(calories) > 0 || Number(protein) > 0 || Number(carbs) > 0 || Number(fat) > 0;
 
@@ -124,8 +131,8 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
     const pro = Number(protein) || 0;
     const c = Number(carbs) || 0;
     const f = Number(fat) || 0;
-    // Calories left blank: save what the preview shows (worked out from the macros).
-    const cal = Number(calories) > 0 ? Number(calories) : Math.round(pro * 4 + c * 4 + f * 9);
+    // Calories left blank: save exactly what the preview shows (worked out from the macros).
+    const cal = previewCal;
 
     // Build micro fields from form
     const microFields: Record<string, number | null> = {};
@@ -150,14 +157,7 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
     }, targetHour != null ? selectedDate : undefined, targetHour);
 
     onAdded();
-  }, [userId, canSubmit, name, calories, protein, carbs, fat, mealSlot, targetHour, selectedDate, addEntry, onAdded, microGoals, microValues]);
-
-  /* ── Computed cal preview ─── */
-  const previewCal = useMemo(() => {
-    const fromMacros = (Number(protein) || 0) * 4 + (Number(carbs) || 0) * 4 + (Number(fat) || 0) * 9;
-    const entered = Number(calories) || 0;
-    return entered > 0 ? entered : fromMacros;
-  }, [calories, protein, carbs, fat]);
+  }, [userId, canSubmit, name, previewCal, protein, carbs, fat, mealSlot, targetHour, selectedDate, addEntry, onAdded, microGoals, microValues]);
 
   /* ── Render ─── */
   return (
