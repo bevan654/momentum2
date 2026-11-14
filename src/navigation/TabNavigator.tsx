@@ -33,6 +33,7 @@ import { useRoutineStore } from '../stores/useRoutineStore';
 const Tab = createMaterialTopTabNavigator();
 
 import { setOpenProfileSheet, showRecoveryOverlay } from '../lib/navigationBridge';
+import { initPushToken } from '../services/notificationService';
 
 /* ─── Tab config ────────────────────────────────────────── */
 
@@ -256,6 +257,7 @@ export default function TabNavigator() {
       useRoutineStore.getState().fetchRoutines(userId);
       useFriendsStore.getState().fetchBlockedIds(userId);
       useFriendsStore.getState().fetchUnreadCount(userId);
+      initPushToken(userId);
     }
   }, [userId]);
 
@@ -302,7 +304,6 @@ export default function TabNavigator() {
             animationEnabled: true,
             lazy: true,
             lazyPreloadDistance: 1,
-            freezeOnBlur: true,
           }}
         >
           <Tab.Screen name="Recovery" component={LaboratoryScreen} />

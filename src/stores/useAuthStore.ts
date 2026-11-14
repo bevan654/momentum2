@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { rebuildClient, supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
-import { cleanupNotifications } from '../services/notificationService';
+import { cleanupNotifications, stopPushToken } from '../services/notificationService';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useActiveWorkoutStore } from './useActiveWorkoutStore';
 import { clearWorkout as clearStoredWorkout } from '../utils/workoutStorage';
@@ -447,6 +447,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     cleanupNotifications();
+    stopPushToken();
     // Release heavy caches held by stores
     useWorkoutStore.getState().clearCaches();
     // Drop the active workout from memory; its saved copy only comes back for this account
@@ -494,6 +495,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 401 — clear caches + stored workout state so nothing leaks if a different
     // user signs in on this device.
     cleanupNotifications();
+    stopPushToken();
     useWorkoutStore.getState().clearCaches();
     useActiveWorkoutStore.getState().resetForSignOut();
     try {

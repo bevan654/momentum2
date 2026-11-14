@@ -32,7 +32,6 @@ let currentUserId: string | null = null;
 let appState: AppStateStatus = AppState.currentState;
 let fallbackTimer: ReturnType<typeof setInterval> | null = null;
 let badgeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-let tokenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
 let unsubscribeClientSwap: (() => void) | null = null;
 
@@ -45,7 +44,6 @@ let viewingNotifications = false;
 
 const FALLBACK_POLL_MS = 5 * 60 * 1000; // 5 minutes
 const BADGE_DEBOUNCE_MS = 2000;
-const TOKEN_DEBOUNCE_MS = 30_000; // 30s debounce for token re-registration
 
 // ── Internal helpers ──────────────────────────────────
 
@@ -119,14 +117,6 @@ function handleAppStateChange(nextState: AppStateStatus) {
   if (nextState === 'active' && prev !== 'active' && currentUserId) {
     // Returning to foreground — sync unread count (one query)
     useFriendsStore.getState().fetchUnreadCount(currentUserId);
-
-    // Re-register push token (FCM tokens can rotate, especially on Android)
-    // Debounced to avoid redundant writes on rapid foreground/background switches
-    if (tokenDebounceTimer) clearTimeout(tokenDebounceTimer);
-    tokenDebounceTimer = setTimeout(() => {
-      tokenDebounceTimer = null;
-      registerPushToken();
-    }, TOKEN_DEBOUNCE_MS);
   }
 }
 
@@ -149,9 +139,33 @@ function stopFallbackPoller() {
 }
 
 // ── Push token registration ───────────────────────────
+// Runs for the whole signed-in session (initPushToken / stopPushToken), separate
+// from the Realtime channel above, which only lives while Community is focused.
+
+const TOKEN_DEBOUNCE_MS = 30_000; // 30s debounce for token re-registration
+
+let pushUserId: string | null = null;
+let pushAppState: AppStateStatus = AppState.currentState;
+let pushAppStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
+let tokenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function handlePushAppStateChange(nextState: AppStateStatus) {
+  const prev = pushAppState;
+  pushAppState = nextState;
+  if (nextState !== 'active' || prev === 'active' || !pushUserId) return;
+
+  // Re-register push token (FCM tokens can rotate, especially on Android)
+  // Debounced to avoid redundant writes on rapid foreground/background switches
+  if (tokenDebounceTimer) clearTimeout(tokenDebounceTimer);
+  tokenDebounceTimer = setTimeout(() => {
+    tokenDebounceTimer = null;
+    registerPushToken();
+  }, TOKEN_DEBOUNCE_MS);
+}
 
 async function registerPushToken(): Promise<void> {
-  if (!Device.isDevice || !currentUserId) return;
+  const userId = pushUserId;
+  if (!Device.isDevice || !userId) return;
 
   try {
     // Request permissions first (required on iOS + Android 13+)
@@ -175,20 +189,45 @@ async function registerPushToken(): Promise<void> {
     const { data: profile, error: fetchError } = await supabase
       .from('profiles')
       .select('push_token')
-      .eq('id', currentUserId)
+      .eq('id', userId)
       .single();
 
-    if (fetchError) return;
+    // Signed out (or switched account) while waiting on the permission prompt
+    if (fetchError || pushUserId !== userId) return;
 
     if (profile?.push_token !== token) {
       await supabase
         .from('profiles')
         .update({ push_token: token })
-        .eq('id', currentUserId);
+        .eq('id', userId);
     }
   } catch {
     // Expected in Expo Go — push tokens require a development build.
   }
+}
+
+/**
+ * Register this device's push token for the signed-in user and keep it fresh
+ * on foreground. Call once after authentication (in TabNavigator).
+ */
+export function initPushToken(userId: string): void {
+  if (pushUserId === userId) return;
+  stopPushToken();
+  pushUserId = userId;
+  pushAppState = AppState.currentState;
+  pushAppStateSubscription = AppState.addEventListener('change', handlePushAppStateChange);
+  registerPushToken();
+}
+
+/** Stop push-token refreshes. Call on sign-out. */
+export function stopPushToken(): void {
+  pushAppStateSubscription?.remove();
+  pushAppStateSubscription = null;
+  if (tokenDebounceTimer) {
+    clearTimeout(tokenDebounceTimer);
+    tokenDebounceTimer = null;
+  }
+  pushUserId = null;
 }
 
 // ── Public API ────────────────────────────────────────
@@ -242,9 +281,6 @@ export function initNotifications(userId: string): void {
 
   // Initial unread count sync
   useFriendsStore.getState().fetchUnreadCount(userId);
-
-  // Register push token (fire-and-forget)
-  registerPushToken();
 }
 
 /**
@@ -272,10 +308,6 @@ export function cleanupNotifications(): void {
   if (badgeDebounceTimer) {
     clearTimeout(badgeDebounceTimer);
     badgeDebounceTimer = null;
-  }
-  if (tokenDebounceTimer) {
-    clearTimeout(tokenDebounceTimer);
-    tokenDebounceTimer = null;
   }
 
   currentUserId = null;
