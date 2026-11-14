@@ -19,6 +19,9 @@ export function useAiFoodSearch(query: string) {
   const [aiError, setAiError] = useState<string | null>(null);
   const cacheRequest = useRef(0);
   const searchingRef = useRef(false);
+  // The latest query, so a slow Deep Search answer for an older query is dropped.
+  const queryRef = useRef(query);
+  queryRef.current = query;
 
   const searchCache = useCallback((text: string) => {
     const id = ++cacheRequest.current;
@@ -68,6 +71,7 @@ export function useAiFoodSearch(query: string) {
       try {
         const { data: cached } = await supabase.from('ai_food_cache').select('*').eq('search_query', normalized);
         if (cached && cached.length > 0) {
+          if (queryRef.current.trim() !== q) return;
           setAiResults(cached.map(mapAiRow));
           setShowAiResults(true);
           return;
@@ -115,9 +119,13 @@ export function useAiFoodSearch(query: string) {
         clearTimeout(timeoutId);
       }
 
-      setAiResults(items.map(mapAiRow));
-      setShowAiResults(true);
-      if (items.length === 0) setAiError('No estimates found for that search.');
+      // Still cache the answer below, but only show it if the query hasn't changed.
+      const stillCurrent = queryRef.current.trim() === q;
+      if (stillCurrent) {
+        setAiResults(items.map(mapAiRow));
+        setShowAiResults(true);
+      }
+      if (stillCurrent && items.length === 0) setAiError('No estimates found for that search.');
 
       // 3. Share the answer through the cache (fire-and-forget).
       if (items.length > 0) {
