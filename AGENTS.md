@@ -31,7 +31,8 @@ This project is a continuation of an app built with an older model, so expect bu
 | Analytics | None wired up |
 | Barcode | Open Food Facts (primary) → USDA FoodData Central (fallback, DEMO_KEY) |
 | Fonts | Inter (400/500/600/700/800) via @expo-google-fonts |
-| Updates | expo-updates (EAS OTA) |
+| Updates | expo-updates (EAS OTA). `runtimeVersion` uses the `appVersion` policy: any native change (new native dependency, config plugin, `modules/`, `targets/`, Info.plist/manifest) needs a `version` bump in `app.config.ts` and a new store build, so older binaries never receive JS that expects it. Guard new native modules with `requireOptionalNativeModule` anyway. |
+| Native extensions | Local Expo modules in `modules/` (autolinked); iOS extension targets in `targets/` via `@bacons/apple-targets` 4.0.7 (pinned: 5.x raises the iOS minimum to 16.4) |
 | Build | EAS Build |
 
 ---
@@ -44,6 +45,10 @@ This project is a continuation of an app built with an older model, so expect bu
 ├── app.config.ts              # Expo config (bundle IDs, plugins, EAS)
 ├── database-schema.md         # Postgres schema reference (all public tables, generated from the live schema)
 ├── docs/                      # Plans, audits, security review
+├── modules/                   # Local Expo modules (autolinked native code)
+│   └── workout-live-activity/ # Active-workout Live Activity (iOS ActivityKit) + ongoing notification (Android); JS API in index.ts
+├── targets/                   # iOS extension targets built by @bacons/apple-targets (survive `prebuild --clean`)
+│   └── workout-activity/      # SwiftUI Live Activity: Lock Screen + Dynamic Island (iOS 16.2+)
 ├── scripts/                   # Dev/ops scripts (build stamping, imports, seeding, notifications; catalog/ = RepDB exercise import, muscle-map region targets)
 │
 └── src/
@@ -202,7 +207,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | Service | Status | Notes |
 |---|---|---|
 | `notificationService` | Active — initialized in `TabNavigator` via `initNotifications(userId)` | Realtime channel `notif:${userId}` for `notifications` table. One persistent websocket per session. |
-| `liveActivityManager` | iOS Live Activities for active workouts |
+| `liveActivityManager` | Active — started/updated/stopped by `useActiveWorkoutStore` | Active workout on the Lock Screen / status bar. On binaries with `modules/workout-live-activity` (1.0.37+): iOS 16.2+ ActivityKit Live Activity (Lock Screen + Dynamic Island, UI in `targets/workout-activity`) and an Android ongoing notification (channel `workout_live`, native chronometer, exact alarm flips it back to elapsed when a rest ends). Timers tick natively; JS sends a snapshot only when the shown content changes. Older binaries / iOS < 16.2 / Live Activities off: legacy iOS sticky expo-notification with a JS ticker. The scheduled `rest-timer` notification stays the audible rest-complete cue. |
 
 ---
 
