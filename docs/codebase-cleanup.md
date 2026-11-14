@@ -8,7 +8,7 @@ Delete this file once the branch is merged.
 |---|---|---|
 | 0 | Baseline + phone smoke checklist | done |
 | 2 | Fix known bugs | done (needs phone test) |
-| 1 | Remove unused code (Knip + ignored props) | todo |
+| 1 | Remove unused code (Knip + ignored props) | done (needs phone test) |
 | 3 | Split oversized files (no behaviour change) | todo |
 | 4 | Performance audit, fix top findings (judge on a release build) | todo |
 | 5 | Turn on `noUnusedLocals` / `noUnusedParameters` | todo |
@@ -29,6 +29,15 @@ Delete this file once the branch is merged.
 Type errors: 24 → 17.
 
 Not bugs after checking: `WorkoutSummaryModal` `saving` prop (the edit footer already disables while saving) → Phase 1 dead prop.
+
+## Phase 1: removed
+- `WorkoutsTab.mockup.jsx`, `ramda`, `@types/ramda`.
+- `export` dropped from 10 helpers + 14 types used only in their own file.
+- Dead props: `HistoricalPage.saving`, `EntryCard.onEdit` (+ `onEditEntry` chain to `FoodLoggerScreen`), `Header.activeTab` (+ the `activeTab` state and `BottomTabBar.onTabChange` effect in `TabNavigator`), workout-sheet `ExerciseCard.totalExercises`, `RoutinePreviewOverlay.catalogMap`, `WeightHistoryModal` `SwipeableRow.colors`.
+- Kept: `react-native-svg` (removal needs a store build: do it with the next native release), `@expo/prebuild-config` (installed by expo anyway; no gain).
+- Knip after: only those two remain.
+- Still pending: `ExerciseRow` move up/down props (waiting on the reorder decision).
+- Noticed: `WeightHistoryModal.tsx` and `ExerciseRow.tsx` hardcode `#fff` on the swipe-delete icon/text (theme rule).
 
 ## Open questions / for bevan
 - Routine + program-day editors pass move up/down to `ExerciseRow`, but the buttons were removed in `cae9aae` (March redesign). Restore reorder or delete the props? (ask tv)
