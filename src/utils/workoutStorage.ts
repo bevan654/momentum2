@@ -9,6 +9,8 @@ interface PersistedWorkout {
   exercises: ActiveExercise[];
   restDuration: number;
   restStartedAt: number | null;
+  /** Full length of the current rest (the progress bar's 100%). Missing on workouts saved by older builds. */
+  restTotal?: number | null;
   startedFromRoutine: string | null;
   startedFromProgram?: string | null;
   programWeek?: number | null;
@@ -62,6 +64,7 @@ export async function loadWorkoutAsync(): Promise<PersistedWorkout | null> {
       exercises: parsed.exercises,
       restDuration: parsed.restDuration ?? 90,
       restStartedAt: parsed.restStartedAt ?? null,
+      restTotal: typeof parsed.restTotal === 'number' && parsed.restTotal > 0 ? parsed.restTotal : null,
       startedFromRoutine: parsed.startedFromRoutine ?? null,
       startedFromProgram: parsed.startedFromProgram ?? null,
       programWeek: parsed.programWeek ?? null,
