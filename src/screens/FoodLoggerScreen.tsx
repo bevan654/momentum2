@@ -80,7 +80,9 @@ function FoodLoggerScreen() {
   const isToday = selectedDate === todayStr;
 
   // Past midnight: if the user was looking at "today", follow it to the new day.
-  const prevTodayRef = useRef(todayStr);
+  // On first mount, compare against the store's starting day: it is set when the app loads,
+  // so an app that sat in the background overnight would otherwise open on yesterday.
+  const prevTodayRef = useRef(useFoodLogStore.getState().selectedDate);
   useEffect(() => {
     const prev = prevTodayRef.current;
     prevTodayRef.current = todayStr;
