@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { BODYWEIGHT_RANGE_KG } from '../constants/muscleMap';
+import { isPlausibleBodyweight } from '../utils/muscleLoad';
 
 export interface WeightEntry {
   date: string;
@@ -12,7 +14,10 @@ interface EmaPoint {
 }
 
 interface WeightState {
-  /** Latest weigh-in, however old (bodyweight for ranks and muscle load). The rest covers the fetched window. */
+  /**
+   * Latest weigh-in, however old (bodyweight for ranks and muscle load). The rest covers the fetched window.
+   * Entries outside BODYWEIGHT_RANGE_KG (typos) are left out of all of it; they stay in the database.
+   */
   current: number | null;
   trend: number | null;
   change: number | null;
@@ -63,12 +68,11 @@ export const useWeightStore = create<WeightState>((set, get) => ({
         .gte('date', fromDate)
         .order('date', { ascending: true });
 
-      if (data && data.length > 0) {
-        const entries: WeightEntry[] = data.map((e) => ({
-          date: e.date,
-          weight: Number(e.weight),
-        }));
+      const entries: WeightEntry[] = (data ?? [])
+        .map((e) => ({ date: e.date, weight: Number(e.weight) }))
+        .filter((e) => isPlausibleBodyweight(e.weight));
 
+      if (entries.length > 0) {
         const emaPoints = computeEma(entries);
         const current = entries[entries.length - 1].weight;
         const trend = emaPoints[emaPoints.length - 1].value;
@@ -77,15 +81,18 @@ export const useWeightStore = create<WeightState>((set, get) => ({
 
         set({ current, trend, change, entries, emaPoints });
       } else {
-        // Nothing in the window, but an older weigh-in is still the user's latest weight.
+        // No plausible entry in the window, but an older weigh-in is still the user's latest weight.
         const { data: latest } = await supabase
           .from('weight_entries')
           .select('weight')
           .eq('user_id', userId)
+          .gte('weight', BODYWEIGHT_RANGE_KG.min)
+          .lte('weight', BODYWEIGHT_RANGE_KG.max)
           .order('date', { ascending: false })
           .limit(1)
           .maybeSingle();
-        const current = latest ? Number(latest.weight) : null;
+        const latestKg = latest ? Number(latest.weight) : null;
+        const current = isPlausibleBodyweight(latestKg) ? latestKg : null;
         set({ current, trend: null, change: null, entries: [], emaPoints: [] });
       }
     } finally {
