@@ -345,9 +345,9 @@ async function _restoreSavedWorkout(
   if (_workoutRestored) return; // A workout was started while storage was loading
   if (gen !== _sessionGen) return; // Signed out while loading; the next sign-in restores again
   // A workout another account left on this device isn't this user's to continue.
+  // Its copy is left in storage, so it's still there if that account signs back in.
   const userId = useAuthStore.getState().user?.id;
   if (saved?.userId && userId && saved.userId !== userId) {
-    clearWorkout();
     saved = null;
   }
   if (!saved) {
