@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo } from 'react';
-import { View, StyleSheet, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../../../theme/useColors';
 import { sw } from '../../../theme/responsive';
 import { useLayerBackHandler } from '../../ui/Portal';
 import FoodSheetHeader from './FoodSheetHeader';
+import { useKeyboardInset } from './useKeyboardInset';
 
 interface Props {
   visible: boolean;
@@ -30,7 +31,9 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
 
-  const progress = useSharedValue(visible ? 1 : 0);
+  // Starts hidden so the first show fades in, whether the screen is always mounted or mounted on open.
+  const progress = useSharedValue(0);
+  const kbInset = useKeyboardInset();
   useEffect(() => {
     progress.value = withTiming(visible ? 1 : 0, { duration: visible ? 180 : 140 });
   }, [visible]);
@@ -44,7 +47,7 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
       pointerEvents={visible ? 'auto' : 'none'}
       accessibilityViewIsModal={visible}
     >
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Animated.View ref={kbInset.ref} style={[styles.flex, kbInset.style]}>
         <FoodSheetHeader title={title} subtitle={subtitle} leading="back" onLeading={onBack} right={right} />
         <ScrollView
           style={styles.flex}
@@ -58,7 +61,7 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
         {footer ? (
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, sw(12)) }]}>{footer}</View>
         ) : null}
-      </KeyboardAvoidingView>
+      </Animated.View>
     </Animated.View>
   );
 }

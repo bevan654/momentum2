@@ -199,10 +199,10 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
                 <TextInput
                   style={s.microInput}
                   value={microValues[g.key] || ''}
-                  onChangeText={(v) => handleMicroChange(g.key, v)}
+                  onChangeText={(v) => handleMicroChange(g.key, v.replace(',', '.'))}
                   placeholder="0"
                   placeholderTextColor={colors.textTertiary}
-                  keyboardType="decimal-pad"
+                  keyboardType="numeric"
                   keyboardAppearance={isDark ? 'dark' : 'light'}
                   accessibilityLabel={`${g.name} in ${g.unit}`}
                 />
