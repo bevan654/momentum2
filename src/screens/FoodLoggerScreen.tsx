@@ -44,7 +44,7 @@ function FoodLoggerScreen() {
   // Whether the Nutrition tab is showing, kept in a ref by navigation events: the tab freezes
   // when hidden, so its sheets can't re-render to drop their Android back listeners.
   const navigation = useNavigation();
-  const focusedRef = useRef(navigation.isFocused());
+  const focusedRef = React.useRef(navigation.isFocused()); // React.useRef: the redesign drops the named import
   useEffect(() => {
     const onFocus = navigation.addListener('focus', () => { focusedRef.current = true; });
     const onBlur = navigation.addListener('blur', () => { focusedRef.current = false; });
