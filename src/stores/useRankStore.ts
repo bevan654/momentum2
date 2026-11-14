@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useWeightStore } from './useWeightStore';
+import { useAuthStore } from './useAuthStore';
 import {
   estimateOneRepMax,
   effectiveLoad,
@@ -99,10 +100,16 @@ const DEFAULT_RANK: RankInfo = {
 
 /* ─── Store ──────────────────────────────────────────── */
 
-/** Latest weigh-in for strength scores; a typo outside 30–300 kg counts as missing (70 kg). */
+/**
+ * Bodyweight for strength scores, matching the server leaderboard: latest weigh-in, else the
+ * profile's starting weight, else 70 kg. A typo outside 30–300 kg counts as missing.
+ */
 function rankBodyweight(): number {
   const current = useWeightStore.getState().current;
-  return isPlausibleBodyweight(current) ? current : 70;
+  if (isPlausibleBodyweight(current)) return current;
+  const starting = useAuthStore.getState().profile?.starting_weight;
+  if (isPlausibleBodyweight(starting)) return starting;
+  return 70;
 }
 
 export const useRankStore = create<RankState>((set, get) => ({
