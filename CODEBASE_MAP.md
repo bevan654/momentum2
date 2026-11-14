@@ -40,7 +40,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `auth/` | Login/sign-up social buttons | |
 | `body/` | Body map wrappers around `momentum-muscle-map` | `useBodyMap.ts` exports `useBodies`, `useMuscleMapColors` and other helpers, but no `useBodyMap` |
 | `dev/` | **Production share UI**, not dev tools | `WorkoutOverlay` = share card, `StoryCropModal`; used by `share/` and the workout summary |
-| `food/` | Nutrition tab: meals, add-food, barcode, AI scan, food detail | |
+| `food/` | Nutrition tab: meals, add-food, barcode, AI scan, food detail | `macro-lens/` holds the pieces of `MacroLensModal` (AI photo scan). |
 | `friends/` | Community tab: leaderboard, search, notifications, profiles, reports | `AvatarCircle`, `ReportSheet` are also used by other features |
 | `home/` | Home tab cards (activity, nutrition, water, supplements) | Also holds app-wide pieces: `Header` (global header), `ChangelogModal`, `BetaWelcomeModal`, the Community `Feed` and `NutritionStories`, and weight modals used by `lab/WeightCard` |
 | `lab/` | **Recovery tab** (screen is `LaboratoryScreen`): body metrics, charts, AI card | |
