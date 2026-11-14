@@ -470,9 +470,20 @@ async function _finishWorkout(
   // lost response can't save the workout twice.
   console.log('[finishWorkout] saving workout', workoutId, built.payload.mode);
   try {
-    const { error: saveErr } = await runWithRecovery(() =>
+    const res = await runWithRecovery(() =>
       supabase.rpc('upsert_workout', { p: built.payload })
     );
+    let saveErr = res.error;
+    // created: false means an earlier Finish that showed an error (a timeout whose
+    // request still reached the server) already saved this id, and 'create' left
+    // that copy untouched. Sets may have been added or edited since, so overwrite
+    // it with the workout as it is now.
+    if (!saveErr && built.payload.mode === 'create' && (res.data as { created?: boolean } | null)?.created === false) {
+      console.warn('[finishWorkout] already saved by an earlier attempt — replacing it');
+      ({ error: saveErr } = await runWithRecovery(() =>
+        supabase.rpc('upsert_workout', { p: { ...built.payload, mode: 'replace' } })
+      ));
+    }
     if (saveErr) {
       console.error('[finishWorkout] save error:', saveErr);
       restoreTimer();
