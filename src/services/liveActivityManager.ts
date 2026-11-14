@@ -1,15 +1,21 @@
 /**
- * Live Activity Manager — iOS-only sticky workout notification
- * using expo-notifications.
+ * Live Activity Manager — the active workout on the Lock Screen / status bar.
  *
- * Adaptive tick: 1s while resting (countdown precision), 30s idle.
- * In-flight guard + content dedup minimise bridge calls.
+ * Native path (binaries with modules/workout-live-activity, 1.0.37+): an
+ * ActivityKit Live Activity on iOS 16.2+ and an ongoing notification on Android.
+ * Both timers tick natively, so JS only sends a snapshot when what's displayed
+ * changes (exercise, set, next exercise, rest start/end), never per tick.
+ *
+ * Legacy path (older iOS binaries, iOS < 16.2, Live Activities turned off): a
+ * sticky expo-notification re-posted by a JS ticker (1s while resting, 30s idle).
  *
  * Plain module, no React state.
  */
 
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import * as WorkoutLiveActivity from '../../modules/workout-live-activity';
+import type { WorkoutLiveActivityState } from '../../modules/workout-live-activity';
 import { formatClock } from '../utils/formatDuration';
 
 // ── Types ──────────────────────────────────────────────────
@@ -19,9 +25,14 @@ export interface WorkoutActivitySnapshot {
   exerciseName: string;
   currentSet: number;
   totalSets: number;
+  /** The exercise after the current one, if any. */
+  nextExerciseName: string | null;
   isResting: boolean;
   restStartedAt: number | null;
-  restDuration: number; // seconds
+  /** Seconds from restStartedAt to the rest's end (the store re-anchors on adjustments). */
+  restDuration: number;
+  /** Full length of the current rest incl. adjustments, in seconds. */
+  restTotal: number;
 }
 
 // ── Constants ─────────────────────────────────────────────
@@ -33,6 +44,15 @@ const IOS_REST_TICK_MS = 1_000;
 // ── Module state ───────────────────────────────────────────
 
 let _active = false;
+/** Which path the running activity uses; decided when it starts. */
+let _mode: 'native' | 'legacy' | null = null;
+
+// Native path
+let _lastNativeKey = '';
+/** Keeps native calls in order (an update can't overtake the start it follows). */
+let _nativeQueue: Promise<unknown> = Promise.resolve();
+
+// Legacy path
 let _tickInterval: ReturnType<typeof setInterval> | null = null;
 let _snapshot: WorkoutActivitySnapshot | null = null;
 let _currentTickMs = 0;
@@ -40,9 +60,44 @@ let _presenting = false;
 let _lastTitle = '';
 let _lastBody = '';
 
-// ── Helpers ────────────────────────────────────────────────
+// ── Native path ────────────────────────────────────────────
 
-// ── Notification content ──────────────────────────────────
+function toNativeState(snapshot: WorkoutActivitySnapshot): WorkoutLiveActivityState {
+  const resting = snapshot.isResting && snapshot.restStartedAt != null;
+  // restStartedAt + restDuration is the rest's end. After an adjustment restStartedAt
+  // is re-anchored to "now" and restDuration is what's left, so the original start is
+  // end − restTotal. After a crash-restore restTotal is only what was left while
+  // restDuration is still the full length, hence the max.
+  const restEndsAt = resting ? snapshot.restStartedAt! + snapshot.restDuration * 1000 : null;
+  const restStartedAt = restEndsAt != null
+    ? restEndsAt - Math.max(snapshot.restTotal, snapshot.restDuration) * 1000
+    : null;
+  return {
+    workoutStartedAt: snapshot.startTime,
+    exerciseName: snapshot.exerciseName,
+    setIndex: snapshot.currentSet,
+    setCount: snapshot.totalSets,
+    nextExerciseName: snapshot.nextExerciseName,
+    restStartedAt,
+    restEndsAt,
+  };
+}
+
+function enqueueNative(label: string, call: () => Promise<unknown>): void {
+  _nativeQueue = _nativeQueue.then(call).catch((e) => {
+    if (__DEV__) console.warn(`[LiveActivity] ${label} failed:`, e);
+  });
+}
+
+function sendNative(snapshot: WorkoutActivitySnapshot, kind: 'start' | 'update'): void {
+  const state = toNativeState(snapshot);
+  const key = JSON.stringify(state);
+  if (kind === 'update' && key === _lastNativeKey) return;
+  _lastNativeKey = key;
+  enqueueNative(kind, () => (kind === 'start' ? WorkoutLiveActivity.start(state) : WorkoutLiveActivity.update(state)));
+}
+
+// ── Legacy path: notification content ─────────────────────
 
 function buildNotifContent(snapshot: WorkoutActivitySnapshot): {
   title: string;
@@ -50,11 +105,11 @@ function buildNotifContent(snapshot: WorkoutActivitySnapshot): {
 } {
   const elapsed = formatClock((Date.now() - snapshot.startTime) / 1000);
 
-  const title = `Workout Active \u00b7 ${elapsed}`;
+  const title = `Workout Active · ${elapsed}`;
   let body = '';
 
   if (snapshot.exerciseName) {
-    body = `${snapshot.exerciseName} \u2014 Set ${snapshot.currentSet}/${snapshot.totalSets}`;
+    body = `${snapshot.exerciseName} — Set ${snapshot.currentSet}/${snapshot.totalSets}`;
   } else {
     body = 'No exercises added yet';
   }
@@ -126,18 +181,35 @@ function stopTicker(): void {
 // ── Public API ─────────────────────────────────────────────
 
 export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): Promise<void> {
+  if (WorkoutLiveActivity.isSupported()) {
+    // Upgrading mid-workout from a build without the module leaves its sticky notification.
+    if (Platform.OS === 'ios') Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
+    _mode = 'native';
+    _active = true;
+    sendNative(snapshot, 'start');
+    return;
+  }
+
   if (Platform.OS !== 'ios') return;
+  _mode = 'legacy';
+  _active = true;
   try {
     await presentNotification(snapshot);
     startTicker(snapshot);
-    _active = true;
   } catch (e) {
+    _active = false;
+    _mode = null;
     if (__DEV__) console.warn('[LiveActivity] start failed:', e);
   }
 }
 
 export function updateWorkoutActivity(snapshot: WorkoutActivitySnapshot): void {
-  if (Platform.OS !== 'ios') return;
+  if (_mode === 'native') {
+    if (_active) sendNative(snapshot, 'update');
+    return;
+  }
+
+  if (Platform.OS !== 'ios' || !_active) return;
   const restChanged = _snapshot?.isResting !== snapshot.isResting;
   _snapshot = snapshot;
 
@@ -149,7 +221,18 @@ export function updateWorkoutActivity(snapshot: WorkoutActivitySnapshot): void {
 }
 
 export async function stopWorkoutActivity(): Promise<void> {
-  if (Platform.OS !== 'ios' || !_active) return;
+  if (!_active) return;
+
+  if (_mode === 'native') {
+    _active = false;
+    _mode = null;
+    _lastNativeKey = '';
+    enqueueNative('stop', () => WorkoutLiveActivity.end());
+    await _nativeQueue;
+    return;
+  }
+
+  if (Platform.OS !== 'ios') return;
 
   stopTicker();
 
@@ -160,14 +243,17 @@ export async function stopWorkoutActivity(): Promise<void> {
   }
 
   _active = false;
+  _mode = null;
 }
 
 /**
- * Dismisses a workout notification left over from a previous app run (the app
- * was killed mid-workout). `stopWorkoutActivity` can't, because its "active"
- * flag doesn't survive a restart. Call it only when no workout is active.
+ * Ends a workout activity left over from a previous app run (the app was killed
+ * mid-workout). `stopWorkoutActivity` can't, because its "active" flag doesn't
+ * survive a restart. Call it only when no workout is active.
  */
 export function clearStaleWorkoutActivity(): void {
-  if (Platform.OS !== 'ios' || _active) return;
-  Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
+  if (_active) return;
+  enqueueNative('clear stale', () => WorkoutLiveActivity.endAll());
+  // A sticky notification from the legacy path (or from the build before this one).
+  if (Platform.OS === 'ios') Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
 }

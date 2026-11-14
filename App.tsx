@@ -71,6 +71,17 @@ if (Platform.OS === 'android') {
     vibrationPattern: [0, 250, 250, 250],
     sound: 'default',
   });
+  // The ongoing active-workout notification (modules/workout-live-activity). Silent;
+  // the rest_timer alert stays the audible cue. Keep in sync with WorkoutNotification.kt.
+  Notifications.setNotificationChannelAsync('workout_live', {
+    name: 'Active Workout',
+    description: 'Your workout timer and rest countdown while you train',
+    importance: Notifications.AndroidImportance.LOW,
+    sound: null,
+    enableVibrate: false,
+    enableLights: false,
+    showBadge: false,
+  });
   // Clean up stale workout channels from previous builds
   Notifications.deleteNotificationChannelAsync('workout').catch(() => {});
   Notifications.deleteNotificationChannelAsync('workout_silent').catch(() => {});
