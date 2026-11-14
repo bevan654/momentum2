@@ -252,6 +252,7 @@ export default function CreateMealModal({
   const [detailFood, setDetailFood] = useState<FoodDetailData | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [detailQuantity, setDetailQuantity] = useState(1);
 
   /* ── Select catalog item → open detail modal ─────────── */
   const handleSelectItem = useCallback((item: FoodCatalogItem) => {
@@ -283,6 +284,7 @@ export default function CreateMealModal({
   /* ── Tap existing item → open detail for editing ────── */
   const handleEditItem = useCallback((item: MealItem) => {
     setEditingItemId(item.id);
+    setDetailQuantity(item.quantity || 1);
     setDetailFood({
       name: item.name,
       brand: item.brand,
@@ -731,6 +733,7 @@ export default function CreateMealModal({
         food={detailFood}
         initialMealSlot={mealSlot}
         initialIsPlanned={false}
+        initialQuantity={editingItemId ? detailQuantity : 1}
         onDismiss={handleDetailDismiss}
         onAdded={handleDetailDismiss}
         onAddToMeal={handleDetailAddToMeal}
