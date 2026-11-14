@@ -5,6 +5,9 @@ Target users: intermediate-to-advanced lifters who care about progressive overlo
 
 Current build: see `src/constants/buildInfo.ts` (auto-stamped).
 
+### Existing bugs: flag them, ask before fixing
+This project is a continuation of an app built with an older model, so expect bugs in existing code. When you notice one while working on something else, don't fix it silently and don't ignore it: tell the user what it is, where it is (`file:line`) and what it affects, then ask whether to fix it. If they say yes, fix it on its own `bugfix` branch unless they say otherwise, so the current change keeps its scope.
+
 ---
 
 ## Tech Stack
