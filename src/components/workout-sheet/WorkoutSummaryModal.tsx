@@ -13,7 +13,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { getUICategoryColor } from '../../constants/muscles';
 import MuscleHeatmap from '../body/MuscleHeatmap';
-import MiniBodyMap from '../body/MiniBodyMap';
+import WorkoutMiniMaps from '../body/WorkoutMiniMaps';
 import DurationPickerModal from './DurationPickerModal';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -24,6 +24,8 @@ import ShareModal from '../share/ShareModal';
 import WorkoutOverlay from '../dev/WorkoutOverlay';
 import CoachTakeCard, { type CoachResult } from './CoachTakeCard';
 import { pickAndUploadWorkoutPhoto } from '../../utils/uploadWorkoutPhoto';
+
+const NO_EXERCISES: SummaryExercise[] = [];
 
 // ── Edit-mode types ──────────────────────────────────
 
@@ -658,42 +660,7 @@ export default function WorkoutSummaryModal(props: Props) {
     });
   }, [isJustCompleted, data]);
 
-  const previewBodyMapExercises: ExerciseWithSets[] = useMemo(() => {
-    if (!isJustCompleted) return [];
-    const exs = (data as WorkoutSummary).exercises || [];
-    return exs.map((ex, i) => {
-      const cat = catalogMap[ex.name];
-      const totalVol = ex.sets.reduce((v, s) => v + (s.kg || 0) * (s.reps || 0), 0);
-      return {
-        id: `preview-${i}`,
-        name: ex.name,
-        exercise_order: i,
-        exercise_type: 'weighted',
-        sets: totalVol > 0
-          ? [{
-              id: `preview-${i}-0`,
-              set_number: 1,
-              kg: totalVol,
-              reps: 1,
-              completed: true,
-              set_type: null,
-              parent_set_number: null,
-              isPR: false,
-            }]
-          : [],
-        hasPR: false,
-        category: ex.category,
-        primary_muscles: cat?.primary_muscles || [],
-        secondary_muscles: cat?.secondary_muscles || [],
-      };
-    });
-  }, [isJustCompleted, data, catalogMap]);
-
-  const previewBodyColors = useMemo(() => [
-    '#1A1A1E', '#2A2A2E',
-    colors.accent + '50', colors.accent + '80',
-    colors.accent + 'CC', colors.accent, colors.accent,
-  ], [colors.accent]);
+  const previewExercises = (isJustCompleted && (data as WorkoutSummary).exercises) || NO_EXERCISES;
 
   // Use saved overrides if available, otherwise use original data
   const displayDuration = savedDuration ?? data.duration;
@@ -1047,7 +1014,6 @@ export default function WorkoutSummaryModal(props: Props) {
     duration: displayDuration,
     date: isJustCompleted ? new Date() : new Date((data as WorkoutWithDetails).created_at),
     workoutName: workoutName.trim() || null,
-    catalogMap,
   };
 
   const subModals = (
@@ -1208,9 +1174,7 @@ export default function WorkoutSummaryModal(props: Props) {
             )}
 
             {!editing && (displayExercises ?? (data as WorkoutSummary).exercises).length > 0 && (
-              <View style={styles.heatmapSmall}>
-                <MuscleHeatmap exercises={(displayExercises ?? (data as WorkoutSummary).exercises) as any} embedded compact />
-              </View>
+              <MuscleHeatmap exercises={displayExercises ?? (data as WorkoutSummary).exercises} />
             )}
 
             {exerciseContent}
@@ -1324,16 +1288,13 @@ export default function WorkoutSummaryModal(props: Props) {
                   </TouchableOpacity>
                   <View style={styles.previewSlot}>
                     {/* Body maps row, centered, matches the summary's body maps */}
-                    <View style={styles.previewSlotBody}>
-                      <View style={styles.previewSlotBodyCol}>
-                        <Text style={styles.previewSlotBodyLabel}>FRONT</Text>
-                        <MiniBodyMap exercises={previewBodyMapExercises} scale={0.28} side="front" colors={previewBodyColors} />
-                      </View>
-                      <View style={styles.previewSlotBodyCol}>
-                        <Text style={styles.previewSlotBodyLabel}>BACK</Text>
-                        <MiniBodyMap exercises={previewBodyMapExercises} scale={0.28} side="back" colors={previewBodyColors} />
-                      </View>
-                    </View>
+                    <WorkoutMiniMaps
+                      exercises={previewExercises}
+                      height={sw(112)}
+                      style={styles.previewSlotBody}
+                      columnStyle={styles.previewSlotBodyCol}
+                      captionStyle={styles.previewSlotBodyLabel}
+                    />
 
                     {/* Exercise list — full-width rows with hairline dividers */}
                     <View style={styles.previewSlotList}>
@@ -1524,9 +1485,7 @@ function HistoricalPage({
         {statsContent}
 
         {!editing && data.exercises.length > 0 && (
-          <View style={styles.heatmapSmall}>
-            <MuscleHeatmap exercises={data.exercises} embedded compact />
-          </View>
+          <MuscleHeatmap exercises={data.exercises} />
         )}
 
         {exerciseContent}
@@ -1739,13 +1698,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     width: '100%',
     gap: sw(8),
     marginBottom: sw(8),
-  },
-  heatmapSmall: {
-    alignSelf: 'center',
-    marginBottom: sw(8),
-    transform: [{ scale: 0.75 }],
-    marginTop: sw(-20),
-    marginHorizontal: sw(-20),
   },
   exerciseDetail: {
     backgroundColor: colors.surface,

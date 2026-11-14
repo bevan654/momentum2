@@ -15,9 +15,14 @@ import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import type { WorkoutWithDetails } from '../../stores/useWorkoutStore';
 import { useLabTimeRangeStore, LAB_RANGE_OPTIONS, nearestRangeOption } from '../../stores/useLabTimeRangeStore';
-import MiniBodyMap from '../body/MiniBodyMap';
-import { calculateMuscleVolume, ALL_SLUGS } from '../../utils/muscleVolume';
-import type { ExtendedBodyPart } from '../BodyHighlighter';
+import type { MuscleValues, PressedRegion } from 'momentum-muscle-map';
+import MuscleMapPair from '../body/MuscleMapPair';
+import LevelToggle from '../body/LevelToggle';
+import RegionChip from '../body/RegionChip';
+import { useMuscleMapColors, useMuscleMapLevel } from '../body/useBodyMap';
+import { useRegionWeightLookup } from '../../hooks/useRegionWeightLookup';
+import { partsOf, regionVolume, relativeValues, type RegionWeightLookup } from '../../utils/muscleVolume';
+import { regionLabel } from '../../constants/muscleMapLabels';
 
 /* ─── Config ─────────────────────────────────────────────── */
 
@@ -37,8 +42,16 @@ const DOT_R = sw(2);
 
 /* Body sizing */
 const BODY_GAP = sw(4);
-const BODY_W = (SECTION_W - BODY_GAP) / 2;
-const BODY_SCALE = BODY_W / 200;
+const BODY_H = CHART_SIZE;
+
+/* Shown faded behind the empty state */
+const SAMPLE_GROUP_SETS: Record<string, number> = {
+  Chest: 12, Back: 14, Shoulders: 9, Arms: 10, Legs: 16, Core: 6,
+};
+const SAMPLE_VALUES: MuscleValues = {
+  chest: 0.5, back: 0.55, traps: 0.4, shoulders: 0.45, arms: 0.45, forearms: 0.3,
+  core: 0.3, glutes: 0.5, quads: 0.6, hamstrings: 0.5, adductors: 0.3, calves: 0.35,
+};
 
 /* ─── Muscle → Group mapping (derived from muscles.ts) ────── */
 
@@ -85,31 +98,20 @@ function computeGroupSets(
   return counts;
 }
 
-function computeBodyData(workouts: WorkoutWithDetails[], days: number): ExtendedBodyPart[] {
+/** Weighted volume per map region over the last `days` days. */
+function computeRegionVolume(workouts: WorkoutWithDetails[], days: number, lookup: RegionWeightLookup) {
   const now = new Date();
   const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
   cutoff.setHours(0, 0, 0, 0);
   const cutoffMs = cutoff.getTime();
+  const exercises = workouts
+    .filter((w) => new Date(w.created_at).getTime() >= cutoffMs)
+    .flatMap((w) => w.exercises);
+  return regionVolume(exercises, lookup);
+}
 
-  const slugVol: Record<string, number> = {};
-
-  for (const w of workouts) {
-    if (new Date(w.created_at).getTime() < cutoffMs) continue;
-    const { volumeMap } = calculateMuscleVolume(w.exercises);
-    for (const [slug, vol] of Object.entries(volumeMap)) {
-      slugVol[slug] = (slugVol[slug] || 0) + vol;
-    }
-  }
-
-  const maxVol = Math.max(...Object.values(slugVol), 1);
-
-  return ALL_SLUGS.map((slug) => {
-    const vol = slugVol[slug] || 0;
-    if (vol <= 0) return { slug, intensity: 1 };
-    const ratio = vol / maxVol;
-    const intensity = 2 + Math.round(ratio * 4);
-    return { slug, intensity: Math.min(intensity, 6) };
-  });
+function formatKg(kg: number): string {
+  return kg >= 1000 ? `${(kg / 1000).toFixed(1)}k kg` : `${Math.round(kg)} kg`;
 }
 
 function polarXY(angle: number, r: number): { x: number; y: number } {
@@ -150,10 +152,29 @@ export default function MuscleRadarCard() {
     () => computeGroupSets(workouts, effectiveDays),
     [workouts, effectiveDays],
   );
-  const bodyData = useMemo(
-    () => computeBodyData(workouts, effectiveDays),
-    [workouts, effectiveDays],
+  const lookup = useRegionWeightLookup();
+  const regionVol = useMemo(
+    () => computeRegionVolume(workouts, effectiveDays, lookup),
+    [workouts, effectiveDays, lookup],
   );
+  const bodyValues = useMemo(() => relativeValues(regionVol), [regionVol]);
+  const mapColors = useMuscleMapColors();
+  const [level, setLevel] = useMuscleMapLevel();
+  const [selected, setSelected] = useState<PressedRegion | null>(null);
+  useEffect(() => setSelected(null), [level, bodyValues]);
+  const onRegionPress = useCallback((region: PressedRegion) => {
+    setSelected((prev) => (!region.isMuscle || prev?.id === region.id ? null : region));
+  }, []);
+  const selectedDetail = useMemo(() => {
+    if (!selected) return null;
+    let kg = 0;
+    let share = 0;
+    for (const part of partsOf(selected.level, selected.key)) {
+      kg = Math.max(kg, regionVol[part] ?? 0);
+      share = Math.max(share, bodyValues[part] ?? 0);
+    }
+    return kg > 0 ? `${formatKg(kg)} · ${Math.round(share * 100)}% of top` : 'Not trained';
+  }, [selected, regionVol, bodyValues]);
 
   const dateRangeLabel = useMemo(() => {
     const now = new Date();
@@ -177,14 +198,8 @@ export default function MuscleRadarCard() {
   const hasData = totalSets > 0;
   const angleStep = (2 * Math.PI) / GROUPS.length;
 
-  // Example data shown faded behind the empty-state overlay
-  const SAMPLE_GROUP_SETS: Record<string, number> = {
-    Chest: 12, Back: 14, Shoulders: 9, Arms: 10, Legs: 16, Core: 6,
-  };
-  const SAMPLE_BODY_DATA: ExtendedBodyPart[] = ALL_SLUGS.map((slug) => ({ slug, intensity: 3 }));
-
   const displayGroupSets = hasData ? groupSets : SAMPLE_GROUP_SETS;
-  const displayBodyData = hasData ? bodyData : SAMPLE_BODY_DATA;
+  const displayBodyValues = hasData ? bodyValues : SAMPLE_VALUES;
   const displayMaxSets = hasData
     ? maxSets
     : Math.max(...GROUPS.map((g) => SAMPLE_GROUP_SETS[g]));
@@ -360,18 +375,22 @@ export default function MuscleRadarCard() {
 
         {/* Body maps */}
         <View style={styles.bodySection}>
-          <View style={styles.bodyRow}>
-            <View style={styles.bodyCol}>
-              <MiniBodyMap bodyData={displayBodyData} scale={BODY_SCALE} side="front" />
-              <Text style={styles.sideLabel}>Front</Text>
-            </View>
-            <View style={styles.bodyCol}>
-              <MiniBodyMap bodyData={displayBodyData} scale={BODY_SCALE} side="back" />
-              <Text style={styles.sideLabel}>Back</Text>
-            </View>
-          </View>
+          <MuscleMapPair
+            values={displayBodyValues}
+            level={level}
+            colors={mapColors}
+            height={BODY_H}
+            gap={BODY_GAP}
+            onRegionPress={hasData ? onRegionPress : undefined}
+          />
+          <LevelToggle level={level} onChange={setLevel} />
         </View>
       </View>
+      {hasData && selected && selectedDetail && (
+        <View style={styles.selectedRow}>
+          <RegionChip label={regionLabel(selected.key)} detail={selectedDetail} />
+        </View>
+      )}
 
       {!hasData && (
         <View style={styles.emptyOverlay} pointerEvents="none">
@@ -476,20 +495,10 @@ const createStyles = (colors: ThemeColors) =>
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
+      gap: sw(8),
     },
-    bodyRow: {
-      flexDirection: 'row',
-      gap: BODY_GAP,
-    },
-    bodyCol: {
-      alignItems: 'center',
-    },
-    sideLabel: {
-      color: colors.textTertiary,
-      fontSize: ms(8),
-      lineHeight: ms(11),
-      fontFamily: Fonts.medium,
-      marginTop: sw(2),
+    selectedRow: {
+      marginTop: sw(10),
     },
     /* Empty state */
     dimmedContent: {

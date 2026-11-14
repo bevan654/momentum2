@@ -2,46 +2,15 @@ import React, { useMemo, useCallback, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
-import { useThemeStore } from '../../stores/useThemeStore';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import Body, { type ExtendedBodyPart } from '../BodyHighlighter';
-import { toSlug, ALL_SLUGS } from '../../utils/muscleVolume';
+import ExerciseMuscleThumb from '../body/ExerciseMuscleThumb';
 import type { ActivityFeedItem, FeedExerciseDetail } from '../../lib/friendsDatabase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useRoutineStore } from '../../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import Sheet from '../ui/Sheet';
-
-/* --- Body map helpers --- */
-
-const CATEGORY_SLUGS: Record<string, string[]> = {
-  Chest: ['chest'], Back: ['upper-back', 'lower-back', 'trapezius'],
-  Shoulders: ['deltoids', 'rear-deltoids'], Arms: ['biceps', 'triceps', 'forearm'],
-  Legs: ['quadriceps', 'hamstring', 'gluteal', 'calves', 'adductors'], Core: ['abs', 'obliques'],
-};
-
-const SLUG_FOCUS: Record<string, { y: number; side: 'front' | 'back' }> = {
-  chest: { y: 0.32, side: 'front' }, deltoids: { y: 0.26, side: 'front' },
-  'rear-deltoids': { y: 0.26, side: 'back' }, biceps: { y: 0.37, side: 'front' },
-  triceps: { y: 0.37, side: 'back' }, forearm: { y: 0.48, side: 'front' },
-  abs: { y: 0.44, side: 'front' }, obliques: { y: 0.44, side: 'front' },
-  'upper-back': { y: 0.32, side: 'back' }, 'lower-back': { y: 0.44, side: 'back' },
-  trapezius: { y: 0.23, side: 'back' }, quadriceps: { y: 0.66, side: 'front' },
-  hamstring: { y: 0.66, side: 'back' }, gluteal: { y: 0.53, side: 'back' },
-  calves: { y: 0.83, side: 'back' }, adductors: { y: 0.62, side: 'front' },
-};
-
-const CATEGORY_FOCUS: Record<string, { y: number; side: 'front' | 'back' }> = {
-  Chest: { y: 0.32, side: 'front' }, Back: { y: 0.32, side: 'back' },
-  Shoulders: { y: 0.26, side: 'front' }, Arms: { y: 0.37, side: 'front' },
-  Legs: { y: 0.66, side: 'front' }, Core: { y: 0.44, side: 'front' },
-};
-
-const BODY_SCALE = 0.35;
-const BODY_W = 200 * BODY_SCALE;
-const BODY_H = 400 * BODY_SCALE;
 
 interface Props {
   item: ActivityFeedItem | null;
@@ -97,19 +66,7 @@ function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss
   const displayName = item.profile.username || item.profile.email;
   const exercises = item.exercise_details || [];
   const colors = useColors();
-  const themeMode = useThemeStore((s) => s.mode);
   const styles = useMemo(() => createStyles(colors), [colors]);
-
-  const bodyPalette = useMemo(() => {
-    const a = colors.accent;
-    if (themeMode === 'dark') {
-      return ['#1A1A1E', '#2A2A2E', a + '40', a + '60', a + '80', a, a];
-    }
-    return ['#E8E4DE', '#C8C4BE', a + '40', a + '60', a + '80', a, a];
-  }, [themeMode, colors.accent]);
-
-  const MAP_W = sw(44);
-  const MAP_H = sw(52);
 
   const userId = useAuthStore((s) => s.user?.id);
   const createRoutine = useRoutineStore((s) => s.createRoutine);
@@ -193,11 +150,7 @@ function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss
           <ExerciseCard
             key={i}
             exercise={ex}
-            colors={colors}
             styles={styles}
-            bodyPalette={bodyPalette}
-            mapW={MAP_W}
-            mapH={MAP_H}
           />
         ))}
       </ScrollView>
@@ -560,18 +513,10 @@ const createGhostStyles = (colors: ThemeColors) => StyleSheet.create({
 
 function ExerciseCard({
   exercise: ex,
-  colors,
   styles,
-  bodyPalette,
-  mapW,
-  mapH,
 }: {
   exercise: FeedExerciseDetail;
-  colors: ThemeColors;
   styles: ReturnType<typeof createStyles>;
-  bodyPalette: string[];
-  mapW: number;
-  mapH: number;
 }) {
   const sets = ex.sets?.length > 0
     ? [...ex.sets].sort((a, b) => a.set_number - b.set_number)
@@ -586,43 +531,6 @@ function ExerciseCard({
     return min === max ? `${min}` : `${min}-${max}`;
   }, [sets, ex.best_reps]);
 
-  // Build body map data
-  const primarySlugs = new Set<string>();
-  const secondarySlugs = new Set<string>();
-  for (const m of ex.primary_muscles) {
-    const s = toSlug(m);
-    if (s) primarySlugs.add(s);
-  }
-  for (const m of ex.secondary_muscles) {
-    const s = toSlug(m);
-    if (s) secondarySlugs.add(s);
-  }
-  const category = ex.category || null;
-  if (primarySlugs.size === 0 && category) {
-    const slugs = CATEGORY_SLUGS[category];
-    if (slugs) slugs.forEach((s) => primarySlugs.add(s));
-  }
-
-  let focusY = 0.35;
-  let bodySide: 'front' | 'back' = 'front';
-  const firstSlug = [...primarySlugs][0];
-  if (firstSlug && SLUG_FOCUS[firstSlug]) {
-    focusY = SLUG_FOCUS[firstSlug].y;
-    bodySide = SLUG_FOCUS[firstSlug].side;
-  } else if (category && CATEGORY_FOCUS[category]) {
-    focusY = CATEGORY_FOCUS[category].y;
-    bodySide = CATEGORY_FOCUS[category].side;
-  }
-
-  const bodyData: ExtendedBodyPart[] = ALL_SLUGS.map((slug) => ({
-    slug,
-    intensity: primarySlugs.has(slug) ? 6 : secondarySlugs.has(slug) ? 3 : 1,
-  }));
-
-  const hasMuscles = primarySlugs.size > 0;
-  const bodyOffsetX = -(BODY_W - mapW) / 2;
-  const bodyOffsetY = -(BODY_H * focusY) + mapH / 2;
-
   return (
     <View style={styles.exerciseCard}>
       {/* Exercise header */}
@@ -636,21 +544,7 @@ function ExerciseCard({
           </Text>
         </View>
 
-        {hasMuscles && (
-          <View style={[styles.bodyMapClip, { width: mapW, height: mapH }]}>
-            <View style={{ position: 'absolute', left: bodyOffsetX, top: bodyOffsetY }}>
-              <Body
-                data={bodyData}
-                side={bodySide}
-                gender="male"
-                scale={BODY_SCALE}
-                colors={bodyPalette}
-                border="none"
-                backColor={colors.cardBorder}
-              />
-            </View>
-          </View>
-        )}
+        <ExerciseMuscleThumb exercise={ex} width={sw(44)} height={sw(52)} style={styles.bodyMapClip} />
       </View>
 
       {/* Divider */}

@@ -1,29 +1,41 @@
 /**
- * Shared muscle volume calculation used by all body map renderers.
+ * Muscle volume for the deep body map (momentum-muscle-map), plus the legacy slug vocabulary
+ * strength scoring and the weekly analysis still use.
  *
- * Algorithm:
- * 1. For each exercise, sum completed-set volume (kg × reps)
- * 2. Primary muscles receive full volume, secondary muscles receive 50%
- * 3. Volume accumulates across exercises — a secondary muscle hit by 4
- *    exercises can outrank a primary muscle hit by 1 exercise
- * 4. Intensity is absolute: each muscle has a per-session target volume
- *    and heat level reflects how close it got to that target, so small
- *    muscles (biceps) can max out independently of heavy compounds
+ * Model: each exercise works a set of map regions with weights 0..1, from exercise_region_targets
+ * when the exercise has rows there, otherwise from its legacy muscle names (primary 1, secondary
+ * 0.5). A completed set adds kg × reps × weight to every region the exercise works. Screens then
+ * normalise those totals: per workout against FULL_HEAT_VOLUME, over several days against the
+ * largest region. Values go to the map linear; the map's own colour curve lifts low values.
  */
 
-import type { ExtendedBodyPart } from '../components/BodyHighlighter';
-import type { ExerciseWithSets, CatalogEntry } from '../stores/useWorkoutStore';
-import { useWorkoutStore } from '../stores/useWorkoutStore';
+import { PARTS } from 'momentum-muscle-map/core';
+import type { Level, MuscleValues } from 'momentum-muscle-map/core';
+import type { CatalogEntry } from '../stores/useWorkoutStore';
 import {
   toCanonical,
   CANONICAL_MUSCLES,
   CANONICAL_LABELS,
+  CANONICAL_TO_BODY_GROUP,
   CANONICAL_TO_SVG_SLUG,
-  TARGET_VOLUME,
   CATEGORY_MUSCLES,
+  RECOVERY_HOURS,
+  type CanonicalMuscle,
 } from '../constants/muscles';
+import {
+  FULL_HEAT_VOLUME,
+  LEGACY_NAME_REGIONS,
+  NAMED_ONLY_REGIONS,
+  PRIMARY_WEIGHT,
+  RECOVERY_FATIGUED_BELOW,
+  RECOVERY_PRIMARY_WEIGHT,
+  RECOVERY_READY_FROM,
+  RECOVERY_WINDOW_DAYS,
+  REGION_OWNER,
+  SECONDARY_WEIGHT,
+} from '../constants/muscleMap';
 
-/* ─── SVG Slug types (tied to BodyHighlighter SVG assets) ──── */
+/* ─── Legacy slugs (old SVG body graph names) ─────────── */
 
 export type Slug =
   | 'abs' | 'adductors' | 'ankles' | 'biceps' | 'calves' | 'chest'
@@ -31,19 +43,12 @@ export type Slug =
   | 'hair' | 'head' | 'knees' | 'lower-back' | 'neck' | 'obliques'
   | 'quadriceps' | 'rear-deltoids' | 'tibialis' | 'trapezius' | 'triceps' | 'upper-back';
 
-export const ALL_SLUGS: Slug[] = [
-  'abs', 'adductors', 'ankles', 'biceps', 'calves', 'chest', 'deltoids',
-  'feet', 'forearm', 'gluteal', 'hamstring', 'hands', 'hair', 'head',
-  'knees', 'lower-back', 'neck', 'obliques', 'quadriceps', 'rear-deltoids',
-  'tibialis', 'trapezius', 'triceps', 'upper-back',
-];
-
-/** SVG slugs that represent actual muscles (subset of ALL_SLUGS). */
+/** Legacy slugs that represent actual muscles. */
 export const MUSCLE_SLUGS = new Set<string>(
   Object.values(CANONICAL_TO_SVG_SLUG),
 );
 
-/** Display labels keyed by SVG slug. Derived from canonical labels. */
+/** Display labels keyed by legacy slug. Derived from canonical labels. */
 export const SLUG_LABELS: Record<string, string> = (() => {
   const labels: Record<string, string> = {};
   for (const canonical of CANONICAL_MUSCLES) {
@@ -56,11 +61,8 @@ export const SLUG_LABELS: Record<string, string> = (() => {
   return labels;
 })();
 
-/* ─── Slug normalisation ──────────────────────────────── */
-
 /**
- * Normalize any raw muscle string to an SVG-compatible slug.
- * Uses the canonical alias table, then maps canonical → SVG slug.
+ * Normalize any raw muscle string to a legacy slug.
  * Returns null for non-muscle strings (e.g. 'head', 'feet').
  */
 export function toSlug(raw: string): Slug | null {
@@ -69,146 +71,244 @@ export function toSlug(raw: string): Slug | null {
   return CANONICAL_TO_SVG_SLUG[canonical] as Slug;
 }
 
-/* ─── Category fallback (derived from muscles.ts) ──────── */
+/* ─── Region weights per exercise ─────────────────────── */
 
-const CATEGORY_TO_SLUGS: Record<string, Slug[]> = (() => {
-  const result: Record<string, Slug[]> = {};
-  for (const [category, muscles] of Object.entries(CATEGORY_MUSCLES)) {
-    const slugSet = new Set<string>();
-    for (const m of muscles) {
-      slugSet.add(CANONICAL_TO_SVG_SLUG[m]);
-    }
-    result[category] = Array.from(slugSet) as Slug[];
+/** Map region (unsided part slug) → how hard an exercise works it, 0..1. */
+export type RegionWeights = Readonly<Record<string, number>>;
+/** Map region → an amount summed over exercises (weighted volume, or summed weights). */
+export type RegionAmounts = Readonly<Record<string, number>>;
+
+/** What an exercise row needs for its regions: its name, and legacy muscles if it carries them. */
+export interface MuscleSource {
+  name: string;
+  category?: string | null;
+  primary_muscles?: readonly string[];
+  secondary_muscles?: readonly string[];
+}
+
+export interface VolumeExercise extends MuscleSource {
+  sets: readonly { kg: number; reps: number; completed: boolean }[];
+}
+
+export type RegionWeightLookup = (exercise: MuscleSource) => RegionWeights;
+
+/** Regions a canonical muscle name lights. */
+const CANONICAL_REGIONS: Record<CanonicalMuscle, string[]> = (() => {
+  const out = {} as Record<CanonicalMuscle, string[]>;
+  for (const c of CANONICAL_MUSCLES) out[c] = [];
+  for (const [region, owner] of Object.entries(REGION_OWNER)) {
+    if (!NAMED_ONLY_REGIONS.has(region)) out[owner].push(region);
   }
-  return result;
+  return out;
 })();
 
-/* ─── Intensity constants ─────────────────────────────── */
+const CATEGORY_CANONICALS = CATEGORY_MUSCLES as Record<string, readonly CanonicalMuscle[] | undefined>;
 
-const SECONDARY_WEIGHT = 0.25;
-
-// Palette indices: 0 = bg, 1 = inactive, 2–6 = heat gradient, 7 = selected
-export const INACTIVE = 1;
-const HEAT_MIN = 2;
-export const HEAT_MAX = 6;
-const HEAT_LEVELS = HEAT_MAX - HEAT_MIN + 1; // 5
-
-/**
- * Per-SVG-slug session target volume (kg × reps).
- * Derived from canonical TARGET_VOLUME. When multiple canonicals share
- * an SVG slug (e.g. lats + upper-back → 'upper-back'), volumes add up
- * and we use the max target.
- */
-const SLUG_TARGET_VOLUME: Record<string, number> = (() => {
-  const targets: Record<string, number> = {};
-  for (const canonical of CANONICAL_MUSCLES) {
-    const svgSlug = CANONICAL_TO_SVG_SLUG[canonical];
-    const vol = TARGET_VOLUME[canonical];
-    targets[svgSlug] = Math.max(targets[svgSlug] ?? 0, vol);
-  }
-  return targets;
-})();
-
-const DEFAULT_TARGET_VOLUME = 800;
-
-/* ─── Core calculation ────────────────────────────────── */
-
-interface MuscleVolumeResult {
-  bodyData: ExtendedBodyPart[];
-  volumeMap: Record<string, number>;
-  maxVolume: number;
+function legacyNameRegions(raw: string): readonly string[] {
+  const named = LEGACY_NAME_REGIONS[raw.trim().toLowerCase().replace(/_/g, ' ')];
+  if (named) return named;
+  const canonical = toCanonical(raw);
+  return canonical ? CANONICAL_REGIONS[canonical] : [];
 }
 
 /**
- * Calculate muscle volume from exercises and produce body-highlighter data.
- *
- * Secondary muscles accumulate across exercises at 50% weight, so triceps
- * as secondary on bench + OHP + dips can legitimately outrank a primary
- * muscle trained in only one exercise.
+ * Region weights from legacy muscle names: primary 1, secondary 0.5. Without a usable primary
+ * muscle, the category's muscles count as primary.
  */
-export function calculateMuscleVolume(
-  exercises: ExerciseWithSets[],
-): MuscleVolumeResult {
-  const primaryVol: Record<string, number> = {};
-  const secondaryVol: Record<string, number> = {};
+export function legacyRegionWeights(
+  primary: readonly string[] | undefined,
+  secondary: readonly string[] | undefined,
+  category: string | null | undefined,
+): RegionWeights {
+  const weights: Record<string, number> = {};
+  const credit = (regions: readonly string[], weight: number) => {
+    for (const r of regions) if (!((weights[r] ?? 0) >= weight)) weights[r] = weight;
+  };
+  let hasPrimary = false;
+  for (const m of primary ?? []) {
+    const regions = legacyNameRegions(m);
+    if (regions.length > 0) hasPrimary = true;
+    credit(regions, PRIMARY_WEIGHT);
+  }
+  if (!hasPrimary && category) {
+    for (const c of CATEGORY_CANONICALS[category] ?? []) credit(CANONICAL_REGIONS[c], PRIMARY_WEIGHT);
+  }
+  for (const m of secondary ?? []) credit(legacyNameRegions(m), SECONDARY_WEIGHT);
+  return weights;
+}
 
-  const catalogMap = useWorkoutStore.getState().catalogMap;
+/**
+ * Looks up an exercise's region weights: its exercise_region_targets rows (by the catalog id its
+ * name resolves to) when there are any, else its own legacy muscles, else its catalog entry's.
+ */
+export function makeRegionWeightLookup(
+  catalogMap: Record<string, CatalogEntry>,
+  targets: Record<string, RegionWeights>,
+): RegionWeightLookup {
+  // Same inputs → same object, so maps fed from it don't redraw.
+  const legacy = new Map<string, RegionWeights>();
+  return (ex) => {
+    const entry = catalogMap[ex.name];
+    const rows = entry?.catalog_id ? targets[entry.catalog_id] : undefined;
+    if (rows) return rows;
+    const own = !!(ex.primary_muscles?.length || ex.secondary_muscles?.length);
+    const primary = own ? ex.primary_muscles : entry?.primary_muscles;
+    const secondary = own ? ex.secondary_muscles : entry?.secondary_muscles;
+    const category = ex.category ?? entry?.category;
+    const key = `${category ?? ''}|${primary?.join(',') ?? ''}|${secondary?.join(',') ?? ''}`;
+    let weights = legacy.get(key);
+    if (!weights) {
+      weights = legacyRegionWeights(primary, secondary, category);
+      legacy.set(key, weights);
+    }
+    return weights;
+  };
+}
 
+/* ─── Totals and normalisation ────────────────────────── */
+
+function completedVolume(ex: VolumeExercise): number {
+  let volume = 0;
+  for (const s of ex.sets) if (s.completed) volume += s.kg * s.reps;
+  return volume;
+}
+
+/** Weighted volume per region: completed kg × reps × the exercise's weight for the region. */
+export function regionVolume(exercises: readonly VolumeExercise[], lookup: RegionWeightLookup): RegionAmounts {
+  const totals: Record<string, number> = {};
   for (const ex of exercises) {
-    const vol = ex.sets
-      .filter((s) => s.completed)
-      .reduce((sum, s) => sum + s.kg * s.reps, 0);
-    if (vol === 0) continue;
+    const volume = completedVolume(ex);
+    if (!(volume > 0)) continue;
+    const weights = lookup(ex);
+    for (const region in weights) totals[region] = (totals[region] ?? 0) + volume * weights[region]!;
+  }
+  return totals;
+}
 
-    // Use exercise muscle data, falling back to catalog lookup by name
-    let primary = ex.primary_muscles;
-    let secondary = ex.secondary_muscles;
-    if ((!primary || primary.length === 0) && (!secondary || secondary.length === 0)) {
-      const cat: CatalogEntry | undefined = catalogMap[ex.name];
-      if (cat) {
-        primary = cat.primary_muscles;
-        secondary = cat.secondary_muscles;
-      }
-    }
+/** Summed region weights of a list of exercises, with no volume (a plan's emphasis). */
+export function regionEmphasis(exercises: readonly MuscleSource[], lookup: RegionWeightLookup): RegionAmounts {
+  const totals: Record<string, number> = {};
+  for (const ex of exercises) {
+    const weights = lookup(ex);
+    for (const region in weights) totals[region] = (totals[region] ?? 0) + weights[region]!;
+  }
+  return totals;
+}
 
-    const hasMuscleData =
-      (primary && primary.length > 0) ||
-      (secondary && secondary.length > 0);
+const FULL_HEAT_BY_REGION: Record<string, number> = Object.fromEntries(
+  Object.entries(REGION_OWNER).map(([region, owner]) => [region, FULL_HEAT_VOLUME[owner]]),
+);
 
-    if (hasMuscleData) {
-      for (const raw of primary || []) {
-        const slug = toSlug(raw);
-        if (slug) primaryVol[slug] = (primaryVol[slug] || 0) + vol;
-      }
-      for (const raw of secondary || []) {
-        const slug = toSlug(raw);
-        if (slug) secondaryVol[slug] = (secondaryVol[slug] || 0) + vol;
-      }
-    } else if (ex.category) {
-      const slugs = CATEGORY_TO_SLUGS[ex.category];
-      if (slugs) {
-        for (const slug of slugs) {
-          primaryVol[slug] = (primaryVol[slug] || 0) + vol;
-        }
-      } else {
-        const slug = toSlug(ex.category);
-        if (slug) primaryVol[slug] = (primaryVol[slug] || 0) + vol;
+/** Heat for one workout: each region's weighted volume against its full-heat volume, 0..1. */
+export function heatValues(volume: RegionAmounts): MuscleValues {
+  const values: Record<string, number> = {};
+  for (const region in volume) {
+    const full = FULL_HEAT_BY_REGION[region];
+    if (full) values[region] = Math.min(1, volume[region]! / full);
+  }
+  return values;
+}
+
+/** Each region against the largest one, 0..1. */
+export function relativeValues(amounts: RegionAmounts): MuscleValues {
+  let max = 0;
+  for (const region in amounts) if (amounts[region]! > max) max = amounts[region]!;
+  const values: Record<string, number> = {};
+  if (max > 0) for (const region in amounts) values[region] = amounts[region]! / max;
+  return values;
+}
+
+/* ─── Recovery ────────────────────────────────────────── */
+
+export interface RegionRecovery {
+  /** 0..100: hours since the region was last trained as a primary muscle, against its group's recovery time. */
+  percent: number;
+  lastTrainedAt: string;
+}
+
+export type RecoveryStatus = 'fatigued' | 'recovering' | 'ready';
+
+/**
+ * Recovery of every region trained as a primary muscle (weight ≥ RECOVERY_PRIMARY_WEIGHT) in the
+ * last RECOVERY_WINDOW_DAYS days, today included. Regions not in the result are recovered.
+ */
+export function regionRecovery(
+  workouts: readonly { created_at: string; exercises: readonly VolumeExercise[] }[],
+  lookup: RegionWeightLookup,
+  now: number = Date.now(),
+): Record<string, RegionRecovery> {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (RECOVERY_WINDOW_DAYS - 1));
+  const startMs = start.getTime();
+
+  const last: Record<string, number> = {};
+  for (const w of workouts) {
+    const t = new Date(w.created_at).getTime();
+    if (!(t >= startMs)) continue;
+    for (const ex of w.exercises) {
+      if (!(completedVolume(ex) > 0)) continue;
+      const weights = lookup(ex);
+      for (const region in weights) {
+        if (weights[region]! >= RECOVERY_PRIMARY_WEIGHT && !((last[region] ?? 0) >= t)) last[region] = t;
       }
     }
   }
 
-  // Merge into a single volMap for the detail chip (primary + weighted secondary)
-  const volMap: Record<string, number> = {};
-  const allSlugs = new Set([...Object.keys(primaryVol), ...Object.keys(secondaryVol)]);
-  for (const slug of allSlugs) {
-    volMap[slug] = (primaryVol[slug] || 0) + (secondaryVol[slug] || 0) * SECONDARY_WEIGHT;
+  const out: Record<string, RegionRecovery> = {};
+  for (const region in last) {
+    const owner = REGION_OWNER[region];
+    if (!owner) continue;
+    const hours = RECOVERY_HOURS[CANONICAL_TO_BODY_GROUP[owner]];
+    const elapsed = (now - last[region]!) / 3_600_000;
+    out[region] = {
+      percent: Math.round(Math.max(0, Math.min(100, (elapsed / hours) * 100))),
+      lastTrainedAt: new Date(last[region]!).toISOString(),
+    };
   }
+  return out;
+}
 
-  const mv = Math.max(...Object.values(volMap), 1);
+export function recoveryStatus(percent: number): RecoveryStatus {
+  if (percent < RECOVERY_FATIGUED_BELOW) return 'fatigued';
+  if (percent < RECOVERY_READY_FROM) return 'recovering';
+  return 'ready';
+}
 
-  // Max intensity for secondary-only muscles (no primary volume): heat level 3
-  const SECONDARY_ONLY_MAX = HEAT_MIN + 1; // intensity 3 = low-mid
+/** Fatigue as map values: fatigued 1, recovering 0.5, ready 0. `include` limits the regions shown. */
+export function recoveryValues(
+  recovery: Record<string, RegionRecovery>,
+  include?: (region: string) => boolean,
+): MuscleValues {
+  const values: Record<string, number> = {};
+  for (const region in recovery) {
+    if (include && !include(region)) continue;
+    const status = recoveryStatus(recovery[region]!.percent);
+    if (status !== 'ready') values[region] = status === 'fatigued' ? 1 : 0.5;
+  }
+  return values;
+}
 
-  const bodyData: ExtendedBodyPart[] = ALL_SLUGS.map((slug) => {
-    const pVol = primaryVol[slug] || 0;
-    const sVol = secondaryVol[slug] || 0;
-    if (pVol <= 0 && sVol <= 0) return { slug, intensity: INACTIVE };
+/** The legacy body-graph group a region recovers with (chest, back, biceps, ...). */
+export function regionBodyGroup(region: string): string | undefined {
+  const owner = REGION_OWNER[region];
+  return owner ? CANONICAL_TO_BODY_GROUP[owner] : undefined;
+}
 
-    const target = SLUG_TARGET_VOLUME[slug] ?? DEFAULT_TARGET_VOLUME;
+/* ─── Regions at other levels ─────────────────────────── */
 
-    if (pVol > 0) {
-      // Has direct training — scale normally against target
-      const total = pVol + sVol * SECONDARY_WEIGHT;
-      const ratio = Math.min(total / target, 1);
-      const intensity = HEAT_MIN + Math.round(ratio * (HEAT_LEVELS - 1));
-      return { slug, intensity };
-    }
+const PARTS_BY_UNIT: Record<'muscles' | 'groups', Record<string, string[]>> = (() => {
+  const muscles: Record<string, string[]> = {};
+  const groups: Record<string, string[]> = {};
+  for (const [part, [muscle, group]] of Object.entries(PARTS)) {
+    (muscles[muscle] ??= []).push(part);
+    (groups[group] ??= []).push(part);
+  }
+  return { muscles, groups };
+})();
 
-    // Secondary only — cap at low-mid
-    const ratio = Math.min((sVol * SECONDARY_WEIGHT) / target, 1);
-    const intensity = HEAT_MIN + Math.round(ratio * (SECONDARY_ONLY_MAX - HEAT_MIN));
-    return { slug, intensity };
-  });
-
-  return { bodyData, volumeMap: volMap, maxVolume: mv };
+/** Part slugs inside a region (unsided key) at a level, e.g. 'deltoid' → its three heads. */
+export function partsOf(level: Level, key: string): readonly string[] {
+  if (level === 'parts') return [key];
+  return PARTS_BY_UNIT[level][key] ?? [];
 }

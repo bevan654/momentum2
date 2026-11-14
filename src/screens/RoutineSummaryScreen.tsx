@@ -10,39 +10,8 @@ import { sw, ms } from '../theme/responsive';
 import { useRoutineStore } from '../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
-import { useThemeStore } from '../stores/useThemeStore';
-import Body, { type ExtendedBodyPart } from '../components/BodyHighlighter';
-import { toSlug, ALL_SLUGS } from '../utils/muscleVolume';
+import ExerciseMuscleThumb from '../components/body/ExerciseMuscleThumb';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
-
-/* ─── Body map helpers ─────────────── */
-
-const CATEGORY_SLUGS: Record<string, string[]> = {
-  Chest: ['chest'], Back: ['upper-back', 'lower-back', 'trapezius'],
-  Shoulders: ['deltoids', 'rear-deltoids'], Arms: ['biceps', 'triceps', 'forearm'],
-  Legs: ['quadriceps', 'hamstring', 'gluteal', 'calves', 'adductors'], Core: ['abs', 'obliques'],
-};
-
-const SLUG_FOCUS: Record<string, { y: number; side: 'front' | 'back' }> = {
-  chest: { y: 0.32, side: 'front' }, deltoids: { y: 0.26, side: 'front' },
-  'rear-deltoids': { y: 0.26, side: 'back' }, biceps: { y: 0.37, side: 'front' },
-  triceps: { y: 0.37, side: 'back' }, forearm: { y: 0.48, side: 'front' },
-  abs: { y: 0.44, side: 'front' }, obliques: { y: 0.44, side: 'front' },
-  'upper-back': { y: 0.32, side: 'back' }, 'lower-back': { y: 0.44, side: 'back' },
-  trapezius: { y: 0.23, side: 'back' }, quadriceps: { y: 0.66, side: 'front' },
-  hamstring: { y: 0.66, side: 'back' }, gluteal: { y: 0.53, side: 'back' },
-  calves: { y: 0.83, side: 'back' }, adductors: { y: 0.62, side: 'front' },
-};
-
-const CATEGORY_FOCUS: Record<string, { y: number; side: 'front' | 'back' }> = {
-  Chest: { y: 0.32, side: 'front' }, Back: { y: 0.32, side: 'back' },
-  Shoulders: { y: 0.26, side: 'front' }, Arms: { y: 0.37, side: 'front' },
-  Legs: { y: 0.66, side: 'front' }, Core: { y: 0.44, side: 'front' },
-};
-
-const BODY_SCALE = 0.35;
-const BODY_W = 200 * BODY_SCALE;
-const BODY_H = 400 * BODY_SCALE;
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -57,18 +26,9 @@ export default function RoutineSummaryScreen() {
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const prevMap = useWorkoutStore((s) => s.prevMap);
   const startFromRoutine = useActiveWorkoutStore((s) => s.startFromRoutine);
-  const themeMode = useThemeStore((s) => s.mode);
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
-
-  const bodyPalette = useMemo(() => {
-    const a = colors.accent;
-    if (themeMode === 'dark') {
-      return ['#1A1A1E', '#2A2A2E', a + '40', a + '60', a + '80', a, a];
-    }
-    return ['#E8E4DE', '#C8C4BE', a + '40', a + '60', a + '80', a, a];
-  }, [themeMode, colors.accent]);
 
   const formatRest = useCallback((s: number) => {
     if (s >= 60) {
@@ -86,9 +46,6 @@ export default function RoutineSummaryScreen() {
     navigation.popToTop();
     setTimeout(() => startFromRoutine(routine, catalogMap, prevMap), 350);
   }, [routine, catalogMap, prevMap, startFromRoutine, navigation]);
-
-  const MAP_W = sw(44);
-  const MAP_H = sw(52);
 
   // Defer heavy content until after the navigation transition fully settles
   const [ready, setReady] = useState(false);
@@ -173,48 +130,6 @@ export default function RoutineSummaryScreen() {
           const maxR = Math.max(...reps);
           const repRange = minR === maxR ? `${minR}` : `${minR}-${maxR}`;
 
-          // Build body map data
-          const entry = catalogMap[ex.name];
-          const primarySlugs = new Set<string>();
-          const secondarySlugs = new Set<string>();
-
-          if (entry) {
-            for (const m of entry.primary_muscles) {
-              const s = toSlug(m);
-              if (s) primarySlugs.add(s);
-            }
-            for (const m of entry.secondary_muscles) {
-              const s = toSlug(m);
-              if (s) secondarySlugs.add(s);
-            }
-          }
-
-          const category = entry?.category || null;
-          if (primarySlugs.size === 0 && category) {
-            const slugs = CATEGORY_SLUGS[category];
-            if (slugs) slugs.forEach((s) => primarySlugs.add(s));
-          }
-
-          let focusY = 0.35;
-          let bodySide: 'front' | 'back' = 'front';
-          const firstSlug = [...primarySlugs][0];
-          if (firstSlug && SLUG_FOCUS[firstSlug]) {
-            focusY = SLUG_FOCUS[firstSlug].y;
-            bodySide = SLUG_FOCUS[firstSlug].side;
-          } else if (category && CATEGORY_FOCUS[category]) {
-            focusY = CATEGORY_FOCUS[category].y;
-            bodySide = CATEGORY_FOCUS[category].side;
-          }
-
-          const bodyData: ExtendedBodyPart[] = ALL_SLUGS.map((slug) => ({
-            slug,
-            intensity: primarySlugs.has(slug) ? 6 : secondarySlugs.has(slug) ? 3 : 1,
-          }));
-
-          const hasMuscles = primarySlugs.size > 0;
-          const bodyOffsetX = -(BODY_W - MAP_W) / 2;
-          const bodyOffsetY = -(BODY_H * focusY) + MAP_H / 2;
-
           return (
             <View key={i} style={styles.exerciseCard}>
               {/* Exercise header */}
@@ -228,21 +143,7 @@ export default function RoutineSummaryScreen() {
                   </Text>
                 </View>
 
-                {hasMuscles && (
-                  <View style={[styles.bodyMapClip, { width: MAP_W, height: MAP_H }]}>
-                    <View style={{ position: 'absolute', left: bodyOffsetX, top: bodyOffsetY }}>
-                      <Body
-                        data={bodyData}
-                        side={bodySide}
-                        gender="male"
-                        scale={BODY_SCALE}
-                        colors={bodyPalette}
-                        border="none"
-                        backColor={colors.cardBorder}
-                      />
-                    </View>
-                  </View>
-                )}
+                <ExerciseMuscleThumb exercise={{ name: ex.name }} width={sw(44)} height={sw(52)} style={styles.bodyMapClip} />
               </View>
 
               {/* Divider */}
