@@ -55,7 +55,14 @@ interface Props {
 function FoodLogOptions({ meals, mealSlot, onMealSelect, isPlanned, onPlannedChange, dateChips, targetDate, onDateSelect }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const enabled = useMemo(() => meals.filter((m) => m.enabled), [meals]);
+  // Same meals as the Nutrition tab's cards: enabled, in order, without untouched "Meal 5" placeholders
+  // (kept if it's the selected one, so the current choice is always visible).
+  const enabled = useMemo(
+    () => meals
+      .filter((m) => m.enabled && (m.slot === mealSlot || !/^meal \d+$/i.test(m.label.trim())))
+      .sort((a, b) => a.sort_order - b.sort_order),
+    [meals, mealSlot],
+  );
 
   return (
     <View style={styles.wrap}>
