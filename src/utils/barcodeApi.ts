@@ -38,9 +38,8 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeResult> {
   const servingSizeEstimated = !hasServingQty && parsedText == null;
   const servingSize = hasServingQty
     ? rawServingQty
-    : parsedText ?? 100;
-  const textIsMl = !hasServingQty && parsedText != null && /\d\s*ml\b/i.test(String(p.serving_size));
-  const servingUnit = p.serving_quantity_unit || (textIsMl ? 'ml' : 'g');
+    : parsedText?.size ?? 100;
+  const servingUnit = p.serving_quantity_unit || (!hasServingQty && parsedText ? parsedText.unit : 'g');
   // A real serving size is known if OFF gives a quantity or the serving text parses.
   const hasServingSize = hasServingQty || parsedText != null;
 
@@ -263,14 +262,15 @@ function optNum(v: unknown, scale = 1): number | null {
 
 /** Extract a numeric gram value from OFF's serving_size text field.
  *  Handles formats like "72 g", "72g", "1 can (72g)", "100 ml", etc. */
-function parseServingSizeText(text: unknown): number | null {
+function parseServingSizeText(text: unknown): { size: number; unit: 'g' | 'ml' } | null {
   if (typeof text !== 'string' || !text) return null;
   // Only trust a number with a g/ml unit ("30 g", "1 can (330 ml)", "12,5 g"). A bare count
   // like "2 biscuits" or "1 cup" isn't a weight, so leave the serving as an estimated 100 g.
-  const m = text.match(/(\d+(?:[.,]\d+)?)\s*(?:g|ml)\b/i);
+  // A comma is a decimal mark only with 1–2 digits after it ("12,5 g"), not "1,000 ml".
+  const m = text.match(/(\d+(?:[.,]\d{1,2})?)(?!\d)\s*(g|ml)\b/i);
   if (m) {
     const n = Number(m[1].replace(',', '.'));
-    if (Number.isFinite(n) && n > 0) return n;
+    if (Number.isFinite(n) && n > 0) return { size: n, unit: m[2].toLowerCase() === 'ml' ? 'ml' : 'g' };
   }
   return null;
 }
