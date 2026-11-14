@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -40,15 +40,18 @@ export default function BarcodeScannerModal({
   const [permission, requestPermission] = useCameraPermissions();
   const [torch, setTorch] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
+  // Refs, not state: the camera reports a code on every frame, faster than a re-render,
+  // so a state flag let several lookups start for one scan.
+  const busyRef = useRef(false);
+  const lastCodeRef = useRef<string | null>(null);
 
   const handleBarcodeScanned = useCallback(
     async (result: BarcodeScanningResult) => {
       const code = result.data;
-      if (scanning || code === lastScannedCode) return;
-
+      if (busyRef.current || code === lastCodeRef.current) return;
+      busyRef.current = true;
+      lastCodeRef.current = code;
       setScanning(true);
-      setLastScannedCode(code);
 
       try {
         const { found, food } = await lookupBarcode(code);
@@ -65,16 +68,18 @@ export default function BarcodeScannerModal({
       } catch {
         onNotFound(code);
       } finally {
+        busyRef.current = false;
         setScanning(false);
       }
     },
-    [scanning, lastScannedCode, onFoodFound, onNotFound],
+    [onFoodFound, onNotFound],
   );
 
   // Reset state each time modal opens
   const handleShow = useCallback(() => {
+    busyRef.current = false;
+    lastCodeRef.current = null;
     setScanning(false);
-    setLastScannedCode(null);
     setTorch(false);
   }, []);
 
@@ -113,7 +118,7 @@ export default function BarcodeScannerModal({
   };
 
   return (
-    <Overlay visible animationType="slide" onShow={handleShow}>
+    <Overlay visible animationType="slide" onShow={handleShow} onRequestClose={onDismiss}>
       <View style={styles.container}>
         {permission?.granted ? (
           <>

@@ -29,6 +29,7 @@ import { supabase } from '../../lib/supabase';
 import type { FoodCatalogItem, FoodEntry } from '../../stores/useFoodLogStore';
 import FoodDetailModal from './FoodDetailModal';
 import type { FoodDetailData, MealItemData } from './FoodDetailModal';
+import { useLayerBackHandler } from '../ui/Portal';
 
 /* ─── Props ────────────────────────────────────────────── */
 
@@ -147,6 +148,10 @@ export default function CreateMealModal({
   useEffect(() => {
     progress.value = visible ? 1 : 0;
   }, [visible]);
+
+  // Android back closes only this screen, not the whole Add Food sheet underneath.
+  useLayerBackHandler(visible, onDismiss);
+
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: progress.value,

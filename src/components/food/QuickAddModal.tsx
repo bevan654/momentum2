@@ -22,6 +22,7 @@ import { Fonts } from '../../theme/typography';
 import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
+import { useLayerBackHandler } from '../ui/Portal';
 
 /* ─── Props ──────────────────────────────────────────── */
 
@@ -46,6 +47,10 @@ export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss
   useEffect(() => {
     progress.value = visible ? 1 : 0;
   }, [visible]);
+
+  // Android back closes only this screen, not the whole Add Food sheet underneath.
+  useLayerBackHandler(visible, onDismiss);
+
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: progress.value,

@@ -29,6 +29,7 @@ import { lookupBarcodeUSDA } from '../../utils/barcodeApi';
 import type { MealConfig } from '../../stores/useFoodLogStore';
 import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
 import { toLocalDateString } from '../../utils/localDate';
+import { useLayerBackHandler } from '../ui/Portal';
 
 /* ─── Types ────────────────────────────────────────────── */
 
@@ -430,6 +431,10 @@ export default function FoodDetailModal({
   useEffect(() => {
     progress.value = visible ? 1 : 0;
   }, [visible]);
+
+  // Android back closes only this screen, not the whole Add Food sheet underneath.
+  useLayerBackHandler(visible, onDismiss);
+
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
