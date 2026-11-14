@@ -100,6 +100,8 @@ interface SupplementState {
   supplementTotals: Record<string, number>;
   loading: boolean;
   dateEntries: SupplementEntry[];
+  /** The date `dateEntries` belongs to (the day the Nutrition tab is showing). */
+  dateEntriesDate: string | null;
 
   loadSupplementConfigs: (userId: string) => Promise<void>;
   addSupplementConfig: (userId: string, config: SupplementConfig) => Promise<void>;
@@ -116,6 +118,15 @@ interface SupplementState {
   updateSupplementGoals: (userId: string, goals: { water_goal?: number; creatine_goal?: number }) => Promise<void>;
 }
 
+/** After a today-only write, reload the day list only if the Nutrition tab is showing today. */
+function refreshDateEntriesIfToday(get: () => SupplementState, userId: string) {
+  const today = toLocalDateString();
+  if (latestDateRequest === today) get().fetchDateSupplements(userId, today);
+}
+
+/** Latest date asked for by fetchDateSupplements; older responses are ignored. */
+let latestDateRequest: string | null = null;
+
 export const useSupplementStore = create<SupplementState>((set, get) => ({
   water: 0,
   waterGoal: 2500,
@@ -123,6 +134,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   supplementTotals: {},
   loading: false,
   dateEntries: [],
+  dateEntriesDate: null,
 
   /* ─── Config management (Supabase-synced) ───────────── */
 
@@ -267,6 +279,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   },
 
   fetchDateSupplements: async (userId: string, date: string) => {
+    latestDateRequest = date;
     const { data } = await supabase
       .from('supplement_entries')
       .select('id, type, amount, created_at')
@@ -274,7 +287,8 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .eq('date', date)
       .order('created_at', { ascending: true });
 
-    set({ dateEntries: (data as SupplementEntry[]) || [] });
+    if (date !== latestDateRequest) return;
+    set({ dateEntries: (data as SupplementEntry[]) || [], dateEntriesDate: date });
   },
 
   /* ─── Water actions ─────────────────────────────────── */
@@ -292,7 +306,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     if (error) {
       set((s) => ({ water: s.water - ml }));
     } else {
-      get().fetchDateSupplements(userId, toLocalDateString());
+      refreshDateEntriesIfToday(get, userId);
     }
   },
 
@@ -321,7 +335,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     if (error) {
       set((s) => ({ water: s.water + amount }));
     } else {
-      get().fetchDateSupplements(userId, toLocalDateString());
+      refreshDateEntriesIfToday(get, userId);
     }
   },
 
@@ -350,7 +364,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
         },
       }));
     } else {
-      get().fetchDateSupplements(userId, toLocalDateString());
+      refreshDateEntriesIfToday(get, userId);
     }
   },
 
@@ -372,15 +386,17 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
         supplementTotals: { ...s.supplementTotals, [key]: prev },
       }));
     } else {
-      get().fetchDateSupplements(userId, toLocalDateString());
+      refreshDateEntriesIfToday(get, userId);
     }
   },
 
   deleteSupplementEntry: async (_userId: string, entry: SupplementEntry) => {
     const prev = get().dateEntries;
+    // `water` / `supplementTotals` are today's totals: only touch them for today's entries.
+    const isToday = get().dateEntriesDate === toLocalDateString();
     set((s) => ({
       dateEntries: s.dateEntries.filter((e) => e.id !== entry.id),
-      ...(entry.type === 'water'
+      ...(!isToday ? {} : entry.type === 'water'
         ? { water: Math.max(0, s.water - entry.amount) }
         : {
             supplementTotals: {
@@ -398,7 +414,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     if (error) {
       set((s) => ({
         dateEntries: prev,
-        ...(entry.type === 'water'
+        ...(!isToday ? {} : entry.type === 'water'
           ? { water: s.water + entry.amount }
           : {
               supplementTotals: {
