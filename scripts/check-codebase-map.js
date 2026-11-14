@@ -83,6 +83,7 @@ lines.forEach((line, i) => {
     if (/[\s()*@=<>'"{}[\]]|:\/\//.test(token)) continue;
     if (!token.includes('/') && !fileLike.test(token)) continue;
     if (generated.has(token) || /^[./]+$/.test(token)) continue; // `../../` is an import example
+    if (token.startsWith('~')) continue; // home-folder paths aren't in the repo
     checked++;
     const outside = token.startsWith('/') || token.split('/').includes('..');
     const bases = rowBase ? [rowBase, ...prefixes] : prefixes;
