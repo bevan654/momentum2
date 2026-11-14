@@ -15,9 +15,10 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
 | Language | TypeScript 5.9 (strict) |
 | React | 19.1 |
 | Navigation | React Navigation 7 — `native-stack`, `material-top-tabs` (used as bottom bar with custom UI) |
-| State | Zustand 5 (23 stores) |
+| State | Zustand 5 (24 stores) |
 | Animations | Reanimated 4.1 + react-native-worklets — UI-thread only. Never RN `Animated`. |
-| Graphics | @shopify/react-native-skia 2.2 for performance-critical visuals; react-native-svg 15.12 still used in legacy components |
+| Graphics | @shopify/react-native-skia 2.2 for performance-critical visuals; react-native-svg 15.12 is still installed but no longer imported (removing it needs a native build) |
+| Body map | `momentum-muscle-map` (our own library, git dependency pinned to a commit): Skia + Reanimated renderer, JS only, so OTA-safe |
 | Gestures | React Native Gesture Handler 2.28 |
 | Lists | @shopify/flash-list 2.0 |
 | Backend | Supabase (Postgres + Auth + Realtime + Storage). No custom server, no GraphQL. |
@@ -46,8 +47,7 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
     ├── screens/               # Top-level routes (22 screens)
     ├── components/
     │   ├── auth/              # SocialAuthButtons (Google / Apple OAuth)
-    │   ├── body/              # Muscle body map (heatmap, mini map)
-    │   ├── BodyHighlighter/   # Vendored male/female SVG body highlighter (no npm dependency)
+    │   ├── body/              # Body map wrappers around momentum-muscle-map: map pair, workout mini maps, exercise thumb, level toggle, region chip, workout heatmap
     │   ├── dev/               # Story/Workout share overlays, story crop
     │   ├── food/              # Nutrition modals, meal sections, hero gauge, water/supplements
     │   ├── friends/           # Feed, leaderboard, notifications, nudges, comments, search
@@ -59,14 +59,14 @@ Current build: see `src/constants/buildInfo.ts` (auto-stamped).
         │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, confetti, finish flow
     │   ├── workouts/          # Workout history cards, exercise rows, rank/routine cards
     │   └── SheetWrapper.tsx   # Shared modal-sheet chrome
-    ├── stores/                # 23 Zustand stores (see State Management)
+    ├── stores/                # 24 Zustand stores (see State Management)
     ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, navigationRef
     ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
     ├── lib/                   # supabase, friendsDatabase, catalogDatabase, navigationBridge
     ├── theme/                 # useColors.ts, responsive.ts, typography.ts
     ├── utils/                 # barcodeApi, displayName, exerciseCatalog, exerciseProgress, muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, workoutStorage
-    ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate)
-    └── constants/             # buildInfo, changelog, muscles
+    ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate), useLingerMount, useRegionWeightLookup (body-map weights)
+    └── constants/             # buildInfo, changelog, muscles, muscleMap (body-map config + heat/recovery reference values), muscleMapLabels
 
 supabase/
 ├── functions/                 # Edge functions: ai-coach, ai-workout-summary, ai-workout-notifications,
@@ -113,14 +113,21 @@ supabase/
 - Always Reanimated: `useSharedValue`, `useAnimatedStyle`, `withTiming`, `withSpring`. Never RN's `Animated`. UI-thread only.
 
 ### Graphics
-- Skia for rings, arcs, gradients, glows. Prefer Skia over react-native-svg for new visuals; some legacy components still use SVG.
+- Skia for rings, arcs, gradients, glows. Use Skia, not react-native-svg, for new visuals.
+
+### Body map (momentum-muscle-map)
+- Render through `src/components/body/` (`MuscleMapPair`, `WorkoutMiniMaps`, `ExerciseMuscleThumb`); bodies follow `profile.gender` and load lazily (`useBodies`), colours come from the theme's `muscleMap` tokens (`useMuscleMapColors`).
+- Heat data: `src/utils/muscleVolume.ts` (region weights per exercise → weighted volume → 0..1). Send linear values at the finest level you have; the map rolls them up and applies its own colour curve. Keep `values` and `colors` referentially stable.
+- Weights come from `exercise_region_targets` (`useRegionTargetsStore`) with a fallback from legacy muscle names (`src/constants/muscleMap.ts`); reference volumes and recovery thresholds live there too.
+- A tappable `MuscleMap` needs `pointerEvents: 'box-only'` in its style (done in `MuscleMapPair`): in 0.1.0 its Skia canvas swallows taps otherwise.
+- `MiniMuscleMap` (group level, static) for lists and share images; never pre-render maps to images.
 
 ### State / Stores
 - Naming: `use[Domain]Store`.
 - Optimistic updates with rollback for critical writes (food, supplements).
 - Fire-and-forget for non-critical (activity feed, streak persist).
 - Debounced persistence: theme 100ms.
-- TTL caches: friends 4h, exercise catalog 24h.
+- TTL caches: friends 4h, exercise catalog 24h, exercise region targets 24h.
 - Cross-store sync where needed (food goals ↔ nutrition store).
 
 ### Supabase Pattern
@@ -156,13 +163,14 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 
 ---
 
-## State Management — 23 Zustand Stores
+## State Management — 24 Zustand Stores
 
 | Store | Persistence | Responsibility |
 |---|---|---|
 | `useAuthStore` | Supabase Auth + SecureStore | Session, profile CRUD, email verification, beta-welcome flag |
 | `useActiveWorkoutStore` | AsyncStorage + Supabase | Active workout state, sets, rest timer, finish → DB write (largest store, ~1.2k LOC) |
 | `useWorkoutStore` | Supabase + AsyncStorage (24h) | History, exercise catalog cache, previous-set lookups |
+| `useRegionTargetsStore` | Supabase + AsyncStorage (24h) | Body-map region weights per catalog exercise (`exercise_region_targets`); empty while the table isn't deployed |
 | `useRoutineStore` | Supabase | Saved routines + exercises |
 | `useProgramStore` | Supabase | Multi-week training programs and progress |
 | `useFoodLogStore` | Supabase | Food entries CRUD, meal configs, goals, catalog search |
@@ -180,7 +188,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | `useMuscleAnalysisStore` | Pure compute | Weekly muscle volume |
 | `useFriendsStore` | Supabase (4h cache) | Friends, feed, leaderboard, notifications, paginated |
 | `useThemeStore` | AsyncStorage (100ms debounce) | Accent + dark/light mode |
-| `useProfileSettingsStore` | AsyncStorage | Local UI prefs |
+| `useProfileSettingsStore` | AsyncStorage | Local UI prefs (incl. body-map detail level) |
 | `useChangelogStore` | AsyncStorage | Last-seen changelog version |
 | `useLabTimeRangeStore` | In-memory | Lab tab time-range filter |
 
