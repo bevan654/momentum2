@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { BODYWEIGHT_RANGE_KG } from '../constants/muscleMap';
 import { isPlausibleBodyweight } from '../utils/muscleLoad';
+import { toLocalDateString } from '../utils/localDate';
 
 export interface WeightEntry {
   date: string;
@@ -44,11 +45,6 @@ function computeEma(entries: WeightEntry[], alpha = 0.2): EmaPoint[] {
   }
 
   return emaPoints;
-}
-
-/** Local calendar date (YYYY-MM-DD); weight_entries.date is the user's local day. */
-function toLocalDateString(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export const useWeightStore = create<WeightState>((set, get) => ({
@@ -106,7 +102,7 @@ export const useWeightStore = create<WeightState>((set, get) => ({
   },
 
   logWeight: async (userId: string, weight: number, days = 30) => {
-    const date = toLocalDateString(new Date());
+    const date = toLocalDateString();
 
     // One entry per day (unique user_id, date): a second weigh-in today replaces the first.
     const { error } = await supabase.from('weight_entries').upsert(

@@ -16,6 +16,7 @@ import NutritionHero from '../components/food/NutritionHero';
 import DateNavigator from '../components/food/DateNavigator';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
+import { toLocalDateString } from '../utils/localDate';
 
 function FoodLoggerScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -75,10 +76,7 @@ function FoodLoggerScreen() {
   }, [userId, selectedDate]);
 
   // Auto-scroll to current time after layout (only for today)
-  const todayStr = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, []);
+  const todayStr = useMemo(() => toLocalDateString(), []);
   const isToday = selectedDate === todayStr;
 
   useEffect(() => {

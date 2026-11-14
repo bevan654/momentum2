@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useNutritionStore } from './useNutritionStore';
+import { toLocalDateString } from '../utils/localDate';
 
 /* ─── Types ────────────────────────────────────────────── */
 
@@ -104,10 +105,6 @@ const DEFAULT_MEALS: MealConfig[] = [
 
 /* ─── Helpers ──────────────────────────────────────────── */
 
-function toDateString(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
 function dateRange(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00');
   const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
@@ -206,7 +203,7 @@ interface FoodLogState {
 }
 
 export const useFoodLogStore = create<FoodLogState>((set, get) => ({
-  selectedDate: toDateString(new Date()),
+  selectedDate: toLocalDateString(),
   entries: [],
   mealConfigs: DEFAULT_MEALS,
   goals: { calorie_goal: 2000, protein_goal: 150, carbs_goal: 250, fat_goal: 65 },
@@ -225,18 +222,18 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const { selectedDate } = get();
     const d = new Date(selectedDate + 'T12:00:00');
     d.setDate(d.getDate() + 1);
-    set({ selectedDate: toDateString(d) });
+    set({ selectedDate: toLocalDateString(d) });
   },
 
   goPrevDay: () => {
     const { selectedDate } = get();
     const d = new Date(selectedDate + 'T12:00:00');
     d.setDate(d.getDate() - 1);
-    set({ selectedDate: toDateString(d) });
+    set({ selectedDate: toLocalDateString(d) });
   },
 
   goToday: () => {
-    set({ selectedDate: toDateString(new Date()) });
+    set({ selectedDate: toLocalDateString() });
   },
 
   fetchDayEntries: async (userId: string, date?: string) => {

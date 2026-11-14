@@ -28,6 +28,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { lookupBarcodeUSDA } from '../../utils/barcodeApi';
 import type { MealConfig } from '../../stores/useFoodLogStore';
 import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
+import { toLocalDateString } from '../../utils/localDate';
 
 /* ─── Types ────────────────────────────────────────────── */
 
@@ -118,10 +119,6 @@ const MICROS: { key: string; label: string; unit: string }[] = [
   { key: 'folate', label: 'Folate', unit: 'mcg' },
 ];
 
-function toDateString(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 const DATE_CHIPS = (() => {
   const chips: { date: string; label: string; sub: string }[] = [];
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -129,7 +126,7 @@ const DATE_CHIPS = (() => {
   for (let i = 0; i < 14; i++) {
     const d = new Date(); d.setDate(d.getDate() + i);
     chips.push({
-      date: toDateString(d),
+      date: toLocalDateString(d),
       label: i === 0 ? 'Today' : i === 1 ? 'Tmrw' : days[d.getDay()],
       sub: `${months[d.getMonth()]} ${d.getDate()}`,
     });

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
+import { toLocalDateString } from '../../utils/localDate';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const MONTH_NAMES = [
@@ -11,13 +12,7 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate(),
-  ).padStart(2, '0')}`;
-}
-
-const TODAY_STR = toDateStr(new Date());
+const TODAY_STR = toLocalDateString();
 
 /** Mon–Sun week containing the given date */
 function getWeek(dateStr: string) {
@@ -31,7 +26,7 @@ function getWeek(dateStr: string) {
   for (let i = 0; i < 7; i++) {
     const day = new Date(mon);
     day.setDate(mon.getDate() + i);
-    days.push({ dateStr: toDateStr(day), label: DAY_LABELS[i], dayNum: day.getDate() });
+    days.push({ dateStr: toLocalDateString(day), label: DAY_LABELS[i], dayNum: day.getDate() });
   }
   return days;
 }
@@ -58,7 +53,7 @@ function DateNavigator({ selectedDate, onDateSelect }: Props) {
     (dir: 1 | -1) => {
       const d = new Date(selectedDate + 'T12:00:00');
       d.setDate(d.getDate() + dir * 7);
-      onDateSelect(toDateStr(d));
+      onDateSelect(toLocalDateString(d));
     },
     [selectedDate, onDateSelect],
   );

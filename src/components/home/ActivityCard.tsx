@@ -10,17 +10,11 @@ import { sw, ms } from '../../theme/responsive';
 import { useWorkoutStore, type WorkoutWithDetails } from '../../stores/useWorkoutStore';
 import { useStreakStore } from '../../stores/useStreakStore';
 import WorkoutSummaryModal from '../workout-sheet/WorkoutSummaryModal';
+import { toLocalDateString } from '../../utils/localDate';
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
-
-function toDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 /* ─── Grid cell type ─────────────────────────────────── */
 
@@ -36,7 +30,7 @@ function buildMonthCells(year: number, month: number): { cells: GridCell[]; rows
   const cells: GridCell[] = [];
   for (let i = 0; i < sd; i++) cells.push(null);
   for (let d = 1; d <= dim; d++) {
-    cells.push({ day: d, key: toDateKey(new Date(year, month, d)) });
+    cells.push({ day: d, key: toLocalDateString(new Date(year, month, d)) });
   }
   const rows = Math.ceil(cells.length / 7);
   return { cells, rows };
@@ -259,7 +253,7 @@ export default function ActivityCard() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const today = new Date();
-  const todayKey = toDateKey(today);
+  const todayKey = toLocalDateString(today);
   const [showYearView, setShowYearView] = useState(false);
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -269,7 +263,7 @@ export default function ActivityCard() {
     const map = new Map<string, WorkoutWithDetails>();
     for (const w of workouts) {
       const d = new Date(w.created_at);
-      const key = toDateKey(d);
+      const key = toLocalDateString(d);
       if (!map.has(key)) map.set(key, w);
     }
     return map;
