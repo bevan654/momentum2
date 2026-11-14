@@ -44,7 +44,7 @@ This project is a continuation of an app built with an older model, so expect bu
 ├── app.config.ts              # Expo config (bundle IDs, plugins, EAS)
 ├── database-schema.md         # Postgres schema reference (all public tables, generated from the live schema)
 ├── docs/                      # Plans, audits, security review
-├── scripts/                   # Dev/ops scripts (build stamping, imports, seeding, notifications; catalog/ = RepDB exercise import)
+├── scripts/                   # Dev/ops scripts (build stamping, imports, seeding, notifications; catalog/ = RepDB exercise import, muscle-map region targets)
 │
 └── src/
     ├── screens/               # Top-level routes (22 screens)
@@ -219,9 +219,9 @@ Total resting ~4 connections per app instance. Pool ceiling on default Supabase 
 
 ## Database — see `database-schema.md`
 
-48 tables, all documented (regenerated from the live schema). Categories:
+49 tables, all documented (regenerated from the live schema). Categories:
 
-**Workout:** `workouts`, `exercises`, `sets`, `exercises_catalog`, `exercise_aliases`, `muscles`, `exercise_muscle_targets`, `muscle_map_regions`, `user_exercises`, `routines`, `routine_exercises`, `programs`, `program_days`, `program_day_exercises`, `user_ranks`, `user_streaks`
+**Workout:** `workouts`, `exercises`, `sets`, `exercises_catalog`, `exercise_aliases`, `muscles`, `exercise_muscle_targets`, `muscle_map_regions`, `exercise_region_targets`, `user_exercises`, `routines`, `routine_exercises`, `programs`, `program_days`, `program_day_exercises`, `user_ranks`, `user_streaks`
 
 **Nutrition:** `food_entries`, `food_catalog`, `barcode_foods`, `ai_food_cache`, `nutrition_goals`, `meal_config`, `supplement_goals`, `user_supplements`, `supplement_entries`, `protein_powders`, `protein_powder_log`
 
@@ -245,6 +245,8 @@ Key columns:
 - `data_change_log`: old/new value of every column changed by a data clean-up (service role only); use it to revert
 
 **Exercise catalog (RepDB):** most rows come from the RepDB dataset, imported by `scripts/catalog/import_repdb.py` (decisions for our own rows in `scripts/catalog/decisions.json`; undo with `scripts/catalog/revert_import.sql`). Its licence allows in-app use with the "Exercise data by RepDB (repdb.co)" credit in Profile, but not redistribution, and this repo is public: never commit RepDB content (the dataset, generated SQL, names or text), only RepDB ids. Renamed exercises keep their old name as an `exercise_aliases` row, so old app builds and imported names still resolve. `primary_muscles` / `secondary_muscles` stay in the legacy vocabulary every app build understands (`MUSCLE_ALIASES` in `src/constants/muscles.ts`); anatomical detail is in `exercise_muscle_targets` (→ `muscles`), and `muscle_map_regions` maps muscles to the regions of each body-map renderer (`map_id`), so a new body map only adds its own rows. Main-lift slots in `src/utils/strengthScore.ts` and the leaderboard RPCs match lifts by name: keep the previous name listed when renaming one.
+
+**Region targets (deep muscle map):** `exercise_region_targets` says which regions of the `momentum-muscle-map` body each catalog exercise works and how hard, per `map_id`, which names the map's region-id set rather than its full version: `momentum-muscle-map@0.<minor>` before 1.0 (a 0.x minor may rename regions), `@<major>` from 1.0, so a patch release never needs new rows. Region ids are that library's public API, so a `map_id` that changes them gets new rows; the app reads the rows of `MUSCLE_MAP_ID` (`src/constants/muscleMap.ts`). `region` is an unsided slug from the map's `src/data/hierarchy.ts` (always part level as generated; the app mirrors or sides unilateral work), and `weight` is above 0 and at most 1, with the strongest region of each exercise at exactly 1 (prime movers 0.9–1, major synergists 0.4–0.7, minor/stabilisers 0.15–0.3). `source` is `hand` (every exercise logged so far, from `scripts/catalog/region_overrides.json`) or `rule` (RepDB muscle lists spread over map parts, plus name keyword rules). Generate with `scripts/catalog/region_targets.py`, which also validates against the map and writes the seed block of a migration; `scripts/catalog/check_region_targets.py` checks the rows in a database. Both scripts derive the `map_id` from the `--map` checkout's `package.json`, so point them at the map version the app pins. The overrides use only our own names (from `decisions.json`), never RepDB names.
 
 **Compatibility rule:** older app builds stay installed (builds before the force-update gate can't be blocked), and they write directly to `workouts` → `exercises` → `sets`. Schema changes must be additive: new nullable columns, no renames, type changes, new NOT NULL columns or drops, and no trigger that can fail an insert.
 

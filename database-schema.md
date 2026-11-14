@@ -1,6 +1,6 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
--- Generated from the live schema (production + supabase/migrations up to 20261116).
+-- Generated from the live schema (production + supabase/migrations up to 20261118).
 -- Column comments are shown as trailing -- notes.
 
 CREATE TABLE public.activity_feed (
@@ -219,6 +219,19 @@ CREATE TABLE public.exercise_muscle_targets (
   CONSTRAINT exercise_muscle_targets_muscle_id_fkey FOREIGN KEY (muscle_id) REFERENCES muscles(id) ON UPDATE CASCADE,
   CONSTRAINT exercise_muscle_targets_role_valid CHECK ((role = ANY (ARRAY['primary'::text, 'secondary'::text]))),
   CONSTRAINT exercise_muscle_targets_weight_range CHECK (((weight >= (0)::numeric) AND (weight <= (1)::numeric)))
+);
+
+CREATE TABLE public.exercise_region_targets (
+  catalog_id text NOT NULL,  -- Catalog exercise.
+  map_id text NOT NULL,  -- Renderer and version whose region ids these are, e.g. momentum-muscle-map@0.1.
+  region text NOT NULL,  -- Unsided region slug of that map, at part or muscle level (e.g. pectoralis_major_clavicular). Never a non-muscle region.
+  weight numeric(3,2) NOT NULL,  -- How hard the exercise works the region, 0-1; the strongest region of each exercise is 1. Prime movers 0.9-1, major synergists 0.4-0.7, minor/stabilisers 0.15-0.3.
+  source text NOT NULL,  -- hand = tuned by hand (scripts/catalog/region_overrides.json); rule = derived from exercise_muscle_targets plus name keyword rules.
+  CONSTRAINT exercise_region_targets_pkey PRIMARY KEY (catalog_id, map_id, region),
+  CONSTRAINT exercise_region_targets_catalog_id_fkey FOREIGN KEY (catalog_id) REFERENCES exercises_catalog(id) ON DELETE CASCADE,
+  CONSTRAINT exercise_region_targets_region_unsided CHECK (((region ~ '^[a-z][a-z0-9_]*$'::text) AND (region !~ '_(left|right)$'::text))),
+  CONSTRAINT exercise_region_targets_source_valid CHECK ((source = ANY (ARRAY['hand'::text, 'rule'::text]))),
+  CONSTRAINT exercise_region_targets_weight_range CHECK (((weight > (0)::numeric) AND (weight <= (1)::numeric)))
 );
 
 CREATE TABLE public.exercises (

@@ -1,0 +1,2219 @@
+{
+ "_about": "Hand-tuned region weights for the deep muscle map, read by region_targets.py. They replace the generated weights for that exercise completely. exercises: catalog id -> {name, regions}. name is our own name for the row (as in decisions.json), for reading only. regions: unsided part or muscle slug of map_id -> weight; the strongest region is exactly 1.0, prime movers 0.9-1.0, major synergists 0.4-0.7, minor muscles and stabilisers 0.15-0.3, trivial ones left out. A muscle slug stands for all of its parts at that weight. no_targets: catalog ids that work no muscle, with the reason. Holds no RepDB content.",
+ "map_id": "momentum-muscle-map@0.1",
+ "no_targets": {
+  "1ecfb89f-a62b-5cfc-9ced-1987461a7857": "A lying relaxation pose: no muscle is worked."
+ },
+ "exercises": {
+  "bc3ba1cf-4e85-47c9-ae88-067e01bac0e9": {
+   "name": "ab wheel rollout",
+   "regions": {
+    "rectus_abdominis_mid": 1.0,
+    "rectus_abdominis_lower": 0.9,
+    "rectus_abdominis_upper": 0.9,
+    "external_oblique": 0.6,
+    "internal_oblique": 0.55,
+    "latissimus_dorsi": 0.45,
+    "serratus_anterior": 0.4,
+    "deltoid_anterior": 0.3
+   }
+  },
+  "fea2a155-fac2-4648-9dc5-5cd76066bdc1": {
+   "name": "abcoaster",
+   "regions": {
+    "rectus_abdominis_lower": 1.0,
+    "rectus_abdominis_mid": 0.9,
+    "rectus_abdominis_upper": 0.6,
+    "external_oblique": 0.5,
+    "internal_oblique": 0.45,
+    "rectus_femoris": 0.4,
+    "sartorius": 0.25
+   }
+  },
+  "2f5ee441-4fd7-43ee-a4a4-26793c7db1ae": {
+   "name": "air bike",
+   "regions": {
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0,
+    "rectus_femoris": 0.8,
+    "gluteus_maximus_lower": 0.6,
+    "biceps_femoris_long_head": 0.45,
+    "semimembranosus": 0.45,
+    "semitendinosus": 0.45,
+    "biceps_femoris_short_head": 0.4,
+    "deltoid_anterior": 0.4,
+    "gastrocnemius": 0.4,
+    "gluteus_maximus_upper": 0.35,
+    "latissimus_dorsi": 0.35,
+    "pectoralis_major_sternal": 0.35,
+    "soleus": 0.35,
+    "triceps_brachii_lateral_head": 0.35,
+    "triceps_brachii_medial_head": 0.35,
+    "biceps_brachii": 0.3,
+    "rectus_abdominis": 0.2
+   }
+  },
+  "4454f090-872f-4491-8b0e-a846ac5dd945": {
+   "name": "archer pull-ups",
+   "regions": {
+    "latissimus_dorsi": 1.0,
+    "teres_major": 0.75,
+    "biceps_brachii": 0.6,
+    "brachialis": 0.5,
+    "trapezius_lower": 0.5,
+    "rhomboids": 0.45,
+    "deltoid_posterior": 0.4,
+    "flexor_carpi_radialis": 0.4,
+    "wrist_flexor_group": 0.4,
+    "brachioradialis": 0.35,
+    "trapezius_mid": 0.35,
+    "pectoralis_major_abdominal": 0.3,
+    "external_oblique": 0.2,
+    "rectus_abdominis": 0.2
+   }
+  },
+  "caadc082-ea1a-40a8-96d0-4316daf15776": {
+   "name": "archer push-ups",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.8,
+    "pectoralis_major_clavicular": 0.7,
+    "deltoid_anterior": 0.65,
+    "triceps_brachii_lateral_head": 0.65,
+    "triceps_brachii_medial_head": 0.65,
+    "triceps_brachii_long_head": 0.45,
+    "serratus_anterior": 0.4,
+    "rectus_abdominis": 0.3,
+    "external_oblique": 0.2
+   }
+  },
+  "6d6fc003-ed9d-42e2-a1f0-d6b9f47e8f68": {
+   "name": "assisted chin-ups",
+   "regions": {
+    "latissimus_dorsi_lower": 1.0,
+    "latissimus_dorsi_upper": 0.95,
+    "biceps_brachii": 0.8,
+    "brachialis": 0.6,
+    "teres_major": 0.6,
+    "trapezius_lower": 0.45,
+    "rhomboids": 0.4,
+    "brachioradialis": 0.3,
+    "deltoid_posterior": 0.3,
+    "flexor_carpi_radialis": 0.3,
+    "trapezius_mid": 0.3,
+    "wrist_flexor_group": 0.3,
+    "pectoralis_major_abdominal": 0.25
+   }
+  },
+  "3a8dd64f-b18b-42c3-8d35-04be04225de2": {
+   "name": "assisted dips",
+   "regions": {
+    "pectoralis_major_abdominal": 1.0,
+    "pectoralis_major_sternal": 1.0,
+    "triceps_brachii_lateral_head": 0.9,
+    "triceps_brachii_medial_head": 0.9,
+    "triceps_brachii_long_head": 0.7,
+    "deltoid_anterior": 0.6,
+    "pectoralis_major_clavicular": 0.5,
+    "anconeus": 0.25,
+    "latissimus_dorsi_lower": 0.2
+   }
+  },
+  "56ac803b-f494-4dc3-9241-1374c2d29b72": {
+   "name": "assisted muscle-ups",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.9,
+    "triceps_brachii_lateral_head": 0.8,
+    "triceps_brachii_medial_head": 0.8,
+    "pectoralis_major_abdominal": 0.7,
+    "pectoralis_major_sternal": 0.6,
+    "teres_major": 0.6,
+    "triceps_brachii_long_head": 0.6,
+    "biceps_brachii": 0.5,
+    "deltoid_anterior": 0.5,
+    "brachialis": 0.4,
+    "flexor_carpi_radialis": 0.35,
+    "trapezius_lower": 0.35,
+    "wrist_flexor_group": 0.35,
+    "rhomboids": 0.3,
+    "rectus_abdominis": 0.2
+   }
+  },
+  "1dbfba12-05e9-431f-aaf9-94e8f80eab4a": {
+   "name": "assisted pull ups",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.95,
+    "teres_major": 0.7,
+    "biceps_brachii": 0.55,
+    "brachialis": 0.5,
+    "trapezius_lower": 0.5,
+    "rhomboids": 0.45,
+    "brachioradialis": 0.35,
+    "deltoid_posterior": 0.35,
+    "trapezius_mid": 0.35,
+    "flexor_carpi_radialis": 0.3,
+    "wrist_flexor_group": 0.3,
+    "pectoralis_major_abdominal": 0.2
+   }
+  },
+  "ed8ace3c-8285-4da8-adb8-dd216c828db7": {
+   "name": "back extension",
+   "regions": {
+    "erector_spinae": 1.0,
+    "gluteus_maximus_lower": 0.65,
+    "biceps_femoris_long_head": 0.55,
+    "semimembranosus": 0.55,
+    "semitendinosus": 0.55,
+    "gluteus_maximus_upper": 0.4,
+    "adductor_magnus": 0.35
+   }
+  },
+  "9b5316e9-5ea5-4a5b-97e7-f1db0da096cc": {
+   "name": "band assisted pull-ups",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.95,
+    "teres_major": 0.7,
+    "biceps_brachii": 0.55,
+    "brachialis": 0.5,
+    "trapezius_lower": 0.5,
+    "rhomboids": 0.45,
+    "brachioradialis": 0.35,
+    "deltoid_posterior": 0.35,
+    "flexor_carpi_radialis": 0.35,
+    "trapezius_mid": 0.35,
+    "wrist_flexor_group": 0.35,
+    "pectoralis_major_abdominal": 0.2
+   }
+  },
+  "a1000018-0000-4000-a000-000000000018": {
+   "name": "band chest fly",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.8,
+    "pectoralis_major_clavicular": 0.75,
+    "deltoid_anterior": 0.45
+   }
+  },
+  "6d6f46ec-ea92-4f38-9baa-d42975f1a706": {
+   "name": "barbell back squat",
+   "regions": {
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0,
+    "gluteus_maximus_lower": 0.9,
+    "adductor_magnus": 0.65,
+    "rectus_femoris": 0.6,
+    "gluteus_maximus_upper": 0.55,
+    "erector_spinae": 0.5,
+    "biceps_femoris_long_head": 0.3,
+    "gluteus_medius": 0.3,
+    "semimembranosus": 0.3,
+    "semitendinosus": 0.3,
+    "adductor_longus": 0.25,
+    "rectus_abdominis": 0.2
+   }
+  },
+  "a1000019-0000-4000-a000-000000000019": {
+   "name": "barbell bent over row",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.9,
+    "rhomboids": 0.85,
+    "trapezius_mid": 0.75,
+    "deltoid_posterior": 0.55,
+    "erector_spinae": 0.55,
+    "teres_major": 0.55,
+    "trapezius_lower": 0.5,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "brachioradialis": 0.35,
+    "flexor_carpi_radialis": 0.35,
+    "wrist_flexor_group": 0.35,
+    "trapezius_upper": 0.3,
+    "biceps_femoris_long_head": 0.25,
+    "gluteus_maximus_lower": 0.25,
+    "semimembranosus": 0.25,
+    "semitendinosus": 0.25
+   }
+  },
+  "061b607e-00e3-4a7a-9fe7-0f6a82634745": {
+   "name": "barbell calf raise",
+   "regions": {
+    "gastrocnemius": 1.0,
+    "soleus": 0.65,
+    "peroneus_longus": 0.25
+   }
+  },
+  "51408920-3d63-4ee8-a9d2-ec5dec71bbce": {
+   "name": "barbell concentration curl",
+   "regions": {
+    "biceps_brachii_short_head": 1.0,
+    "biceps_brachii_long_head": 0.85,
+    "brachialis": 0.7,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "a1000014-0000-4000-a000-000000000014": {
+   "name": "barbell curl",
+   "regions": {
+    "biceps_brachii": 1.0,
+    "brachialis": 0.6,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "1ac40b49-bae5-45c6-b7d5-fd9998b527e0": {
+   "name": "barbell front raise",
+   "regions": {
+    "deltoid_anterior": 1.0,
+    "pectoralis_major_clavicular": 0.5,
+    "deltoid_lateral": 0.3,
+    "serratus_anterior": 0.3,
+    "trapezius_upper": 0.3
+   }
+  },
+  "122fb563-ed37-4e53-aa91-d23958f227d0": {
+   "name": "barbell lunge",
+   "regions": {
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0,
+    "gluteus_maximus_lower": 0.9,
+    "gluteus_maximus_upper": 0.55,
+    "rectus_femoris": 0.55,
+    "adductor_magnus": 0.5,
+    "gluteus_medius": 0.45,
+    "biceps_femoris_long_head": 0.3,
+    "erector_spinae": 0.3,
+    "semimembranosus": 0.3,
+    "semitendinosus": 0.3
+   }
+  },
+  "1497a22f-dc18-43f5-a7ec-2411fb17ac4e": {
+   "name": "barbell lying tricep extension",
+   "regions": {
+    "triceps_brachii_long_head": 1.0,
+    "triceps_brachii_lateral_head": 0.9,
+    "triceps_brachii_medial_head": 0.9,
+    "anconeus": 0.3
+   }
+  },
+  "83e99a91-1e5e-465d-81bb-f1c959f5484c": {
+   "name": "barbell preacher curl",
+   "regions": {
+    "biceps_brachii_short_head": 1.0,
+    "biceps_brachii_long_head": 0.85,
+    "brachialis": 0.7,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "ebe673b4-bca6-4ed5-b4e9-eee7dd1c13eb": {
+   "name": "barbell reverse wrist curl",
+   "regions": {
+    "extensor_carpi_radialis": 1.0,
+    "extensor_carpi_ulnaris": 0.8,
+    "extensor_digitorum": 0.8,
+    "brachioradialis": 0.25
+   }
+  },
+  "15ac6882-160d-4dad-9930-cb8744b2da52": {
+   "name": "barbell shrug",
+   "regions": {
+    "trapezius_upper": 1.0,
+    "levator_scapulae": 0.6,
+    "wrist_flexor_group": 0.45,
+    "flexor_carpi_radialis": 0.4,
+    "trapezius_mid": 0.4,
+    "rhomboids": 0.25
+   }
+  },
+  "a1000009-0000-4000-a000-000000000009": {
+   "name": "barbell strict curl",
+   "regions": {
+    "biceps_brachii": 1.0,
+    "brachialis": 0.6,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "a100000f-0000-4000-a000-00000000000f": {
+   "name": "barbell upright row",
+   "regions": {
+    "deltoid_lateral": 1.0,
+    "trapezius_upper": 0.85,
+    "deltoid_anterior": 0.5,
+    "trapezius_mid": 0.35,
+    "biceps_brachii": 0.3,
+    "brachialis": 0.3,
+    "brachioradialis": 0.3
+   }
+  },
+  "7c2aa651-cc74-45ce-88d2-89c0e103ab9b": {
+   "name": "barbell wrist curl",
+   "regions": {
+    "flexor_carpi_radialis": 1.0,
+    "wrist_flexor_group": 1.0
+   }
+  },
+  "c61db114-e423-49ff-bbe4-1fe41604184d": {
+   "name": "barbell yates row",
+   "regions": {
+    "latissimus_dorsi_lower": 1.0,
+    "latissimus_dorsi_upper": 0.85,
+    "rhomboids": 0.75,
+    "trapezius_mid": 0.65,
+    "biceps_brachii": 0.6,
+    "teres_major": 0.55,
+    "brachialis": 0.5,
+    "deltoid_posterior": 0.5,
+    "erector_spinae": 0.5,
+    "trapezius_lower": 0.45,
+    "brachioradialis": 0.35,
+    "flexor_carpi_radialis": 0.35,
+    "wrist_flexor_group": 0.35,
+    "trapezius_upper": 0.3,
+    "biceps_femoris_long_head": 0.2,
+    "gluteus_maximus_lower": 0.2,
+    "semimembranosus": 0.2,
+    "semitendinosus": 0.2
+   }
+  },
+  "50564236-115b-414e-8865-92dd209f6d59": {
+   "name": "behind the neck press",
+   "regions": {
+    "deltoid_lateral": 1.0,
+    "deltoid_anterior": 0.9,
+    "triceps_brachii_lateral_head": 0.6,
+    "triceps_brachii_medial_head": 0.6,
+    "trapezius_upper": 0.5,
+    "triceps_brachii_long_head": 0.4,
+    "serratus_anterior": 0.35,
+    "deltoid_posterior": 0.3,
+    "trapezius_mid": 0.3
+   }
+  },
+  "5a59a344-beab-415a-b850-30c7f4705528": {
+   "name": "bench dip",
+   "regions": {
+    "triceps_brachii_lateral_head": 1.0,
+    "triceps_brachii_medial_head": 1.0,
+    "triceps_brachii_long_head": 0.75,
+    "deltoid_anterior": 0.6,
+    "pectoralis_major_sternal": 0.4,
+    "pectoralis_major_abdominal": 0.35,
+    "pectoralis_major_clavicular": 0.35,
+    "anconeus": 0.3
+   }
+  },
+  "9d6c70f6-9761-4b1b-bdfb-44e6042bbbdf": {
+   "name": "bench press",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.8,
+    "pectoralis_major_clavicular": 0.7,
+    "deltoid_anterior": 0.6,
+    "triceps_brachii_lateral_head": 0.6,
+    "triceps_brachii_medial_head": 0.6,
+    "triceps_brachii_long_head": 0.45,
+    "anconeus": 0.2
+   }
+  },
+  "1aaccc60-30d2-47c1-88ac-a0031c875fbc": {
+   "name": "bench pull",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.85,
+    "rhomboids": 0.85,
+    "trapezius_mid": 0.8,
+    "deltoid_posterior": 0.65,
+    "teres_major": 0.6,
+    "trapezius_lower": 0.5,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.35,
+    "wrist_flexor_group": 0.35
+   }
+  },
+  "274b0dfb-4634-480f-9da0-ffc0eaf8b0c7": {
+   "name": "bent over dumbbell row",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.9,
+    "rhomboids": 0.8,
+    "trapezius_mid": 0.7,
+    "deltoid_posterior": 0.55,
+    "erector_spinae": 0.55,
+    "teres_major": 0.55,
+    "trapezius_lower": 0.5,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "brachioradialis": 0.35,
+    "flexor_carpi_radialis": 0.35,
+    "wrist_flexor_group": 0.35,
+    "trapezius_upper": 0.3,
+    "biceps_femoris_long_head": 0.25,
+    "gluteus_maximus_lower": 0.25,
+    "semimembranosus": 0.25,
+    "semitendinosus": 0.25
+   }
+  },
+  "a29eab92-ea33-41b8-b2fd-d006303d621a": {
+   "name": "box jump",
+   "regions": {
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0,
+    "gluteus_maximus_lower": 0.9,
+    "gastrocnemius": 0.8,
+    "soleus": 0.75,
+    "rectus_femoris": 0.6,
+    "gluteus_maximus_upper": 0.55,
+    "biceps_femoris_long_head": 0.45,
+    "semimembranosus": 0.45,
+    "semitendinosus": 0.45,
+    "adductor_magnus": 0.35
+   }
+  },
+  "38e9c777-50fc-4934-89df-d468f07f3ede": {
+   "name": "cable bayesian curl",
+   "regions": {
+    "biceps_brachii_long_head": 1.0,
+    "biceps_brachii_short_head": 0.8,
+    "brachialis": 0.55,
+    "brachioradialis": 0.35,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "e5779840-fcbe-4c1c-a875-394a2a94134e": {
+   "name": "cable chest fly",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.8,
+    "pectoralis_major_clavicular": 0.75,
+    "deltoid_anterior": 0.45
+   }
+  },
+  "d162fa4e-f8d0-4c2c-bb18-d2af34952827": {
+   "name": "cable chest press",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.8,
+    "pectoralis_major_clavicular": 0.7,
+    "deltoid_anterior": 0.55,
+    "triceps_brachii_lateral_head": 0.45,
+    "triceps_brachii_medial_head": 0.45,
+    "triceps_brachii_long_head": 0.3,
+    "serratus_anterior": 0.25
+   }
+  },
+  "0545ccf0-1fc1-4b5c-8581-850fda673c85": {
+   "name": "cable crunch",
+   "regions": {
+    "rectus_abdominis_mid": 1.0,
+    "rectus_abdominis_upper": 1.0,
+    "rectus_abdominis_lower": 0.75,
+    "external_oblique": 0.45,
+    "internal_oblique": 0.4
+   }
+  },
+  "a1000011-0000-4000-a000-000000000011": {
+   "name": "cable curl",
+   "regions": {
+    "biceps_brachii": 1.0,
+    "brachialis": 0.6,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "a1000001-0000-4000-a000-000000000001": {
+   "name": "cable face pull",
+   "regions": {
+    "deltoid_posterior": 1.0,
+    "infraspinatus": 0.7,
+    "trapezius_mid": 0.7,
+    "rhomboids": 0.6,
+    "teres_minor": 0.6,
+    "trapezius_lower": 0.5,
+    "deltoid_lateral": 0.35,
+    "trapezius_upper": 0.3,
+    "biceps_brachii": 0.2
+   }
+  },
+  "a1000007-0000-4000-a000-000000000007": {
+   "name": "cable hammer curl",
+   "regions": {
+    "brachialis": 1.0,
+    "brachioradialis": 1.0,
+    "biceps_brachii_long_head": 0.7,
+    "biceps_brachii_short_head": 0.55,
+    "extensor_carpi_radialis": 0.3,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "7e28f7cb-48a3-4c37-98b1-d3df85e3b62f": {
+   "name": "cable high to low fly",
+   "regions": {
+    "pectoralis_major_abdominal": 1.0,
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_clavicular": 0.4,
+    "deltoid_anterior": 0.3
+   }
+  },
+  "9dd3afa1-74cc-43e9-bc48-15331f33c530": {
+   "name": "cable lat pulldown dual pulley",
+   "regions": {
+    "latissimus_dorsi": 1.0,
+    "teres_major": 0.65,
+    "biceps_brachii": 0.5,
+    "brachialis": 0.5,
+    "rhomboids": 0.45,
+    "trapezius_lower": 0.45,
+    "brachioradialis": 0.35,
+    "deltoid_posterior": 0.35,
+    "trapezius_mid": 0.35,
+    "flexor_carpi_radialis": 0.2,
+    "pectoralis_major_abdominal": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "ee69c2b4-b7bd-463a-b994-d3afe4166c0d": {
+   "name": "cable lat pulldown single pulley",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.9,
+    "teres_major": 0.7,
+    "biceps_brachii": 0.5,
+    "brachialis": 0.45,
+    "rhomboids": 0.45,
+    "trapezius_lower": 0.45,
+    "deltoid_posterior": 0.35,
+    "trapezius_mid": 0.35,
+    "brachioradialis": 0.3,
+    "flexor_carpi_radialis": 0.2,
+    "pectoralis_major_abdominal": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "b5383b6e-9bdd-474d-884c-c9e6a99602b9": {
+   "name": "cable lateral raise",
+   "regions": {
+    "deltoid_lateral": 1.0,
+    "trapezius_upper": 0.4,
+    "deltoid_anterior": 0.35,
+    "deltoid_posterior": 0.25,
+    "serratus_anterior": 0.25,
+    "trapezius_mid": 0.2
+   }
+  },
+  "a100000b-0000-4000-a000-00000000000b": {
+   "name": "cable leaning triceps extension",
+   "regions": {
+    "triceps_brachii_long_head": 1.0,
+    "triceps_brachii_lateral_head": 0.85,
+    "triceps_brachii_medial_head": 0.85,
+    "anconeus": 0.25
+   }
+  },
+  "6f7ff84f-0342-4bb5-bd31-5006a7aec5d3": {
+   "name": "cable reverse curl",
+   "regions": {
+    "brachioradialis": 1.0,
+    "brachialis": 0.9,
+    "extensor_carpi_radialis": 0.65,
+    "biceps_brachii_long_head": 0.4,
+    "extensor_digitorum": 0.4,
+    "biceps_brachii_short_head": 0.35,
+    "extensor_carpi_ulnaris": 0.3,
+    "pronator_teres": 0.25
+   }
+  },
+  "a1000006-0000-4000-a000-000000000006": {
+   "name": "cable reverse grip triceps extension",
+   "regions": {
+    "triceps_brachii_medial_head": 1.0,
+    "triceps_brachii_lateral_head": 0.9,
+    "triceps_brachii_long_head": 0.6,
+    "anconeus": 0.35
+   }
+  },
+  "af67b4a8-84e6-4879-a58a-d92d2ae43d0a": {
+   "name": "cable rope tricep pushdown",
+   "regions": {
+    "triceps_brachii_lateral_head": 1.0,
+    "triceps_brachii_medial_head": 1.0,
+    "triceps_brachii_long_head": 0.7,
+    "anconeus": 0.35
+   }
+  },
+  "7be49b11-e5d1-44f3-a6d9-5b43565083bc": {
+   "name": "cable seated high to low face pull",
+   "regions": {
+    "deltoid_posterior": 1.0,
+    "infraspinatus": 0.6,
+    "trapezius_mid": 0.6,
+    "rhomboids": 0.55,
+    "trapezius_lower": 0.55,
+    "teres_minor": 0.5,
+    "deltoid_lateral": 0.35,
+    "latissimus_dorsi_upper": 0.3,
+    "teres_major": 0.3,
+    "biceps_brachii": 0.2,
+    "trapezius_upper": 0.2
+   }
+  },
+  "a1000015-0000-4000-a000-000000000015": {
+   "name": "cable triceps extension",
+   "regions": {
+    "triceps_brachii_lateral_head": 1.0,
+    "triceps_brachii_medial_head": 1.0,
+    "triceps_brachii_long_head": 0.8,
+    "anconeus": 0.3
+   }
+  },
+  "a100000a-0000-4000-a000-00000000000a": {
+   "name": "calf press on leg press",
+   "regions": {
+    "gastrocnemius": 1.0,
+    "soleus": 0.7,
+    "peroneus_longus": 0.2
+   }
+  },
+  "e202e4ec-333f-4614-958f-5f277a69bdcb": {
+   "name": "captains chair knee raise",
+   "regions": {
+    "rectus_abdominis_lower": 1.0,
+    "rectus_abdominis_mid": 0.8,
+    "rectus_femoris": 0.55,
+    "rectus_abdominis_upper": 0.5,
+    "external_oblique": 0.4,
+    "internal_oblique": 0.35,
+    "sartorius": 0.35,
+    "tensor_fasciae_latae": 0.3
+   }
+  },
+  "69ec1b33-271e-4ffe-a114-3757f2afeb3b": {
+   "name": "captains chair leg raise",
+   "regions": {
+    "rectus_abdominis_lower": 1.0,
+    "rectus_abdominis_mid": 0.85,
+    "rectus_femoris": 0.7,
+    "rectus_abdominis_upper": 0.55,
+    "external_oblique": 0.45,
+    "internal_oblique": 0.4,
+    "sartorius": 0.4,
+    "tensor_fasciae_latae": 0.35
+   }
+  },
+  "6fe324f4-a43a-4a1a-9e49-6855cda9dcb7": {
+   "name": "chest-supported dumbbell row",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.9,
+    "rhomboids": 0.8,
+    "trapezius_mid": 0.75,
+    "deltoid_posterior": 0.55,
+    "teres_major": 0.55,
+    "trapezius_lower": 0.5,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "brachioradialis": 0.35,
+    "flexor_carpi_radialis": 0.3,
+    "wrist_flexor_group": 0.3
+   }
+  },
+  "2b60f96d-05d1-44e5-ad43-44fc9bf20430": {
+   "name": "chin ups",
+   "regions": {
+    "latissimus_dorsi_lower": 1.0,
+    "latissimus_dorsi_upper": 0.95,
+    "biceps_brachii": 0.8,
+    "brachialis": 0.6,
+    "teres_major": 0.6,
+    "trapezius_lower": 0.45,
+    "rhomboids": 0.4,
+    "flexor_carpi_radialis": 0.35,
+    "wrist_flexor_group": 0.35,
+    "brachioradialis": 0.3,
+    "deltoid_posterior": 0.3,
+    "trapezius_mid": 0.3,
+    "pectoralis_major_abdominal": 0.25,
+    "rectus_abdominis": 0.2
+   }
+  },
+  "01dbecd3-8d86-4f7e-a124-b1899cef625d": {
+   "name": "close grip lat pulldown",
+   "regions": {
+    "latissimus_dorsi_lower": 1.0,
+    "latissimus_dorsi_upper": 0.85,
+    "brachialis": 0.6,
+    "teres_major": 0.6,
+    "biceps_brachii": 0.55,
+    "rhomboids": 0.45,
+    "trapezius_lower": 0.45,
+    "brachioradialis": 0.4,
+    "deltoid_posterior": 0.35,
+    "trapezius_mid": 0.35,
+    "flexor_carpi_radialis": 0.2,
+    "pectoralis_major_abdominal": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "f4f793a0-f8d6-41b1-bf30-0396a5f8c2a0": {
+   "name": "close-grip bench press",
+   "regions": {
+    "triceps_brachii_lateral_head": 1.0,
+    "triceps_brachii_medial_head": 1.0,
+    "pectoralis_major_sternal": 0.8,
+    "triceps_brachii_long_head": 0.7,
+    "pectoralis_major_clavicular": 0.65,
+    "deltoid_anterior": 0.6,
+    "pectoralis_major_abdominal": 0.6,
+    "anconeus": 0.3
+   }
+  },
+  "89bd239a-96a4-4e5f-b5a0-d89cdec7bb49": {
+   "name": "concentration curl",
+   "regions": {
+    "biceps_brachii_short_head": 1.0,
+    "biceps_brachii_long_head": 0.85,
+    "brachialis": 0.7,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "4f9a3d91-42e1-4b46-a907-1c68db1fb201": {
+   "name": "conventional deadlift",
+   "regions": {
+    "gluteus_maximus_lower": 1.0,
+    "erector_spinae": 0.9,
+    "biceps_femoris_long_head": 0.75,
+    "semimembranosus": 0.75,
+    "semitendinosus": 0.75,
+    "adductor_magnus": 0.7,
+    "gluteus_maximus_upper": 0.6,
+    "vastus_lateralis": 0.6,
+    "vastus_medialis": 0.6,
+    "wrist_flexor_group": 0.6,
+    "trapezius_upper": 0.55,
+    "flexor_carpi_radialis": 0.5,
+    "trapezius_mid": 0.45,
+    "latissimus_dorsi": 0.35,
+    "biceps_femoris_short_head": 0.3,
+    "rectus_femoris": 0.3,
+    "rhomboids": 0.25,
+    "trapezius_lower": 0.25,
+    "rectus_abdominis": 0.2
+   }
+  },
+  "9d57f3ef-7831-4318-9796-8e367a458730": {
+   "name": "cross body hammer curl",
+   "regions": {
+    "brachialis": 1.0,
+    "brachioradialis": 1.0,
+    "biceps_brachii_long_head": 0.6,
+    "biceps_brachii_short_head": 0.55,
+    "extensor_carpi_radialis": 0.3,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "156b5643-f3df-4cc1-8ab4-738487bd21a6": {
+   "name": "crunch",
+   "regions": {
+    "rectus_abdominis_mid": 1.0,
+    "rectus_abdominis_upper": 1.0,
+    "rectus_abdominis_lower": 0.7,
+    "external_oblique": 0.35,
+    "internal_oblique": 0.3
+   }
+  },
+  "747d2a58-887c-4838-92c8-edd055acd890": {
+   "name": "dead bug",
+   "regions": {
+    "rectus_abdominis_lower": 1.0,
+    "rectus_abdominis_mid": 0.9,
+    "internal_oblique": 0.6,
+    "rectus_abdominis_upper": 0.6,
+    "external_oblique": 0.5,
+    "rectus_femoris": 0.35
+   }
+  },
+  "5a262f3b-7e1f-498e-b49f-c9d4425abb96": {
+   "name": "dead hang",
+   "regions": {
+    "wrist_flexor_group": 1.0,
+    "flexor_carpi_radialis": 0.9,
+    "latissimus_dorsi_upper": 0.35,
+    "brachioradialis": 0.3,
+    "latissimus_dorsi_lower": 0.3,
+    "trapezius_lower": 0.3
+   }
+  },
+  "8f21e5d4-a50f-4484-8b51-a2fceef562cf": {
+   "name": "decline crunch",
+   "regions": {
+    "rectus_abdominis_mid": 1.0,
+    "rectus_abdominis_upper": 1.0,
+    "rectus_abdominis_lower": 0.75,
+    "external_oblique": 0.4,
+    "internal_oblique": 0.35
+   }
+  },
+  "c2ca4b06-11ac-4207-a366-60c49804d6f3": {
+   "name": "decline dumbbell fly",
+   "regions": {
+    "pectoralis_major_abdominal": 1.0,
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_clavicular": 0.45,
+    "deltoid_anterior": 0.3
+   }
+  },
+  "68170c3d-4f04-4a03-a15f-ad3cb6266469": {
+   "name": "decline push-up",
+   "regions": {
+    "pectoralis_major_clavicular": 1.0,
+    "pectoralis_major_sternal": 0.85,
+    "deltoid_anterior": 0.75,
+    "triceps_brachii_lateral_head": 0.6,
+    "triceps_brachii_medial_head": 0.6,
+    "pectoralis_major_abdominal": 0.4,
+    "serratus_anterior": 0.4,
+    "triceps_brachii_long_head": 0.4,
+    "rectus_abdominis": 0.25
+   }
+  },
+  "0f5fc1c3-175d-4258-909e-1498094279dc": {
+   "name": "decline sit-up",
+   "regions": {
+    "rectus_abdominis_mid": 1.0,
+    "rectus_abdominis_upper": 1.0,
+    "rectus_abdominis_lower": 0.85,
+    "rectus_femoris": 0.5,
+    "external_oblique": 0.4,
+    "internal_oblique": 0.35,
+    "sartorius": 0.3,
+    "tensor_fasciae_latae": 0.25
+   }
+  },
+  "a6702b53-d8ed-4211-8d35-454dafd5e181": {
+   "name": "dips",
+   "regions": {
+    "pectoralis_major_abdominal": 1.0,
+    "pectoralis_major_sternal": 1.0,
+    "triceps_brachii_lateral_head": 0.9,
+    "triceps_brachii_medial_head": 0.9,
+    "triceps_brachii_long_head": 0.7,
+    "deltoid_anterior": 0.6,
+    "pectoralis_major_clavicular": 0.5,
+    "anconeus": 0.25,
+    "latissimus_dorsi_lower": 0.2
+   }
+  },
+  "d5c44f3d-bf97-41f4-96be-34b004b7c47b": {
+   "name": "donkey calf raise",
+   "regions": {
+    "gastrocnemius": 1.0,
+    "soleus": 0.6,
+    "peroneus_longus": 0.2
+   }
+  },
+  "2741ac7f-ba91-4a5e-94dd-94cd6db496b8": {
+   "name": "dragon flag",
+   "regions": {
+    "rectus_abdominis_lower": 1.0,
+    "rectus_abdominis_mid": 1.0,
+    "rectus_abdominis_upper": 0.85,
+    "external_oblique": 0.55,
+    "internal_oblique": 0.5,
+    "latissimus_dorsi": 0.4,
+    "rectus_femoris": 0.3,
+    "teres_major": 0.3
+   }
+  },
+  "a100000d-0000-4000-a000-00000000000d": {
+   "name": "dumbbell arnold press",
+   "regions": {
+    "deltoid_anterior": 1.0,
+    "deltoid_lateral": 0.8,
+    "triceps_brachii_lateral_head": 0.55,
+    "triceps_brachii_medial_head": 0.55,
+    "serratus_anterior": 0.4,
+    "trapezius_upper": 0.4,
+    "triceps_brachii_long_head": 0.4,
+    "pectoralis_major_clavicular": 0.35
+   }
+  },
+  "0e860114-bc1f-47d7-999d-d658b1243e59": {
+   "name": "dumbbell bench press",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.8,
+    "pectoralis_major_clavicular": 0.7,
+    "deltoid_anterior": 0.55,
+    "triceps_brachii_lateral_head": 0.5,
+    "triceps_brachii_medial_head": 0.5,
+    "triceps_brachii_long_head": 0.35
+   }
+  },
+  "5e14af07-6d0b-4fac-b303-cdc5d465ab2e": {
+   "name": "dumbbell bulgarian split squat",
+   "regions": {
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0,
+    "gluteus_maximus_lower": 0.9,
+    "gluteus_maximus_upper": 0.6,
+    "adductor_magnus": 0.55,
+    "rectus_femoris": 0.55,
+    "gluteus_medius": 0.45,
+    "biceps_femoris_long_head": 0.3,
+    "semimembranosus": 0.3,
+    "semitendinosus": 0.3,
+    "flexor_carpi_radialis": 0.25,
+    "wrist_flexor_group": 0.25
+   }
+  },
+  "5de0ff50-7b9c-49f8-88bf-0ce8c667b035": {
+   "name": "dumbbell chest fly",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.8,
+    "pectoralis_major_clavicular": 0.75,
+    "deltoid_anterior": 0.45
+   }
+  },
+  "d722d67f-0532-46c5-bf8f-9aca71b9558e": {
+   "name": "dumbbell curl",
+   "regions": {
+    "biceps_brachii": 1.0,
+    "brachialis": 0.6,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "7c360710-0fce-42ba-b9fc-765158e0ed24": {
+   "name": "dumbbell decline press",
+   "regions": {
+    "pectoralis_major_abdominal": 1.0,
+    "pectoralis_major_sternal": 1.0,
+    "triceps_brachii_lateral_head": 0.5,
+    "triceps_brachii_medial_head": 0.5,
+    "pectoralis_major_clavicular": 0.45,
+    "deltoid_anterior": 0.4,
+    "triceps_brachii_long_head": 0.35
+   }
+  },
+  "a100000e-0000-4000-a000-00000000000e": {
+   "name": "dumbbell front raise",
+   "regions": {
+    "deltoid_anterior": 1.0,
+    "pectoralis_major_clavicular": 0.45,
+    "deltoid_lateral": 0.35,
+    "serratus_anterior": 0.3,
+    "trapezius_upper": 0.3
+   }
+  },
+  "a1000003-0000-4000-a000-000000000003": {
+   "name": "dumbbell hammer curl",
+   "regions": {
+    "brachialis": 1.0,
+    "brachioradialis": 1.0,
+    "biceps_brachii_long_head": 0.7,
+    "biceps_brachii_short_head": 0.55,
+    "extensor_carpi_radialis": 0.3,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "318a415d-5fb1-452a-a9e3-a9e741f42268": {
+   "name": "dumbbell lateral raise",
+   "regions": {
+    "deltoid_lateral": 1.0,
+    "trapezius_upper": 0.4,
+    "deltoid_anterior": 0.35,
+    "serratus_anterior": 0.25,
+    "deltoid_posterior": 0.2,
+    "trapezius_mid": 0.2
+   }
+  },
+  "a1000010-0000-4000-a000-000000000010": {
+   "name": "dumbbell lunge",
+   "regions": {
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0,
+    "gluteus_maximus_lower": 0.9,
+    "gluteus_maximus_upper": 0.55,
+    "rectus_femoris": 0.55,
+    "adductor_magnus": 0.5,
+    "gluteus_medius": 0.45,
+    "biceps_femoris_long_head": 0.3,
+    "semimembranosus": 0.3,
+    "semitendinosus": 0.3,
+    "flexor_carpi_radialis": 0.25,
+    "wrist_flexor_group": 0.25
+   }
+  },
+  "a1000005-0000-4000-a000-000000000005": {
+   "name": "dumbbell preacher curl",
+   "regions": {
+    "biceps_brachii_short_head": 1.0,
+    "biceps_brachii_long_head": 0.85,
+    "brachialis": 0.7,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "f31ef577-3b25-4674-a79d-b2668dcd036a": {
+   "name": "dumbbell row",
+   "regions": {
+    "latissimus_dorsi_lower": 1.0,
+    "latissimus_dorsi_upper": 0.9,
+    "rhomboids": 0.7,
+    "teres_major": 0.6,
+    "trapezius_mid": 0.6,
+    "deltoid_posterior": 0.5,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "trapezius_lower": 0.45,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.35,
+    "wrist_flexor_group": 0.35,
+    "erector_spinae": 0.2,
+    "external_oblique": 0.2
+   }
+  },
+  "68b86ade-98fc-4f15-ab52-7115700ba2d2": {
+   "name": "dumbbell seated hammer curl",
+   "regions": {
+    "brachialis": 1.0,
+    "brachioradialis": 1.0,
+    "biceps_brachii_long_head": 0.7,
+    "biceps_brachii_short_head": 0.55,
+    "extensor_carpi_radialis": 0.3,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "f288db3e-8560-4ba8-8f50-05792ff72511": {
+   "name": "dumbbell shoulder press",
+   "regions": {
+    "deltoid_anterior": 1.0,
+    "deltoid_lateral": 0.75,
+    "triceps_brachii_lateral_head": 0.6,
+    "triceps_brachii_medial_head": 0.6,
+    "trapezius_upper": 0.4,
+    "triceps_brachii_long_head": 0.4,
+    "serratus_anterior": 0.35,
+    "pectoralis_major_clavicular": 0.3,
+    "trapezius_lower": 0.2
+   }
+  },
+  "948ed302-b016-422e-909f-5745974ad237": {
+   "name": "dumbbell shrug",
+   "regions": {
+    "trapezius_upper": 1.0,
+    "levator_scapulae": 0.6,
+    "trapezius_mid": 0.4,
+    "wrist_flexor_group": 0.4,
+    "flexor_carpi_radialis": 0.35,
+    "rhomboids": 0.25
+   }
+  },
+  "a1000017-0000-4000-a000-000000000017": {
+   "name": "dumbbell single-arm triceps extension",
+   "regions": {
+    "triceps_brachii_long_head": 1.0,
+    "triceps_brachii_lateral_head": 0.8,
+    "triceps_brachii_medial_head": 0.8,
+    "anconeus": 0.25
+   }
+  },
+  "a1000013-0000-4000-a000-000000000013": {
+   "name": "dumbbell triceps extension",
+   "regions": {
+    "triceps_brachii_long_head": 1.0,
+    "triceps_brachii_lateral_head": 0.8,
+    "triceps_brachii_medial_head": 0.8,
+    "anconeus": 0.25
+   }
+  },
+  "4bc09b25-73b1-4650-85fb-a00787011227": {
+   "name": "hack squat",
+   "regions": {
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0,
+    "gluteus_maximus_lower": 0.7,
+    "rectus_femoris": 0.55,
+    "adductor_magnus": 0.5,
+    "gluteus_maximus_upper": 0.4,
+    "biceps_femoris_long_head": 0.2,
+    "semimembranosus": 0.2,
+    "semitendinosus": 0.2
+   }
+  },
+  "d4f24c84-079d-4f7b-9f70-54c349389b97": {
+   "name": "hack squat calf raise",
+   "regions": {
+    "gastrocnemius": 1.0,
+    "soleus": 0.65,
+    "peroneus_longus": 0.2
+   }
+  },
+  "0a9a30d2-59d7-40df-b938-7405b28d5446": {
+   "name": "hanging knee raise",
+   "regions": {
+    "rectus_abdominis_lower": 1.0,
+    "rectus_abdominis_mid": 0.8,
+    "rectus_femoris": 0.55,
+    "rectus_abdominis_upper": 0.5,
+    "external_oblique": 0.4,
+    "wrist_flexor_group": 0.4,
+    "flexor_carpi_radialis": 0.35,
+    "internal_oblique": 0.35,
+    "sartorius": 0.35,
+    "tensor_fasciae_latae": 0.3
+   }
+  },
+  "6fbd0eda-ed4c-4304-8d67-e3908cb88caf": {
+   "name": "hanging leg raise",
+   "regions": {
+    "rectus_abdominis_lower": 1.0,
+    "rectus_abdominis_mid": 0.85,
+    "rectus_femoris": 0.7,
+    "rectus_abdominis_upper": 0.6,
+    "external_oblique": 0.45,
+    "internal_oblique": 0.4,
+    "sartorius": 0.4,
+    "wrist_flexor_group": 0.4,
+    "flexor_carpi_radialis": 0.35,
+    "tensor_fasciae_latae": 0.35
+   }
+  },
+  "f03c26f2-0bcb-4e1e-9a87-c3fe2a9dbf75": {
+   "name": "heel touch",
+   "regions": {
+    "external_oblique": 1.0,
+    "internal_oblique": 0.85,
+    "rectus_abdominis_upper": 0.6,
+    "rectus_abdominis_mid": 0.55,
+    "rectus_abdominis_lower": 0.35
+   }
+  },
+  "3d23b0bd-3706-4c28-852d-f98ff26f9e57": {
+   "name": "hip abduction machine",
+   "regions": {
+    "gluteus_medius": 1.0,
+    "gluteus_maximus_upper": 0.8,
+    "tensor_fasciae_latae": 0.6
+   }
+  },
+  "9ad36eac-ab3e-4c1b-a516-234e1c4d086c": {
+   "name": "hip adduction machine",
+   "regions": {
+    "adductor_longus": 1.0,
+    "adductor_magnus": 1.0,
+    "gracilis": 0.7,
+    "pectineus": 0.6
+   }
+  },
+  "552d6eee-5ede-4749-87a6-d546aef10f2a": {
+   "name": "hip thrust",
+   "regions": {
+    "gluteus_maximus_lower": 1.0,
+    "gluteus_maximus_upper": 0.85,
+    "adductor_magnus": 0.4,
+    "gluteus_medius": 0.4,
+    "biceps_femoris_long_head": 0.35,
+    "semimembranosus": 0.35,
+    "semitendinosus": 0.35,
+    "vastus_lateralis": 0.25,
+    "vastus_medialis": 0.25
+   }
+  },
+  "0be1d654-200d-4566-957b-b749990382ba": {
+   "name": "incline bench press",
+   "regions": {
+    "pectoralis_major_clavicular": 1.0,
+    "pectoralis_major_sternal": 0.8,
+    "deltoid_anterior": 0.75,
+    "triceps_brachii_lateral_head": 0.55,
+    "triceps_brachii_medial_head": 0.55,
+    "pectoralis_major_abdominal": 0.4,
+    "triceps_brachii_long_head": 0.4
+   }
+  },
+  "a1000002-0000-4000-a000-000000000002": {
+   "name": "incline dumbbell bench press",
+   "regions": {
+    "pectoralis_major_clavicular": 1.0,
+    "pectoralis_major_sternal": 0.8,
+    "deltoid_anterior": 0.7,
+    "triceps_brachii_lateral_head": 0.45,
+    "triceps_brachii_medial_head": 0.45,
+    "pectoralis_major_abdominal": 0.4,
+    "triceps_brachii_long_head": 0.3
+   }
+  },
+  "1a0455ba-ea29-4464-9bc4-07e30b481f82": {
+   "name": "incline dumbbell curl",
+   "regions": {
+    "biceps_brachii_long_head": 1.0,
+    "biceps_brachii_short_head": 0.8,
+    "brachialis": 0.55,
+    "brachioradialis": 0.35,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "75438867-0ae2-49d7-a63f-10949f4aa15b": {
+   "name": "incline dumbbell fly",
+   "regions": {
+    "pectoralis_major_clavicular": 1.0,
+    "pectoralis_major_sternal": 0.8,
+    "deltoid_anterior": 0.6,
+    "pectoralis_major_abdominal": 0.35,
+    "biceps_brachii_short_head": 0.2
+   }
+  },
+  "8f3f1932-f0e7-47a3-8cc4-452fb4f65fc7": {
+   "name": "incline hammer curl",
+   "regions": {
+    "brachialis": 1.0,
+    "brachioradialis": 1.0,
+    "biceps_brachii_long_head": 0.75,
+    "biceps_brachii_short_head": 0.5,
+    "extensor_carpi_radialis": 0.3,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "84656e5f-eaf2-4f3f-b8a7-e6600b381c20": {
+   "name": "incline push ups",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.9,
+    "triceps_brachii_lateral_head": 0.55,
+    "triceps_brachii_medial_head": 0.55,
+    "deltoid_anterior": 0.5,
+    "pectoralis_major_clavicular": 0.5,
+    "serratus_anterior": 0.35,
+    "triceps_brachii_long_head": 0.35
+   }
+  },
+  "a1000016-0000-4000-a000-000000000016": {
+   "name": "iso lateral chest press",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.85,
+    "pectoralis_major_clavicular": 0.65,
+    "deltoid_anterior": 0.55,
+    "triceps_brachii_lateral_head": 0.55,
+    "triceps_brachii_medial_head": 0.55,
+    "triceps_brachii_long_head": 0.4
+   }
+  },
+  "3ae96025-440d-403f-a14e-a07014084855": {
+   "name": "iso lateral high row",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.8,
+    "rhomboids": 0.7,
+    "teres_major": 0.7,
+    "trapezius_mid": 0.6,
+    "deltoid_posterior": 0.55,
+    "trapezius_lower": 0.55,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "brachioradialis": 0.35,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "b1a496a4-8832-4a8d-9f88-6f693f7b9fef": {
+   "name": "iso lateral incline chest press",
+   "regions": {
+    "pectoralis_major_clavicular": 1.0,
+    "pectoralis_major_sternal": 0.8,
+    "deltoid_anterior": 0.7,
+    "triceps_brachii_lateral_head": 0.5,
+    "triceps_brachii_medial_head": 0.5,
+    "pectoralis_major_abdominal": 0.4,
+    "triceps_brachii_long_head": 0.35
+   }
+  },
+  "fdacf391-3724-43bc-b312-8a24f7b56fbb": {
+   "name": "iso lateral low row",
+   "regions": {
+    "latissimus_dorsi_lower": 1.0,
+    "latissimus_dorsi_upper": 0.85,
+    "rhomboids": 0.7,
+    "trapezius_mid": 0.6,
+    "teres_major": 0.55,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "deltoid_posterior": 0.45,
+    "trapezius_lower": 0.45,
+    "brachioradialis": 0.35,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "946c8fec-ed61-4095-8c29-359e83a0713d": {
+   "name": "iso lateral machine row",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.9,
+    "rhomboids": 0.8,
+    "trapezius_mid": 0.75,
+    "deltoid_posterior": 0.55,
+    "teres_major": 0.55,
+    "trapezius_lower": 0.5,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "brachioradialis": 0.35,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "c938f62d-c6d4-4111-ba8e-1937a356f42b": {
+   "name": "iso lateral shoulder press",
+   "regions": {
+    "deltoid_anterior": 1.0,
+    "deltoid_lateral": 0.7,
+    "triceps_brachii_lateral_head": 0.6,
+    "triceps_brachii_medial_head": 0.6,
+    "triceps_brachii_long_head": 0.4,
+    "trapezius_upper": 0.35,
+    "pectoralis_major_clavicular": 0.3,
+    "serratus_anterior": 0.3
+   }
+  },
+  "e77ae65c-f2af-46bc-b1d8-95d27b55042f": {
+   "name": "kettlebell alternating arm swing",
+   "regions": {
+    "gluteus_maximus_lower": 1.0,
+    "biceps_femoris_long_head": 0.75,
+    "semimembranosus": 0.75,
+    "semitendinosus": 0.75,
+    "gluteus_maximus_upper": 0.65,
+    "erector_spinae": 0.6,
+    "adductor_magnus": 0.5,
+    "wrist_flexor_group": 0.45,
+    "flexor_carpi_radialis": 0.4,
+    "deltoid_anterior": 0.35,
+    "biceps_femoris_short_head": 0.25,
+    "external_oblique": 0.25,
+    "latissimus_dorsi": 0.25,
+    "rectus_abdominis": 0.25,
+    "trapezius_upper": 0.25
+   }
+  },
+  "74861b90-f508-4732-bb04-7f39bd7d5198": {
+   "name": "landmine press",
+   "regions": {
+    "deltoid_anterior": 1.0,
+    "pectoralis_major_clavicular": 0.85,
+    "triceps_brachii_lateral_head": 0.55,
+    "triceps_brachii_medial_head": 0.55,
+    "pectoralis_major_sternal": 0.5,
+    "serratus_anterior": 0.5,
+    "triceps_brachii_long_head": 0.4,
+    "deltoid_lateral": 0.3,
+    "external_oblique": 0.25,
+    "internal_oblique": 0.2
+   }
+  },
+  "e9162aec-3d30-43ab-b8bf-8feadc0a8f3d": {
+   "name": "lat pulldown",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.9,
+    "teres_major": 0.7,
+    "biceps_brachii": 0.5,
+    "brachialis": 0.45,
+    "rhomboids": 0.45,
+    "trapezius_lower": 0.45,
+    "deltoid_posterior": 0.35,
+    "trapezius_mid": 0.35,
+    "brachioradialis": 0.3,
+    "flexor_carpi_radialis": 0.2,
+    "pectoralis_major_abdominal": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "df6f4abe-b195-49f6-b4d9-08347e3834ce": {
+   "name": "leg extension",
+   "regions": {
+    "rectus_femoris": 1.0,
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0
+   }
+  },
+  "f42a60d9-7c40-45d1-8e13-f51300e97f59": {
+   "name": "lying leg curl",
+   "regions": {
+    "biceps_femoris_short_head": 1.0,
+    "semitendinosus": 1.0,
+    "biceps_femoris_long_head": 0.9,
+    "semimembranosus": 0.9,
+    "gastrocnemius": 0.35,
+    "gracilis": 0.25,
+    "sartorius": 0.2
+   }
+  },
+  "33ff7c8e-1887-488b-aa92-14f10518bf42": {
+   "name": "lying leg raise",
+   "regions": {
+    "rectus_abdominis_lower": 1.0,
+    "rectus_abdominis_mid": 0.75,
+    "rectus_femoris": 0.75,
+    "rectus_abdominis_upper": 0.45,
+    "sartorius": 0.4,
+    "external_oblique": 0.35,
+    "internal_oblique": 0.35,
+    "tensor_fasciae_latae": 0.35
+   }
+  },
+  "a1000012-0000-4000-a000-000000000012": {
+   "name": "machine bicep curl",
+   "regions": {
+    "biceps_brachii_short_head": 1.0,
+    "biceps_brachii_long_head": 0.85,
+    "brachialis": 0.7,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "2fb8a819-001d-4213-9d15-91c879fe5f7a": {
+   "name": "machine chest press",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.8,
+    "pectoralis_major_clavicular": 0.7,
+    "deltoid_anterior": 0.55,
+    "triceps_brachii_lateral_head": 0.55,
+    "triceps_brachii_medial_head": 0.55,
+    "triceps_brachii_long_head": 0.4
+   }
+  },
+  "45233a3a-9de5-411e-be2c-ced01954a13d": {
+   "name": "machine crunch",
+   "regions": {
+    "rectus_abdominis_mid": 1.0,
+    "rectus_abdominis_upper": 1.0,
+    "rectus_abdominis_lower": 0.75,
+    "external_oblique": 0.4,
+    "internal_oblique": 0.35
+   }
+  },
+  "fbd577f0-7372-4784-9194-6db70e91cc72": {
+   "name": "machine glute kickback",
+   "regions": {
+    "gluteus_maximus_lower": 1.0,
+    "gluteus_maximus_upper": 0.75,
+    "biceps_femoris_long_head": 0.35,
+    "gluteus_medius": 0.35,
+    "semimembranosus": 0.35,
+    "semitendinosus": 0.35,
+    "adductor_magnus": 0.3
+   }
+  },
+  "5d00e010-7402-4811-9251-ee0b950365ec": {
+   "name": "machine high row",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.8,
+    "rhomboids": 0.7,
+    "teres_major": 0.7,
+    "trapezius_mid": 0.6,
+    "deltoid_posterior": 0.55,
+    "trapezius_lower": 0.55,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "brachioradialis": 0.35,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "886784f5-d5c3-4041-9f33-3cbaf8e45612": {
+   "name": "machine hip thrust",
+   "regions": {
+    "gluteus_maximus_lower": 1.0,
+    "gluteus_maximus_upper": 0.85,
+    "adductor_magnus": 0.4,
+    "gluteus_medius": 0.4,
+    "biceps_femoris_long_head": 0.3,
+    "semimembranosus": 0.3,
+    "semitendinosus": 0.3,
+    "vastus_lateralis": 0.25,
+    "vastus_medialis": 0.25
+   }
+  },
+  "7e1eab84-6825-483e-a64c-4f85037a11e3": {
+   "name": "machine lateral raise",
+   "regions": {
+    "deltoid_lateral": 1.0,
+    "deltoid_anterior": 0.35,
+    "trapezius_upper": 0.3,
+    "deltoid_posterior": 0.25,
+    "serratus_anterior": 0.2
+   }
+  },
+  "d9de35d4-6a0a-4b17-889a-3c6491ea2789": {
+   "name": "machine preacher curl",
+   "regions": {
+    "biceps_brachii_short_head": 1.0,
+    "biceps_brachii_long_head": 0.85,
+    "brachialis": 0.7,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "33f244fb-487d-449f-9fcf-085793e01062": {
+   "name": "machine reverse fly",
+   "regions": {
+    "deltoid_posterior": 1.0,
+    "trapezius_mid": 0.6,
+    "rhomboids": 0.55,
+    "infraspinatus": 0.45,
+    "teres_minor": 0.4,
+    "trapezius_lower": 0.4,
+    "deltoid_lateral": 0.3
+   }
+  },
+  "a1ad8a22-4c22-4506-9ceb-33acbcdf1766": {
+   "name": "machine shoulder press",
+   "regions": {
+    "deltoid_anterior": 1.0,
+    "deltoid_lateral": 0.7,
+    "triceps_brachii_lateral_head": 0.6,
+    "triceps_brachii_medial_head": 0.6,
+    "triceps_brachii_long_head": 0.4,
+    "trapezius_upper": 0.35,
+    "pectoralis_major_clavicular": 0.3,
+    "serratus_anterior": 0.3
+   }
+  },
+  "41079df2-baf2-413e-b2ff-b40a828846a5": {
+   "name": "machine shrugs",
+   "regions": {
+    "trapezius_upper": 1.0,
+    "levator_scapulae": 0.6,
+    "trapezius_mid": 0.4,
+    "wrist_flexor_group": 0.3,
+    "flexor_carpi_radialis": 0.25,
+    "rhomboids": 0.25
+   }
+  },
+  "7f3926d6-0642-4330-ac74-80a946cfbde7": {
+   "name": "machine tricep extension",
+   "regions": {
+    "triceps_brachii_lateral_head": 1.0,
+    "triceps_brachii_medial_head": 1.0,
+    "triceps_brachii_long_head": 0.8,
+    "anconeus": 0.3
+   }
+  },
+  "00b135d4-8cf6-4736-8ace-ab266164a37f": {
+   "name": "military press",
+   "regions": {
+    "deltoid_anterior": 1.0,
+    "deltoid_lateral": 0.7,
+    "triceps_brachii_lateral_head": 0.65,
+    "triceps_brachii_medial_head": 0.65,
+    "trapezius_upper": 0.5,
+    "triceps_brachii_long_head": 0.45,
+    "serratus_anterior": 0.4,
+    "pectoralis_major_clavicular": 0.35,
+    "trapezius_lower": 0.25,
+    "erector_spinae": 0.2,
+    "rectus_abdominis": 0.2
+   }
+  },
+  "b65a9ff1-a612-4e89-8ecb-1d0bc31ef634": {
+   "name": "muscle ups",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.9,
+    "triceps_brachii_lateral_head": 0.8,
+    "triceps_brachii_medial_head": 0.8,
+    "pectoralis_major_abdominal": 0.7,
+    "pectoralis_major_sternal": 0.6,
+    "teres_major": 0.6,
+    "triceps_brachii_long_head": 0.6,
+    "biceps_brachii": 0.5,
+    "deltoid_anterior": 0.5,
+    "brachialis": 0.4,
+    "flexor_carpi_radialis": 0.4,
+    "wrist_flexor_group": 0.4,
+    "trapezius_lower": 0.35,
+    "rectus_abdominis": 0.3,
+    "rhomboids": 0.3
+   }
+  },
+  "9751dcfc-d9b1-48ce-aadc-b36f9ec65fb4": {
+   "name": "one arm seated cable row",
+   "regions": {
+    "latissimus_dorsi_lower": 1.0,
+    "latissimus_dorsi_upper": 0.85,
+    "rhomboids": 0.75,
+    "trapezius_mid": 0.65,
+    "teres_major": 0.55,
+    "deltoid_posterior": 0.5,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "trapezius_lower": 0.45,
+    "brachioradialis": 0.35,
+    "erector_spinae": 0.25,
+    "flexor_carpi_radialis": 0.25,
+    "wrist_flexor_group": 0.25,
+    "external_oblique": 0.2
+   }
+  },
+  "d51320ba-3a5a-4abe-a219-c18d25303a95": {
+   "name": "overhead cable triceps extension",
+   "regions": {
+    "triceps_brachii_long_head": 1.0,
+    "triceps_brachii_lateral_head": 0.8,
+    "triceps_brachii_medial_head": 0.8,
+    "anconeus": 0.25
+   }
+  },
+  "88f6fc3a-cba3-4cde-ad03-741cc8bb3552": {
+   "name": "pec deck pectoral fly",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.8,
+    "pectoralis_major_clavicular": 0.75,
+    "deltoid_anterior": 0.4
+   }
+  },
+  "12329b18-1468-4482-a54c-e99d5428799d": {
+   "name": "pendlay row",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.9,
+    "rhomboids": 0.9,
+    "trapezius_mid": 0.8,
+    "deltoid_posterior": 0.65,
+    "erector_spinae": 0.65,
+    "teres_major": 0.6,
+    "trapezius_lower": 0.55,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.35,
+    "trapezius_upper": 0.35,
+    "wrist_flexor_group": 0.35,
+    "biceps_femoris_long_head": 0.3,
+    "gluteus_maximus_lower": 0.3,
+    "semimembranosus": 0.3,
+    "semitendinosus": 0.3
+   }
+  },
+  "84aa482b-d36c-4573-a700-cbb84fc2d6bc": {
+   "name": "plank",
+   "regions": {
+    "rectus_abdominis_mid": 1.0,
+    "rectus_abdominis_lower": 0.9,
+    "rectus_abdominis_upper": 0.8,
+    "internal_oblique": 0.65,
+    "external_oblique": 0.6,
+    "deltoid_anterior": 0.3,
+    "serratus_anterior": 0.3,
+    "erector_spinae": 0.2,
+    "gluteus_maximus_lower": 0.2
+   }
+  },
+  "20c3f527-6526-4964-acac-434d81d8d7cf": {
+   "name": "pull ups",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.95,
+    "teres_major": 0.7,
+    "biceps_brachii": 0.55,
+    "brachialis": 0.5,
+    "trapezius_lower": 0.5,
+    "rhomboids": 0.45,
+    "brachioradialis": 0.35,
+    "deltoid_posterior": 0.35,
+    "flexor_carpi_radialis": 0.35,
+    "trapezius_mid": 0.35,
+    "wrist_flexor_group": 0.35,
+    "pectoralis_major_abdominal": 0.2,
+    "rectus_abdominis": 0.2
+   }
+  },
+  "a1000008-0000-4000-a000-000000000008": {
+   "name": "push up",
+   "regions": {
+    "pectoralis_major_sternal": 1.0,
+    "pectoralis_major_abdominal": 0.8,
+    "pectoralis_major_clavicular": 0.7,
+    "deltoid_anterior": 0.6,
+    "triceps_brachii_lateral_head": 0.6,
+    "triceps_brachii_medial_head": 0.6,
+    "serratus_anterior": 0.4,
+    "triceps_brachii_long_head": 0.4,
+    "rectus_abdominis": 0.25
+   }
+  },
+  "8bd5ac89-64c5-4cd4-8452-fa31658ce687": {
+   "name": "rear delt fly",
+   "regions": {
+    "deltoid_posterior": 1.0,
+    "trapezius_mid": 0.6,
+    "rhomboids": 0.55,
+    "infraspinatus": 0.45,
+    "teres_minor": 0.4,
+    "trapezius_lower": 0.4,
+    "deltoid_lateral": 0.3
+   }
+  },
+  "1c24c456-dadc-4b12-9b36-69a6b15ef827": {
+   "name": "reverse barbell curl",
+   "regions": {
+    "brachioradialis": 1.0,
+    "brachialis": 0.9,
+    "extensor_carpi_radialis": 0.65,
+    "biceps_brachii_long_head": 0.4,
+    "extensor_digitorum": 0.4,
+    "biceps_brachii_short_head": 0.35,
+    "extensor_carpi_ulnaris": 0.3,
+    "pronator_teres": 0.25
+   }
+  },
+  "97be343c-3cd0-4b38-aa93-c904d465afb2": {
+   "name": "reverse dumbbell fly",
+   "regions": {
+    "deltoid_posterior": 1.0,
+    "trapezius_mid": 0.6,
+    "rhomboids": 0.55,
+    "infraspinatus": 0.45,
+    "teres_minor": 0.4,
+    "trapezius_lower": 0.4,
+    "deltoid_lateral": 0.3,
+    "erector_spinae": 0.2
+   }
+  },
+  "6722752a-1efd-41e2-a246-d1449a2e5377": {
+   "name": "romanian deadlift",
+   "regions": {
+    "biceps_femoris_long_head": 1.0,
+    "semimembranosus": 1.0,
+    "semitendinosus": 1.0,
+    "gluteus_maximus_lower": 0.85,
+    "adductor_magnus": 0.6,
+    "erector_spinae": 0.6,
+    "gluteus_maximus_upper": 0.5,
+    "wrist_flexor_group": 0.4,
+    "flexor_carpi_radialis": 0.35,
+    "trapezius_upper": 0.3,
+    "trapezius_mid": 0.25,
+    "biceps_femoris_short_head": 0.2,
+    "latissimus_dorsi": 0.2
+   }
+  },
+  "a100001b-0000-4000-a000-00000000001b": {
+   "name": "running",
+   "regions": {
+    "gastrocnemius": 1.0,
+    "soleus": 1.0,
+    "gluteus_maximus_lower": 0.8,
+    "vastus_lateralis": 0.8,
+    "vastus_medialis": 0.8,
+    "biceps_femoris_long_head": 0.7,
+    "rectus_femoris": 0.7,
+    "semimembranosus": 0.7,
+    "semitendinosus": 0.7,
+    "biceps_femoris_short_head": 0.55,
+    "gluteus_maximus_upper": 0.5,
+    "gluteus_medius": 0.5,
+    "tibialis_anterior": 0.4,
+    "tensor_fasciae_latae": 0.3,
+    "sartorius": 0.25
+   }
+  },
+  "0d43f3f7-470e-4fd6-a421-f1beeb211fbe": {
+   "name": "seated cable row",
+   "regions": {
+    "latissimus_dorsi_lower": 1.0,
+    "latissimus_dorsi_upper": 0.9,
+    "rhomboids": 0.8,
+    "trapezius_mid": 0.7,
+    "teres_major": 0.55,
+    "brachialis": 0.5,
+    "deltoid_posterior": 0.5,
+    "biceps_brachii": 0.45,
+    "trapezius_lower": 0.45,
+    "brachioradialis": 0.4,
+    "erector_spinae": 0.3,
+    "flexor_carpi_radialis": 0.25,
+    "wrist_flexor_group": 0.25
+   }
+  },
+  "106c5e56-e3ff-447b-beca-d02b2eec55a2": {
+   "name": "seated calf raise",
+   "regions": {
+    "soleus": 1.0,
+    "gastrocnemius": 0.3,
+    "peroneus_longus": 0.25
+   }
+  },
+  "416b0139-4973-4e98-959e-f3976ae9fc98": {
+   "name": "seated dumbbell lateral raise",
+   "regions": {
+    "deltoid_lateral": 1.0,
+    "deltoid_anterior": 0.35,
+    "trapezius_upper": 0.35,
+    "serratus_anterior": 0.25,
+    "deltoid_posterior": 0.2,
+    "trapezius_mid": 0.2
+   }
+  },
+  "9e49c6f6-ae2f-4422-b98d-0d72732051ae": {
+   "name": "seated leg curl",
+   "regions": {
+    "biceps_femoris": 1.0,
+    "semimembranosus": 1.0,
+    "semitendinosus": 1.0,
+    "gastrocnemius": 0.25,
+    "gracilis": 0.25,
+    "sartorius": 0.2
+   }
+  },
+  "27ae9df5-a3fa-4fc0-9936-c64a1d4f9881": {
+   "name": "seated leg press",
+   "regions": {
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0,
+    "gluteus_maximus_lower": 0.75,
+    "adductor_magnus": 0.55,
+    "rectus_femoris": 0.5,
+    "gluteus_maximus_upper": 0.45,
+    "biceps_femoris_long_head": 0.2,
+    "semimembranosus": 0.2,
+    "semitendinosus": 0.2
+   }
+  },
+  "63fee777-64fe-493a-a6d3-b6f78eedbc14": {
+   "name": "seated machine row",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "latissimus_dorsi_lower": 0.9,
+    "rhomboids": 0.8,
+    "trapezius_mid": 0.75,
+    "deltoid_posterior": 0.55,
+    "teres_major": 0.55,
+    "trapezius_lower": 0.5,
+    "biceps_brachii": 0.45,
+    "brachialis": 0.45,
+    "brachioradialis": 0.35,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "a28fb4ac-46fc-45e3-b57d-a7e53a3fbe48": {
+   "name": "seated wide grip cable row",
+   "regions": {
+    "latissimus_dorsi_upper": 1.0,
+    "rhomboids": 0.85,
+    "trapezius_mid": 0.85,
+    "deltoid_posterior": 0.7,
+    "latissimus_dorsi_lower": 0.7,
+    "teres_major": 0.7,
+    "trapezius_lower": 0.5,
+    "biceps_brachii": 0.4,
+    "brachialis": 0.4,
+    "brachioradialis": 0.35,
+    "erector_spinae": 0.3,
+    "infraspinatus": 0.3,
+    "flexor_carpi_radialis": 0.25,
+    "wrist_flexor_group": 0.25
+   }
+  },
+  "d1365768-4bf8-4ad8-a714-c4a18789b8ec": {
+   "name": "single arm tricep pushdown",
+   "regions": {
+    "triceps_brachii_lateral_head": 1.0,
+    "triceps_brachii_medial_head": 1.0,
+    "triceps_brachii_long_head": 0.7,
+    "anconeus": 0.35
+   }
+  },
+  "3fb76720-052d-4e69-b5fc-df867c30b73a": {
+   "name": "single leg extension",
+   "regions": {
+    "rectus_femoris": 1.0,
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0
+   }
+  },
+  "9af5bb3d-6bf1-4de7-8975-439c2171914e": {
+   "name": "smith machine bulgarian split squat",
+   "regions": {
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0,
+    "gluteus_maximus_lower": 0.9,
+    "gluteus_maximus_upper": 0.6,
+    "adductor_magnus": 0.55,
+    "rectus_femoris": 0.55,
+    "gluteus_medius": 0.4,
+    "biceps_femoris_long_head": 0.3,
+    "semimembranosus": 0.3,
+    "semitendinosus": 0.3
+   }
+  },
+  "a10688c3-5c19-42d4-9740-41c6f1435955": {
+   "name": "smith machine calf raise",
+   "regions": {
+    "gastrocnemius": 1.0,
+    "soleus": 0.65,
+    "peroneus_longus": 0.25
+   }
+  },
+  "09789cb0-3be7-4f2d-957b-8d56a2aa8723": {
+   "name": "smith machine incline bench press",
+   "regions": {
+    "pectoralis_major_clavicular": 1.0,
+    "pectoralis_major_sternal": 0.8,
+    "deltoid_anterior": 0.75,
+    "triceps_brachii_lateral_head": 0.55,
+    "triceps_brachii_medial_head": 0.55,
+    "pectoralis_major_abdominal": 0.4,
+    "triceps_brachii_long_head": 0.4
+   }
+  },
+  "a1000004-0000-4000-a000-000000000004": {
+   "name": "smith machine overhead press",
+   "regions": {
+    "deltoid_anterior": 1.0,
+    "deltoid_lateral": 0.7,
+    "triceps_brachii_lateral_head": 0.6,
+    "triceps_brachii_medial_head": 0.6,
+    "trapezius_upper": 0.4,
+    "triceps_brachii_long_head": 0.4,
+    "pectoralis_major_clavicular": 0.3,
+    "serratus_anterior": 0.3
+   }
+  },
+  "89929de8-14e9-4e40-a1e2-c3f0bba1c3e4": {
+   "name": "smith machine squat",
+   "regions": {
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0,
+    "gluteus_maximus_lower": 0.85,
+    "adductor_magnus": 0.6,
+    "rectus_femoris": 0.6,
+    "gluteus_maximus_upper": 0.5,
+    "erector_spinae": 0.3,
+    "biceps_femoris_long_head": 0.25,
+    "gluteus_medius": 0.25,
+    "semimembranosus": 0.25,
+    "semitendinosus": 0.25
+   }
+  },
+  "12d18cc3-8b69-4bd5-9767-d20bf0af7d6e": {
+   "name": "spider curl",
+   "regions": {
+    "biceps_brachii_short_head": 1.0,
+    "biceps_brachii_long_head": 0.85,
+    "brachialis": 0.7,
+    "brachioradialis": 0.4,
+    "flexor_carpi_radialis": 0.2,
+    "wrist_flexor_group": 0.2
+   }
+  },
+  "9a3d3c76-fe3e-4e5a-8c6d-010abd0ace33": {
+   "name": "stair machine",
+   "regions": {
+    "gluteus_maximus_lower": 1.0,
+    "vastus_lateralis": 0.9,
+    "vastus_medialis": 0.9,
+    "gluteus_maximus_upper": 0.6,
+    "soleus": 0.6,
+    "gastrocnemius": 0.55,
+    "rectus_femoris": 0.5,
+    "biceps_femoris_long_head": 0.45,
+    "gluteus_medius": 0.45,
+    "semimembranosus": 0.45,
+    "semitendinosus": 0.45,
+    "adductor_magnus": 0.35,
+    "biceps_femoris_short_head": 0.3
+   }
+  },
+  "09f228db-b2b7-4195-bcc6-855442b8884e": {
+   "name": "standing calf raise",
+   "regions": {
+    "gastrocnemius": 1.0,
+    "soleus": 0.65,
+    "peroneus_longus": 0.25
+   }
+  },
+  "75437f5e-8f01-4cfe-97d1-034f080978a4": {
+   "name": "stiff-legged deadlift",
+   "regions": {
+    "biceps_femoris_long_head": 1.0,
+    "semimembranosus": 1.0,
+    "semitendinosus": 1.0,
+    "gluteus_maximus_lower": 0.8,
+    "erector_spinae": 0.7,
+    "adductor_magnus": 0.55,
+    "gluteus_maximus_upper": 0.45,
+    "wrist_flexor_group": 0.4,
+    "flexor_carpi_radialis": 0.35,
+    "trapezius_upper": 0.35,
+    "trapezius_mid": 0.25,
+    "biceps_femoris_short_head": 0.2,
+    "latissimus_dorsi": 0.2
+   }
+  },
+  "a100000c-0000-4000-a000-00000000000c": {
+   "name": "straight arm pulldown",
+   "regions": {
+    "latissimus_dorsi": 1.0,
+    "teres_major": 0.75,
+    "triceps_brachii_long_head": 0.4,
+    "deltoid_posterior": 0.35,
+    "pectoralis_major_abdominal": 0.3,
+    "trapezius_lower": 0.3
+   }
+  },
+  "3fb4567d-90e0-4445-8f65-7ba3b76e0faa": {
+   "name": "trap bar deadlift",
+   "regions": {
+    "gluteus_maximus_lower": 1.0,
+    "vastus_lateralis": 0.9,
+    "vastus_medialis": 0.9,
+    "erector_spinae": 0.75,
+    "adductor_magnus": 0.6,
+    "gluteus_maximus_upper": 0.6,
+    "trapezius_upper": 0.6,
+    "wrist_flexor_group": 0.6,
+    "biceps_femoris_long_head": 0.55,
+    "semimembranosus": 0.55,
+    "semitendinosus": 0.55,
+    "flexor_carpi_radialis": 0.5,
+    "rectus_femoris": 0.4,
+    "trapezius_mid": 0.35,
+    "biceps_femoris_short_head": 0.25,
+    "latissimus_dorsi": 0.2,
+    "rectus_abdominis": 0.2
+   }
+  },
+  "da2d6b67-c675-4a94-a07d-19e62ae1b08a": {
+   "name": "treadmill",
+   "regions": {
+    "gastrocnemius": 1.0,
+    "soleus": 0.9,
+    "gluteus_maximus_lower": 0.75,
+    "vastus_lateralis": 0.75,
+    "vastus_medialis": 0.75,
+    "biceps_femoris_long_head": 0.6,
+    "rectus_femoris": 0.6,
+    "semimembranosus": 0.6,
+    "semitendinosus": 0.6,
+    "biceps_femoris_short_head": 0.45,
+    "gluteus_maximus_upper": 0.45,
+    "gluteus_medius": 0.45,
+    "tibialis_anterior": 0.4
+   }
+  },
+  "3df61a9f-25b6-4427-ade9-3c85f8a39597": {
+   "name": "tri dirty 30",
+   "regions": {
+    "triceps_brachii_lateral_head": 1.0,
+    "triceps_brachii_medial_head": 1.0,
+    "triceps_brachii_long_head": 0.85,
+    "anconeus": 0.3
+   }
+  },
+  "ea70ca17-f6cc-412a-a0b8-efcb2d7d1619": {
+   "name": "tricep kickback",
+   "regions": {
+    "triceps_brachii_lateral_head": 1.0,
+    "triceps_brachii_medial_head": 1.0,
+    "triceps_brachii_long_head": 0.75,
+    "anconeus": 0.3,
+    "deltoid_posterior": 0.2
+   }
+  },
+  "5d9af3af-1c5d-4e24-b4bf-d74b39c104e9": {
+   "name": "underhand barbell row",
+   "regions": {
+    "latissimus_dorsi_lower": 1.0,
+    "latissimus_dorsi_upper": 0.85,
+    "rhomboids": 0.75,
+    "trapezius_mid": 0.65,
+    "biceps_brachii": 0.6,
+    "erector_spinae": 0.55,
+    "teres_major": 0.55,
+    "brachialis": 0.5,
+    "deltoid_posterior": 0.5,
+    "trapezius_lower": 0.45,
+    "flexor_carpi_radialis": 0.35,
+    "wrist_flexor_group": 0.35,
+    "brachioradialis": 0.3,
+    "biceps_femoris_long_head": 0.25,
+    "gluteus_maximus_lower": 0.25,
+    "semimembranosus": 0.25,
+    "semitendinosus": 0.25,
+    "trapezius_upper": 0.25
+   }
+  },
+  "6a566169-d536-4501-95c5-04a99a564a4c": {
+   "name": "volleyball",
+   "regions": {
+    "gastrocnemius": 1.0,
+    "soleus": 0.9,
+    "vastus_lateralis": 0.9,
+    "vastus_medialis": 0.9,
+    "gluteus_maximus_lower": 0.85,
+    "deltoid_anterior": 0.7,
+    "deltoid_lateral": 0.6,
+    "rectus_femoris": 0.6,
+    "gluteus_maximus_upper": 0.5,
+    "biceps_femoris_long_head": 0.4,
+    "semimembranosus": 0.4,
+    "semitendinosus": 0.4,
+    "external_oblique": 0.35,
+    "gluteus_medius": 0.35,
+    "latissimus_dorsi_upper": 0.35,
+    "adductor_magnus": 0.3,
+    "internal_oblique": 0.3,
+    "rectus_abdominis": 0.3,
+    "triceps_brachii_lateral_head": 0.3,
+    "triceps_brachii_medial_head": 0.3
+   }
+  },
+  "ef6ad74a-684f-426d-8865-e2fd3f138944": {
+   "name": "walking lunge",
+   "regions": {
+    "vastus_lateralis": 1.0,
+    "vastus_medialis": 1.0,
+    "gluteus_maximus_lower": 0.9,
+    "rectus_femoris": 0.6,
+    "gluteus_maximus_upper": 0.55,
+    "adductor_magnus": 0.5,
+    "gluteus_medius": 0.45,
+    "biceps_femoris_long_head": 0.3,
+    "semimembranosus": 0.3,
+    "semitendinosus": 0.3
+   }
+  }
+ }
+}
