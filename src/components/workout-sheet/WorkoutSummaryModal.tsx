@@ -1013,7 +1013,8 @@ export default function WorkoutSummaryModal(props: Props) {
     </View>
   );
 
-  const shareData = {
+  // Memoised: a new exercises array on every render made the share image's body maps recompute and redraw.
+  const shareData = useMemo(() => ({
     exercises: displayExercises ?? (
       isJustCompleted
         ? (data as WorkoutSummary).exercises
@@ -1027,7 +1028,7 @@ export default function WorkoutSummaryModal(props: Props) {
     duration: displayDuration,
     date: isJustCompleted ? new Date() : new Date((data as WorkoutWithDetails).created_at),
     workoutName: workoutName.trim() || null,
-  };
+  }), [displayExercises, isJustCompleted, data, displayDuration, workoutName]);
 
   const subModals = (
     <>

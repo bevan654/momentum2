@@ -1,5 +1,7 @@
 # Community Module Audit
 
+> **Historical snapshot.** The component tree below has since been replaced: `FriendsTab`, `ActivityFeed`, `FeedCard`, `ReactionBar`, `FriendList`, `FriendRow`, `EmojiPicker`, `BottomSheet` and `MiniBodyMap` no longer exist. The Community tab is `src/screens/FriendsScreen.tsx` with `src/components/friends/`, the workout feed is `src/components/home/Feed.tsx`, and feed body maps are `src/components/body/WorkoutMiniMaps.tsx` (`momentum-muscle-map`, not SVG).
+
 ## Current Component Tree
 
 ```
