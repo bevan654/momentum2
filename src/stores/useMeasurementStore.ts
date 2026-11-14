@@ -84,7 +84,7 @@ export const useMeasurementStore = create<MeasurementState>((set, get) => ({
     try {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
-      const fromDate = cutoff.toISOString().split('T')[0];
+      const fromDate = toLocalDateString(cutoff); // entries are stored under the local date
 
       let query = supabase
         .from('measurement_entries')

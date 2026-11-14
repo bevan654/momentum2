@@ -56,7 +56,7 @@ export const useBodyFatStore = create<BodyFatState>((set, get) => ({
     try {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
-      const fromDate = cutoff.toISOString().split('T')[0];
+      const fromDate = toLocalDateString(cutoff); // entries are stored under the local date
 
       const { data } = await supabase
         .from('body_fat_entries')
