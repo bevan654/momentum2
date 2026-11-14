@@ -253,6 +253,8 @@ Key columns:
 
 **Applying migrations — never run `supabase db push`.** 15 early migrations (20260218–20260709) were applied by hand and are not in production's migration history, so `db push` would re-run them against live data. Apply a new migration file on its own, then record it: `insert into supabase_migrations.schema_migrations (version, name) values ('<version>', '<name>')`. The repo's migrations also can't rebuild the database from scratch (there's no baseline); for a local copy, restore a dump of production instead.
 
+**Edge functions:** `supabase/functions/` was re-synced from what is deployed on 2026-11-14 (several functions had been deployed from local copies that were never committed, including the AI rate-limit guard in `_shared/aiGuard.ts`; downloaded sources come back without TypeScript types). Before deploying a function, download the deployed version (`npx supabase functions download <name>` into a scratch copy) and diff it against the repo, so a deploy never rolls back someone else's change. Commit what you deploy.
+
 **Webhooks:** `profiles` (insert/update) and `notifications` (insert) have triggers that call production edge functions (Discord, push). Never apply data changes to those tables casually, and strip those triggers from any local copy.
 
 ### Cross-user reads
