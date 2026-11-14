@@ -14,6 +14,8 @@ interface PersistedWorkout {
   programWeek?: number | null;
   workoutTitle?: string | null;
   restAnchor?: { exerciseIndex: number; setIndex: number } | null;
+  /** Set when racing a friend's workout ("vs <name>"); the ghost's sets are each exercise's prevSets. */
+  ghostUserName?: string | null;
 }
 
 export function saveWorkout(state: PersistedWorkout): void {
@@ -58,6 +60,7 @@ export async function loadWorkoutAsync(): Promise<PersistedWorkout | null> {
       programWeek: parsed.programWeek ?? null,
       workoutTitle: typeof parsed.workoutTitle === 'string' ? parsed.workoutTitle : null,
       restAnchor: parseRestAnchor(parsed.restAnchor),
+      ghostUserName: typeof parsed.ghostUserName === 'string' && parsed.ghostUserName ? parsed.ghostUserName : null,
     };
   } catch {
     return null;

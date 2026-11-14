@@ -161,3 +161,13 @@ export async function stopWorkoutActivity(): Promise<void> {
 
   _active = false;
 }
+
+/**
+ * Dismisses a workout notification left over from a previous app run (the app
+ * was killed mid-workout). `stopWorkoutActivity` can't, because its "active"
+ * flag doesn't survive a restart. Call it only when no workout is active.
+ */
+export function clearStaleWorkoutActivity(): void {
+  if (Platform.OS !== 'ios' || _active) return;
+  Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
+}
