@@ -4,6 +4,7 @@
  */
 
 import type { ActiveExercise } from '../stores/useActiveWorkoutStore';
+import { isPlausibleBodyweight } from './muscleLoad';
 
 /** Longer gaps between two ticked sets aren't counted as rest (the app was left open). */
 const MAX_REST_SECONDS = 60 * 60;
@@ -189,7 +190,7 @@ export function buildWorkoutPayload(exercises: ActiveExercise[], ctx: WorkoutPay
         ? 'routine'
         : 'empty';
 
-  const bodyweight = ctx.bodyweightKg != null && ctx.bodyweightKg > 0 && ctx.bodyweightKg < 500 ? ctx.bodyweightKg : null;
+  const bodyweight = isPlausibleBodyweight(ctx.bodyweightKg) ? ctx.bodyweightKg : null;
   const offset = -new Date(ctx.startTime).getTimezoneOffset();
 
   const payload: WorkoutPayload = {

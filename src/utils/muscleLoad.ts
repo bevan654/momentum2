@@ -49,7 +49,8 @@ export function makeMuscleLoad(
   };
 }
 
-function isPlausibleBodyweight(kg: number | null | undefined): kg is number {
+/** Within BODYWEIGHT_RANGE_KG (the range onboarding allows); anything else is a typo. */
+export function isPlausibleBodyweight(kg: number | null | undefined): kg is number {
   return kg != null && kg >= BODYWEIGHT_RANGE_KG.min && kg <= BODYWEIGHT_RANGE_KG.max;
 }
 
