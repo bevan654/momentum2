@@ -267,7 +267,7 @@ function parseServingSizeText(text: unknown): { size: number; unit: 'g' | 'ml' }
   // Only trust a number with a g/ml unit ("30 g", "1 can (330 ml)", "12,5 g"). A bare count
   // like "2 biscuits" or "1 cup" isn't a weight, so leave the serving as an estimated 100 g.
   // A comma is a decimal mark only with 1–2 digits after it ("12,5 g"), not "1,000 ml".
-  const m = text.match(/(\d+(?:[.,]\d{1,2})?)(?!\d)\s*(g|ml)\b/i);
+  const m = text.match(/(?<![\d.,])(\d+(?:[.,]\d{1,2})?)(?!\d)\s*(g|ml)\b/i);
   if (m) {
     const n = Number(m[1].replace(',', '.'));
     if (Number.isFinite(n) && n > 0) return { size: n, unit: m[2].toLowerCase() === 'ml' ? 'ml' : 'g' };
