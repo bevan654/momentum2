@@ -107,8 +107,10 @@ export function hourFromTimeStart(timeStart: string): number {
  * most recently (by time_start), e.g. 13:00 → lunch with the default meals.
  */
 export function mealSlotForHour(configs: MealConfig[], hour: number): string {
-  const meals = configs
-    .filter((c) => c.enabled)
+  const enabled = configs.filter((c) => c.enabled);
+  // Skip untouched placeholder meals ("Meal 5") unless they're all there is.
+  const named = enabled.filter((c) => !isPlaceholderMeal(c.label));
+  const meals = (named.length ? named : enabled)
     .map((c) => ({ slot: c.slot, start: hourFromTimeStart(c.time_start) }))
     .sort((a, b) => a.start - b.start);
   if (meals.length === 0) return 'snack';
