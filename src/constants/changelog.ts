@@ -16,6 +16,21 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.44',
+    date: '2026-11-14',
+    title: "What's New",
+    items: [
+      'A new, far more detailed muscle map: see exactly which muscles each workout hit, down to individual heads, on recovery, history and the feed',
+      'Over 700 exercises in the library, with clearer names',
+      'Bodyweight exercises like push-ups, pull-ups and dips now count towards muscle heat, Training Balance and recovery',
+      'Feed posts now show your best reps for bodyweight exercises',
+      "Fixed: a workout you'd just started could disappear after closing the app",
+      "Fixed: racing a friend's workout now keeps the race going if the app restarts",
+      'Fixed: the workout notification no longer sticks around after the app was closed',
+    ],
+    cta: { label: 'See your recovery', target: 'Recovery' },
+  },
+  {
     version: '1.0.43',
     date: '2026-11-14',
     title: "What's New",
