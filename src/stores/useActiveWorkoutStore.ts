@@ -1108,7 +1108,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       // Fix superset refs
       return {
         restAnchor,
-        exercises: exercises.map((ex, i) => {
+        exercises: exercises.map((ex) => {
           let sw = ex.supersetWith;
           if (sw === null) return ex;
           if (sw === index) sw = null; // partner removed

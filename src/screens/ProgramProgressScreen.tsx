@@ -3,7 +3,6 @@ import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
@@ -26,8 +25,7 @@ export default function ProgramProgressScreen() {
   const getCurrentWeek = useProgramStore((s) => s.getCurrentWeek);
   const getDurationWeeks = useProgramStore((s) => s.getDurationWeeks);
   const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const isActive = program?.status === 'active';
   const currentWeek = isActive ? getCurrentWeek() : 0;
@@ -324,7 +322,7 @@ export default function ProgramProgressScreen() {
 
 /* ─── Styles ────────────────────────────────────────── */
 
-const createStyles = (colors: ThemeColors, topInset: number) => StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

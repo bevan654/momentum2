@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
@@ -36,8 +35,7 @@ export default function ProgramSummaryScreen() {
   const prevMap = useWorkoutStore((s) => s.prevMap);
   const startFromProgram = useActiveWorkoutStore((s) => s.startFromProgram);
   const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const isActive = program?.status === 'active';
   const isDraft = !isActive;
@@ -275,7 +273,7 @@ export default function ProgramSummaryScreen() {
 
 /* ─── Styles ────────────────────────────────────────── */
 
-const createStyles = (colors: ThemeColors, topInset: number) => StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

@@ -376,7 +376,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     }
   },
 
-  deleteSupplementEntry: async (userId: string, entry: SupplementEntry) => {
+  deleteSupplementEntry: async (_userId: string, entry: SupplementEntry) => {
     const prev = get().dateEntries;
     set((s) => ({
       dateEntries: s.dateEntries.filter((e) => e.id !== entry.id),
