@@ -34,10 +34,12 @@ const NumberField = forwardRef<TextInput, Props>(function NumberField(
           ref={ref}
           style={styles.input}
           value={value}
-          onChangeText={onChangeText}
+          // Accept a comma as the decimal mark ("1,5" → "1.5") so Number() reads it.
+          onChangeText={(v) => onChangeText(v.replace(',', '.'))}
           placeholder={placeholder}
           placeholderTextColor={colors.textTertiary}
-          keyboardType="decimal-pad"
+          // 'numeric' keeps a return key on iOS, so Next moves between fields.
+          keyboardType="numeric"
           returnKeyType={returnKeyType}
           blurOnSubmit={blurOnSubmit}
           onSubmitEditing={onSubmitEditing}
