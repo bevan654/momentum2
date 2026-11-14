@@ -16,6 +16,18 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.46',
+    date: '2026-11-15',
+    title: "What's New",
+    items: [
+      'A fresh Nutrition tab: a calorie ring shows what you have left, with protein, carbs and fat beside it',
+      'Your food is now grouped into meal cards (Breakfast, Lunch, Dinner, Snacks), each with its own total and a quick add button',
+      'Food now shows under the meal you logged it to, so a few older entries may sit in a different meal than before',
+      'Water and supplements have their own strip: tap to add, long-press to see or delete that day\'s entries',
+    ],
+    cta: { label: 'Open Nutrition', target: 'Nutrition' },
+  },
+  {
     version: '1.0.45',
     date: '2026-11-14',
     title: "What's New",

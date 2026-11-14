@@ -33,9 +33,16 @@ export function groupEntriesByMeal(entries: FoodEntry[], configs: MealConfig[]):
     .sort((a, b) => a.sort_order - b.sort_order);
   const known = new Set(meals.map((m) => m.slot));
 
+  // A logged meal group stays in one card: the meal of its earliest entry.
+  const groupSlot = new Map<string, string>();
+  for (const e of [...entries].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    if (e.meal_group_id && !groupSlot.has(e.meal_group_id)) groupSlot.set(e.meal_group_id, e.meal_type);
+  }
+
   const bySlot = new Map<string, FoodEntry[]>();
   for (const e of entries) {
-    const slot = known.has(e.meal_type) ? e.meal_type : OTHER_SLOT;
+    const type = (e.meal_group_id && groupSlot.get(e.meal_group_id)) || e.meal_type;
+    const slot = known.has(type) ? type : OTHER_SLOT;
     const list = bySlot.get(slot);
     if (list) list.push(e);
     else bySlot.set(slot, [e]);

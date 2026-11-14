@@ -15,6 +15,8 @@ interface Props {
   entries: SupplementEntry[];
   onDelete: (entry: SupplementEntry) => void;
   onClose: () => void;
+  /** After the fade-out finishes (safe to clear the content then). */
+  onClosed?: () => void;
 }
 
 function formatTime(iso: string): string {
@@ -23,12 +25,12 @@ function formatTime(iso: string): string {
 }
 
 /** The day's log for one of water / a supplement, with delete for each entry. */
-function SupplementLogSheet({ visible, label, unit, color, entries, onDelete, onClose }: Props) {
+function SupplementLogSheet({ visible, label, unit, color, entries, onDelete, onClose, onClosed }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <Overlay visible={visible} animationType="fade" onRequestClose={onClose}>
+    <Overlay visible={visible} animationType="fade" onRequestClose={onClose} onDismiss={onClosed}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.header}>

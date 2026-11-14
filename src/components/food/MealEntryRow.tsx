@@ -37,6 +37,8 @@ function MealEntryRow({ entry, onPress, onTogglePlanned }: Props) {
       onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={`${entry.name}, ${Math.round(entry.calories)} calories${entry.is_planned ? ', planned' : ''}`}
+      accessibilityActions={entry.is_planned ? [{ name: 'markEaten', label: 'Mark as eaten' }] : undefined}
+      onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === 'markEaten') handleToggle(); }}
     >
       <View style={styles.top}>
         <View style={styles.nameCol}>

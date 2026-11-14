@@ -94,7 +94,9 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
   const addWater = useSupplementStore((s) => s.addWater);
   const addSupplement = useSupplementStore((s) => s.addSupplement);
   const deleteSupplementEntry = useSupplementStore((s) => s.deleteSupplementEntry);
+  // logKey picks what the sheet shows; it stays set while the sheet fades out.
   const [logKey, setLogKey] = useState<string | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
 
   // Today uses the live totals; a past day adds up that day's entries.
   const { waterMl, totals } = useMemo(() => {
@@ -120,8 +122,10 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
   const handleOpenLog = useCallback((key: string) => {
     Haptics.selectionAsync();
     setLogKey(key);
+    setLogOpen(true);
   }, []);
-  const handleCloseLog = useCallback(() => setLogKey(null), []);
+  const handleCloseLog = useCallback(() => setLogOpen(false), []);
+  const handleLogClosed = useCallback(() => setLogKey(null), []);
   const handleDeleteEntry = useCallback((entry: SupplementEntry) => {
     if (!userId) return;
     deleteSupplementEntry(userId, entry);
@@ -182,13 +186,14 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
       })}
     </ScrollView>
     <SupplementLogSheet
-      visible={logKey != null}
+      visible={logOpen}
       label={logKey === WATER_KEY ? 'Water' : logConfig?.name || ''}
       unit={logKey === WATER_KEY ? 'ml' : logConfig?.unit || ''}
       color={logKey === WATER_KEY ? colors.water : logConfig?.color || colors.creatine}
       entries={logEntries}
       onDelete={handleDeleteEntry}
       onClose={handleCloseLog}
+      onClosed={handleLogClosed}
     />
     </>
   );

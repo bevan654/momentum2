@@ -6,6 +6,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { FoodEntry } from '../../stores/useFoodLogStore';
 import MacroSplitBar from './MacroSplitBar';
+import { sumMacros } from './dayTotals';
 
 interface Props {
   groupId: string;
@@ -20,15 +21,10 @@ function MealGroupRow({ groupId, groupName, entries, onPress, onDelete }: Props)
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  // Same rule as the meal header and day summary: planned items don't count yet.
   const totals = useMemo(() => {
-    let cal = 0, protein = 0, carbs = 0, fat = 0;
-    for (const e of entries) {
-      cal += e.calories;
-      protein += e.protein;
-      carbs += e.carbs;
-      fat += e.fat;
-    }
-    return { cal: Math.round(cal), protein, carbs, fat };
+    const t = sumMacros(entries);
+    return { cal: t.calories, protein: t.protein, carbs: t.carbs, fat: t.fat };
   }, [entries]);
 
   const handlePress = useCallback(() => onPress(groupId, entries), [groupId, entries, onPress]);
@@ -47,6 +43,8 @@ function MealGroupRow({ groupId, groupName, entries, onPress, onDelete }: Props)
       onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={`${groupName}, ${entries.length} items, ${totals.cal} calories. Tap to edit`}
+      accessibilityActions={[{ name: 'delete', label: 'Delete meal' }]}
+      onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === 'delete') handleDelete(); }}
     >
       <View style={styles.top}>
         <View style={styles.badge}>
