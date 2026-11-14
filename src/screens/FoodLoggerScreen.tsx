@@ -16,7 +16,7 @@ import NutritionHero from '../components/food/NutritionHero';
 import DateNavigator from '../components/food/DateNavigator';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
-import { toLocalDateString } from '../utils/localDate';
+import { useToday } from '../hooks/useToday';
 
 function FoodLoggerScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -76,8 +76,18 @@ function FoodLoggerScreen() {
   }, [userId, selectedDate]);
 
   // Auto-scroll to current time after layout (only for today)
-  const todayStr = useMemo(() => toLocalDateString(), []);
+  const todayStr = useToday();
   const isToday = selectedDate === todayStr;
+
+  // Past midnight: if the user was looking at "today", follow it to the new day.
+  const prevTodayRef = useRef(todayStr);
+  useEffect(() => {
+    const prev = prevTodayRef.current;
+    prevTodayRef.current = todayStr;
+    if (prev !== todayStr && useFoodLogStore.getState().selectedDate === prev) {
+      setDate(todayStr);
+    }
+  }, [todayStr, setDate]);
 
   useEffect(() => {
     if (loading || hasScrolledRef.current || !isToday) return;
@@ -211,7 +221,7 @@ function FoodLoggerScreen() {
   return (
     <View style={styles.screen}>
       <NutritionHero entries={entries} goals={goals} />
-      <DateNavigator selectedDate={selectedDate} onDateSelect={setDate} />
+      <DateNavigator selectedDate={selectedDate} today={todayStr} onDateSelect={setDate} />
       <ScrollView
         ref={scrollRef}
         style={styles.diaryPage}
