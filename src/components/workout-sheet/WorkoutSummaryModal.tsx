@@ -24,8 +24,9 @@ import ShareModal from '../share/ShareModal';
 import WorkoutOverlay from '../dev/WorkoutOverlay';
 import CoachTakeCard, { type CoachResult } from './CoachTakeCard';
 import { pickAndUploadWorkoutPhoto } from '../../utils/uploadWorkoutPhoto';
+import type { VolumeExercise } from '../../utils/muscleVolume';
 
-const NO_EXERCISES: SummaryExercise[] = [];
+const NO_EXERCISES: VolumeExercise[] = [];
 
 // ── Edit-mode types ──────────────────────────────────
 
@@ -660,7 +661,17 @@ export default function WorkoutSummaryModal(props: Props) {
     });
   }, [isJustCompleted, data]);
 
-  const previewExercises = (isJustCompleted && (data as WorkoutSummary).exercises) || NO_EXERCISES;
+  // Maps for the feed-post preview, built like the post's own maps: from each exercise's
+  // exercise_details.total_volume, which counts every set with a weight or reps entered, ticked
+  // or not.
+  const previewExercises = useMemo((): VolumeExercise[] => {
+    if (!isJustCompleted) return NO_EXERCISES;
+    return ((data as WorkoutSummary).exercises || []).map((ex) => ({
+      name: ex.name,
+      category: ex.category,
+      sets: [{ kg: Math.round(ex.sets.reduce((v, s) => v + (s.kg || 0) * (s.reps || 0), 0)), reps: 1, completed: true }],
+    }));
+  }, [isJustCompleted, data]);
 
   // Use saved overrides if available, otherwise use original data
   const displayDuration = savedDuration ?? data.duration;
