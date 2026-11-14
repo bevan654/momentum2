@@ -15,8 +15,6 @@ export interface MealBucket {
   items: MealItem[];
   /** Eaten totals (planned entries excluded, matching the day summary). */
   totals: MacroTotals;
-  /** True if any entry in the meal is still planned. */
-  hasPlanned: boolean;
 }
 
 /** Bucket for entries whose meal_type matches no enabled meal (old data, a disabled meal). */
@@ -81,7 +79,6 @@ function makeBucket(slot: string, label: string, icon: string, timeStart: string
     timeStart,
     items,
     totals: sumMacros(sorted),
-    hasPlanned: sorted.some((e) => e.is_planned),
   };
 }
 
