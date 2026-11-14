@@ -29,7 +29,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `supabase/migrations/` | Dated SQL migrations. Database changes go through bevan |
 | `supabase/functions/` | Deno edge functions (AI coach/summaries, Gemini food scan/search, push, Discord, delete-account) + `_shared/` |
 | `scripts/` | Dev/ops scripts: `stamp-build.js` + `update.bat` (OTA release), `catalog/` (exercise catalog + region-target tooling), `check-codebase-map.js` (`npm run check:map`), one-off admin scripts |
-| `.claude/` | Shared Claude Code setup: `agents/codebase-scout.md`, `rules/navigation.md`, `settings.json` (turns on the TypeScript LSP plugin). Everything else in it is personal and git-ignored |
+| `.claude/` | Shared Claude Code setup: `agents/codebase-scout.md`, `rules/navigation.md`, `settings.json` (turns on the TypeScript LSP plugin). Everything else in it is personal and git-ignored. Anything added to `agents/` or `rules/` is shared with the whole team, so keep personal agents and rules in `~/.claude/` instead |
 | `docs/` | Past plans, audits and the security review. Historical: may describe code that has since changed |
 | `assets/` | `logo.png` (app icon, splash, share cards) |
 | `database-schema.md` | Every public table and column (generated from the live schema) |
@@ -38,7 +38,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | Folder | Feature | Notes |
 |---|---|---|
 | `auth/` | Login/sign-up social buttons | |
-| `body/` | Body map wrappers around `momentum-muscle-map` | `useBodyMap.ts` exports `useBodies`, `useMuscleMapColors` (no `useBodyMap`) |
+| `body/` | Body map wrappers around `momentum-muscle-map` | `useBodyMap.ts` exports `useBodies`, `useMuscleMapColors` and other helpers, but no `useBodyMap` |
 | `dev/` | **Production share UI**, not dev tools | `WorkoutOverlay` = share card, `StoryCropModal`; used by `share/` and the workout summary |
 | `food/` | Nutrition tab: meals, add-food, barcode, AI scan, food detail | |
 | `friends/` | Community tab: leaderboard, search, notifications, profiles, reports | `AvatarCircle`, `ReportSheet` are also used by other features |
