@@ -48,7 +48,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `share/` | `ShareModal` | |
 | `ui/` | Shared primitives: `Sheet`, `Overlay`, `Portal` | `SheetWrapper.tsx` sits at `components/` root |
 | `workout-sheet/` | Active workout sheet, sets, rest timer, finish flow | Also `WorkoutSummaryModal` (post-workout/history summary; its pieces live in `summary/`), `ExercisePicker` (used by routines too), `GhostFinishScreen` (a component, not a route) |
-| `workouts/` | Workouts tab: recovery body map, routines, today's plan | `ExerciseRow.tsx` exports a component named `ExerciseCard`. |
+| `workouts/` | Workouts tab: recovery body map, routines, today's plan | `ExerciseRow.tsx` exports a component named `ExerciseCard`. `history/` holds the pieces of `WorkoutHistoryScreen` (history sheet, routine preview, recovery chips, training calendar). |
 
 ## Entry points
 - `package.json` `main` → `index.ts` → `App.tsx`.
@@ -97,7 +97,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | Workouts tab plans, routines, programs | `navigation/WorkoutsNavigator.tsx`, `screens/StartWorkoutScreen.tsx` (route `Plans`), `screens/*Routine*`, `screens/*Program*` |
 | Active workout UI / logic | `components/workout-sheet/`, `stores/useActiveWorkoutStore.ts` |
 | Post-workout summary / editing a past workout | `components/workout-sheet/WorkoutSummaryModal.tsx` (pieces in `components/workout-sheet/summary/`) |
-| Workout history | `stores/useWorkoutStore.ts`, `screens/WorkoutHistoryScreen.tsx`, `screens/WorkoutDetailScreen.tsx` |
+| Workout history | `stores/useWorkoutStore.ts`, `screens/WorkoutHistoryScreen.tsx` (+ `components/workouts/history/`), `screens/WorkoutDetailScreen.tsx` |
 | Exercise catalog / picker | `components/workout-sheet/ExercisePicker.tsx`, `lib/catalogDatabase.ts`, `utils/exerciseCatalog.ts` |
 | Body map, muscle heat, recovery | `components/body/`, `utils/muscleVolume.ts`, `utils/muscleLoad.ts`, `constants/muscleMap.ts`, `stores/useRegionTargetsStore.ts` |
 | Strength score, ranks | `utils/strengthScore.ts`, `stores/useRankStore.ts` |

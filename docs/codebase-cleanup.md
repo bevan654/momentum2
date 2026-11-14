@@ -44,7 +44,8 @@ Not bugs after checking: `WorkoutSummaryModal` `saving` prop (the edit footer al
 - `CLAUDE.md` says `initNotifications` runs in `TabNavigator`; it actually runs from `FriendsScreen` on focus. bevan's file: tell him.
 
 ## Phase 3 notes
-- Split order (largest/lowest risk first, `useActiveWorkoutStore` last): `WorkoutSummaryModal` ✅, `WorkoutHistoryScreen`, `MacroLensModal`, `Feed`, `friendsDatabase`, `CreateMealModal`, `FoodDetailModal`, `ExercisePicker`, `AddFoodModal`, `ProfileSettingsView`, then the 650–950 line files, `useActiveWorkoutStore` last.
+- Split order (largest/lowest risk first, `useActiveWorkoutStore` last): `WorkoutSummaryModal` ✅, `WorkoutHistoryScreen` ✅ (1789 → 387 + 5 files in `workouts/history/`, 61 dead styles dropped), `MacroLensModal`, `Feed`, `friendsDatabase`, `CreateMealModal`, `FoodDetailModal`, `ExercisePicker`, `AddFoodModal`, `ProfileSettingsView`, then the 650–950 line files, `useActiveWorkoutStore` last.
+- Found in `WorkoutHistoryScreen` (left as is): history list is a plain ScrollView + map (not virtualised, unbounded); `calDotSelected` hardcodes `#3B82F6`; the muscle-matching loop is copy-pasted 3 times; both sheets duplicate the swipe-dismiss code.
 - Found in `WorkoutSummaryModal` (left as is): the historical "crossfade" animates two shared values nothing reads, so closing just waits ~350 ms; `workoutName` state never set; `totalVolume` ternary returns the same value both ways.
 
 ## Phase 4 candidates (found along the way)
