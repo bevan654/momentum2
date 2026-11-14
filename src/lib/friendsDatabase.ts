@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { bestSet } from '../utils/feedExerciseDetails';
+import { toLocalDateString } from '../utils/localDate';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -1079,11 +1080,7 @@ export async function fetchWorkoutDates(
   const seen = new Set<string>();
   const dates: string[] = [];
   for (const row of data) {
-    const local = new Date(row.created_at);
-    const yyyy = local.getFullYear();
-    const mm = String(local.getMonth() + 1).padStart(2, '0');
-    const dd = String(local.getDate()).padStart(2, '0');
-    const d = `${yyyy}-${mm}-${dd}`;
+    const d = toLocalDateString(new Date(row.created_at));
     if (!seen.has(d)) {
       seen.add(d);
       dates.push(d);

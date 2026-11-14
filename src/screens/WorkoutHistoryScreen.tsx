@@ -23,8 +23,7 @@ import type { Routine } from '../stores/useRoutineStore';
 import { navigateWorkoutsStack } from '../lib/navigationBridge';
 
 function toDateKey(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return toLocalDateString(new Date(iso));
 }
 
 function formatVolume(vol: number): string {
@@ -72,6 +71,7 @@ import {
   CANONICAL_MUSCLES,
 } from '../constants/muscles';
 import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
+import { toLocalDateString } from '../utils/localDate';
 
 const SLUG_GROUP: Record<string, string> = (() => {
   const map: Record<string, string> = {};
@@ -417,10 +417,7 @@ function WorkoutHistoryScreen() {
     if (workouts.length > 0 || useMuscleAnalysisStore.getState().analysis) recompute(workouts, catalogMap, bodyweightKg);
   }, [workouts, catalogMap, bodyweightKg]);
 
-  const todayStr = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, []);
+  const todayStr = useMemo(() => toLocalDateString(), []);
 
   // Selected body part filter — must be before any early return
   const [debugParts, setDebugParts] = useState<string[]>([]);
