@@ -874,6 +874,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       saveMode: 'create',
       isResting: false,
       restRemaining: 0,
+      restStartedAt: null,
+      restTotal: 0,
       restEndedAt: null,
       showSummary: false,
       summaryData: null,
