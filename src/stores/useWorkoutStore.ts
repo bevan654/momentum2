@@ -103,36 +103,6 @@ interface WorkoutState {
   clearCaches: () => void;
 }
 
-// TODO(sample): temporary 30-entry note history for the dumbbell row so the
-// "View all N notes" modal is demonstrable. Remove once real data exists.
-const SAMPLE_PREV_NOTES: { note: string; date: string; color?: string }[] = (() => {
-  const entries = [
-    { note: 'Felt strong — go up to 32.5kg next time. Keep elbow tucked, no shrugging.', color: 'green' },
-    { note: '30kg x8/8/7 — last set was a grind. Form held up well.', color: 'orange' },
-    { note: 'Right side lagging, focus on the squeeze at the top.', color: 'orange' },
-    { note: 'First time back after the layoff. 27.5kg felt easy, ramp up.', color: 'green' },
-    { note: 'Slowed the eccentric — much better lat connection.', color: 'green' },
-    { note: 'Grip gave out before the back did. Try straps next week.', color: 'orange' },
-    { note: 'Felt a tweak in the lower back, kept it light and strict.', color: 'red' },
-    { note: 'New PR for reps at 30kg. Stoked.', color: 'green' },
-  ];
-  const base = new Date('2026-05-24T00:00:00Z').getTime();
-  const DAY = 86_400_000;
-  return Array.from({ length: 30 }, (_, i) => ({
-    note: entries[i % entries.length].note,
-    color: entries[i % entries.length].color,
-    date: new Date(base - i * 7 * DAY).toISOString().slice(0, 10),
-  }));
-})();
-
-// TODO(sample): temporary demo notes for cable face pull. Remove with the rest
-// of the sample data once real notes exist.
-const SAMPLE_FACE_PULL_NOTES: { note: string; date: string; color?: string }[] = [
-  { note: 'Light and controlled — really felt the rear delts. Pause at the face each rep.', date: '2026-05-28', color: 'green' },
-  { note: 'Went too heavy and it turned into a row. Drop the weight next time.', date: '2026-05-21', color: 'red' },
-  { note: 'Good pump. The external-rotation cue at the end helped a lot.', date: '2026-05-14', color: 'green' },
-];
-
 export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   workouts: [],
   loading: false,
@@ -140,15 +110,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   aliasMap: {},
   prevMap: {},
   sessionHistoryMap: {},
-  // TODO(sample): temporary demo note history (see SAMPLE_PREV_NOTES above) so
-  // the previous-notes UI is visible before the `notes` column / real data
-  // exists. Remove once real data is seeded.
-  prevNoteMap: {
-    'bent over dumbbell row': SAMPLE_PREV_NOTES,
-    'dumbbell row': SAMPLE_PREV_NOTES,
-    'cable face pull': SAMPLE_FACE_PULL_NOTES,
-    'face pull': SAMPLE_FACE_PULL_NOTES,
-  },
+  prevNoteMap: {},
 
   fetchExerciseCatalog: async (userId: string, forceRefresh = false) => {
     const parseArr = (v: any): string[] => {
