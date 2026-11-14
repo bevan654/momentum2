@@ -6,7 +6,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: 'momentum',
   scheme: 'momentum',
   owner: 'shajanbevan',
-  version: '1.0.36',
+  version: '1.0.37',
   orientation: 'portrait',
   icon: './assets/logo.png',
   userInterfaceStyle: 'dark',
@@ -30,8 +30,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'com.momentum.fitnessapp',
+    appleTeamId: '97DRM9BJV7',
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      // Active-workout Live Activity (targets/workout-activity, iOS 16.2+)
+      NSSupportsLiveActivities: true,
     },
   },
   android: {
@@ -52,6 +55,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   },
   plugins: [
+    // Builds the iOS extensions in targets/ (the workout Live Activity widget)
+    '@bacons/apple-targets',
     'expo-secure-store',
     [
       'expo-notifications',

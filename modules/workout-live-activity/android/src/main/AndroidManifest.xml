@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- Rest-end alarm and user dismissal of the ongoing workout notification. -->
+    <receiver
+      android:name="expo.modules.workoutliveactivity.WorkoutNotificationReceiver"
+      android:exported="false" />
+  </application>
+</manifest>
