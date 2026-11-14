@@ -14,7 +14,9 @@ import { aiItemsToCacheRows, mapAiRow, sanitizeForOrFilter } from './foodMapping
 export function useAiFoodSearch(query: string) {
   const [cachedResults, setCachedResults] = useState<FoodCatalogItem[]>([]);
   const [aiResults, setAiResults] = useState<FoodCatalogItem[]>([]);
-  const [aiSearching, setAiSearching] = useState(false);
+  // The query a Deep Search is running for; only counts as "searching" while it's still current.
+  const [searchingQuery, setSearchingQuery] = useState<string | null>(null);
+  const aiSearching = searchingQuery != null && searchingQuery === query.trim();
   const [showAiResults, setShowAiResults] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const cacheRequest = useRef(0);
@@ -62,7 +64,7 @@ export function useAiFoodSearch(query: string) {
     const q = query.trim();
     if (!q || searchingRef.current) return;
     searchingRef.current = true;
-    setAiSearching(true);
+    setSearchingQuery(q);
     setAiError(null);
     const normalized = q.toLowerCase();
 
@@ -83,7 +85,7 @@ export function useAiFoodSearch(query: string) {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
       if (!token) {
-        setAiError('Please sign in again to use Deep Search.');
+        if (queryRef.current.trim() === q) setAiError('Please sign in again to use Deep Search.');
         return;
       }
       const controller = new AbortController();
@@ -107,13 +109,13 @@ export function useAiFoodSearch(query: string) {
             const body = await res.json();
             if (res.status === 429 && typeof body?.error === 'string') message = body.error;
           } catch {}
-          setAiError(message);
+          if (queryRef.current.trim() === q) setAiError(message);
           return;
         }
         const payload = await res.json();
         items = Array.isArray(payload?.items) ? payload.items : [];
       } catch {
-        setAiError('Deep Search timed out. Check your connection and try again.');
+        if (queryRef.current.trim() === q) setAiError('Deep Search timed out. Check your connection and try again.');
         return;
       } finally {
         clearTimeout(timeoutId);
@@ -133,7 +135,7 @@ export function useAiFoodSearch(query: string) {
       }
     } finally {
       searchingRef.current = false;
-      setAiSearching(false);
+      setSearchingQuery(null);
     }
   }, [query]);
 
