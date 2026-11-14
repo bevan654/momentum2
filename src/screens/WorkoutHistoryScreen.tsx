@@ -12,11 +12,10 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import type { WorkoutWithDetails } from '../stores/useWorkoutStore';
-import MiniBodyMap from '../components/body/MiniBodyMap';
+import RecoveryBodyMap from '../components/workouts/RecoveryBodyMap';
 import { useMuscleAnalysisStore } from '../stores/useMuscleAnalysisStore';
 import { useProgramStore } from '../stores/useProgramStore';
-import { MUSCLE_SLUGS, toSlug, type Slug } from '../utils/muscleVolume';
-import type { ExtendedBodyPart } from '../components/BodyHighlighter';
+import { toSlug } from '../utils/muscleVolume';
 import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
 import TodayScheduled from '../components/workouts/TodayScheduled';
 import type { Routine } from '../stores/useRoutineStore';
@@ -423,35 +422,14 @@ function WorkoutHistoryScreen() {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [selectedCalDate, setSelectedCalDate] = useState<string | null>(null);
 
-  // Recovery % → intensity: 3 colours only (red / orange / green)
-  const recoveryToIntensity = (pct: number) => {
-    if (pct >= 70) return 4;   // green
-    if (pct >= 40) return 3;   // orange
-    return 2;                  // red
-  };
-
-  // BodyHighlighter uses colors[intensity - 1], so:
-  // intensity 1 → [0] bg, 2 → [1] red, 3 → [2] orange, 4 → [3] green
-  const RECOVERY_COLORS = ['#1A1A1E', '#EF4444', '#F97316', '#34D399'];
-
-  // Build body data from recovery percentages
-  const recoveryBodyData: ExtendedBodyPart[] = useMemo(() => {
-    if (!analysis?.groups) return [];
-    const activeGroups = new Set<string>();
+  // Body-graph groups picked in the filter (empty = whole body)
+  const activeGroups = useMemo(() => {
+    const groups = new Set<string>();
     for (const part of debugParts) {
-      const groups = PART_GROUPS[part];
-      if (groups) for (const g of groups) activeGroups.add(g);
+      for (const g of PART_GROUPS[part] ?? []) groups.add(g);
     }
-    return Array.from(MUSCLE_SLUGS).map((slug) => {
-      const group = SLUG_GROUP[slug];
-      if (activeGroups.size > 0 && (!group || !activeGroups.has(group))) {
-        return { slug: slug as Slug, intensity: 1 };
-      }
-      const groupData = group ? analysis.groups[group as keyof typeof analysis.groups] : null;
-      const pct = groupData?.recoveryPercent ?? 100;
-      return { slug: slug as Slug, intensity: recoveryToIntensity(pct) };
-    });
-  }, [analysis, debugParts]);
+    return groups;
+  }, [debugParts]);
 
   // Overall recovery % — use min (not average) so platform matches the most fatigued visible muscle
   const overallRecovery = useMemo(() => {
@@ -704,20 +682,7 @@ function WorkoutHistoryScreen() {
             </View>
           )}
         </View>
-        <TouchableOpacity style={styles.bodyMapSection} activeOpacity={0.7} onPress={() => openHistory()}>
-          <View
-            style={styles.bodyMapFigure}
-          >
-            <View style={styles.bodyMapBody}>
-              <MiniBodyMap bodyData={recoveryBodyData} colors={RECOVERY_COLORS} scale={0.62} side="front" />
-            </View>
-          </View>
-          <View style={styles.bodyMapFigure}>
-            <View style={styles.bodyMapBody}>
-              <MiniBodyMap bodyData={recoveryBodyData} colors={RECOVERY_COLORS} scale={0.62} side="back" />
-            </View>
-          </View>
-        </TouchableOpacity>
+        <RecoveryBodyMap groups={activeGroups} />
 
         {/* ── Training Calendar (last 56 days) ── */}
         <View style={styles.calendarHeadingRow}>
@@ -1212,25 +1177,6 @@ const createStyles = (colors: ThemeColors, mode: string) => {
       color: colors.textOnAccent + 'BB',
     },
 
-    bodyMapSection: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: sw(4),
-      marginBottom: sw(6),
-    },
-    bodyMapFigure: {
-      alignItems: 'center',
-      paddingBottom: sw(0),
-    },
-    bodyMapGlow: {
-      ...StyleSheet.absoluteFillObject,
-      zIndex: 0,
-    },
-    bodyMapBody: {
-      zIndex: 1,
-      pointerEvents: 'none',
-    },
     heroVolumeRow: {
       flexDirection: 'row',
       alignItems: 'baseline',

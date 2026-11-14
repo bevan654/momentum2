@@ -3,9 +3,9 @@
  *
  * 17 canonical muscles → 11 body graph groups → 8 strength groups → 7 UI categories.
  *
- * Every file that needs muscle data should import from here.
- * The body graph SVG (muscleGroups.ts) is NOT touched — its MuscleGroup type
- * is structurally identical to BodyGraphGroup defined here.
+ * Every file that needs muscle data should import from here. The deep body map's regions
+ * (momentum-muscle-map) are configured in muscleMap.ts. MuscleGroup in
+ * components/body/muscleGroups.ts is structurally identical to BodyGraphGroup defined here.
  */
 
 // ─── Types ────────��───────────────────────────────────────────
@@ -327,28 +327,7 @@ export function getUICategoryColor(category: string): string {
   return (UI_CATEGORY_COLORS as Record<string, string>)[category] ?? '#6B7280';
 }
 
-// ─── Volume & Recovery ───────────────────────────────────────
-
-/** Target weekly volume per canonical muscle (arbitrary units). */
-export const TARGET_VOLUME: Record<CanonicalMuscle, number> = {
-  chest: 2000,
-  lats: 2000,
-  'upper-back': 2000,
-  'lower-back': 1200,
-  traps: 600,
-  shoulders: 1200,
-  'rear-delts': 800,
-  biceps: 600,
-  triceps: 800,
-  forearms: 400,
-  abs: 600,
-  obliques: 600,
-  quads: 2500,
-  adductors: 1000,
-  hamstrings: 2000,
-  glutes: 2500,
-  calves: 800,
-};
+// ─── Recovery ────────────────────────────────────────────────
 
 /** Recovery hours per body-graph group (used for recovery timers). */
 export const RECOVERY_HOURS: Record<BodyGraphGroup, number> = {
@@ -365,9 +344,9 @@ export const RECOVERY_HOURS: Record<BodyGraphGroup, number> = {
   calves: 48,
 };
 
-// ─── SVG Slug Bridge ─────────────────────────────────────────
-// The BodyHighlighter SVG uses legacy slug names (e.g. 'deltoids', 'gluteal').
-// This mapping bridges canonical → SVG slug for volume/heatmap calculations.
+// ─── Legacy Slug Bridge ──────────────────────────────────────
+// Slug names of the old SVG body graph (e.g. 'deltoids', 'gluteal'), still the group keys of
+// strength scoring and the weekly analysis. This mapping bridges canonical → legacy slug.
 // Note: multiple canonicals can map to the same SVG slug (e.g. lats + upper-back → 'upper-back').
 
 export const CANONICAL_TO_SVG_SLUG: Record<CanonicalMuscle, string> = {

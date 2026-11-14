@@ -32,3 +32,33 @@ export async function fetchCatalogRows(): Promise<any[] | null> {
   }
   return null;
 }
+
+export interface RegionTargetRow {
+  catalog_id: string;
+  region: string;
+  weight: number;
+}
+
+/** PostgREST / Postgres codes for a table that doesn't exist (yet). */
+const MISSING_TABLE_CODES = new Set(['PGRST205', '42P01']);
+
+/**
+ * Fetch every exercise_region_targets row of one body map, page by page. An empty array when the
+ * table doesn't exist yet (before its migration), null on any other failure.
+ */
+export async function fetchRegionTargetRows(mapId: string): Promise<RegionTargetRow[] | null> {
+  const rows: RegionTargetRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('exercise_region_targets')
+      .select('catalog_id, region, weight')
+      .eq('map_id', mapId)
+      .order('catalog_id')
+      .order('region')
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) return MISSING_TABLE_CODES.has(error.code) ? [] : null;
+    if (!data) return null;
+    rows.push(...(data as RegionTargetRow[]));
+    if (data.length < PAGE_SIZE) return rows;
+  }
+}
