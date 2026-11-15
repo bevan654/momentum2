@@ -27,6 +27,9 @@ const changelog: ChangelogEntry[] = [
       "Signing out now stops that account's notifications on this phone",
       'Fixed: swiping a set to complete could fill in the wrong exercise after you removed one',
       "Fixed: some exercises showed example notes that weren't yours",
+      'Fixed: opening the app offline could reset your streak to 0 for friends and the leaderboard',
+      'Fixed: streaks and profile totals for people with over 1,000 workouts',
+      'Fixed: closing a past workout is instant again',
     ],
   },
   {
