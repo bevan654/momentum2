@@ -85,6 +85,8 @@ interface Props {
   food: FoodDetailData | null;
   initialMealSlot: string;
   initialIsPlanned: boolean;
+  /** Quantity to start from when editing an existing entry or meal item (default 1). */
+  initialQuantity?: number;
   targetHour?: number;
   onDismiss: () => void;
   onAdded: () => void;
@@ -414,7 +416,7 @@ const DateSection = React.memo(function DateSection({
 /* ─── Main component ───────────────────────────────────── */
 
 export default function FoodDetailModal({
-  visible, food, initialMealSlot, initialIsPlanned,
+  visible, food, initialMealSlot, initialIsPlanned, initialQuantity,
   targetHour, onDismiss, onAdded, editEntryId, onDelete, onFoodSwap,
   onAddToMeal,
 }: Props) {
@@ -520,10 +522,14 @@ export default function FoodDetailModal({
   const fatPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: fatScale.value }] }));
 
   /* ── Reset ─────────────────────────────────────────── */
+  // Reset every time the screen opens, so reopening the same entry drops unsaved edits.
   useEffect(() => {
-    if (food) {
+    if (food && visible) {
+      // Fill the fields already scaled to the starting quantity: when the same entry is
+      // reopened, neither `food` nor the scale changes, so the scale effect won't re-run.
+      const q = initialQuantity && initialQuantity > 0 ? initialQuantity : 1;
       setMealSlot(initialMealSlot);
-      setQuantity('1');
+      setQuantity(String(q));
       setServingSize(String(food.serving_size));
       setIsPlanned(initialIsPlanned);
       setTargetDate(selectedDate);
@@ -531,24 +537,24 @@ export default function FoodDetailModal({
       setAltLoading(false);
       setCustomName(food.name);
       setCustomBrand(food.brand || '');
-      setCustomCal(String(Math.round(food.calories)));
+      setCustomCal(String(Math.round(food.calories * q)));
       setEnergyUnit('kcal');
       setDisplayEnergy('');
-      setCustomPro(String(Math.round(food.protein * 10) / 10));
-      setCustomCarb(String(Math.round(food.carbs * 10) / 10));
-      setCustomFat(String(Math.round(food.fat * 10) / 10));
+      setCustomPro(String(Math.round(food.protein * q * 10) / 10));
+      setCustomCarb(String(Math.round(food.carbs * q * 10) / 10));
+      setCustomFat(String(Math.round(food.fat * q * 10) / 10));
       macroManualRef.current = false;
       // Initialize micro overrides
       const initMicros: Record<string, string> = {};
       for (const m of MICROS) {
         const v = (food as any)[m.key];
-        if (v != null) initMicros[m.key] = String(Math.round(Number(v) * 10) / 10);
+        if (v != null) initMicros[m.key] = String(Math.round(Number(v) * q * 10) / 10);
       }
       setCustomMicros(initMicros);
       microManualRef.current = false;
 
     }
-  }, [food, initialMealSlot, initialIsPlanned]);
+  }, [food, visible, initialMealSlot, initialIsPlanned, initialQuantity]);
 
   /* ── Alt source ────────────────────────────────────── */
   const handleAltSource = useCallback(async () => {
