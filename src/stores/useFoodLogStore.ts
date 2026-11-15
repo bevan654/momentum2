@@ -187,9 +187,6 @@ interface FoodLogState {
   deleteEntry: (entryId: string) => Promise<void>;
   togglePlanned: (entryId: string) => Promise<void>;
   updateGoals: (userId: string, goals: Partial<NutritionGoals>) => Promise<void>;
-  addMealConfig: (userId: string, meal: Omit<MealConfig, 'id'>) => Promise<void>;
-  updateMealConfig: (mealId: string, updates: Partial<Omit<MealConfig, 'id'>>) => Promise<void>;
-  deleteMealConfig: (mealId: string) => Promise<void>;
   deleteMealGroup: (mealGroupId: string) => Promise<void>;
   searchCatalog: (query: string) => Promise<void>;
   clearSearch: () => void;
@@ -500,56 +497,6 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         carbsGoal: prev.carbs_goal,
         fatGoal: prev.fat_goal,
       });
-    }
-  },
-
-  addMealConfig: async (userId: string, meal: Omit<MealConfig, 'id'>) => {
-    const tempId = `temp-${Date.now()}`;
-    const optimistic: MealConfig = { ...meal, id: tempId };
-    set((s) => ({ mealConfigs: [...s.mealConfigs, optimistic] }));
-
-    const { data, error } = await supabase
-      .from('meal_config')
-      .insert({ user_id: userId, ...meal })
-      .select()
-      .single();
-
-    if (error || !data) {
-      set((s) => ({ mealConfigs: s.mealConfigs.filter((m) => m.id !== tempId) }));
-    } else {
-      set((s) => ({
-        mealConfigs: s.mealConfigs.map((m) => (m.id === tempId ? { ...m, id: data.id } : m)),
-      }));
-    }
-  },
-
-  updateMealConfig: async (mealId: string, updates: Partial<Omit<MealConfig, 'id'>>) => {
-    const prev = get().mealConfigs;
-    set((s) => ({
-      mealConfigs: s.mealConfigs.map((m) => (m.id === mealId ? { ...m, ...updates } : m)),
-    }));
-
-    const { error } = await supabase
-      .from('meal_config')
-      .update(updates)
-      .eq('id', mealId);
-
-    if (error) {
-      set({ mealConfigs: prev });
-    }
-  },
-
-  deleteMealConfig: async (mealId: string) => {
-    const prev = get().mealConfigs;
-    set((s) => ({ mealConfigs: s.mealConfigs.filter((m) => m.id !== mealId) }));
-
-    const { error } = await supabase
-      .from('meal_config')
-      .delete()
-      .eq('id', mealId);
-
-    if (error) {
-      set({ mealConfigs: prev });
     }
   },
 

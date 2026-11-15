@@ -102,7 +102,6 @@ interface ProgramState {
 
   // Lifecycle
   startProgram: (programId: string) => Promise<{ error: string | null }>;
-  completeProgram: (programId: string) => Promise<{ error: string | null }>;
   abandonProgram: (programId: string) => Promise<{ error: string | null }>;
 
   // Progress
@@ -305,23 +304,6 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
       p.id === programId ? { ...p, status: 'active' as const, started_at: new Date().toISOString() } : p,
     );
     set({ programs, activeProgram: programs.find((p) => p.id === programId) || null });
-    return { error: null };
-  },
-
-  /* ─── Complete program ─────────────────────────────── */
-
-  completeProgram: async (programId: string) => {
-    const { error } = await supabase
-      .from('programs')
-      .update({ status: 'completed', completed_at: new Date().toISOString() })
-      .eq('id', programId);
-
-    if (error) return { error: error.message };
-
-    const programs = get().programs.map((p) =>
-      p.id === programId ? { ...p, status: 'completed' as const, completed_at: new Date().toISOString() } : p,
-    );
-    set({ programs, activeProgram: null });
     return { error: null };
   },
 
