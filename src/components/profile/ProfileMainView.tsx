@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -19,6 +19,17 @@ interface Props {
 export default function ProfileMainView({ onOpenSettings, onOpenPatchNotes, onClose }: Props) {
   const profile = useAuthStore((s) => s.profile);
   const signOut = useAuthStore((s) => s.signOut);
+  // Sign-out can take a few seconds (it clears this phone's push token first): show it, ignore repeat taps.
+  const [signingOut, setSigningOut] = useState(false);
+  const handleSignOut = useCallback(async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setSigningOut(false);
+    }
+  }, [signingOut, signOut]);
   const colors = useColors();
   const mode = useThemeStore((s) => s.mode);
   const accent = useThemeStore((s) => s.accent);
@@ -63,9 +74,14 @@ export default function ProfileMainView({ onOpenSettings, onOpenPatchNotes, onCl
           <Ionicons name="chevron-forward" size={ms(18)} color={colors.textTertiary} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.row} onPress={signOut} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={[styles.row, signingOut && styles.rowBusy]}
+          onPress={handleSignOut}
+          disabled={signingOut}
+          activeOpacity={0.7}
+        >
           <Ionicons name="log-out-outline" size={ms(20)} color={colors.accentRed} />
-          <Text style={[styles.rowText, { color: colors.accentRed }]}>Sign Out</Text>
+          <Text style={[styles.rowText, { color: colors.accentRed }]}>{signingOut ? 'Signing out…' : 'Sign Out'}</Text>
           <Ionicons name="chevron-forward" size={ms(18)} color={colors.textTertiary} />
         </TouchableOpacity>
       </View>
@@ -321,6 +337,9 @@ const createStyles = (colors: ThemeColors) =>
       borderWidth: 1,
       borderColor: colors.cardBorder,
       gap: sw(12),
+    },
+    rowBusy: {
+      opacity: 0.6,
     },
     rowText: {
       flex: 1,
