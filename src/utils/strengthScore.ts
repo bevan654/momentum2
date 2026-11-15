@@ -14,16 +14,13 @@
 import type { CatalogEntry } from '../stores/useWorkoutStore';
 import { toSlug, MUSCLE_SLUGS } from './muscleVolume';
 import { toCanonical, CANONICAL_TO_STRENGTH_GROUP } from '../constants/muscles';
+import { type ExerciseType } from './exerciseProgress';
 
 /* ═══════════════════════════════════════════════════════
    Types
    ═══════════════════════════════════════════════════════ */
 
-export type ExerciseType =
-  | 'weighted'
-  | 'bodyweight'
-  | 'duration'
-  | 'weighted+bodyweight';
+export type { ExerciseType };
 
 export type MuscleGroup =
   | 'chest'

@@ -5,7 +5,7 @@ import type { ThemeColors } from '../../../theme/useColors';
 import { Fonts } from '../../../theme/typography';
 import { sw, ms } from '../../../theme/responsive';
 import type { Routine } from '../../../stores/useRoutineStore';
-import { titleCase } from './dayEditorData';
+import { titleCase } from '../../../utils/titleCase';
 
 /* ─── Routine picker row ──────────────────────────────── */
 

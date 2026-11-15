@@ -10,7 +10,9 @@ import { useRoutineStore } from '../../../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../../stores/useWorkoutStore';
 import { confirmReplaceWorkout } from '../../../utils/confirmReplaceWorkout';
-import { postedExerciseType, targetKg, routineSetTargets, compareGhostSet } from './feedWorkoutHelpers';
+import { postedExerciseType, targetKg, routineSetTargets } from './feedWorkoutHelpers';
+import { titleCase } from '../../../utils/titleCase';
+import { compareGhostSet } from '../../../utils/ghostCompare';
 
 /* ── Ghost content ─────────────────────────────────── */
 
@@ -121,7 +123,7 @@ export function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDi
         else { exTies++; setTies++; }
       }
 
-      const name = ex.name.replace(/\b\w/g, (c) => c.toUpperCase());
+      const name = titleCase(ex.name);
       return { name, userSets, ghostSets, setResults, exWins, exLosses, exTies };
     });
 

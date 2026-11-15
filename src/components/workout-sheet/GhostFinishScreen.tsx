@@ -7,25 +7,10 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import type { WorkoutSummary } from '../../stores/useActiveWorkoutStore';
+import { titleCase } from '../../utils/titleCase';
+import { compareGhostSet } from '../../utils/ghostCompare';
 
 /* ─── Ghost set comparison ─────────────────────────────── */
-
-function compareGhostSet(
-  userKg: number, userReps: number,
-  ghostKg: number, ghostReps: number,
-): 'win' | 'loss' | 'tie' {
-  if (userKg < ghostKg) return 'loss';
-  if (userKg === ghostKg) {
-    if (userReps > ghostReps) return 'win';
-    if (userReps < ghostReps) return 'loss';
-    return 'tie';
-  }
-  const userVol = userKg * userReps;
-  const ghostVol = ghostKg * ghostReps;
-  if (userVol > ghostVol) return 'win';
-  if (userVol < ghostVol) return 'loss';
-  return 'tie';
-}
 
 /* ─── Component ────────────────────────────────────────── */
 
@@ -100,7 +85,7 @@ function GhostFinishContent({
         else { exTies++; setTies++; }
       }
 
-      const displayName = ex.name.replace(/\b\w/g, (c) => c.toUpperCase());
+      const displayName = titleCase(ex.name);
       return { name: displayName, userVol, ghostVol, exWins, exLosses, exTies, setResults, completedSets, ghostSets };
     });
 

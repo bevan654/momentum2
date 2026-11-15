@@ -28,6 +28,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { buildSmoothPath } from '../../utils/smoothPath';
 import { MONTH_SHORT, DAY_SHORT } from '../../constants/dateNames';
+import { titleCase } from '../../utils/titleCase';
 
 /* ─── Constants ─────────────────────────────────────────── */
 
@@ -79,10 +80,6 @@ function daysAgo(dateStr: string): string {
   if (diff < 7) return `${diff} days ago`;
   if (diff < 30) return `${Math.floor(diff / 7)} week${Math.floor(diff / 7) > 1 ? 's' : ''} ago`;
   return `${Math.floor(diff / 30)} month${Math.floor(diff / 30) > 1 ? 's' : ''} ago`;
-}
-
-function titleCase(name: string): string {
-  return name.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /* ─── Component ─────────────────────────────────────────── */

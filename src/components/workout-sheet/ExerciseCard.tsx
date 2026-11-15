@@ -23,25 +23,10 @@ import ExerciseNotes, { noteCount } from './ExerciseNotes';
 import ExerciseProgressChart from './ExerciseProgressChart';
 import ActionSheet, { type ActionSheetItem } from './ActionSheet';
 import { GhostSetsCard } from './GhostMode';
+import { titleCase } from '../../utils/titleCase';
+import { compareGhostSet } from '../../utils/ghostCompare';
 
 /* ─── Ghost set comparison ─────────────────────────────── */
-
-function compareGhostSet(
-  userKg: number, userReps: number,
-  ghostKg: number, ghostReps: number,
-): 'win' | 'loss' | 'tie' {
-  if (userKg < ghostKg) return 'loss';
-  if (userKg === ghostKg) {
-    if (userReps > ghostReps) return 'win';
-    if (userReps < ghostReps) return 'loss';
-    return 'tie';
-  }
-  const userVol = userKg * userReps;
-  const ghostVol = ghostKg * ghostReps;
-  if (userVol > ghostVol) return 'win';
-  if (userVol < ghostVol) return 'loss';
-  return 'tie';
-}
 
 /* ─── Body-part label helpers ─────────────────────────── */
 
@@ -137,7 +122,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, isCurrent, showGhostSet
 
   const swipeableRef = React.useRef<Swipeable>(null);
 
-  const displayName = exercise.name.replace(/\b\w/g, (c) => c.toUpperCase());
+  const displayName = titleCase(exercise.name);
   const menuActions = useMemo<ActionSheetItem[]>(() => {
     const actions: ActionSheetItem[] = [
       { key: 'up', label: 'Move up', icon: 'arrow-up', onPress: () => moveExercise(exerciseIndex, 'up'), disabled: exerciseIndex === 0 },

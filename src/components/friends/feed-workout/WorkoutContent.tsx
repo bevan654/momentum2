@@ -14,6 +14,7 @@ import { confirmReplaceWorkout } from '../../../utils/confirmReplaceWorkout';
 import { formatVolume, postedExerciseType, targetKg, routineSetTargets } from './feedWorkoutHelpers';
 import { formatHoursMinutes } from '../../../utils/formatDuration';
 import { formatWorkoutDate } from '../../../utils/dateLabels';
+import { titleCase } from '../../../utils/titleCase';
 
 /* ── Normal workout content ────────────────────────── */
 
@@ -156,7 +157,7 @@ function ExerciseCard({
       <View style={styles.exerciseHeader}>
         <View style={styles.exerciseHeaderLeft}>
           <Text style={styles.exerciseName} numberOfLines={1}>
-            {ex.name.replace(/\b\w/g, (c) => c.toUpperCase())}
+            {titleCase(ex.name)}
           </Text>
           <Text style={styles.exerciseSummary}>
             {ex.sets_count} sets · {repRange} reps

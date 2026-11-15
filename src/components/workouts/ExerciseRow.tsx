@@ -14,6 +14,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import ExerciseMuscleThumb from '../body/ExerciseMuscleThumb';
 import { formatRest } from '../../utils/formatDuration';
+import { titleCase } from '../../utils/titleCase';
 
 interface LocalSet {
   goal_reps: number;
@@ -158,7 +159,7 @@ function ExerciseCard({
         )}
         <View style={styles.headerLeft}>
           <Text style={styles.name} numberOfLines={1}>
-            {name.replace(/\b\w/g, (c) => c.toUpperCase())}
+            {titleCase(name)}
           </Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summary}>{summary}</Text>

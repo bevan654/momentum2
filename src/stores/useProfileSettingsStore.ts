@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Level } from 'momentum-muscle-map/core';
+import { type BodyFatMethod } from './useBodyFatStore';
 
 const STORAGE_KEY = 'profile_settings';
 
@@ -36,7 +37,7 @@ export const TIME_RANGES: { key: TimeRange; label: string }[] = [
   { key: '1Y', label: '1 Year' },
 ];
 
-export type BodyFatMethod = 'tape' | 'calipers' | 'bia' | 'bod_pod' | 'dexa';
+export type { BodyFatMethod };
 
 export const BODY_FAT_METHODS: { key: BodyFatMethod; label: string; short: string }[] = [
   { key: 'tape', label: 'Tape Method', short: 'Tape' },

@@ -10,10 +10,6 @@ export const LEADERBOARD_LIFTS: { catalogId: string; names: string[] }[] = [
   { catalogId: '4f9a3d91-42e1-4b46-a907-1c68db1fb201', names: ['barbell deadlift', 'conventional deadlift'] },
 ];
 
-export function titleCase(str: string): string {
-  return str.replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 /* ── Debounce hook ────────────────────────────────────── */
 
 export function useDebouncedValue<T>(value: T, delayMs: number): T {

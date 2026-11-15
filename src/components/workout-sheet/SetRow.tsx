@@ -25,6 +25,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { ActiveSet } from '../../stores/useActiveWorkoutStore';
+import { type ExerciseType } from '../../utils/exerciseProgress';
 
 /* ── Constants ─────────────────────────────────────────── */
 
@@ -34,7 +35,6 @@ const ROW_HEIGHT = sw(42);
 
 /* ── Props ─────────────────────────────────────────────── */
 
-type ExerciseType = 'weighted' | 'bodyweight' | 'duration' | 'weighted+bodyweight';
 
 interface Props {
   index: number;

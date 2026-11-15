@@ -3,15 +3,11 @@ import { supabase } from '../lib/supabase';
 import { BODYWEIGHT_RANGE_KG } from '../constants/muscleMap';
 import { isPlausibleBodyweight } from '../utils/muscleLoad';
 import { toLocalDateString } from '../utils/localDate';
+import { computeEma, type EmaPoint } from '../utils/ema';
 
 export interface WeightEntry {
   date: string;
   weight: number;
-}
-
-interface EmaPoint {
-  date: string;
-  value: number;
 }
 
 interface WeightState {
@@ -28,23 +24,6 @@ interface WeightState {
   fetchWeightData: (userId: string, days?: number) => Promise<void>;
   logWeight: (userId: string, weight: number, days?: number) => Promise<{ error: string | null }>;
   deleteWeight: (userId: string, date: string, days?: number) => Promise<void>;
-}
-
-function computeEma(entries: WeightEntry[], alpha = 0.2): EmaPoint[] {
-  if (entries.length === 0) return [];
-
-  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
-  const emaPoints: EmaPoint[] = [];
-
-  let ema = sorted[0].weight;
-  emaPoints.push({ date: sorted[0].date, value: Math.round(ema * 10) / 10 });
-
-  for (let i = 1; i < sorted.length; i++) {
-    ema = alpha * sorted[i].weight + (1 - alpha) * ema;
-    emaPoints.push({ date: sorted[i].date, value: Math.round(ema * 10) / 10 });
-  }
-
-  return emaPoints;
 }
 
 export const useWeightStore = create<WeightState>((set, get) => ({
@@ -74,7 +53,7 @@ export const useWeightStore = create<WeightState>((set, get) => ({
         .filter((e) => isPlausibleBodyweight(e.weight));
 
       if (entries.length > 0) {
-        const emaPoints = computeEma(entries);
+        const emaPoints = computeEma(entries, (e) => e.weight);
         const current = entries[entries.length - 1].weight;
         const trend = emaPoints[emaPoints.length - 1].value;
         const firstWeight = entries[0].weight;

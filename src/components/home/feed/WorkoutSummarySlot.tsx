@@ -10,6 +10,7 @@ import { feedDetailSets } from '../../../utils/muscleLoad';
 import { DEFAULT_BODYWEIGHT_KG } from '../../../constants/muscleMap';
 import WorkoutMiniMaps from '../../body/WorkoutMiniMaps';
 import { PHOTO_WIDTH } from './feedHelpers';
+import { titleCase } from '../../../utils/titleCase';
 
 const MAX_OVERVIEW_EXERCISES = 5;
 
@@ -63,7 +64,7 @@ const WorkoutSummarySlot = React.memo(function WorkoutSummarySlot({ item }: { it
                 style={[styles.summaryRow, i > 0 && styles.summaryRowDivider]}
               >
                 <Text style={styles.summaryName} numberOfLines={1}>
-                  {ex.name.replace(/\b\w/g, (c) => c.toUpperCase())}
+                  {titleCase(ex.name)}
                 </Text>
                 <Text style={styles.summaryDetail} numberOfLines={1}>
                   {ex.sets_count > 0 ? `${ex.sets_count} sets` : ''}{best ? ` · ${best}` : ''}

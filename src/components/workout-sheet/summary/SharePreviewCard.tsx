@@ -10,6 +10,7 @@ import type { WorkoutSummary } from '../../../stores/useActiveWorkoutStore';
 import type { VolumeExercise } from '../../../utils/muscleVolume';
 import { feedPreviewSets } from '../../../utils/muscleLoad';
 import { bestSet } from '../../../utils/feedExerciseDetails';
+import { titleCase } from '../../../utils/titleCase';
 
 export type ShareVisibility = 'public' | 'friends' | 'private';
 
@@ -198,7 +199,7 @@ function SharePreviewCard({
                       style={[styles.previewSlotRow, i > 0 && styles.previewSlotRowDivider]}
                     >
                       <Text style={styles.previewSlotName} numberOfLines={1}>
-                        {ex.name.replace(/\b\w/g, (c) => c.toUpperCase())}
+                        {titleCase(ex.name)}
                       </Text>
                       <Text style={styles.previewSlotDetail} numberOfLines={1}>
                         {ex.sets_count > 0 ? `${ex.sets_count} sets` : ''}{best ? ` · ${best}` : ''}

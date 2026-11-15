@@ -12,10 +12,11 @@ import { useRoutineStore, type Routine } from '../stores/useRoutineStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import ExerciseCard from '../components/workouts/ExerciseRow';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
-import { type LocalSet, type LocalExercise, type CatalogEntry, MUSCLE_FILTERS, titleCase, muscleColor, getSortedCatalog } from '../components/workouts/program-day-editor/dayEditorData';
+import { type LocalSet, type LocalExercise, type CatalogEntry, MUSCLE_FILTERS, muscleColor, getSortedCatalog } from '../components/workouts/program-day-editor/dayEditorData';
 import { InlineExerciseRow } from '../components/workouts/program-day-editor/InlineExerciseRow';
 import { RoutinePickerRow } from '../components/workouts/program-day-editor/RoutinePickerRow';
 import { makeUuid } from '../utils/uuid';
+import { titleCase } from '../utils/titleCase';
 
 /* ─── Main screen ────────────────────────────────────── */
 

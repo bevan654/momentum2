@@ -35,10 +35,6 @@ export const MUSCLE_FILTERS = [
 
 /* ─── Helpers ────────────────────────────────────────── */
 
-export function titleCase(str: string): string {
-  return str.replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 export function muscleColor(muscle: string): string {
   return getMuscleColor(muscle);
 }

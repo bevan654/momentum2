@@ -4,7 +4,7 @@ import type { ThemeColors } from '../../../theme/useColors';
 import { sw, ms } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
 import { getMuscleColor } from '../../../constants/muscles';
-import { titleCase } from './pickerData';
+import { titleCase } from '../../../utils/titleCase';
 
 /* ─── Muscle color (derived from muscles.ts) ─────────── */
 

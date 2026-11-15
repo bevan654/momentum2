@@ -5,6 +5,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore, type ActiveExercise } from '../../stores/useActiveWorkoutStore';
+import { compareGhostSet } from '../../utils/ghostCompare';
 
 /* ─── Ghost set comparison logic ─────────────────────────── */
 
@@ -13,23 +14,6 @@ import { useActiveWorkoutStore, type ActiveExercise } from '../../stores/useActi
  *  - Same weight → compare reps
  *  - Weight increased → compare volume (kg×reps)
  */
-function compareGhostSet(
-  userKg: number, userReps: number,
-  ghostKg: number, ghostReps: number,
-): 'win' | 'loss' | 'tie' {
-  if (userKg < ghostKg) return 'loss';
-  if (userKg === ghostKg) {
-    if (userReps > ghostReps) return 'win';
-    if (userReps < ghostReps) return 'loss';
-    return 'tie';
-  }
-  // Weight increased — compare volume
-  const userVol = userKg * userReps;
-  const ghostVol = ghostKg * ghostReps;
-  if (userVol > ghostVol) return 'win';
-  if (userVol < ghostVol) return 'loss';
-  return 'tie';
-}
 
 /* ─── GhostTally ─────────────────────────────────────────── */
 

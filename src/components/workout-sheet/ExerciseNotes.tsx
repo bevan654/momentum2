@@ -15,6 +15,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore, type ActiveExercise } from '../../stores/useActiveWorkoutStore';
+import { titleCase } from '../../utils/titleCase';
 
 // Notes shown inline (via expand) before switching to a scrollable modal.
 const PREV_NOTES_INLINE_CAP = 4;
@@ -207,7 +208,7 @@ function ExerciseNotes({ exercise, exerciseIndex, onExerciseFocus }: Props) {
             <Pressable style={styles.notesModalSheet} onPress={() => {}}>
               <View style={styles.notesModalHeader}>
                 <Text style={styles.notesModalTitle} numberOfLines={1}>
-                  {exercise.name.replace(/\b\w/g, (c) => c.toUpperCase())} · Notes
+                  {titleCase(exercise.name)} · Notes
                 </Text>
                 <TouchableOpacity
                   onPress={() => setNotesHistoryOpen(false)}

@@ -3,7 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { ThemeColors } from '../../../theme/useColors';
 import { Fonts } from '../../../theme/typography';
 import { sw, ms } from '../../../theme/responsive';
-import { type CatalogEntry, titleCase, muscleColor } from './dayEditorData';
+import { type CatalogEntry, muscleColor } from './dayEditorData';
+import { titleCase } from '../../../utils/titleCase';
 
 /* ─── Memoised exercise row for inline list ──────────── */
 
