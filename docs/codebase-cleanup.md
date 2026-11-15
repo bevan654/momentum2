@@ -9,7 +9,7 @@ Delete this file once the branch is merged.
 | 0 | Baseline + phone smoke checklist | done |
 | 2 | Fix known bugs | done (needs phone test) |
 | 1 | Remove unused code (Knip + ignored props) | done (needs phone test) |
-| 3 | Split oversized files (no behaviour change) | in progress: `WorkoutSummaryModal` done (2659 → 691 + 8 files in `workout-sheet/summary/`) |
+| 3 | Split oversized files (no behaviour change) | in progress: 4 of the big files done (see Phase 3 notes) |
 | 4 | Performance audit, fix top findings (judge on a release build) | todo |
 | 5 | Turn on `noUnusedLocals` / `noUnusedParameters` | todo |
 
@@ -44,11 +44,18 @@ Not bugs after checking: `WorkoutSummaryModal` `saving` prop (the edit footer al
 - `CLAUDE.md` says `initNotifications` runs in `TabNavigator`; it actually runs from `FriendsScreen` on focus. bevan's file: tell him.
 
 ## Phase 3 notes
-- Split order (largest/lowest risk first, `useActiveWorkoutStore` last): `WorkoutSummaryModal` ✅, `WorkoutHistoryScreen` ✅ (1789 → 387 + 5 files in `workouts/history/`, 61 dead styles dropped), `MacroLensModal` ✅ (1488 → 618 + 7 files in `food/macro-lens/`), `Feed` ✅ (1238 → 236 + 7 files in `home/feed/`; `FeedRow` is 563 incl. styles: could move its actions menu out later), `friendsDatabase`, `CreateMealModal`, `FoodDetailModal`, `ExercisePicker`, `AddFoodModal`, `ProfileSettingsView`, then the 650–950 line files, `useActiveWorkoutStore` last.
+- Split order (largest/lowest risk first, `useActiveWorkoutStore` last): `WorkoutSummaryModal` ✅, `WorkoutHistoryScreen` ✅ (1789 → 387 + 5 files in `workouts/history/`, 61 dead styles dropped), `MacroLensModal` ✅ (1488 → 618 + 7 files in `food/macro-lens/`), `Feed` ✅ (1238 → 236 + 7 files in `home/feed/`; `FeedRow` is 563 incl. styles: could move its actions menu out later), `friendsDatabase` ✅ (1155 → 66-line re-export file + 7 topic files in `lib/friends/`), `CreateMealModal`, `FoodDetailModal`, `ExercisePicker`, `AddFoodModal`, `ProfileSettingsView`, then the 650–950 line files, `useActiveWorkoutStore` last.
+- Found in `friendsDatabase` (left as is, some for bevan): `bookmarks` table and `get_global_feed` RPC aren't in `database-schema.md` or migrations; `fetchWorkoutDates` and `getFriendStats` fetch every row with no limit (Supabase caps at 1000, so streaks/volume can be wrong for heavy users); many writes ignore errors (`sendFriendRequest` still notifies if the insert fails, `sendNudge` returns success on failure); `getGlobalFeed` returns `[]` on RPC error.
 - Found in `Feed` (left as is): `FeedRow` selects the whole `friendIds` array, so every row re-renders when it changes (Phase 4).
 - Found in `MacroLensModal` (left as is): the 30 s scan timeout isn't cleared if fetch throws; no abort on unmount; 4 `console.log` not wrapped in `__DEV__`; hardcoded `#FFF`/`#888` (mostly deliberate over the camera feed); `blurOnSubmit` on a multiline input.
 - Found in `WorkoutHistoryScreen` (left as is): history list is a plain ScrollView + map (not virtualised, unbounded); `calDotSelected` hardcodes `#3B82F6`; the muscle-matching loop is copy-pasted 3 times; both sheets duplicate the swipe-dismiss code.
 - Found in `WorkoutSummaryModal` (left as is): the historical "crossfade" animates two shared values nothing reads, so closing just waits ~350 ms; `workoutName` state never set; `totalVolume` ternary returns the same value both ways.
+
+## Overlap with bevan's open Nutrition PRs (#74–#83, 2026-11-14)
+- Skipping `CreateMealModal`, `FoodDetailModal` and `AddFoodModal` until those PRs merge (#76, #80, #83 edit the first two; the whole area is being redesigned).
+- When merging `origin/main` into this branch later:
+  - #79 deletes `MealSection.tsx`: take the deletion (our missing-styles fix and `onEdit` removal there become moot); re-check `FoodLoggerScreen.tsx` (#77–#80, #83 all touch it; ours only removed `onEditEntry`).
+  - #83 adds `onRequestClose={handleClose}` to the three `Overlay`s in `MacroLensModal`: after our split, put it on the main `Overlay` and the empty permission `Overlay` in `MacroLensModal.tsx`, and on the `Overlay` in `macro-lens/PermissionGate.tsx` (`onRequestClose={onClose}`).
 
 ## Phase 4 candidates (found along the way)
 - All 5 tabs stay mounted and re-render in the background (no freeze). Option: `react-freeze` on tabs more than one away from the current one (neighbours must stay live for swipe).

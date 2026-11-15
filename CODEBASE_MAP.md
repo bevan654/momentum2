@@ -18,7 +18,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `src/navigation/` | `AuthNavigator`, `TabNavigator` (the 5 tabs), `WorkoutsNavigator` (Workouts tab stack), `navigationRef` |
 | `src/components/<feature>/` | UI per feature (table below) |
 | `src/stores/` | 24 Zustand stores, `use[Domain]Store.ts`: app state and most Supabase reads/writes |
-| `src/lib/` | Supabase client (`supabase.ts`), social DB calls (`friendsDatabase.ts`), catalog DB (`catalogDatabase.ts`), `navigationBridge.ts` |
+| `src/lib/` | Supabase client (`supabase.ts`), social DB calls (`friendsDatabase.ts`, which re-exports the topic files in `lib/friends/`), catalog DB (`catalogDatabase.ts`), `navigationBridge.ts` |
 | `src/services/` | Side-effect services: `notificationService` (Realtime), `liveActivityManager` (Lock Screen), `workoutFinishFeedback` |
 | `src/utils/` | Helpers, mostly pure (dates, volume, strength score, payloads). Exceptions with side effects: `barcodeApi`, `uploadWorkoutPhoto`, `workoutStorage` (I/O), `confirmReplaceWorkout` (alerts + store writes) |
 | `src/hooks/` | Shared hooks (OTA updates, force-update gate, muscle load, region weights) |
@@ -85,7 +85,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | `src/stores/useWorkoutStore.ts` | ~31 files |
 | `src/lib/supabase.ts` | ~27 files |
 | `src/stores/useActiveWorkoutStore.ts` | ~26 files; saves workouts, 1.6k lines. Older app builds write workouts differently, so see the Compatibility rule in `CLAUDE.md` |
-| `src/lib/friendsDatabase.ts` | ~13 files; most social reads/writes |
+| `src/lib/friendsDatabase.ts` (code in `src/lib/friends/`) | ~19 files; most social reads/writes. Import from `friendsDatabase`, not from `lib/friends/*` directly |
 | `src/utils/localDate.ts` | ~13 files; day boundaries |
 | `src/constants/muscles.ts` | ~9 files; legacy muscle names that every app build understands |
 
