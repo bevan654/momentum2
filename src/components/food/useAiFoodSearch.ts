@@ -20,7 +20,7 @@ export function useAiFoodSearch(query: string) {
   const [showAiResults, setShowAiResults] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const cacheRequest = useRef(0);
-  const searchingRef = useRef(false);
+  const deepSearchFor = useRef<string | null>(null);
   // The latest query, so a slow Deep Search answer for an older query is dropped.
   const queryRef = useRef(query);
   queryRef.current = query;
@@ -62,8 +62,9 @@ export function useAiFoodSearch(query: string) {
 
   const deepSearch = useCallback(async () => {
     const q = query.trim();
-    if (!q || searchingRef.current) return;
-    searchingRef.current = true;
+    // One search per query at a time; a new query can start its own straight away.
+    if (!q || deepSearchFor.current === q) return;
+    deepSearchFor.current = q;
     setSearchingQuery(q);
     setAiError(null);
     const normalized = q.toLowerCase();
@@ -134,8 +135,10 @@ export function useAiFoodSearch(query: string) {
         supabase.from('ai_food_cache').insert(aiItemsToCacheRows(items, normalized, q)).then(() => {}, () => {});
       }
     } finally {
-      searchingRef.current = false;
-      setSearchingQuery(null);
+      if (deepSearchFor.current === q) {
+        deepSearchFor.current = null;
+        setSearchingQuery(null);
+      }
     }
   }, [query]);
 
