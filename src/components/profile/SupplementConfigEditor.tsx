@@ -13,54 +13,41 @@ import {
   type SupplementConfig,
 } from '../../stores/useSupplementStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import GoalEditorRow, { createGoalEditorStyles } from './settings/GoalEditorRow';
 
 const UNITS = ['g', 'mg', 'mcg', 'IU', 'ml', 'caps'];
 
 /* ─── Goal Row (per supplement) ──────────────────────── */
 
-interface GoalRowProps {
+const SupplementGoalRow = React.memo(function SupplementGoalRow({ config, onGoalChange, onRemove }: {
   config: SupplementConfig;
   onGoalChange: (key: string, value: number) => void;
   onRemove: (key: string) => void;
-  colors: ThemeColors;
-  styles: ReturnType<typeof createStyles>;
-}
-
-function SupplementGoalRow({ config, onGoalChange, onRemove, colors, styles }: GoalRowProps) {
-  const [text, setText] = useState(String(config.dailyGoal));
-
-  const handleBlur = useCallback(() => {
+}) {
+  const commit = useCallback((text: string) => {
     const num = parseFloat(text);
     if (!isNaN(num) && num > 0) {
       onGoalChange(config.key, num);
-    } else {
-      setText(String(config.dailyGoal));
+      return text;
     }
-  }, [text, config.key, config.dailyGoal, onGoalChange]);
+    return String(config.dailyGoal);
+  }, [config.key, config.dailyGoal, onGoalChange]);
+  const remove = useCallback(() => onRemove(config.key), [onRemove, config.key]);
 
   return (
-    <View style={styles.row}>
-      <View style={[styles.rowIcon, { backgroundColor: config.color + '15' }]}>
-        <Ionicons name={config.icon as any} size={ms(13)} color={config.color} />
-      </View>
-      <Text style={styles.label}>{config.name}</Text>
-      <View style={styles.goalInputWrap}>
-        <TextInput
-          style={styles.input}
-          value={text}
-          onChangeText={setText}
-          onBlur={handleBlur}
-          keyboardType="decimal-pad"
-          placeholderTextColor={colors.textTertiary}
-        />
-        <Text style={styles.unitText}>{config.unit}</Text>
-      </View>
-      <TouchableOpacity onPress={() => onRemove(config.key)} hitSlop={8} style={styles.removeBtn}>
-        <Ionicons name="close-circle" size={ms(18)} color={colors.textTertiary} />
-      </TouchableOpacity>
-    </View>
+    <GoalEditorRow
+      icon={config.icon}
+      color={config.color}
+      label={config.name}
+      unit={config.unit}
+      value={config.dailyGoal}
+      keyboardType="decimal-pad"
+      followValue={false}
+      onCommit={commit}
+      onRemove={remove}
+    />
   );
-}
+});
 
 /* ─── Main Editor ────────────────────────────────────── */
 
@@ -71,7 +58,7 @@ export default function SupplementConfigEditor() {
   const updateConfig = useSupplementStore((s) => s.updateSupplementConfig);
   const userId = useAuthStore((s) => s.user?.id);
   const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => ({ ...createGoalEditorStyles(colors), ...createStyles(colors) }), [colors]);
   const [showPresets, setShowPresets] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [customName, setCustomName] = useState('');
@@ -150,8 +137,6 @@ export default function SupplementConfigEditor() {
           config={config}
           onGoalChange={handleGoalChange}
           onRemove={handleRemove}
-          colors={colors}
-          styles={styles}
         />
       ))}
 
@@ -250,95 +235,6 @@ export default function SupplementConfigEditor() {
 /* ─── Styles ──────────────────────────────────────────── */
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: sw(8),
-    gap: sw(8),
-  },
-  rowIcon: {
-    width: sw(26),
-    height: sw(26),
-    borderRadius: sw(7),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
-    fontFamily: Fonts.medium,
-  },
-  goalInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(4),
-  },
-  input: {
-    width: sw(70),
-    color: colors.textPrimary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
-    fontFamily: Fonts.medium,
-    backgroundColor: colors.surface,
-    borderRadius: sw(8),
-    paddingHorizontal: sw(10),
-    paddingVertical: sw(6),
-    textAlign: 'center',
-  },
-  unitText: {
-    color: colors.textTertiary,
-    fontSize: ms(12),
-    lineHeight: ms(16),
-    fontFamily: Fonts.medium,
-    width: sw(24),
-  },
-  removeBtn: {
-    marginLeft: sw(2),
-  },
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(8),
-    paddingVertical: sw(12),
-    marginTop: sw(4),
-  },
-  addText: {
-    color: colors.textSecondary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
-    fontFamily: Fonts.semiBold,
-  },
-  presetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(10),
-    paddingVertical: sw(10),
-    paddingHorizontal: sw(4),
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-  },
-  presetIcon: {
-    width: sw(28),
-    height: sw(28),
-    borderRadius: sw(8),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  presetName: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
-    fontFamily: Fonts.medium,
-  },
-  presetDefault: {
-    color: colors.textTertiary,
-    fontSize: ms(12),
-    lineHeight: ms(16),
-    fontFamily: Fonts.medium,
-  },
   customToggle: {
     flexDirection: 'row',
     alignItems: 'center',
