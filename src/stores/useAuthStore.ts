@@ -221,7 +221,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       _authSubscription = null;
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const { _pendingWelcome } = get();
       // Signed out without signOut() (an expired session) or switched accounts:
       // the active workout belongs to the previous account. Its saved copy stays
@@ -235,7 +235,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } else {
         set({ user: session?.user ?? null, session });
       }
+      // A token refresh (about hourly, and on returning to the app) for the same user changes nothing
+      // in the profile, so skip refetching it.
+      const sameUserRefresh = event === 'TOKEN_REFRESHED' && prevUserId === session?.user?.id && get().profile != null;
       if (session?.user) {
+        if (sameUserRefresh) return;
         // Supabase warns against awaiting other auth/database calls inside this
         // callback because the originating auth operation may still hold its
         // internal lock. Defer profile bootstrap until the callback has returned.
