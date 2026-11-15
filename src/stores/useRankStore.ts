@@ -120,6 +120,47 @@ function rankBodyweight(): number {
   return 70;
 }
 
+/**
+ * Fold workouts' completed working sets (and legacy sets with no set_type) into `bestSets`, keeping
+ * each exercise's highest estimated 1RM. Mutates `bestSets`; returns whether anything improved.
+ */
+function mergeBestSets(
+  bestSets: Record<string, BestSetEntry>,
+  exercises: { name: string; exercise_type?: string | null; sets?: any[] }[],
+  catalogMap: Record<string, any>,
+  ciCatalog: Record<string, any>,
+  bodyweight: number,
+): boolean {
+  let changed = false;
+  for (const ex of exercises) {
+    const cat = catalogLookup(ex.name, catalogMap, ciCatalog);
+    const exType = resolveLoadType(ex.exercise_type, cat?.exercise_type);
+    const rowIsWeighted = toLoadType(ex.exercise_type) === 'weighted';
+
+    for (const s of ex.sets || []) {
+      if (!s.completed) continue;
+      if (s.set_type && s.set_type !== 'working') continue;
+
+      const kg = Number(s.kg) || 0;
+      const reps = Number(s.reps) || 0;
+      if (reps <= 0) continue;
+
+      const setType = rankLoadType(exType, rowIsWeighted, kg);
+      const load = effectiveLoad(kg, bodyweight, setType);
+      if (load <= 0) continue;
+
+      const e1rm = estimateOneRepMax(load, reps);
+      const prev = bestSets[ex.name];
+
+      if (!prev || e1rm > prev.e1rm) {
+        bestSets[ex.name] = { kg, reps, exerciseType: setType, e1rm };
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
 export const useRankStore = create<RankState>((set, get) => ({
   bestSets: {},
   exerciseScores: {},
@@ -190,34 +231,7 @@ export const useRankStore = create<RankState>((set, get) => ({
       const bodyweight = rankBodyweight();
 
       const bestSets: Record<string, BestSetEntry> = {};
-
-      for (const ex of allExercises) {
-        const cat = catalogLookup(ex.name, catalogMap, ciCatalog);
-        const exType = resolveLoadType(ex.exercise_type, cat?.exercise_type);
-        const rowIsWeighted = toLoadType(ex.exercise_type) === 'weighted';
-        const sets: any[] = ex.sets || [];
-
-        for (const s of sets) {
-          if (!s.completed) continue;
-          // Count working sets + null set_type (legacy data)
-          if (s.set_type && s.set_type !== 'working') continue;
-
-          const kg = Number(s.kg) || 0;
-          const reps = Number(s.reps) || 0;
-          if (reps <= 0) continue;
-
-          const setType = rankLoadType(exType, rowIsWeighted, kg);
-          const load = effectiveLoad(kg, bodyweight, setType);
-          if (load <= 0) continue;
-
-          const e1rm = estimateOneRepMax(load, reps);
-          const prev = bestSets[ex.name];
-
-          if (!prev || e1rm > prev.e1rm) {
-            bestSets[ex.name] = { kg, reps, exerciseType: setType, e1rm };
-          }
-        }
-      }
+      mergeBestSets(bestSets, allExercises, catalogMap, ciCatalog, bodyweight);
 
       // 4. Compute full rank (pass CI catalog so all exercises resolve)
       const result = computeFullRank({
@@ -255,34 +269,7 @@ export const useRankStore = create<RankState>((set, get) => ({
     const bodyweight = rankBodyweight();
 
     const bestSets = { ...prevBest };
-    let changed = false;
-
-    for (const ex of exercises) {
-      const cat = catalogLookup(ex.name, catalogMap, ciCatalog);
-      const exType = resolveLoadType(ex.exercise_type, cat?.exercise_type);
-      const rowIsWeighted = toLoadType(ex.exercise_type) === 'weighted';
-
-      for (const s of ex.sets) {
-        if (!s.completed) continue;
-        if (s.set_type && s.set_type !== 'working') continue;
-
-        const kg = Number(s.kg) || 0;
-        const reps = Number(s.reps) || 0;
-        if (reps <= 0) continue;
-
-        const setType = rankLoadType(exType, rowIsWeighted, kg);
-        const load = effectiveLoad(kg, bodyweight, setType);
-        if (load <= 0) continue;
-
-        const e1rm = estimateOneRepMax(load, reps);
-        const prev = bestSets[ex.name];
-
-        if (!prev || e1rm > prev.e1rm) {
-          bestSets[ex.name] = { kg, reps, exerciseType: setType, e1rm };
-          changed = true;
-        }
-      }
-    }
+    const changed = mergeBestSets(bestSets, exercises, catalogMap, ciCatalog, bodyweight);
 
     if (!changed) {
       // Still bump workout count — rank stays the same
