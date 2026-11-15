@@ -240,12 +240,12 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     const q = debouncedSearch.trim().toLowerCase();
     if (!q) return sortedEntries;
 
-    const scored = sortedEntries
-      .map((e) => ({
-        ...e,
-        score: scoreWithAliases(e, e.aliases || [], q) + (e.done ? 10 : 0),
-      }))
-      .filter((e) => e.score > 0);
+    // Score every entry, but copy only the matches (most of a 10K catalog scores 0)
+    const scored: (CatalogEntry & { score: number })[] = [];
+    for (const e of sortedEntries) {
+      const score = scoreWithAliases(e, e.aliases || [], q) + (e.done ? 10 : 0);
+      if (score > 0) scored.push({ ...e, score });
+    }
     scored.sort((a, b) => b.score - a.score);
     return scored;
   }, [sortedEntries, debouncedSearch]);
