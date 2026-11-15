@@ -40,7 +40,8 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
   // Home-indicator spacing under the footer, dropped while the keyboard sits right below it.
   const restInset = bottomInset ?? Math.max(insets.bottom, sw(12));
   const kbOpen = kbInset.open;
-  const footerStyle = useAnimatedStyle(() => ({ paddingBottom: kbOpen.value ? sw(12) : restInset }));
+  const kbPad = sw(12); // worked out here: sw() can't run inside the animated style (not a worklet)
+  const footerStyle = useAnimatedStyle(() => ({ paddingBottom: kbOpen.value ? kbPad : restInset }));
   useEffect(() => {
     progress.value = withTiming(visible ? 1 : 0, { duration: visible ? 180 : 140 });
   }, [visible]);
