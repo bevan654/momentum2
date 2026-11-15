@@ -16,7 +16,7 @@ import NutritionHero from '../components/food/NutritionHero';
 import DateNavigator from '../components/food/DateNavigator';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
-import { toLocalDateString } from '../utils/localDate';
+import { useToday } from '../hooks/useToday';
 
 function FoodLoggerScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -76,8 +76,24 @@ function FoodLoggerScreen() {
   }, [userId, selectedDate]);
 
   // Auto-scroll to current time after layout (only for today)
-  const todayStr = useMemo(() => toLocalDateString(), []);
+  const todayStr = useToday();
   const isToday = selectedDate === todayStr;
+
+  // Past midnight: if the user was looking at "today", follow it to the new day.
+  // On first mount, compare against the store's starting day: it is set when the app loads,
+  // so an app that sat in the background overnight would otherwise open on yesterday.
+  const prevTodayRef = useRef(useFoodLogStore.getState().selectedDate);
+  // Wait while a log/edit sheet is open: it builds times from the selected day, so
+  // switching under it would log to the wrong day. Catch up once it closes.
+  const sheetOpen = addModalVisible || editDetailVisible || editGroupModalVisible;
+  useEffect(() => {
+    if (sheetOpen) return;
+    const prev = prevTodayRef.current;
+    prevTodayRef.current = todayStr;
+    if (prev !== todayStr && useFoodLogStore.getState().selectedDate === prev) {
+      setDate(todayStr);
+    }
+  }, [todayStr, setDate, sheetOpen]);
 
   useEffect(() => {
     if (loading || hasScrolledRef.current || !isToday) return;
@@ -121,7 +137,17 @@ function FoodLoggerScreen() {
   }, [userId, selectedDate]);
 
   // Tap entry → open detail modal
+  // Clear the edited entry after the close animation; cancel that if another entry opens first,
+  // or the new one would be wiped and the editor would show nothing.
+  const clearEditTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null); // React.useRef: the redesign drops the named import
+  const clearEditEntrySoon = useCallback(() => {
+    if (clearEditTimer.current) clearTimeout(clearEditTimer.current);
+    clearEditTimer.current = setTimeout(() => setEditEntry(null), 350);
+  }, []);
+  useEffect(() => () => { if (clearEditTimer.current) clearTimeout(clearEditTimer.current); }, []);
+
   const handlePressEntry = useCallback((entry: FoodEntry) => {
+    if (clearEditTimer.current) clearTimeout(clearEditTimer.current);
     setEditEntry(entry);
     setEditDetailVisible(true);
   }, []);
@@ -162,19 +188,19 @@ function FoodLoggerScreen() {
 
   const handleEditDismiss = useCallback(() => {
     setEditDetailVisible(false);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, []);
 
   // When edit detail saves, update the existing entry instead of creating new
   const handleEditSaved = useCallback(() => {
     setEditDetailVisible(false);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, []);
 
   const handleDeleteEntry = useCallback((id: string) => {
     setEditDetailVisible(false);
     deleteEntry(id);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, [deleteEntry]);
 
   // Meal group handlers
@@ -211,7 +237,7 @@ function FoodLoggerScreen() {
   return (
     <View style={styles.screen}>
       <NutritionHero entries={entries} goals={goals} />
-      <DateNavigator selectedDate={selectedDate} onDateSelect={setDate} />
+      <DateNavigator selectedDate={selectedDate} today={todayStr} onDateSelect={setDate} />
       <ScrollView
         ref={scrollRef}
         style={styles.diaryPage}
@@ -251,6 +277,7 @@ function FoodLoggerScreen() {
         food={editDetailData}
         initialMealSlot={editEntry?.meal_type || 'breakfast'}
         initialIsPlanned={editEntry?.is_planned || false}
+        initialQuantity={editEntry?.quantity || 1}
         onDismiss={handleEditDismiss}
         onAdded={handleEditSaved}
         editEntryId={editEntry?.id}
