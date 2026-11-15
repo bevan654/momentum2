@@ -6,11 +6,11 @@ import {
   RoundedRect,
   Path,
   Line as SkiaLine,
-  Skia,
   vec,
   LinearGradient,
   DashPathEffect,
 } from '@shopify/react-native-skia';
+import { buildSmoothPath } from '../../utils/smoothPath';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -127,39 +127,6 @@ function computePrevRollingAvg(
   return computeRollingAvg(workouts, shiftedSlots, days);
 }
 
-/** Build a smooth cubic-bezier path through non-zero points */
-function buildSmoothPath(
-  points: { x: number; y: number }[],
-): ReturnType<typeof Skia.Path.Make> | null {
-  const valid = points.filter((p) => p.y > 0);
-  if (valid.length < 2) return null;
-
-  const path = Skia.Path.Make();
-  path.moveTo(valid[0].x, valid[0].y);
-
-  if (valid.length === 2) {
-    path.lineTo(valid[1].x, valid[1].y);
-    return path;
-  }
-
-  // Catmull-Rom → cubic bezier
-  for (let i = 1; i < valid.length; i++) {
-    const p0 = valid[Math.max(0, i - 2)];
-    const p1 = valid[i - 1];
-    const p2 = valid[i];
-    const p3 = valid[Math.min(valid.length - 1, i + 1)];
-
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-
-    path.cubicTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
-  }
-
-  return path;
-}
-
 /* ─── Slot builders ──────────────────────────────────────── */
 
 function buildSlots(workouts: WorkoutWithDetails[], period: Period, offset: number): Slot[] {
@@ -271,7 +238,7 @@ export default function WeeklyVolumeCard() {
   const rollingPath = useMemo(() => {
     const points = rollingAvg.map((v, i) => ({
       x: Y_LABEL_W + i * slotW + slotW / 2,
-      y: v > 0 ? CHART_H * (1 - v / yMax) : 0,
+      y: v > 0 ? CHART_H * (1 - v / yMax) : NaN, // no volume: left out of the line
     }));
     return buildSmoothPath(points);
   }, [rollingAvg, yMax, slotW]);
@@ -280,7 +247,7 @@ export default function WeeklyVolumeCard() {
   const prevPath = useMemo(() => {
     const points = prevRollingAvg.map((v, i) => ({
       x: Y_LABEL_W + i * slotW + slotW / 2,
-      y: v > 0 ? CHART_H * (1 - v / yMax) : 0,
+      y: v > 0 ? CHART_H * (1 - v / yMax) : NaN, // no volume: left out of the line
     }));
     return buildSmoothPath(points);
   }, [prevRollingAvg, yMax, slotW]);
