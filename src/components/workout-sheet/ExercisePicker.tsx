@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Pressable,
   StyleSheet,
-  Dimensions,
   Keyboard,
   Platform,
   KeyboardAvoidingView,
@@ -25,21 +24,18 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { useColors, type ThemeColors } from '../../theme/useColors';
+import { useColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
-import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { scoreWithAliases } from './exerciseSearch';
 import { useAuthStore } from '../../stores/useAuthStore';
 import CreateCustomExerciseModal from './CreateCustomExerciseModal';
 import { PortalHost } from '../ui/Portal';
 import {
-  LEADERBOARD_LIFTS, getCachedSorted, getMainGroup, type CatalogEntry,
+  getCachedSorted, getMainGroup, buildDefaultSections, type CatalogEntry,
 } from './exercise-picker/pickerData';
-import {
-  WGER_SEARCH_URL, WGER_MUSCLE_MAP, WGER_CATEGORY_MAP, WGER_BW_EQUIPMENT,
-  type WgerSearchResult, type WgerExerciseInfo,
-} from './exercise-picker/wgerApi';
+import { useWgerSearch } from './exercise-picker/useWgerSearch';
+import { createPickerStyles, SCREEN_H, SHEET_H } from './exercise-picker/pickerStyles';
 import ExerciseRow, { createRowStyles } from './exercise-picker/ExerciseRow';
 import MuscleFilterChips from './exercise-picker/MuscleFilterChips';
 import ExerciseListHeader from './exercise-picker/ExerciseListHeader';
@@ -48,9 +44,6 @@ import { FlashList } from '@shopify/flash-list';
 
 /* ─── Constants ───────────────────────────────────────── */
 
-const SCREEN_H = Dimensions.get('window').height;
-const SHEET_H = Math.round(SCREEN_H * 0.88);
-const RADIUS = sw(20);
 const DISMISS_THRESHOLD = 80;
 const VELOCITY_THRESHOLD = 800;
 const BACKDROP_MAX = 0.6;
@@ -87,7 +80,7 @@ interface Props {
 
 export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add' }: Props) {
   const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createPickerStyles(colors), [colors]);
   const rowStyles = useMemo(() => createRowStyles(colors), [colors]);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const aliasMap = useWorkoutStore((s) => s.aliasMap);
@@ -102,11 +95,9 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
   const [contentReady, setContentReady] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [reloading, setReloading] = useState(false);
-  const [apiResults, setApiResults] = useState<CatalogEntry[]>([]);
-  const [apiSearching, setApiSearching] = useState(false);
-  const [showApiResults, setShowApiResults] = useState(false);
 
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
+  const { apiResults, apiSearching, showApiResults, searchApi, clearApiResults } = useWgerSearch(search, debouncedSearch);
 
   /* ─── Refs ──────────────────────────────────────────── */
 
@@ -125,9 +116,8 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     setContentReady(false);
     setSearch('');
     setSelectedMuscle(null);
-    setApiResults([]);
-    setShowApiResults(false);
-  }, []);
+    clearApiResults();
+  }, [clearApiResults]);
 
   /* ─── Open / close lifecycle ────────────────────────── */
 
@@ -223,12 +213,6 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
   // Base sorted list from cache — O(1) when catalog hasn't changed
   const baseSorted = getCachedSorted(catalogMap, aliasMap, prevMap);
 
-  // Reset API results when search text changes
-  useEffect(() => {
-    setShowApiResults(false);
-    setApiResults([]);
-  }, [debouncedSearch]);
-
   // Muscle filter — maps granular muscles to main groups
   const sortedEntries = useMemo(() => {
     if (!selectedMuscle) return baseSorted;
@@ -255,44 +239,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
 
   const defaultSections = useMemo(() => {
     const visible = !debouncedSearch.trim() && !selectedMuscle && !showApiResults;
-    if (!visible) {
-      return {
-        visible: false,
-        leaderboard: [] as CatalogEntry[],
-        recent: [] as CatalogEntry[],
-        regular: exercises,
-      };
-    }
-
-    const byLowerName = new Map(baseSorted.map((entry) => [entry.name.toLowerCase(), entry]));
-    const byCatalogId = new Map(
-      baseSorted.filter((entry) => entry.catalog_id).map((entry) => [entry.catalog_id, entry]),
-    );
-    const leaderboard = LEADERBOARD_LIFTS
-      .map((lift) => byCatalogId.get(lift.catalogId)
-        ?? lift.names.map((name) => byLowerName.get(name)).find((entry) => entry !== undefined))
-      .filter((entry): entry is CatalogEntry => entry !== undefined);
-    const leaderboardNames = new Set<string>(leaderboard.map((entry) => entry.name.toLowerCase()));
-
-    const recent: CatalogEntry[] = [];
-    const recentNames = new Set<string>();
-    for (const name of Object.keys(prevMap)) {
-      // History logged under an old name counts towards the exercise's current name.
-      const lowerName = (aliasMap[name] ?? name).toLowerCase();
-      if (leaderboardNames.has(lowerName) || recentNames.has(lowerName)) continue;
-      const entry = byLowerName.get(lowerName);
-      if (!entry) continue;
-      recent.push(entry);
-      recentNames.add(lowerName);
-      if (recent.length === 5) break;
-    }
-
-    const regular = exercises.filter((entry) => {
-      const lowerName = entry.name.toLowerCase();
-      return !leaderboardNames.has(lowerName) && !recentNames.has(lowerName);
-    });
-
-    return { visible: true, leaderboard, recent, regular };
+    return buildDefaultSections(visible, baseSorted, exercises, prevMap, aliasMap);
   }, [aliasMap, baseSorted, debouncedSearch, exercises, prevMap, selectedMuscle, showApiResults]);
 
   /* ─── Handlers ──────────────────────────────────────── */
@@ -303,70 +250,6 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     await fetchExerciseCatalog(userId, true);
     setReloading(false);
   }, [userId, reloading, fetchExerciseCatalog]);
-
-  const searchApi = useCallback(async () => {
-    const q = search.trim();
-    if (!q || apiSearching) return;
-    setApiSearching(true);
-    try {
-      // 1. Search for exercise names
-      const res = await fetch(`${WGER_SEARCH_URL}&term=${encodeURIComponent(q)}`);
-      if (!res.ok) throw new Error(`API ${res.status}`);
-      const json = await res.json();
-      const suggestions: WgerSearchResult[] = json.suggestions || [];
-
-      // Deduplicate by name, keep first occurrence (with base_id for muscle lookup)
-      const seen = new Set<string>();
-      const unique = suggestions.filter((s) => {
-        const key = s.value.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-
-      // 2. Fetch muscle data for each unique exercise (parallel, capped at 10)
-      const toFetch = unique.slice(0, 10);
-      const infoResults = await Promise.allSettled(
-        toFetch.map(async (s) => {
-          const infoRes = await fetch(
-            `https://wger.de/api/v2/exerciseinfo/${s.data.base_id}/?format=json`,
-          );
-          if (!infoRes.ok) return null;
-          return infoRes.json() as Promise<WgerExerciseInfo>;
-        }),
-      );
-
-      // 3. Merge search results with muscle data
-      const mapped: CatalogEntry[] = toFetch.map((s, i) => {
-        const info = infoResults[i].status === 'fulfilled' ? infoResults[i].value : null;
-        const primary = info?.muscles?.map((m) => WGER_MUSCLE_MAP[m.id] || '').filter(Boolean) || [];
-        const secondary = info?.muscles_secondary?.map((m) => WGER_MUSCLE_MAP[m.id] || '').filter(Boolean) || [];
-        const catId = info?.category?.id;
-        const category = catId ? (WGER_CATEGORY_MAP[catId] || info?.category?.name || s.data.category || 'Custom') : (s.data.category || 'Custom');
-        const isBw = info?.equipment?.length === 1 && info.equipment.some((e) => WGER_BW_EQUIPMENT.has(e.id));
-        return {
-          name: s.value,
-          category,
-          exercise_type: isBw ? 'bodyweight' : 'weighted',
-          primary_muscles: primary,
-          secondary_muscles: secondary,
-          done: false,
-        };
-      });
-
-      setApiResults(mapped);
-      setShowApiResults(true);
-    } catch {
-      setApiResults([]);
-      setShowApiResults(false);
-      Alert.alert(
-        'Deep Search Unavailable',
-        'The exercise database is currently offline. Try again later or use the local search.',
-      );
-    } finally {
-      setApiSearching(false);
-    }
-  }, [search, apiSearching]);
 
   const handleSelect = useCallback(
     async (name: string, category: string, exerciseType: string) => {
@@ -571,7 +454,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
                 {showApiResults ? (
                   <TouchableOpacity
                     style={{ flexDirection: 'row', alignItems: 'center', gap: sw(4) }}
-                    onPress={() => { setShowApiResults(false); setApiResults([]); }}
+                    onPress={clearApiResults}
                     activeOpacity={0.7}
                   >
                     <Ionicons name="arrow-back" size={ms(14)} color={colors.accent} />
@@ -645,138 +528,3 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     </Overlay>
   );
 }
-
-/* ─── Styles ──────────────────────────────────────────── */
-
-const createStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
-    backdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: colors.backdrop,
-    },
-    sheet: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      height: SHEET_H,
-      backgroundColor: colors.background,
-      borderTopLeftRadius: RADIUS,
-      borderTopRightRadius: RADIUS,
-      overflow: 'hidden',
-    },
-    sheetInner: {
-      flex: 1,
-      paddingBottom: sw(30),
-    },
-    handleZone: {
-      alignItems: 'center',
-      paddingTop: sw(12),
-      paddingBottom: sw(4),
-    },
-    handle: {
-      width: sw(40),
-      height: sw(4),
-      borderRadius: sw(2),
-      backgroundColor: colors.cardBorder,
-    },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: sw(20),
-      paddingTop: sw(8),
-      paddingBottom: sw(16),
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: ms(20),
-      fontFamily: Fonts.bold,
-      lineHeight: ms(25),
-    },
-    searchRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-      marginHorizontal: sw(16),
-      borderRadius: 0,
-      paddingHorizontal: sw(12),
-      gap: sw(8),
-      marginBottom: sw(8),
-    },
-    searchInput: {
-      flex: 1,
-      color: colors.textPrimary,
-      fontSize: ms(14),
-      fontFamily: Fonts.medium,
-      lineHeight: ms(20),
-      paddingVertical: sw(10),
-    },
-    reloadBtn: {
-      padding: sw(4),
-    },
-    subHeaderRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: sw(20),
-      marginBottom: sw(6),
-      marginTop: sw(6),
-    },
-    resultCount: {
-      color: colors.textTertiary,
-      fontSize: ms(12),
-      fontFamily: Fonts.medium,
-      lineHeight: ms(16),
-    },
-    createBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: sw(4),
-    },
-    createBtnText: {
-      color: colors.accent,
-      fontSize: ms(13),
-      fontFamily: Fonts.semiBold,
-      lineHeight: ms(18),
-    },
-    list: {
-      flex: 1,
-    },
-    // On the content, not the list: FlashList sizes rows from its content width
-    listContent: {
-      paddingHorizontal: sw(16),
-    },
-    emptySearch: {
-      alignItems: 'center',
-      paddingTop: sw(24),
-      gap: sw(4),
-    },
-    emptySearchText: {
-      color: colors.textTertiary,
-      fontSize: ms(14),
-      fontFamily: Fonts.medium,
-      lineHeight: ms(20),
-    },
-    deferredPlaceholder: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    searchOnlineFloating: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: sw(6),
-      marginHorizontal: sw(16),
-      marginBottom: sw(4),
-      paddingVertical: sw(10),
-      backgroundColor: colors.accent,
-      borderRadius: sw(10),
-    },
-    searchOnlineFloatingText: {
-      color: colors.textOnAccent,
-      fontSize: ms(13),
-      fontFamily: Fonts.semiBold,
-    },
-  });
