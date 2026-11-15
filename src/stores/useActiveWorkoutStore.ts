@@ -160,6 +160,43 @@ async function _restoreSavedWorkout(
   startWorkoutActivity(_buildSnapshot(get()));
 }
 
+/** Workout fields cleared whenever a session ends (finish, discard, sign-out). Each caller adds its own extras. */
+const SESSION_CLEARED = {
+  isActive: false,
+  sheetVisible: false,
+  exercises: [],
+  workoutTitle: null,
+  restAnchor: null,
+  startedFromRoutine: null,
+  startedFromProgram: null,
+  programWeek: null,
+  ghostUserName: null,
+  workoutId: null,
+  saveMode: 'create',
+  isResting: false,
+  restRemaining: 0,
+  restStartedAt: null,
+  restEndedAt: null,
+} satisfies Partial<ActiveWorkoutState>;
+
+/** Stop what a running session keeps going: the Live Activity, the rest notification, the 1 s tick and a pending save. */
+function _stopSessionEffects() {
+  stopWorkoutActivity();
+  Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+  if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+  if (_persistTimeout) { clearTimeout(_persistTimeout); _persistTimeout = null; }
+  _workoutRestored = false;
+}
+
+/** After a new workout's set(): tick every second, then save and start the Live Activity once the sheet has mounted. */
+function _startSessionEffects(get: () => ActiveWorkoutState) {
+  _timerInterval = setInterval(() => get().tick(), 1000);
+  setTimeout(() => {
+    get()._persist();
+    startWorkoutActivity(_buildSnapshot(get()));
+  }, 0);
+}
+
 /** Saves the active workout and opens the summary. Use `finishWorkout`, which runs one at a time. */
 async function _finishWorkout(
   set: (partial: Partial<ActiveWorkoutState>) => void,
@@ -413,29 +450,8 @@ async function _finishWorkout(
     ghostUserName,
   };
 
-  stopWorkoutActivity();
-  Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
-  if (_persistTimeout) { clearTimeout(_persistTimeout); _persistTimeout = null; }
-  _workoutRestored = false;
-  set({
-    isActive: false,
-    sheetVisible: false,
-    exercises: [],
-    workoutTitle: null,
-    restAnchor: null,
-    startedFromRoutine: null,
-    startedFromProgram: null,
-    programWeek: null,
-    ghostUserName: null,
-    workoutId: null,
-    saveMode: 'create',
-    isResting: false,
-    restRemaining: 0,
-    restStartedAt: null,
-    restEndedAt: null,
-    showSummary: true,
-    summaryData,
-  });
+  _stopSessionEffects();
+  set({ ...SESSION_CLEARED, showSummary: true, summaryData });
 
   clearWorkout();
   return { error: null, incompleteCount, workoutId: workout!.id };
@@ -499,12 +515,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       summaryData: null,
     });
 
-    _timerInterval = setInterval(() => get().tick(), 1000);
-    // Defer heavy async work so the sheet mounts instantly
-    setTimeout(() => {
-      get()._persist();
-      startWorkoutActivity(_buildSnapshot(get()));
-    }, 0);
+    _startSessionEffects(get);
   },
 
   startFromRoutine: (routine, catalogMap, prevMap, ghostUserName) => {
@@ -549,12 +560,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       summaryData: null,
     });
 
-    _timerInterval = setInterval(() => get().tick(), 1000);
-    // Defer heavy async work so the sheet mounts instantly
-    setTimeout(() => {
-      get()._persist();
-      startWorkoutActivity(_buildSnapshot(get()));
-    }, 0);
+    _startSessionEffects(get);
   },
 
   startFromProgram: (routine, catalogMap, prevMap, programId, programWeek) => {
@@ -581,33 +587,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
         if (userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
       }, () => { if (ownerId) addPendingWorkoutDelete(workoutId, ownerId).catch(() => {}); });
     }
-    stopWorkoutActivity();
-    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
-    if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
-    if (_persistTimeout) { clearTimeout(_persistTimeout); _persistTimeout = null; }
-    _workoutRestored = false;
-    set({
-      isActive: false,
-      sheetVisible: false,
-      startTime: null,
-      elapsedSeconds: 0,
-      exercises: [],
-      workoutTitle: null,
-      restAnchor: null,
-      startedFromRoutine: null,
-      startedFromProgram: null,
-      programWeek: null,
-      ghostUserName: null,
-      workoutId: null,
-      saveMode: 'create',
-      isResting: false,
-      restRemaining: 0,
-      restStartedAt: null,
-      restTotal: 0,
-      restEndedAt: null,
-      showSummary: false,
-      summaryData: null,
-    });
+    _stopSessionEffects();
+    set({ ...SESSION_CLEARED, startTime: null, elapsedSeconds: 0, restTotal: 0, showSummary: false, summaryData: null });
     clearWorkout();
   },
 
@@ -622,34 +603,9 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   resetForSignOut: () => {
     _sessionGen++;
     _restoring = null; // an in-flight restore is for the previous account; the next call starts afresh
-    stopWorkoutActivity();
-    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
-    if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
-    if (_persistTimeout) { clearTimeout(_persistTimeout); _persistTimeout = null; }
-    _workoutRestored = false;
+    _stopSessionEffects();
     _undoSnapshot = null;
-    set({
-      isActive: false,
-      sheetVisible: false,
-      startTime: null,
-      elapsedSeconds: 0,
-      exercises: [],
-      workoutTitle: null,
-      restAnchor: null,
-      startedFromRoutine: null,
-      startedFromProgram: null,
-      programWeek: null,
-      ghostUserName: null,
-      workoutId: null,
-      saveMode: 'create',
-      isResting: false,
-      restRemaining: 0,
-      restStartedAt: null,
-      restEndedAt: null,
-      showSummary: false,
-      summaryData: null,
-      pendingFeedPayload: null,
-    });
+    set({ ...SESSION_CLEARED, startTime: null, elapsedSeconds: 0, showSummary: false, summaryData: null, pendingFeedPayload: null });
   },
 
   restoreWorkout: () => {
