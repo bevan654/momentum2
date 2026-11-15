@@ -110,6 +110,13 @@ export default function NotificationList() {
     [declineRequest, resolveFriendshipId, setNotificationResponded],
   );
 
+  const handlePress = useCallback(
+    (item: NotificationItem) => {
+      if (!item.read) markNotificationRead(item.id);
+    },
+    [markNotificationRead],
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: NotificationItem }) => {
       const isActionable = item.type === 'friend_request';
@@ -118,20 +125,14 @@ export default function NotificationList() {
       return (
         <NotificationRow
           notification={item}
-          onPress={() => {
-            if (!item.read) markNotificationRead(item.id);
-          }}
-          onAccept={
-            isActionable && userId && !responded ? () => handleAccept(item) : undefined
-          }
-          onDecline={
-            isActionable && !responded ? () => handleDecline(item) : undefined
-          }
+          onPress={handlePress}
+          onAccept={isActionable && userId && !responded ? handleAccept : undefined}
+          onDecline={isActionable && !responded ? handleDecline : undefined}
           responded={responded}
         />
       );
     },
-    [userId, markNotificationRead, handleAccept, handleDecline],
+    [userId, handlePress, handleAccept, handleDecline],
   );
 
   return (

@@ -10,7 +10,7 @@ import AvatarCircle from './AvatarCircle';
 
 interface Props {
   result: SearchResult;
-  onAdd: () => void;
+  onAdd: (userId: string) => void;
 }
 
 function SearchResultRow({ result, onAdd }: Props) {
@@ -45,7 +45,7 @@ function SearchResultRow({ result, onAdd }: Props) {
       )}
 
       {!status && (
-        <TouchableOpacity style={styles.addBtn} onPress={onAdd} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.addBtn} onPress={() => onAdd(result.id)} activeOpacity={0.7}>
           <Ionicons name="person-add-outline" size={ms(14)} color={colors.textOnAccent} />
           <Text style={styles.addText}>Add</Text>
         </TouchableOpacity>

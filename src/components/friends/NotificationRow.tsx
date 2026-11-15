@@ -21,9 +21,10 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: string; colorKey?: I
 
 interface Props {
   notification: NotificationItem;
-  onPress: () => void;
-  onAccept?: () => void;
-  onDecline?: () => void;
+  /** Each gets the row's notification, so the list can pass the same functions to every row. */
+  onPress: (notification: NotificationItem) => void;
+  onAccept?: (notification: NotificationItem) => void;
+  onDecline?: (notification: NotificationItem) => void;
   responded?: 'accepted' | 'declined' | null;
 }
 
@@ -42,7 +43,7 @@ function NotificationRow({ notification, onPress, onAccept, onDecline, responded
   return (
     <TouchableOpacity
       style={[styles.row, isUnread && styles.unreadRow]}
-      onPress={onPress}
+      onPress={() => onPress(notification)}
       activeOpacity={0.7}
     >
       {isUnread && <View style={styles.unreadBorder} />}
@@ -72,14 +73,14 @@ function NotificationRow({ notification, onPress, onAccept, onDecline, responded
                 styles.actionBtn,
                 { backgroundColor: colors.accentGreen },
               ]}
-              onPress={onAccept}
+              onPress={() => onAccept(notification)}
               activeOpacity={0.7}
             >
               <Text style={styles.actionText}>Accept</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionBtn, styles.declineBtn]}
-              onPress={onDecline}
+              onPress={() => onDecline(notification)}
               activeOpacity={0.7}
             >
               <Text style={[styles.actionText, { color: colors.textSecondary }]}>

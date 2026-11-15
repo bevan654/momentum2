@@ -55,7 +55,7 @@ export default function FriendSearch() {
 
   const renderItem = useCallback(
     ({ item }: { item: SearchResult }) => (
-      <SearchResultRow result={item} onAdd={() => handleAdd(item.id)} />
+      <SearchResultRow result={item} onAdd={handleAdd} />
     ),
     [handleAdd],
   );
