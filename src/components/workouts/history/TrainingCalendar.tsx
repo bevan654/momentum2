@@ -4,9 +4,8 @@ import { useColors, type ThemeColors } from '../../../theme/useColors';
 import { Fonts } from '../../../theme/typography';
 import { sw, ms, SCREEN_WIDTH } from '../../../theme/responsive';
 import type { WorkoutWithDetails } from '../../../stores/useWorkoutStore';
-import { toSlug } from '../../../utils/muscleVolume';
 import { toLocalDateString } from '../../../utils/localDate';
-import { toDateKey, SLUG_GROUP, PART_GROUPS } from './historyConstants';
+import { toDateKey, groupsForParts, workoutHitsGroups } from './historyConstants';
 
 /** Last 56 days as a 4 × 14 dot grid. Tap a trained day to open that workout, a rest day to see its date. */
 function TrainingCalendar({ workouts, catalogMap, debugParts, onSelectWorkout }: {
@@ -52,11 +51,7 @@ function TrainingCalendar({ workouts, catalogMap, debugParts, onSelectWorkout }:
 
   const trainedDaysMap = useMemo(() => {
     const days = new Map<string, WorkoutWithDetails>();
-    const allTargetGroups = new Set<string>();
-    for (const part of debugParts) {
-      const groups = PART_GROUPS[part];
-      if (groups) for (const g of groups) allTargetGroups.add(g);
-    }
+    const allTargetGroups = groupsForParts(debugParts);
 
     for (const w of workouts) {
       const dateKey = toDateKey(w.created_at);
@@ -66,26 +61,7 @@ function TrainingCalendar({ workouts, catalogMap, debugParts, onSelectWorkout }:
         continue;
       }
 
-      let matched = false;
-      for (const ex of w.exercises) {
-        let primary = ex.primary_muscles || [];
-        if (primary.length === 0) {
-          const cat = catalogMap[ex.name];
-          if (cat) { primary = cat.primary_muscles || []; }
-        }
-        for (const raw of primary) {
-          const slug = toSlug(raw);
-          if (slug) {
-            const group = SLUG_GROUP[slug];
-            if (group && allTargetGroups.has(group)) {
-              matched = true;
-              break;
-            }
-          }
-        }
-        if (matched) break;
-      }
-      if (matched && !days.has(dateKey)) days.set(dateKey, w);
+      if (workoutHitsGroups(w, allTargetGroups, catalogMap) && !days.has(dateKey)) days.set(dateKey, w);
     }
 
     return days;

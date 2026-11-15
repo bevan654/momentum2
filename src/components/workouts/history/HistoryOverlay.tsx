@@ -8,9 +8,8 @@ import { useColors, type ThemeColors } from '../../../theme/useColors';
 import { Fonts } from '../../../theme/typography';
 import { sw, ms, SCREEN_HEIGHT } from '../../../theme/responsive';
 import type { WorkoutWithDetails } from '../../../stores/useWorkoutStore';
-import { toSlug } from '../../../utils/muscleVolume';
 import {
-  SLUG_GROUP, PART_GROUPS, DISMISS_THRESHOLD, VELOCITY_THRESHOLD,
+  groupsForParts, workoutHitsGroups, DISMISS_THRESHOLD, VELOCITY_THRESHOLD,
   TIME_FILTERS, TIME_LABELS, TIME_MS, BODY_FILTERS, PLAN_FILTERS, SHEET_HEIGHT,
   type TimeFilter, type PlanFilter,
 } from './historyConstants';
@@ -138,30 +137,8 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
       // Body part filter
       const activeParts = bodyFilter !== 'All' ? [bodyFilter] : debugPart;
       if (activeParts.length > 0) {
-        const allTargetGroups = new Set<string>();
-        for (const part of activeParts) {
-          const groups = PART_GROUPS[part];
-          if (groups) for (const g of groups) allTargetGroups.add(g);
-        }
-        if (allTargetGroups.size > 0) {
-          let matched = false;
-          for (const ex of w.exercises) {
-            let primary = ex.primary_muscles || [];
-            if (primary.length === 0) {
-              const cat = catalogMap[ex.name];
-              if (cat) { primary = cat.primary_muscles || []; }
-            }
-            for (const raw of primary) {
-              const slug = toSlug(raw);
-              if (slug) {
-                const group = SLUG_GROUP[slug];
-                if (group && allTargetGroups.has(group)) { matched = true; break; }
-              }
-            }
-            if (matched) break;
-          }
-          if (!matched) return false;
-        }
+        const targetGroups = groupsForParts(activeParts);
+        if (targetGroups.size > 0 && !workoutHitsGroups(w, targetGroups, catalogMap)) return false;
       }
       return true;
     });

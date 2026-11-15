@@ -13,13 +13,12 @@ import RecoveryBodyMap from '../components/workouts/RecoveryBodyMap';
 import { useMuscleAnalysisStore } from '../stores/useMuscleAnalysisStore';
 import { useOwnBodyweightKg } from '../hooks/useMuscleLoad';
 import { useProgramStore } from '../stores/useProgramStore';
-import { toSlug } from '../utils/muscleVolume';
 import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
 import TodayScheduled from '../components/workouts/TodayScheduled';
 import type { Routine } from '../stores/useRoutineStore';
 import { navigateWorkoutsStack } from '../lib/navigationBridge';
 import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
-import { SLUG_GROUP, PART_GROUPS } from '../components/workouts/history/historyConstants';
+import { PART_GROUPS, groupsForParts, primaryGroupsOf } from '../components/workouts/history/historyConstants';
 import HistoryOverlay from '../components/workouts/history/HistoryOverlay';
 import RoutinePreviewOverlay from '../components/workouts/history/RoutinePreviewOverlay';
 import RecoveryFilterChips from '../components/workouts/history/RecoveryFilterChips';
@@ -79,13 +78,7 @@ function WorkoutHistoryScreen() {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   // Body-graph groups picked in the filter (empty = whole body)
-  const activeGroups = useMemo(() => {
-    const groups = new Set<string>();
-    for (const part of debugParts) {
-      for (const g of PART_GROUPS[part] ?? []) groups.add(g);
-    }
-    return groups;
-  }, [debugParts]);
+  const activeGroups = useMemo(() => groupsForParts(debugParts), [debugParts]);
 
   // Overall recovery % — use min (not average) so platform matches the most fatigued visible muscle
   const overallRecovery = useMemo(() => {
@@ -119,20 +112,9 @@ function WorkoutHistoryScreen() {
       const wDate = new Date(w.created_at);
       const hitParts = new Set<string>();
       for (const ex of w.exercises) {
-        let primary = ex.primary_muscles || [];
-        if (primary.length === 0) {
-          const cat = catalogMap[ex.name];
-          if (cat) { primary = cat.primary_muscles || []; }
-        }
-        for (const raw of primary) {
-          const slug = toSlug(raw);
-          if (slug) {
-            const group = SLUG_GROUP[slug];
-            if (group) {
-              for (const [label, groups] of Object.entries(PART_GROUPS)) {
-                if (groups.includes(group)) hitParts.add(label);
-              }
-            }
+        for (const group of primaryGroupsOf(ex, catalogMap)) {
+          for (const [label, groups] of Object.entries(PART_GROUPS)) {
+            if (groups.includes(group)) hitParts.add(label);
           }
         }
       }
