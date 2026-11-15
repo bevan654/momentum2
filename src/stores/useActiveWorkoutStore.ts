@@ -4,23 +4,21 @@ import * as Notifications from 'expo-notifications';
 import { supabase } from '../lib/supabase';
 import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference, addPendingWorkoutDelete, loadPendingWorkoutDeletes, removePendingWorkoutDeletes } from '../utils/workoutStorage';
 import { buildWorkoutPayload } from '../utils/workoutPayload';
-import { buildFeedExerciseDetails } from '../utils/feedExerciseDetails';
-import { suggestSets } from '../utils/exerciseProgress';
 import { makeUuid } from '../utils/uuid';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useStreakStore } from './useStreakStore';
 import { useRankStore } from './useRankStore';
-import { useProgramStore } from './useProgramStore';
-import { useRoutineStore } from './useRoutineStore';
 import { useAuthStore } from './useAuthStore';
 import { useWeightStore } from './useWeightStore';
 import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity, clearStaleWorkoutActivity } from '../services/liveActivityManager';
-import { REST_NOTIF_ID, EMPTY_SET, EXERCISE_TYPE_CYCLE, SET_TYPE_CYCLE } from './activeWorkout/constants';
+import { REST_NOTIF_ID, EMPTY_SET } from './activeWorkout/constants';
 import { runWithRecovery } from './activeWorkout/supabaseRecovery';
-import { type ActiveSet, type ActiveExercise, type SummaryExercise, type WorkoutSummary, type ActiveWorkoutState, type FinishResult, type UndoSnapshot } from './activeWorkout/types';
+import { type ActiveSet, type ActiveExercise, type ActiveWorkoutState, type FinishResult, type UndoSnapshot } from './activeWorkout/types';
 import { _shiftAnchorForInsert } from './activeWorkout/setHelpers';
+import { createExerciseActions } from './activeWorkout/exerciseActions';
 import { _buildSnapshot } from './activeWorkout/liveActivitySnapshot';
 import { _scheduleRestNotification } from './activeWorkout/restNotification';
+import { programDayOf, buildFeedPayload, toRankExercises, buildSummary } from './activeWorkout/finishHelpers';
 export { type ActiveSet, type ActiveExercise, type SummaryExercise, type WorkoutSummary } from './activeWorkout/types';
 
 // ── Module-level refs ──────────────────────────────────
@@ -235,15 +233,7 @@ async function _finishWorkout(
 
   const endTime = Date.now();
   const start = startTime ?? endTime - duration * 1000;
-  // Program day: the weekday the workout was started on (0 = Monday)
-  let programDayOfWeek: number | null = null;
-  let programDayLabel: string | null = null;
-  if (startedFromProgram) {
-    const jsDay = new Date(start).getDay();
-    programDayOfWeek = jsDay === 0 ? 6 : jsDay - 1;
-    const prog = useProgramStore.getState().programs.find((p) => p.id === startedFromProgram);
-    programDayLabel = prog?.days.find((d) => d.day_of_week === programDayOfWeek)?.label || null;
-  }
+  const { programDayOfWeek, programDayLabel } = programDayOf(start, startedFromProgram);
 
   // Drops sets with nothing entered and exercises left with no sets
   const built = buildWorkoutPayload(exercises, {
@@ -267,9 +257,7 @@ async function _finishWorkout(
     return { error: 'No valid sets to save.' };
   }
 
-  const totalVolume = built.totalVolume;
-  const totalSets = built.totalSets;
-  const exerciseNames = filteredExercises.map((ex) => ex.name);
+  const { totalVolume, totalSets } = built;
 
   // One call saves the workout, its exercises and sets in a single transaction
   // (upsert_workout). It's keyed by workoutId, so retrying after a timeout or a
@@ -299,7 +287,6 @@ async function _finishWorkout(
     restoreTimer();
     return { error: 'Failed to save workout — check your connection and try again.' };
   }
-  const workout = { id: workoutId };
 
   if (gen !== _sessionGen) {
     // Signed out while saving: the workout is saved under the previous account,
@@ -312,77 +299,14 @@ async function _finishWorkout(
 
   // Non-critical operations — fire and forget, never block summary
   try {
-    let ghostResult: string | null = null;
-    if (ghostUserName) {
-      let w = 0, l = 0;
-      for (const ex of filteredExercises) {
-        const completed = ex.sets.filter((s: any) => s.completed);
-        for (let i = 0; i < Math.min(completed.length, ex.prevSets.length); i++) {
-          const uk = parseFloat(completed[i].kg) || 0, ur = parseInt(completed[i].reps) || 0;
-          const gk = ex.prevSets[i].kg, gr = ex.prevSets[i].reps;
-          if (uk < gk) l++;
-          else if (uk === gk) { if (ur > gr) w++; else if (ur < gr) l++; }
-          else { if (uk * ur > gk * gr) w++; else if (uk * ur < gk * gr) l++; }
-        }
-      }
-      ghostResult = w > l ? 'victory' : l > w ? 'defeated' : 'draw';
-    }
-
-    // Resolve routine context for feed
-    let routineFeedData: Record<string, any> = {};
-    if (get().startedFromRoutine) {
-      const routines = useRoutineStore.getState().routines;
-      const routine = routines.find((r) => r.id === get().startedFromRoutine);
-      if (routine) {
-        routineFeedData = { routine_name: routine.name };
-      }
-    }
-
-    // Resolve program context for feed
-    let programFeedData: Record<string, any> = {};
-    if (get().startedFromProgram) {
-      const { programs, getDurationWeeks } = useProgramStore.getState();
-      const prog = programs.find((p) => p.id === get().startedFromProgram);
-      if (prog) {
-        // The day the workout was started on, as saved on the workout row
-        const dayEntry = prog.days.find((d) => d.day_of_week === programDayOfWeek);
-        programFeedData = {
-          program_id: prog.id,
-          program_name: prog.name,
-          program_week: get().programWeek,
-          program_total_weeks: getDurationWeeks(prog) || null,
-          program_day_label: dayEntry?.label || null,
-        };
-      }
-    }
-
-    // Build per-exercise detail snapshot for the feed
-    const { catalogMap } = useWorkoutStore.getState();
-    const exerciseDetailsJson = buildFeedExerciseDetails(filteredExercises, catalogMap);
-
-    const feedPayload = {
-      user_id: userId,
-      workout_id: workout!.id,
-      duration,
-      total_volume: Math.round(totalVolume),
-      exercise_names: exerciseNames,
-      total_exercises: filteredExercises.length,
-      total_sets: totalSets,
-      exercise_details: exerciseDetailsJson,
-      ...routineFeedData,
-      ...programFeedData,
-      ...(ghostUserName ? {
-        ghost_username: ghostUserName,
-        ghost_result: ghostResult,
-        ghost_exercises: filteredExercises.map((ex) => ({
-          name: ex.name,
-          sets: ex.prevSets.map((ps: any) => ({ kg: ps.kg, reps: ps.reps })),
-        })),
-      } : {}),
-    };
     // Deferred: actual insert happens when the user taps Post on the Share screen
     // (or skips, in which case it does not post). See commitFeedPost / dismissShare.
-    set({ pendingFeedPayload: feedPayload });
+    set({
+      pendingFeedPayload: buildFeedPayload(filteredExercises, {
+        userId, workoutId, duration, totalVolume, totalSets, ghostUserName,
+        routineId: startedFromRoutine, programId: startedFromProgram, programWeek, programDayOfWeek,
+      }),
+    });
   } catch (feedCrash) {
     if (__DEV__) console.error('[finishWorkout] feed block crashed:', feedCrash);
   }
@@ -393,50 +317,10 @@ async function _finishWorkout(
   } catch {}
 
   try {
-    useRankStore.getState().updateFromWorkout(
-      filteredExercises.map((ex) => ({
-        name: ex.name,
-        exercise_type: ex.exercise_type,
-        sets: ex.sets.map((s) => ({
-          kg: parseFloat(s.kg) || 0,
-          reps: parseInt(s.reps, 10) || 0,
-          completed: s.completed,
-          set_type: s.set_type,
-        })),
-      })),
-      userId,
-    );
+    useRankStore.getState().updateFromWorkout(toRankExercises(filteredExercises), userId);
   } catch {}
 
-  const summaryExercises: SummaryExercise[] = filteredExercises.map((ex) => ({
-    name: ex.name,
-    category: ex.category,
-    exercise_type: ex.exercise_type,
-    sets: ex.sets.map((s) => ({
-      kg: parseFloat(s.kg) || 0,
-      reps: parseInt(s.reps, 10) || 0,
-      completed: s.completed,
-      set_type: s.set_type,
-      parent_set_number: s.parent_set_number,
-    })),
-  }));
-
-  const summaryData: WorkoutSummary = {
-    workoutId: workout!.id,
-    duration,
-    totalVolume: Math.round(totalVolume),
-    totalSets,
-    totalExercises: filteredExercises.length,
-    exerciseNames,
-    exercises: summaryExercises,
-    prCount: 0,
-    ghostUserName: ghostUserName || null,
-    ghostExercises: ghostUserName ? filteredExercises.map((ex) => ({
-      name: ex.name,
-      sets: ex.prevSets.map((s) => ({ kg: s.kg, reps: s.reps })),
-    })) : undefined,
-    prevMap: { ...useWorkoutStore.getState().prevMap },
-  };
+  const summaryData = buildSummary(filteredExercises, { workoutId, duration, totalVolume, totalSets, ghostUserName });
 
   _undoSnapshot = {
     workoutId,
@@ -454,8 +338,7 @@ async function _finishWorkout(
   set({ ...SESSION_CLEARED, showSummary: true, summaryData });
 
   clearWorkout();
-  return { error: null, incompleteCount, workoutId: workout!.id };
-
+  return { error: null, incompleteCount, workoutId };
 }
 
 export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
@@ -700,433 +583,9 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     startWorkoutActivity(_buildSnapshot(get()));
   },
 
-  // ── Exercise management ───────────────────────────
+  // ── Exercise and set management (activeWorkout/exerciseActions) ──
 
-  addExercise: (name, exerciseType, category, prevSets = []) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    const prevNotes = useWorkoutStore.getState().prevNoteMap[name] || undefined;
-    set((s) => ({
-      exercises: [
-        ...s.exercises,
-        {
-          id: _newExerciseId(),
-          name,
-          exercise_type: exerciseType as ActiveExercise['exercise_type'],
-          category,
-          sets: [{ ...EMPTY_SET }],
-          prevSets,
-          supersetWith: null,
-          prevNotes,
-        },
-      ],
-    }));
-    get()._persist();
-    updateWorkoutActivity(_buildSnapshot(get()));
-  },
-
-  removeExercise: (index) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = s.exercises.filter((_, i) => i !== index);
-      const a = s.restAnchor;
-      const restAnchor = !a || a.exerciseIndex < index ? a
-        : a.exerciseIndex === index ? null
-        : { ...a, exerciseIndex: a.exerciseIndex - 1 };
-      // Fix superset refs
-      return {
-        restAnchor,
-        exercises: exercises.map((ex) => {
-          let sw = ex.supersetWith;
-          if (sw === null) return ex;
-          if (sw === index) sw = null; // partner removed
-          else if (sw > index) sw = sw - 1; // shift down
-          return { ...ex, supersetWith: sw };
-        }),
-      };
-    });
-    get()._persist();
-    updateWorkoutActivity(_buildSnapshot(get()));
-  },
-
-  replaceExercise: (index, name, exerciseType, category, prevSets) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = [...s.exercises];
-      exercises[index] = {
-        ...exercises[index],
-        id: _newExerciseId(),
-        name,
-        exercise_type: exerciseType as ActiveExercise['exercise_type'],
-        category,
-        prevSets,
-      };
-      const restAnchor = s.restAnchor?.exerciseIndex === index ? null : s.restAnchor;
-      return { exercises, restAnchor };
-    });
-    get()._persist();
-    updateWorkoutActivity(_buildSnapshot(get()));
-  },
-
-  moveExercise: (fromIndex, direction) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
-      if (toIndex < 0 || toIndex >= s.exercises.length) return s;
-
-      const exercises = [...s.exercises];
-      [exercises[fromIndex], exercises[toIndex]] = [exercises[toIndex], exercises[fromIndex]];
-      const a = s.restAnchor;
-      const restAnchor = !a ? a
-        : a.exerciseIndex === fromIndex ? { ...a, exerciseIndex: toIndex }
-        : a.exerciseIndex === toIndex ? { ...a, exerciseIndex: fromIndex }
-        : a;
-
-      // Fix superset refs
-      return {
-        restAnchor,
-        exercises: exercises.map((ex) => {
-          let sw = ex.supersetWith;
-          if (sw === null) return ex;
-          if (sw === fromIndex) sw = toIndex;
-          else if (sw === toIndex) sw = fromIndex;
-          return { ...ex, supersetWith: sw };
-        }),
-      };
-    });
-    get()._persist();
-    updateWorkoutActivity(_buildSnapshot(get()));
-  },
-
-  cycleExerciseType: (index) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = [...s.exercises];
-      const ex = exercises[index];
-      exercises[index] = {
-        ...ex,
-        exercise_type: (EXERCISE_TYPE_CYCLE[ex.exercise_type] || 'weighted') as ActiveExercise['exercise_type'],
-      };
-      return { exercises };
-    });
-    get()._persist();
-  },
-
-  setExerciseNotes: (index, notes) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = [...s.exercises];
-      if (!exercises[index]) return s;
-      exercises[index] = { ...exercises[index], notes };
-      return { exercises };
-    });
-    get()._persist();
-  },
-
-  setExerciseNoteColor: (index, color) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = [...s.exercises];
-      if (!exercises[index]) return s;
-      exercises[index] = { ...exercises[index], noteColor: color };
-      return { exercises };
-    });
-    get()._persist();
-  },
-
-  // ── Set management ────────────────────────────────
-
-  addSet: (exerciseIndex) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = [...s.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      ex.sets = [...ex.sets, { ...EMPTY_SET }];
-      exercises[exerciseIndex] = ex;
-      return { exercises };
-    });
-    get()._persist();
-    updateWorkoutActivity(_buildSnapshot(get()));
-  },
-
-  addDropSet: (exerciseIndex, parentSetIndex) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = [...s.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      const sets = [...ex.sets];
-      const parentSetNumber = parentSetIndex + 1; // 1-indexed
-      // Find insertion point: after the last consecutive drop child of this parent
-      let insertAt = parentSetIndex + 1;
-      while (
-        insertAt < sets.length &&
-        sets[insertAt].set_type === 'drop' &&
-        sets[insertAt].parent_set_number === parentSetNumber
-      ) {
-        insertAt++;
-      }
-      const dropSet: ActiveSet = {
-        kg: '',
-        reps: '',
-        completed: false,
-        set_type: 'drop',
-        parent_set_number: parentSetNumber,
-      };
-      sets.splice(insertAt, 0, dropSet);
-      ex.sets = sets;
-      exercises[exerciseIndex] = ex;
-      return { exercises, restAnchor: _shiftAnchorForInsert(s.restAnchor, exerciseIndex, insertAt) };
-    });
-    get()._persist();
-    updateWorkoutActivity(_buildSnapshot(get()));
-  },
-
-  duplicateSet: (exerciseIndex, setIndex) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = [...s.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      const sets = [...ex.sets];
-      const original = sets[setIndex];
-      if (!original) return s;
-
-      // For non-drop sets, insert AFTER any drop children so the drop chain stays contiguous.
-      // For drop sets, insert immediately after (preserving the drop chain).
-      let insertAt = setIndex + 1;
-      if (original.set_type !== 'drop') {
-        const parentNum = setIndex + 1;
-        while (
-          insertAt < sets.length &&
-          sets[insertAt].set_type === 'drop' &&
-          sets[insertAt].parent_set_number === parentNum
-        ) {
-          insertAt++;
-        }
-      }
-
-      const dup: ActiveSet = {
-        kg: original.kg,
-        reps: original.reps,
-        completed: false,
-        set_type: original.set_type,
-        parent_set_number: original.parent_set_number,
-      };
-      sets.splice(insertAt, 0, dup);
-
-      // Bump parent_set_number for any drop sets whose parent index shifted by the insertion
-      for (let i = insertAt + 1; i < sets.length; i++) {
-        const cur = sets[i];
-        if (cur.set_type === 'drop' && cur.parent_set_number != null && cur.parent_set_number >= insertAt + 1) {
-          sets[i] = { ...cur, parent_set_number: cur.parent_set_number + 1 };
-        }
-      }
-
-      ex.sets = sets;
-      exercises[exerciseIndex] = ex;
-      return { exercises, restAnchor: _shiftAnchorForInsert(s.restAnchor, exerciseIndex, insertAt) };
-    });
-    get()._persist();
-    updateWorkoutActivity(_buildSnapshot(get()));
-  },
-
-  removeSet: (exerciseIndex, setIndex) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = [...s.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      const oldSets = ex.sets;
-      const deletedSet = oldSets[setIndex];
-
-      // Build set of indices to remove
-      const removeIndices = new Set<number>([setIndex]);
-      if (deletedSet.set_type !== 'drop') {
-        // Cascade-remove drop children of this parent
-        const parentSetNumber = setIndex + 1;
-        for (let i = 0; i < oldSets.length; i++) {
-          if (oldSets[i].set_type === 'drop' && oldSets[i].parent_set_number === parentSetNumber) {
-            removeIndices.add(i);
-          }
-        }
-      }
-
-      const newSets = oldSets.filter((_, i) => !removeIndices.has(i));
-      if (newSets.length === 0) return s; // Keep at least one set
-
-      // Reindex: map old 1-indexed positions to new for surviving non-drop sets
-      const posMap = new Map<number, number>();
-      let newPos = 0;
-      for (let i = 0; i < oldSets.length; i++) {
-        if (!removeIndices.has(i)) {
-          newPos++;
-          if (oldSets[i].set_type !== 'drop') {
-            posMap.set(i + 1, newPos);
-          }
-        }
-      }
-
-      ex.sets = newSets.map((st) => {
-        if (st.set_type === 'drop' && st.parent_set_number !== null) {
-          const newParent = posMap.get(st.parent_set_number);
-          return { ...st, parent_set_number: newParent ?? null };
-        }
-        return st;
-      });
-
-      exercises[exerciseIndex] = ex;
-      let restAnchor = s.restAnchor;
-      if (restAnchor && restAnchor.exerciseIndex === exerciseIndex) {
-        if (removeIndices.has(restAnchor.setIndex)) restAnchor = null;
-        else {
-          let below = 0;
-          removeIndices.forEach((i) => { if (i < restAnchor!.setIndex) below++; });
-          restAnchor = { ...restAnchor, setIndex: restAnchor.setIndex - below };
-        }
-      }
-      return { exercises, restAnchor };
-    });
-    get()._persist();
-    updateWorkoutActivity(_buildSnapshot(get()));
-  },
-
-  updateSet: (exerciseIndex, setIndex, field, value) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = [...s.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      const sets = [...ex.sets];
-      sets[setIndex] = { ...sets[setIndex], [field]: value };
-      ex.sets = sets;
-      exercises[exerciseIndex] = ex;
-      return { exercises };
-    });
-    get()._persist();
-  },
-
-  toggleSetComplete: (exerciseIndex, setIndex) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    const exercises = [...get().exercises];
-    const ex = { ...exercises[exerciseIndex] };
-    const sets = [...ex.sets];
-    const wasCompleted = sets[setIndex].completed;
-
-    // A set can only be completed once it has the required inputs:
-    // reps for every type, plus kg for straight weighted exercises.
-    if (!wasCompleted) {
-      const cur = sets[setIndex];
-      const needsKg = ex.exercise_type === 'weighted';
-      if (cur.reps.trim() === '' || (needsKg && cur.kg.trim() === '')) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        return;
-      }
-    }
-    if (wasCompleted) {
-      sets[setIndex] = { ...sets[setIndex], completed: false, completedAt: null, target: null };
-    } else {
-      // What the set row was suggesting (the friend's set in ghost mode, else the progression hint)
-      const ghostPrev = get().ghostUserName ? ex.prevSets[setIndex] : undefined;
-      const suggested = ghostPrev ? null : suggestSets(ex.sets, ex.prevSets, ex.exercise_type)[setIndex];
-      const target = ghostPrev
-        ? { kg: ghostPrev.kg, reps: ghostPrev.reps, source: 'previous' as const }
-        : suggested
-          ? { kg: suggested.kg, reps: suggested.reps, source: 'progression' as const }
-          : null;
-      sets[setIndex] = { ...sets[setIndex], completed: true, completedAt: Date.now(), target };
-    }
-    ex.sets = sets;
-    exercises[exerciseIndex] = ex;
-    set({ exercises });
-
-    if (!wasCompleted) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      set({ restAnchor: { exerciseIndex, setIndex } });
-      get().startRest();
-    }
-
-    get()._persist();
-    updateWorkoutActivity(_buildSnapshot(get()));
-  },
-
-  cycleSetType: (exerciseIndex, setIndex) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = [...s.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      const sets = [...ex.sets];
-      const current = sets[setIndex].set_type;
-      let next = (SET_TYPE_CYCLE[current] || 'working') as ActiveSet['set_type'];
-
-      // When cycling to 'drop', find nearest preceding working set as parent
-      let parentSetNumber: number | null = null;
-      if (next === 'drop') {
-        for (let i = setIndex - 1; i >= 0; i--) {
-          if (sets[i].set_type === 'working' || sets[i].set_type === 'warmup' || sets[i].set_type === 'failure') {
-            // Use the nearest non-drop set as parent (typically a working set)
-            if (sets[i].set_type === 'working') {
-              parentSetNumber = i + 1; // 1-indexed
-              break;
-            }
-          }
-        }
-        // No valid parent found — skip 'drop', go to 'failure'
-        if (parentSetNumber === null) {
-          next = 'failure';
-        }
-      }
-
-      sets[setIndex] = {
-        ...sets[setIndex],
-        set_type: next,
-        parent_set_number: next === 'drop' ? parentSetNumber : null,
-      };
-      ex.sets = sets;
-      exercises[exerciseIndex] = ex;
-      return { exercises };
-    });
-    get()._persist();
-  },
-
-  // ── Superset ──────────────────────────────────────
-
-  linkSuperset: (exerciseIndex) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const nextIdx = exerciseIndex + 1;
-      if (nextIdx >= s.exercises.length) return s;
-      const exercises = [...s.exercises];
-
-      // Clear any existing partners on either side before re-linking
-      const existingA = exercises[exerciseIndex].supersetWith;
-      if (existingA !== null && existingA !== nextIdx && exercises[existingA]) {
-        exercises[existingA] = { ...exercises[existingA], supersetWith: null };
-      }
-      const existingB = exercises[nextIdx].supersetWith;
-      if (existingB !== null && existingB !== exerciseIndex && exercises[existingB]) {
-        exercises[existingB] = { ...exercises[existingB], supersetWith: null };
-      }
-
-      exercises[exerciseIndex] = { ...exercises[exerciseIndex], supersetWith: nextIdx };
-      exercises[nextIdx] = { ...exercises[nextIdx], supersetWith: exerciseIndex };
-      return { exercises };
-    });
-    get()._persist();
-    updateWorkoutActivity(_buildSnapshot(get()));
-  },
-
-  unlinkSuperset: (exerciseIndex) => {
-    if (_finishing) return; // the workout is being saved; a change now wouldn't be in it
-    set((s) => {
-      const exercises = [...s.exercises];
-      const partnerIdx = exercises[exerciseIndex].supersetWith;
-      exercises[exerciseIndex] = { ...exercises[exerciseIndex], supersetWith: null };
-      if (partnerIdx !== null && exercises[partnerIdx]) {
-        exercises[partnerIdx] = { ...exercises[partnerIdx], supersetWith: null };
-      }
-      return { exercises };
-    });
-    get()._persist();
-    updateWorkoutActivity(_buildSnapshot(get()));
-  },
-
-  // ── Rest timer ────────────────────────────────────
+  ...createExerciseActions(set, get, { isFinishing: () => _finishing !== null, newExerciseId: _newExerciseId }),
 
   setRestDuration: (seconds) => {
     // While resting, restDuration is re-anchored to the remaining time, so the
