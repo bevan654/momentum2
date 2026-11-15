@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { StyleSheet, ScrollView } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../../../theme/useColors';
@@ -18,6 +18,9 @@ interface Props {
   right?: React.ReactNode;
   /** Pinned under the scroll content (e.g. the main action button). */
   footer?: React.ReactNode;
+  /** Space under the footer when the keyboard is closed. Defaults to the home-indicator inset;
+   *  pass a small value when the screen already sits above a tab bar. */
+  bottomInset?: number;
   children: React.ReactNode;
 }
 
@@ -26,7 +29,7 @@ interface Props {
  * fades in over the sheet, back button + Android back close only this screen,
  * scrollable body with a pinned footer that respects the home indicator and keyboard.
  */
-function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, footer, children }: Props) {
+function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, footer, bottomInset, children }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -34,6 +37,10 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
   // Starts hidden so the first show fades in, whether the screen is always mounted or mounted on open.
   const progress = useSharedValue(0);
   const kbInset = useKeyboardInset();
+  // Home-indicator spacing under the footer, dropped while the keyboard sits right below it.
+  const restInset = bottomInset ?? Math.max(insets.bottom, sw(12));
+  const kbOpen = kbInset.open;
+  const footerStyle = useAnimatedStyle(() => ({ paddingBottom: kbOpen.value ? sw(12) : restInset }));
   useEffect(() => {
     progress.value = withTiming(visible ? 1 : 0, { duration: visible ? 180 : 140 });
   }, [visible]);
@@ -58,9 +65,7 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
         >
           {children}
         </ScrollView>
-        {footer ? (
-          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, sw(12)) }]}>{footer}</View>
-        ) : null}
+        {footer ? <Animated.View style={[styles.footer, footerStyle]}>{footer}</Animated.View> : null}
       </Animated.View>
     </Animated.View>
   );

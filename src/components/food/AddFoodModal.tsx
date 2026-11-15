@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Alert, Pressable } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { View, Text, StyleSheet, Alert, Pressable, ActivityIndicator } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -52,6 +52,9 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const s = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const kbInset = useKeyboardInset();
+  // Above the home indicator normally; just above the keyboard when it's open.
+  const kbOpen = kbInset.open;
+  const deepBtnStyle = useAnimatedStyle(() => ({ bottom: sw(16) + (kbOpen.value ? 0 : insets.bottom) }));
 
   const userId = useAuthStore((st) => st.user?.id);
   const catalogResults = useFoodLogStore((st) => st.catalogResults);
@@ -280,16 +283,22 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
             bottomPadding={showDeepSearch ? sw(80) + insets.bottom : sw(40) + insets.bottom}
           />
           {/* Inside the list's view, so it rises with the keyboard instead of hiding under it. */}
-          {showDeepSearch && (
-            <Pressable
-              style={({ pressed }) => [s.deepBtn, { bottom: sw(16) + insets.bottom }, pressed && s.pressed]}
-              onPress={ai.deepSearch}
-              accessibilityRole="button"
-              accessibilityLabel="Deep Search with AI"
-            >
-              <Ionicons name="sparkles" size={ms(15)} color={colors.textOnAccent} />
-              <Text style={s.deepText}>Deep Search</Text>
-            </Pressable>
+          {(showDeepSearch || (searching && ai.aiSearching)) && (
+            <Animated.View style={[s.deepWrap, deepBtnStyle]} pointerEvents="box-none">
+              <Pressable
+                style={({ pressed }) => [s.deepBtn, pressed && s.pressed]}
+                onPress={ai.deepSearch}
+                disabled={ai.aiSearching}
+                accessibilityRole="button"
+                accessibilityLabel={ai.aiSearching ? 'Deep Search running' : 'Deep Search with AI'}
+                accessibilityState={{ busy: ai.aiSearching }}
+              >
+                {ai.aiSearching
+                  ? <ActivityIndicator size="small" color={colors.textOnAccent} />
+                  : <Ionicons name="sparkles" size={ms(15)} color={colors.textOnAccent} />}
+                <Text style={s.deepText}>{ai.aiSearching ? 'Asking AI…' : 'Deep Search'}</Text>
+              </Pressable>
+            </Animated.View>
           )}
         </View>
       </Animated.View>
@@ -421,9 +430,13 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(16),
       fontFamily: Fonts.regular,
     },
-    deepBtn: {
+    deepWrap: {
       position: 'absolute',
-      alignSelf: 'center',
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+    },
+    deepBtn: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: sw(7),
