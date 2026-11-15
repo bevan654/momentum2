@@ -154,6 +154,17 @@ interface FriendsState {
   fetchCommentCounts: (activityIds: string[]) => Promise<void>;
 }
 
+// Reaction writes for the same post go out one after another, so a quick like -> unlike can't
+// reach the server in the wrong order (the UI updates before the write; see addReaction).
+const _reactionQueue = new Map<string, Promise<void>>();
+function queueReaction(activityId: string, write: () => Promise<void>): Promise<void> {
+  const next = (_reactionQueue.get(activityId) ?? Promise.resolve()).then(write, write);
+  const tail = next.catch(() => {});
+  _reactionQueue.set(activityId, tail);
+  tail.then(() => { if (_reactionQueue.get(activityId) === tail) _reactionQueue.delete(activityId); });
+  return next;
+}
+
 export const useFriendsStore = create<FriendsState>((set, get) => ({
   friends: [],
   friendsLoading: false,
@@ -497,7 +508,7 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
         };
       }),
     }));
-    await dbAddReaction(activityId, userId, emoji);
+    await queueReaction(activityId, () => dbAddReaction(activityId, userId, emoji));
   },
 
   removeReaction: async (activityId, userId, emoji) => {
@@ -514,7 +525,7 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
         };
       }),
     }));
-    await dbRemoveReaction(activityId, userId, emoji);
+    await queueReaction(activityId, () => dbRemoveReaction(activityId, userId, emoji));
   },
 
   fetchBookmarks: async (userId) => {
