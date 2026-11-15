@@ -59,6 +59,10 @@ async function attachProfilesAndReactions(
   const userIds = [...new Set(feedRows.map((r: any) => r.user_id))];
   const feedIds = feedRows.map((r: any) => r.id).filter(Boolean);
   const workoutIds = [...new Set(feedRows.map((r: any) => r.workout_id).filter(Boolean))];
+  // Exercises + sets are only a fallback for posts without their own exercise_details (posts from old
+  // app builds), so only those posts' workouts are fetched.
+  const hasOwnDetails = (r: any) => Array.isArray(r.exercise_details) && r.exercise_details.length > 0;
+  const fallbackWorkoutIds = [...new Set(feedRows.filter((r: any) => !hasOwnDetails(r)).map((r: any) => r.workout_id).filter(Boolean))];
 
   // Batch 1: profiles, reactions, exercise details, streaks, workout photos (parallel)
   const [profilesRes, reactionsRes, exercisesRes, streaksRes, workoutsRes] = await Promise.all([
@@ -68,11 +72,11 @@ async function attachProfilesAndReactions(
     feedIds.length > 0
       ? supabase.from('reactions').select('*').in('activity_id', feedIds)
       : Promise.resolve({ data: [] as any[] }),
-    workoutIds.length > 0
+    fallbackWorkoutIds.length > 0
       ? supabase
           .from('exercises')
           .select('workout_id, name, exercise_order, exercise_type, sets(kg, reps, completed, set_number)')
-          .in('workout_id', workoutIds)
+          .in('workout_id', fallbackWorkoutIds)
           .order('exercise_order', { ascending: true })
       : Promise.resolve({ data: [] as any[] }),
     supabase.rpc('list_public_streaks', { p_ids: userIds }),
@@ -96,7 +100,8 @@ async function attachProfilesAndReactions(
   // so the catalog is available even when detailed exercise data can't be fetched (e.g. RLS)
   const exNamesFromQuery = (exercisesRes.data || []).map((e: any) => e.name);
   const exNamesFromFeed = feedRows.flatMap((r: any) => r.exercise_names || []);
-  const exNames = [...new Set([...exNamesFromQuery, ...exNamesFromFeed])];
+  const exNamesFromDetails = feedRows.flatMap((r: any) => (hasOwnDetails(r) ? r.exercise_details.map((d: any) => d?.name).filter(Boolean) : []));
+  const exNames = [...new Set([...exNamesFromQuery, ...exNamesFromFeed, ...exNamesFromDetails])];
   const catalogRes = exNames.length > 0
     ? await supabase
         .from('exercises_catalog')
