@@ -646,6 +646,8 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       throw new Error(error.message);
     }
 
+    // Next non-forced fetchExerciseCatalog goes to the network again (as before the in-memory early return)
+    _catalogLoaded = null;
     // Update catalogMap in memory
     const { catalogMap } = get();
     set({

@@ -84,8 +84,6 @@ function ExerciseCard({
   onSetWeightChange,
   onRestChange,
   onRemove,
-  // onMoveUp / onMoveDown / isFirst / isLast are still passed by the routine and program-day
-  // editors, but the up/down buttons were removed in cae9aae. Restore them or drop the props (open question).
 }: ExerciseCardProps) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
