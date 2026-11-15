@@ -9,12 +9,13 @@ const MAX_PAGES = 20; // 20k rows: a safety stop, far beyond any real history
 
 async function fetchAllRows<T>(
   page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
-): Promise<T[]> {
+): Promise<T[] | null> {
   const rows: T[] = [];
   for (let p = 0; p < MAX_PAGES; p++) {
     const from = p * PAGE_SIZE;
     const { data, error } = await page(from, from + PAGE_SIZE - 1);
-    if (error || !data) break;
+    // null, not the rows so far: a partial history would give a wrong (too low) streak or total
+    if (error || !data) return null;
     rows.push(...data);
     if (data.length < PAGE_SIZE) break;
   }
@@ -33,10 +34,10 @@ export async function getUserStreak(
   return data;
 }
 
-/** Fetch distinct workout dates (YYYY-MM-DD) for a user, descending. */
+/** Fetch distinct workout dates (YYYY-MM-DD) for a user, descending. null if the history couldn't be read. */
 export async function fetchWorkoutDates(
   userId: string,
-): Promise<string[]> {
+): Promise<string[] | null> {
   // All of it: the longest streak needs the whole history (a single request stopped at 1000 workouts).
   const data = await fetchAllRows<{ created_at: string }>((from, to) =>
     supabase
@@ -48,6 +49,7 @@ export async function fetchWorkoutDates(
       .range(from, to),
   );
 
+  if (!data) return null;
   if (data.length === 0) return [];
 
   // Convert UTC timestamps to local dates and deduplicate
@@ -102,7 +104,7 @@ export async function getFriendStats(
     getUserStreak(userId),
   ]);
 
-  const totalVolume = volumeRes.reduce(
+  const totalVolume = (volumeRes ?? []).reduce(
     (sum: number, r: any) => sum + (Number(r.total_volume) || 0),
     0,
   );

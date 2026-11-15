@@ -35,6 +35,9 @@ export const useStreakStore = create<StreakState>((set, get) => ({
 
   refreshStreak: async (userId: string) => {
     const dates = await fetchWorkoutDates(userId);
+    // Couldn't read the history (offline, error): keep what we have. This used to save 0 / 0 to the
+    // server, wiping the streak friends and the leaderboard see.
+    if (!dates) return;
     const today = toLocalDateString();
     const result = calculateStreak(dates, today);
 
