@@ -105,6 +105,8 @@ interface WorkoutState {
 
 /** Which user's catalog is in memory and when it was fetched (cache or network). Cleared on sign-out. */
 let _catalogLoaded: { userId: string; ts: number } | null = null;
+/** Bumped when the in-memory catalog is invalidated, so a fetch that started earlier doesn't mark it fresh. */
+let _catalogGen = 0;
 
 export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   workouts: [],
@@ -191,6 +193,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     }
 
     // 2. Fetch from Supabase
+    const gen = _catalogGen;
     try {
       const [catalogRows, userRes, aliasRes] = await Promise.all([
         fetchCatalogRows(),
@@ -218,7 +221,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
 
       if (Object.keys(map).length > 0) {
         set({ catalogMap: map, aliasMap: aMap });
-        _catalogLoaded = { userId, ts: Date.now() };
+        if (gen === _catalogGen) _catalogLoaded = { userId, ts: Date.now() };
         // 3. Persist to cache
         AsyncStorage.setItem(
           CATALOG_CACHE_KEY,
@@ -648,6 +651,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
 
     // Next non-forced fetchExerciseCatalog goes to the network again (as before the in-memory early return)
     _catalogLoaded = null;
+    _catalogGen++;
     // Update catalogMap in memory
     const { catalogMap } = get();
     set({
@@ -674,6 +678,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
 
   clearCaches: () => {
     _catalogLoaded = null;
+    _catalogGen++;
     set({ catalogMap: {}, aliasMap: {}, prevMap: {}, prevNoteMap: {}, sessionHistoryMap: {}, workouts: [] });
     AsyncStorage.removeItem(CATALOG_CACHE_KEY).catch(() => {});
   },
