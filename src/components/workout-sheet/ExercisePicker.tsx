@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   Pressable,
-  FlatList,
   StyleSheet,
   Dimensions,
   Keyboard,
@@ -45,6 +44,7 @@ import ExerciseRow, { createRowStyles } from './exercise-picker/ExerciseRow';
 import MuscleFilterChips from './exercise-picker/MuscleFilterChips';
 import ExerciseListHeader from './exercise-picker/ExerciseListHeader';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { FlashList } from '@shopify/flash-list';
 
 /* ─── Constants ───────────────────────────────────────── */
 
@@ -68,12 +68,13 @@ const CLOSE_CFG = { duration: 250, easing: Easing.in(Easing.cubic) };
    Architecture for FPS:
    1. Module-level cache: sorted entries + muscles survive
       unmount/remount — zero-cost on re-open.
-   2. Deferred content mount: the heavy SectionList/FlatList
+   2. Deferred content mount: the heavy FlashList
       mounts AFTER the spring animation is mostly done
       (CONTENT_DEFER_MS delay), keeping the UI thread free
       for smooth 120fps animation.
-   3. No Modal, no GestureHandlerRootView — direct Reanimated
-      translateY + Gesture Handler.
+   3. The sheet is moved by a Reanimated translateY driven by a
+      Gesture Handler pan, inside an Overlay (not an RN Modal
+      animation).
    4. GPU rasterization hint on the animated sheet view.
    ═══════════════════════════════════════════════════════════ */
 
@@ -598,18 +599,15 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
 
             {/* Results */}
             {contentReady && (
-              <FlatList
+              <FlashList
                 data={defaultSections.regular}
                 keyExtractor={keyExtractor}
                 keyboardShouldPersistTaps="handled"
                 style={styles.list}
+                contentContainerStyle={styles.listContent}
                 renderItem={renderFlatItem}
                 ListHeaderComponent={defaultListHeader}
                 ListEmptyComponent={listEmptyComponent}
-                initialNumToRender={20}
-                maxToRenderPerBatch={15}
-                windowSize={7}
-                removeClippedSubviews={Platform.OS === 'android'}
               />
             )}
           </View>
@@ -744,6 +742,9 @@ const createStyles = (colors: ThemeColors) =>
     },
     list: {
       flex: 1,
+    },
+    // On the content, not the list: FlashList sizes rows from its content width
+    listContent: {
       paddingHorizontal: sw(16),
     },
     emptySearch: {
