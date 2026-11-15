@@ -8,7 +8,6 @@ import ProgramSummaryScreen from '../screens/ProgramSummaryScreen';
 import ProgramDayEditorScreen from '../screens/ProgramDayEditorScreen';
 import ProgramProgressScreen from '../screens/ProgramProgressScreen';
 import WorkoutHistoryScreen from '../screens/WorkoutHistoryScreen';
-import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
 import StartWorkoutScreen from '../screens/StartWorkoutScreen';
 import SheetWrapper from '../components/SheetWrapper';
 import { useColors } from '../theme/useColors';
@@ -23,7 +22,6 @@ export type WorkoutsStackParamList = {
   ProgramSummary: { programId: string };
   ProgramProgress: { programId: string };
   ProgramDayEditor: undefined;
-  WorkoutDetail: { workoutId: string };
 };
 
 const Stack = createNativeStackNavigator<WorkoutsStackParamList>();
@@ -159,13 +157,6 @@ export default function WorkoutsNavigator() {
             name="ProgramProgress"
             component={ProgramProgressModal}
             options={{ presentation: 'transparentModal', animation: 'slide_from_right', contentStyle: { backgroundColor: 'transparent' } }}
-          />
-
-          {/* WorkoutDetail keeps its own presentation */}
-          <Stack.Screen
-            name="WorkoutDetail"
-            component={WorkoutDetailScreen}
-            options={{ gestureEnabled: false }}
           />
         </Stack.Navigator>
       </View>

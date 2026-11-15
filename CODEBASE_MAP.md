@@ -64,7 +64,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
   | Community | `screens/FriendsScreen.tsx` (+ `components/friends/`, `home/Feed.tsx`) |
 
   It also mounts the global `Header`, `ActiveWorkoutSheet`, `FloatingWorkoutBanner`, `WorkoutSummaryModal`, `GhostFinishScreen`, `FriendProfileModal`, and `ProfileScreen` inside a `Sheet`.
-- `src/navigation/WorkoutsNavigator.tsx`: the base layer is `WorkoutHistoryScreen` (recovery body map + today's plan), shown or hidden through `navigationBridge`. The route `StartWorkout` renders nothing but is load-bearing: on mount it registers the workouts nav ref, and on each focus it shows the recovery overlay. Don't delete it. The plans screen is the route **`Plans`** → `StartWorkoutScreen`. Other routes: `CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`, `WorkoutDetail`.
+- `src/navigation/WorkoutsNavigator.tsx`: the base layer is `WorkoutHistoryScreen` (recovery body map + today's plan), shown or hidden through `navigationBridge`. The route `StartWorkout` renders nothing but is load-bearing: on mount it registers the workouts nav ref, and on each focus it shows the recovery overlay. Don't delete it. The plans screen is the route **`Plans`** → `StartWorkoutScreen`. Other routes: `CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`.
 
 ## How the pieces connect
 - **Usual flow:** screen → feature components → Zustand store (`src/stores/`) → `supabase` client (`src/lib/supabase.ts`) → Postgres (with RLS). Social data mostly goes store → `src/lib/friendsDatabase.ts` → Supabase; `friends/FriendProfileModal` and `friends/NotificationList` call `friendsDatabase` directly, and the finished-workout feed post (`activity_feed`) is written by `useActiveWorkoutStore` and the workout-summary edit-save (`workout-sheet/summary/useSummaryEdit`).
@@ -97,7 +97,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | Workouts tab plans, routines, programs | `navigation/WorkoutsNavigator.tsx`, `screens/StartWorkoutScreen.tsx` (route `Plans`), `screens/*Routine*`, `screens/*Program*` |
 | Active workout UI / logic | `components/workout-sheet/`, `stores/useActiveWorkoutStore.ts` |
 | Post-workout summary / editing a past workout | `components/workout-sheet/WorkoutSummaryModal.tsx` (pieces in `components/workout-sheet/summary/`) |
-| Workout history | `stores/useWorkoutStore.ts`, `screens/WorkoutHistoryScreen.tsx` (+ `components/workouts/history/`), `screens/WorkoutDetailScreen.tsx` |
+| Workout history | `stores/useWorkoutStore.ts`, `screens/WorkoutHistoryScreen.tsx` (+ `components/workouts/history/`); a past workout opens in `workout-sheet/WorkoutSummaryModal` |
 | Exercise catalog / picker | `components/workout-sheet/ExercisePicker.tsx`, `lib/catalogDatabase.ts`, `utils/exerciseCatalog.ts` |
 | Body map, muscle heat, recovery | `components/body/`, `utils/muscleVolume.ts`, `utils/muscleLoad.ts`, `constants/muscleMap.ts`, `stores/useRegionTargetsStore.ts` |
 | Strength score, ranks | `utils/strengthScore.ts`, `stores/useRankStore.ts` |

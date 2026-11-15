@@ -62,7 +62,7 @@ This project is a continuation of an app built with an older model, so expect bu
 ├── scripts/                   # Dev/ops scripts (build stamping, imports, seeding, notifications; catalog/ = RepDB exercise import, muscle-map region targets)
 │
 └── src/
-    ├── screens/               # Top-level routes (22 screens)
+    ├── screens/               # Top-level routes (19 screens)
     ├── components/
     │   ├── auth/              # SocialAuthButtons (Google / Apple OAuth)
     │   ├── body/              # Body map wrappers around momentum-muscle-map: map pair, workout mini maps, exercise thumb, level toggle, region chip, workout heatmap
@@ -102,7 +102,7 @@ supabase/
   - `OnboardingScreen` if profile is incomplete (height/age/gender/starting_weight)
   - `TabNavigator` once authenticated and onboarded
 - **`TabNavigator`** uses `MaterialTopTabNavigator` rendered with a **custom bottom tab bar** (animated indicator, central elevated Home button, Community badge). Tabs: **Recovery, Workouts, Home, Nutrition, Community**. Options: `lazy: true`, `lazyPreloadDistance: 1`. material-top-tabs has no `freezeOnBlur`; instead each tab is wrapped in `withFreezeWhenFar` (`navigation/freezeFarTabs.tsx`, `react-freeze`), so tabs more than one away from the current tab don't re-render.
-- **`WorkoutsNavigator`** (native stack) hosts: `StartWorkout`, plan editors (`CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`), and `WorkoutDetail`. Re-pressing the Workouts tab triggers `showRecoveryOverlay()` via `navigationBridge`.
+- **`WorkoutsNavigator`** (native stack) hosts: `StartWorkout`, plan editors (`CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`). Re-pressing the Workouts tab triggers `showRecoveryOverlay()` via `navigationBridge`.
 - **Community tab** renders `FriendsScreen` directly (no nested navigator). Chat was removed.
 - **`navigationBridge`** exposes imperative entry points (open profile sheet, recovery overlay, workouts nav ref) to non-navigator components.
 - **`ProfileScreen`** is mounted as a 92%-height bottom sheet, opened by long-pressing the Home tab or tapping the avatar.
