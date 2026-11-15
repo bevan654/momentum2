@@ -75,12 +75,25 @@ function endOfDay(d: Date): Date {
   return r;
 }
 
+/** Workouts with volume, as (time, volume), parsed once per history array (the chart scans them per slot). */
+const _timed = new WeakMap<WorkoutWithDetails[], { t: number; vol: number }[]>();
+function timedVolumes(workouts: WorkoutWithDetails[]): { t: number; vol: number }[] {
+  let list = _timed.get(workouts);
+  if (!list) {
+    list = [];
+    for (const w of workouts) {
+      if (w.totalVolume <= 0) continue;
+      list.push({ t: new Date(w.created_at).getTime(), vol: w.totalVolume });
+    }
+    _timed.set(workouts, list);
+  }
+  return list;
+}
+
 function sumVolume(workouts: WorkoutWithDetails[], from: number, to: number): number {
   let sum = 0;
-  for (const w of workouts) {
-    if (w.totalVolume <= 0) continue;
-    const t = new Date(w.created_at).getTime();
-    if (t >= from && t <= to) sum += w.totalVolume;
+  for (const { t, vol } of timedVolumes(workouts)) {
+    if (t >= from && t <= to) sum += vol;
   }
   return sum;
 }
@@ -101,11 +114,9 @@ function computeRollingAvg(
     const windowStart = slot.endTime - windowMs;
     let sum = 0;
     let count = 0;
-    for (const w of workouts) {
-      if (w.totalVolume <= 0) continue;
-      const t = new Date(w.created_at).getTime();
+    for (const { t, vol } of timedVolumes(workouts)) {
       if (t >= windowStart && t <= slot.endTime) {
-        sum += w.totalVolume;
+        sum += vol;
         count++;
       }
     }
