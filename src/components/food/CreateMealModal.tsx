@@ -20,7 +20,7 @@ import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import { useFoodLogStore } from '../../stores/useFoodLogStore';
+import { useFoodLogStore, MICRO_KEYS } from '../../stores/useFoodLogStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useNutritionStore } from '../../stores/useNutritionStore';
 import { useSavedMealsStore, type MealItem, type SavedMeal } from '../../stores/useSavedMealsStore';
@@ -39,10 +39,7 @@ function generateGroupId(): string {
 }
 
 /** Micronutrients the meal editor doesn't show; kept from the original entries when editing. */
-const KEPT_MICRO_KEYS = [
-  'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k', 'vitamin_b6', 'vitamin_b12',
-  'folate', 'calcium', 'iron', 'magnesium', 'potassium', 'zinc', 'sodium', 'caffeine',
-] as const;
+const KEPT_MICRO_KEYS = MICRO_KEYS;
 
 const round = (v: number, factor: number) => Math.round(v * factor) / factor;
 
