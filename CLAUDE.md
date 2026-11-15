@@ -101,7 +101,7 @@ supabase/
   - `WelcomeSplashScreen` for first-load flash
   - `OnboardingScreen` if profile is incomplete (height/age/gender/starting_weight)
   - `TabNavigator` once authenticated and onboarded
-- **`TabNavigator`** uses `MaterialTopTabNavigator` rendered with a **custom bottom tab bar** (animated indicator, central elevated Home button, Community badge). Tabs: **Recovery, Workouts, Home, Nutrition, Community**. Options: `lazy: true`, `freezeOnBlur: true`, `lazyPreloadDistance: 1`.
+- **`TabNavigator`** uses `MaterialTopTabNavigator` rendered with a **custom bottom tab bar** (animated indicator, central elevated Home button, Community badge). Tabs: **Recovery, Workouts, Home, Nutrition, Community**. Options: `lazy: true`, `lazyPreloadDistance: 1`. material-top-tabs has no `freezeOnBlur`; instead each tab is wrapped in `withFreezeWhenFar` (`navigation/freezeFarTabs.tsx`, `react-freeze`), so tabs more than one away from the current tab don't re-render.
 - **`WorkoutsNavigator`** (native stack) hosts: `StartWorkout`, plan editors (`CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`), and `WorkoutDetail`. Re-pressing the Workouts tab triggers `showRecoveryOverlay()` via `navigationBridge`.
 - **Community tab** renders `FriendsScreen` directly (no nested navigator). Chat was removed.
 - **`navigationBridge`** exposes imperative entry points (open profile sheet, recovery overlay, workouts nav ref) to non-navigator components.
@@ -174,7 +174,7 @@ supabase
 - Components: `PascalCase.tsx`. Stores/utils/services/hooks/lib: `camelCase.ts`. Stores: `use[Domain]Store.ts`.
 
 ### Performance
-- Never block JS thread. Use `freezeOnBlur` on tab screens. Test in release (Hermes + New Arch) only. FlashList for any list >~20 items.
+- Never block JS thread. Tab screens are frozen when more than one tab away (`withFreezeWhenFar`); `freezeOnBlur` does nothing on material-top-tabs. Test in release (Hermes + New Arch) only. FlashList for any list >~20 items.
 
 ### Library-First
 Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No custom solutions unless a measured bottleneck exists.
@@ -216,7 +216,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 
 | Service | Status | Notes |
 |---|---|---|
-| `notificationService` | Active — initialized in `TabNavigator` via `initNotifications(userId)` | Realtime channel `notif:${userId}` for `notifications` table. One persistent websocket per session. |
+| `notificationService` | Active — Realtime channel via `initNotifications(userId)` from `FriendsScreen` while Community is focused (users with friends); push-token registration via `initPushToken(userId)` from `TabNavigator` for the whole session, cleared on sign-out | Realtime channel `notif:${userId}` for `notifications` table. One websocket while Community is focused. |
 | `liveActivityManager` | Active — started/updated/stopped by `useActiveWorkoutStore` | Active workout on the Lock Screen / status bar. On binaries with `modules/workout-live-activity` (1.0.37+): iOS 16.2+ ActivityKit Live Activity (Lock Screen + Dynamic Island, UI in `targets/workout-activity`) and an Android ongoing notification (channel `workout_live`, native chronometer, exact alarm flips it back to elapsed when a rest ends). Timers tick natively; JS sends a snapshot only when the shown content changes. Older binaries / iOS < 16.2 / Live Activities off: legacy iOS sticky expo-notification with a JS ticker. The scheduled `rest-timer` notification stays the audible rest-complete cue. |
 
 ---
@@ -224,7 +224,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 ## Realtime / Connection Footprint
 
 Per active session, expect roughly:
-- **1 websocket** for `notificationService` (always-on while authenticated).
+- **1 websocket** for `notificationService` while the Community tab is focused (users with friends).
 - **~2 PostgREST pool workers** on the `authenticator` role (kept warm).
 - **1** transient auth/refresh connection.
 
