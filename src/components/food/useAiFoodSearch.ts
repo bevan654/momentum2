@@ -56,7 +56,8 @@ export function useAiFoodSearch(query: string) {
   // A new query hides the previous AI answer.
   useEffect(() => {
     setShowAiResults(false);
-    setAiResults([]);
+    // Keep the same array when already empty, so the results list doesn't rebuild on every keystroke.
+    setAiResults((prev) => (prev.length ? [] : prev));
     setAiError(null);
   }, [query]);
 
@@ -134,6 +135,9 @@ export function useAiFoodSearch(query: string) {
       if (items.length > 0) {
         supabase.from('ai_food_cache').insert(aiItemsToCacheRows(items, normalized, q)).then(() => {}, () => {});
       }
+    } catch {
+      // e.g. getSession() throwing or a malformed item in the payload: show an error, don't reject.
+      if (queryRef.current.trim() === q) setAiError('Deep Search is unavailable right now. Try again later.');
     } finally {
       if (deepSearchFor.current === q) {
         deepSearchFor.current = null;
