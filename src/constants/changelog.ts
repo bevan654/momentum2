@@ -16,6 +16,20 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.47',
+    date: '2026-11-14',
+    title: "What's New",
+    items: [
+      "Push notifications now work even if you haven't added any friends yet",
+      'Move exercises up and down in routines and program days again with the arrows on each card',
+      'Smoother workouts: typing weights and reps, ticking sets and the workout timer no longer slow the screen down',
+      'Faster tab switching and a smoother Community feed; likes now respond instantly',
+      "Signing out now stops that account's notifications on this phone",
+      'Fixed: swiping a set to complete could fill in the wrong exercise after you removed one',
+      "Fixed: some exercises showed example notes that weren't yours",
+    ],
+  },
+  {
     version: '1.0.45',
     date: '2026-11-14',
     title: "What's New",
