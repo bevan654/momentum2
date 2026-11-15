@@ -136,7 +136,21 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
     onDismiss();
   }, [onDismiss, resetToCamera]);
 
+  // The scan in flight. Cleared (and aborted) on unmount, so a late reply never updates a closed screen.
+  const scanRef = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    const c = scanRef.current;
+    scanRef.current = null;
+    c?.abort();
+  }, []);
+
   const analyze = useCallback(async (base64: string, mimeType: string, context?: string) => {
+    scanRef.current?.abort();
+    const controller = new AbortController();
+    scanRef.current = controller;
+    const isCurrent = () => scanRef.current === controller;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
     setMode('analyzing');
     setItems([]);
     setErrorText('');
@@ -144,6 +158,7 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
+      if (!isCurrent()) return;
       const session = sessionData?.session;
       if (!session?.access_token) {
         setErrorText('Not signed in.');
@@ -153,8 +168,7 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
 
       const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
       const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30_000);
+      timeoutId = setTimeout(() => controller.abort(), 30_000);
 
       const res = await fetch(`${supabaseUrl}/functions/v1/gemini-food-scan`, {
         method: 'POST',
@@ -170,11 +184,12 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
         }),
         signal: controller.signal,
       });
-      clearTimeout(timeoutId);
+      if (!isCurrent()) return;
 
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
-        console.log('[MacroLens] HTTP', res.status, errText.slice(0, 200));
+        if (__DEV__) console.log('[MacroLens] HTTP', res.status, errText.slice(0, 200));
+        if (!isCurrent()) return;
         setErrorText("Couldn't analyze that photo. Try again.");
         setMode('error');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
@@ -182,6 +197,7 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
       }
 
       const payload = await res.json();
+      if (!isCurrent()) return;
       const raw: any[] = Array.isArray(payload?.items) ? payload.items : [];
       const mapped: ScanItem[] = raw.map((r) => ({
         name: typeof r?.name === 'string' ? r.name : 'Unknown',
@@ -212,10 +228,16 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
       setMode('results');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (err: any) {
-      console.log('[MacroLens] error:', err?.message || err);
+      // Aborted because the screen closed or a newer scan started: stay quiet. (A timeout is still current.)
+      if (!isCurrent()) return;
+      if (__DEV__) console.log('[MacroLens] error:', err?.message || err);
       setErrorText("Couldn't analyze that photo. Try again.");
       setMode('error');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+    } finally {
+      // Cleared on every path now (it used to leak when fetch threw)
+      if (timeoutId) clearTimeout(timeoutId);
+      if (scanRef.current === controller) scanRef.current = null;
     }
   }, []);
 
@@ -243,7 +265,7 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
       setContextText('');
       setMode('context');
     } catch (err: any) {
-      console.log('[MacroLens] capture error:', err?.message || err);
+      if (__DEV__) console.log('[MacroLens] capture error:', err?.message || err);
       setErrorText("Couldn't capture photo.");
       setMode('error');
     }
@@ -281,7 +303,7 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
       setContextText('');
       setMode('context');
     } catch (err: any) {
-      console.log('[MacroLens] gallery error:', err?.message || err);
+      if (__DEV__) console.log('[MacroLens] gallery error:', err?.message || err);
     }
   }, []);
 
