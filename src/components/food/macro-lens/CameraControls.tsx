@@ -54,7 +54,7 @@ function CameraControls({ onPickFromGallery, onShutter, shutterStyle }: {
 
 export default React.memo(CameraControls);
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
+const createStyles = (_colors: ThemeColors) => StyleSheet.create({
   bottomGradient: {
     position: 'absolute',
     bottom: 0,

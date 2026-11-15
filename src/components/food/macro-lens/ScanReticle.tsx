@@ -80,7 +80,7 @@ function ScanReticle({ reticleStyle }: { reticleStyle: AnimStyle }) {
 
 export default React.memo(ScanReticle);
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
+const createStyles = (_colors: ThemeColors) => StyleSheet.create({
   scanFrame: {
     width: SCAN_BOX,
     height: SCAN_BOX,

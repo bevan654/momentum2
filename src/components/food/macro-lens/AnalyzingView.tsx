@@ -80,7 +80,7 @@ function AnalyzingView({ statusIdx, sparkleStyle }: { statusIdx: number; sparkle
 
 export default React.memo(AnalyzingView);
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
+const createStyles = (_colors: ThemeColors) => StyleSheet.create({
   analyzeWrap: {
     alignItems: 'center',
     gap: sw(14),
