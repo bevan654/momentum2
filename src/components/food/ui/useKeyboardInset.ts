@@ -5,6 +5,7 @@ import Animated, {
   useAnimatedReaction,
   useAnimatedRef,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
 } from 'react-native-reanimated';
 
@@ -14,7 +15,8 @@ import Animated, {
  * inside a sheet, and Android's window resize is off once Reanimated tracks the keyboard (Sheet
  * does), so this pads by exactly how much of the keyboard overlaps the view's bottom edge.
  *
- * Attach `ref` to an Animated.View and add `style` to it.
+ * Attach `ref` to an Animated.View and add `style` to it. `open` is 1 while the keyboard covers
+ * the view, for content that should drop its home-indicator spacing then.
  */
 export function useKeyboardInset() {
   const ref = useAnimatedRef<Animated.View>();
@@ -39,5 +41,6 @@ export function useKeyboardInset() {
   );
 
   const style = useAnimatedStyle(() => ({ paddingBottom: padding.value }));
-  return { ref, style };
+  const open = useDerivedValue(() => (padding.value > 0 ? 1 : 0));
+  return { ref, style, open };
 }
