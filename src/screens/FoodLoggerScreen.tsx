@@ -104,6 +104,15 @@ function FoodLoggerScreen() {
     }
   }, [todayStr, setDate, sheetOpen]);
 
+  // The water strip shows today's live totals: reload them when the day rolls over
+  // while the app stays open, or they'd keep showing yesterday's water and supplements.
+  const totalsDayRef = useRef(todayStr);
+  useEffect(() => {
+    if (!userId || totalsDayRef.current === todayStr) return;
+    totalsDayRef.current = todayStr;
+    useSupplementStore.getState().fetchTodaySupplements(userId);
+  }, [userId, todayStr]);
+
   const handleAddFood = useCallback((mealSlot: string, hour?: number) => {
     setAddMealSlot(mealSlot);
     setAddHour(hour);
