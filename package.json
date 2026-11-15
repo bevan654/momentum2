@@ -41,6 +41,7 @@
     "expo-video": "~3.0.16",
     "momentum-muscle-map": "github:bevan654/momentum-muscle-map#v0.1.1",
     "react": "19.1.0",
+    "react-freeze": "^1.0.4",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-pager-view": "^8.0.0",

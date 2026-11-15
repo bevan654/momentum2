@@ -34,6 +34,14 @@ const Tab = createMaterialTopTabNavigator();
 
 import { setOpenProfileSheet, showRecoveryOverlay } from '../lib/navigationBridge';
 import { initPushToken } from '../services/notificationService';
+import { withFreezeWhenFar } from './freezeFarTabs';
+
+// Tabs more than one away from the current tab don't re-render (see freezeFarTabs).
+const RecoveryTab = withFreezeWhenFar(LaboratoryScreen);
+const WorkoutsTab = withFreezeWhenFar(WorkoutsNavigator);
+const HomeTab = withFreezeWhenFar(HomeScreen);
+const NutritionTab = withFreezeWhenFar(FoodLoggerScreen);
+const CommunityTab = withFreezeWhenFar(FriendsScreen);
 
 /* ─── Tab config ────────────────────────────────────────── */
 
@@ -300,11 +308,11 @@ export default function TabNavigator() {
             lazyPreloadDistance: 1,
           }}
         >
-          <Tab.Screen name="Recovery" component={LaboratoryScreen} />
-          <Tab.Screen name="Workouts" component={WorkoutsNavigator} />
-          <Tab.Screen name="Home" component={HomeScreen} />
-          <Tab.Screen name="Nutrition" component={FoodLoggerScreen} />
-          <Tab.Screen name="Community" component={FriendsScreen} />
+          <Tab.Screen name="Recovery" component={RecoveryTab} />
+          <Tab.Screen name="Workouts" component={WorkoutsTab} />
+          <Tab.Screen name="Home" component={HomeTab} />
+          <Tab.Screen name="Nutrition" component={NutritionTab} />
+          <Tab.Screen name="Community" component={CommunityTab} />
         </Tab.Navigator>
         <GhostFinishScreen />
       </View>
