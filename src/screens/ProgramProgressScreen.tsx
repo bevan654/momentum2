@@ -10,8 +10,8 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { formatHoursMinutes } from '../utils/formatDuration';
+import { WEEKDAY_SHORT, DAY_SHORT, MONTH_SHORT } from '../constants/dateNames';
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'ProgramProgress'>;
 
@@ -204,7 +204,7 @@ export default function ProgramProgressScreen() {
 
         {/* Day headers */}
         <View style={styles.calendarHeader}>
-          {DAYS.map((d) => (
+          {WEEKDAY_SHORT.map((d) => (
             <Text key={d} style={styles.calendarDayHeader}>{d[0]}</Text>
           ))}
         </View>
@@ -285,9 +285,7 @@ export default function ProgramProgressScreen() {
             <Text style={styles.sectionLabel}>Recent Workouts</Text>
             {[...progressData].reverse().slice(0, 8).map((entry) => {
               const d = new Date(entry.created_at);
-              const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-              const dateStr = `${dayNames[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+              const dateStr = `${DAY_SHORT[d.getDay()]}, ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
 
               return (
                 <View key={entry.workout_id} style={styles.workoutRow}>

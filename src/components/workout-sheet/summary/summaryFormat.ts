@@ -20,12 +20,3 @@ export function formatTimeSecs(secs: number): string {
 export const isTimedType = (t?: string) => t === 'duration';
 export const showsKg = (t?: string) => t === 'weighted' || t === 'weighted+bodyweight' || !t;
 
-export function formatWorkoutDate(isoString: string): string {
-  const d = new Date(isoString);
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const h = d.getHours() % 12 || 12;
-  const min = d.getMinutes().toString().padStart(2, '0');
-  const ampm = d.getHours() >= 12 ? 'PM' : 'AM';
-  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} \u00b7 ${h}:${min} ${ampm}`;
-}

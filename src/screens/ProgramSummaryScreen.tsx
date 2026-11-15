@@ -12,8 +12,8 @@ import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
+import { WEEKDAY_SHORT, MONTH_SHORT } from '../constants/dateNames';
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'ProgramSummary'>;
 
@@ -113,8 +113,7 @@ export default function ProgramSummaryScreen() {
   const formatDate = (date: string | null) => {
     if (!date) return '';
     const d = new Date(date);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${months[d.getMonth()]} ${d.getDate()}`;
+    return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
   };
 
   if (!program) {
@@ -201,7 +200,7 @@ export default function ProgramSummaryScreen() {
 
         {/* Weekly schedule */}
         <Text style={styles.sectionLabel}>Weekly Schedule</Text>
-        {DAYS.map((day, i) => {
+        {WEEKDAY_SHORT.map((day, i) => {
           const entry = program.days.find((d) => d.day_of_week === i);
           const jsDay = new Date().getDay();
           const todayDow = jsDay === 0 ? 6 : jsDay - 1;

@@ -8,6 +8,7 @@ import { sw, ms, SCREEN_HEIGHT } from '../../../theme/responsive';
 import type { Routine } from '../../../stores/useRoutineStore';
 import { useSwipeDismissSheet } from './useSwipeDismissSheet';
 import { formatRest } from '../../../utils/formatDuration';
+import { DAY_SHORT } from '../../../constants/dateNames';
 
 /* ─── Routine Preview Overlay ─────────────────────────── */
 
@@ -25,9 +26,8 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
 
   const { dismiss, panGesture, sheetStyle, backdropStyle } = useSwipeDismissSheet(PREVIEW_SHEET_HEIGHT, onDismiss);
 
-  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const daysLabel = routine.days.length > 0
-    ? routine.days.map((d) => DAY_NAMES[d]).join(', ')
+    ? routine.days.map((d) => DAY_SHORT[d]).join(', ')
     : null;
 
   return (

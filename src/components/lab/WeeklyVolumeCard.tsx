@@ -17,6 +17,7 @@ import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import type { WorkoutWithDetails } from '../../stores/useWorkoutStore';
 import { useLabTimeRangeStore, nearestRangeOption } from '../../stores/useLabTimeRangeStore';
+import { DAY_SHORT, MONTH_SHORT } from '../../constants/dateNames';
 
 /* ─── Config ─────────────────────────────────────────────── */
 
@@ -35,8 +36,6 @@ const PERIOD_DAYS: { label: Period; days: number }[] = [
   { label: '3M', days: 90 },
 ];
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /* ─── Types ──────────────────────────────────────────────── */
 
@@ -142,7 +141,7 @@ function buildSlots(workouts: WorkoutWithDetails[], period: Period, offset: numb
       const bucketStart = startOfDay(new Date(bucketEnd.getFullYear(), bucketEnd.getMonth(), bucketEnd.getDate() - 6));
       const vol = sumVolume(workouts, bucketStart.getTime(), bucketEnd.getTime());
       slots.push({
-        label: `${bucketStart.getDate()} ${MONTH_NAMES[bucketStart.getMonth()]}`,
+        label: `${bucketStart.getDate()} ${MONTH_SHORT[bucketStart.getMonth()]}`,
         volume: vol,
         hasData: vol > 0,
         endTime: bucketEnd.getTime(),
@@ -158,7 +157,7 @@ function buildSlots(workouts: WorkoutWithDetails[], period: Period, offset: numb
     const end = endOfDay(date);
     const vol = sumVolume(workouts, start.getTime(), end.getTime());
     slots.push({
-      label: period === '7D' ? DAY_NAMES[start.getDay()] : String(start.getDate()),
+      label: period === '7D' ? DAY_SHORT[start.getDay()] : String(start.getDate()),
       volume: vol,
       hasData: vol > 0,
       endTime: end.getTime(),
@@ -293,7 +292,7 @@ export default function WeeklyVolumeCard() {
     const shiftDays = offset * days;
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - shiftDays);
     const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - days + 1);
-    const fmt = (d: Date) => `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
+    const fmt = (d: Date) => `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
     return `${fmt(start)} – ${fmt(end)}`;
   }, [slots, period, offset]);
 

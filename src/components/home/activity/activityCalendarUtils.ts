@@ -2,9 +2,6 @@ import { toLocalDateString } from '../../../utils/localDate';
 
 export const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-export const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'];
-
 /* ─── Grid cell type ─────────────────────────────────── */
 
 export type GridCell = { day: number; key: string } | null;

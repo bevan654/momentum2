@@ -10,8 +10,8 @@ import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { useProgramStore, type ProgramDayExercise } from '../../stores/useProgramStore';
 import { hideRecoveryOverlay } from '../../lib/navigationBridge';
 import { confirmReplaceWorkout } from '../../utils/confirmReplaceWorkout';
+import { WEEKDAY_LONG } from '../../constants/dateNames';
 
-const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHeader?: React.ReactNode; onPreview?: (routine: Routine) => void; onOpenPlans?: () => void }) {
   const routines = useRoutineStore((s) => s.routines);
@@ -63,7 +63,7 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
             <>
               <Ionicons name="bed-outline" size={ms(24)} color={colors.textTertiary} />
               <Text style={styles.emptyStateTitle}>Rest Day</Text>
-              <Text style={styles.emptyStateSub}>No workout scheduled for {DAYS_FULL[todayDow]}</Text>
+              <Text style={styles.emptyStateSub}>No workout scheduled for {WEEKDAY_LONG[todayDow]}</Text>
               <View style={styles.emptyStateBtn}>
                 <Text style={styles.emptyStateBtnText}>View Plans</Text>
                 <Ionicons name="chevron-forward" size={ms(12)} color={colors.accent} />

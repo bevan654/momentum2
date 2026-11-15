@@ -7,8 +7,8 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import type { Routine } from '../../stores/useRoutineStore';
+import { WEEKDAY_SHORT } from '../../constants/dateNames';
 
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 interface Props {
   routine: Routine;
@@ -73,7 +73,7 @@ export default function RoutineCard({ routine, onPress, onPlay, onDelete }: Prop
                 <View style={styles.chipRow}>
                   {routine.days.map((d) => (
                     <View key={d} style={styles.dayChip}>
-                      <Text style={styles.dayText}>{DAY_NAMES[d].toUpperCase()}</Text>
+                      <Text style={styles.dayText}>{WEEKDAY_SHORT[d].toUpperCase()}</Text>
                     </View>
                   ))}
                 </View>

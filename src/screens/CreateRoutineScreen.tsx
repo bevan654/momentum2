@@ -27,6 +27,7 @@ import { useMuscleMapColors } from '../components/body/useBodyMap';
 import { useRegionWeightLookup } from '../hooks/useRegionWeightLookup';
 import { regionEmphasis, relativeValues } from '../utils/muscleVolume';
 import { makeUuid } from '../utils/uuid';
+import { WEEKDAY_SHORT } from '../constants/dateNames';
 
 interface LocalSet {
   goal_reps: number;
@@ -98,7 +99,6 @@ export default function CreateRoutineScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   const toggleDay = useCallback((index: number) => {
     setSelectedDays((prev) =>
@@ -270,7 +270,7 @@ export default function CreateRoutineScreen() {
           {/* Days */}
           <Text style={styles.label}>Days</Text>
           <View style={styles.daysRow}>
-            {DAYS.map((day, i) => (
+            {WEEKDAY_SHORT.map((day, i) => (
               <TouchableOpacity
                 key={day}
                 style={[styles.dayChip, selectedDays.includes(i) && styles.dayChipActive]}

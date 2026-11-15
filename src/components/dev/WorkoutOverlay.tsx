@@ -7,15 +7,13 @@ import { Fonts } from '../../theme/typography';
 import WorkoutMiniMaps from '../body/WorkoutMiniMaps';
 import type { SummaryExercise } from '../../stores/useActiveWorkoutStore';
 import { formatHoursMinutes } from '../../utils/formatDuration';
+import { DAY_LONG, MONTH_SHORT, DAY_SHORT } from '../../constants/dateNames';
 
 /* ─── Helpers ──────────────────────────────────────────── */
 
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function formatDate(date: Date): string {
-  return `${DAY_ABBR[date.getDay()]}, ${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`;
+  return `${DAY_SHORT[date.getDay()]}, ${MONTH_SHORT[date.getMonth()]} ${date.getDate()}`;
 }
 
 function bestSet(ex: SummaryExercise) {
@@ -80,7 +78,7 @@ export default function WorkoutOverlay({ backgroundUri, data: d }: Props) {
   const cardHeight = hasImage ? CARD_HEIGHT_STORY : CARD_HEIGHT_FEED;
   const styles = useMemo(() => createStyles(hasImage), [hasImage]);
   const date = d.date || new Date();
-  const label = d.workoutName || DAY_NAMES[date.getDay()];
+  const label = d.workoutName || DAY_LONG[date.getDay()];
 
   return (
     <View style={[cardStyles.card, { height: cardHeight }]}>

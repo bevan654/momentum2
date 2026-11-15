@@ -13,8 +13,8 @@ import ExerciseMuscleThumb from '../components/body/ExerciseMuscleThumb';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
 import { formatRest } from '../utils/formatDuration';
+import { WEEKDAY_SHORT } from '../constants/dateNames';
 
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'RoutineSummary'>;
 
@@ -62,7 +62,7 @@ export default function RoutineSummaryScreen() {
   }
 
   const daysLabel = routine.days.length > 0
-    ? routine.days.map((d) => DAY_NAMES[d]).join(', ')
+    ? routine.days.map((d) => WEEKDAY_SHORT[d]).join(', ')
     : null;
 
   return (

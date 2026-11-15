@@ -27,6 +27,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { buildSmoothPath } from '../../utils/smoothPath';
+import { MONTH_SHORT, DAY_SHORT } from '../../constants/dateNames';
 
 /* ─── Constants ─────────────────────────────────────────── */
 
@@ -38,8 +39,6 @@ const BACKDROP_MAX = 0.6;
 const CHART_H = sw(140);
 const Y_LABEL_W = sw(34);
 const GRID_STEPS = 4;
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /* ─── Types ─────────────────────────────────────────────── */
 
@@ -70,7 +69,7 @@ interface Props {
 
 
 function fmtDate(d: Date): string {
-  return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+  return `${DAY_SHORT[d.getDay()]} ${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function daysAgo(dateStr: string): string {

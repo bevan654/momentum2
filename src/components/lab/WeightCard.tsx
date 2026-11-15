@@ -23,6 +23,7 @@ import { useLabTimeRangeStore, nearestRangeOption } from '../../stores/useLabTim
 import WeightLogModal from '../home/WeightLogModal';
 import WeightHistoryModal from '../home/WeightHistoryModal';
 import { buildSmoothPath } from '../../utils/smoothPath';
+import { formatMonthDay } from '../../utils/dateLabels';
 
 /* ─── Config ─────────────────────────────────────────────── */
 
@@ -33,7 +34,6 @@ const BAR_RADIUS = sw(3);
 const EMA_COLOR = '#3B82F6';
 const GOAL_COLOR = '#10B981';
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // Placeholder curve shown when the user has no weight entries yet.
 // Normalised 0..1 (0 = top of chart, 1 = bottom). Gentle downward trend with some noise.
@@ -51,10 +51,6 @@ type RangeLabel = typeof RANGES[number]['label'];
 
 /* ─── Helpers ────────────────────────────────────────────── */
 
-
-function fmtDate(d: Date) {
-  return `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
-}
 
 /* ─── Component ──────────────────────────────────────────── */
 
@@ -129,7 +125,7 @@ export default function WeightCard({ pageIndicator }: Props) {
     const now = new Date();
     const start = new Date(now);
     start.setDate(start.getDate() - selectedDays + 1);
-    return `${fmtDate(start)} – ${fmtDate(now)}`;
+    return `${formatMonthDay(start)} – ${formatMonthDay(now)}`;
   }, [selectedDays]);
 
   // Chart layout

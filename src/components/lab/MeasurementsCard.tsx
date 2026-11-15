@@ -22,6 +22,7 @@ import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
 import { useLabTimeRangeStore, nearestRangeOption } from '../../stores/useLabTimeRangeStore';
 import Sheet from '../ui/Sheet';
 import MeasurementLogModal from './MeasurementLogModal';
+import { formatMonthDay } from '../../utils/dateLabels';
 
 /* ─── Config ─────────────────────────────────────────────── */
 
@@ -32,7 +33,6 @@ const BAR_RADIUS = sw(3);
 const EMA_COLOR = '#3B82F6';
 const DELETE_THRESHOLD = -80;
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const RANGES = [
   { label: '1W', days: 7 },
@@ -64,7 +64,6 @@ const GROUPS: string[] = ['Core', 'Arms', 'Legs'];
 
 /* ─── Helpers ────────────────────────────────────────────── */
 
-function fmtDate(d: Date) { return `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`; }
 
 /* ─── Component ──────────────────────────────────────────── */
 
@@ -150,7 +149,7 @@ export default function MeasurementsCard({ pageIndicator }: Props) {
     const now = new Date();
     const start = new Date(now);
     start.setDate(start.getDate() - selectedDays + 1);
-    return `${fmtDate(start)} – ${fmtDate(now)}`;
+    return `${formatMonthDay(start)} – ${formatMonthDay(now)}`;
   }, [selectedDays]);
 
   // Chart layout

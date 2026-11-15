@@ -6,16 +6,6 @@ export function formatVolume(kg: number): string {
   return `${kg} kg`;
 }
 
-export function formatDate(isoString: string): string {
-  const d = new Date(isoString);
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const h = d.getHours() % 12 || 12;
-  const min = d.getMinutes().toString().padStart(2, '0');
-  const ampm = d.getHours() >= 12 ? 'PM' : 'AM';
-  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} \u00b7 ${h}:${min} ${ampm}`;
-}
-
 type CatalogTypes = Readonly<Record<string, { exercise_type?: string | null } | undefined>>;
 
 /**

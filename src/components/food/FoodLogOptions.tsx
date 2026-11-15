@@ -7,6 +7,7 @@ import { Fonts } from '../../theme/typography';
 import type { MealConfig } from '../../stores/useFoodLogStore';
 import { toLocalDateString } from '../../utils/localDate';
 import FoodSegmentChips, { type SegmentOption } from './ui/FoodSegmentChips';
+import { DAY_SHORT, MONTH_SHORT } from '../../constants/dateNames';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -16,8 +17,6 @@ export interface DateChip {
   sub: string;
 }
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** The next 14 days as plan-ahead chips, built when called (so "Today" is right after midnight). */
 export function buildDateChips(): DateChip[] {
@@ -27,8 +26,8 @@ export function buildDateChips(): DateChip[] {
     d.setDate(d.getDate() + i);
     chips.push({
       date: toLocalDateString(d),
-      label: i === 0 ? 'Today' : i === 1 ? 'Tmrw' : DAYS[d.getDay()],
-      sub: `${MONTHS[d.getMonth()]} ${d.getDate()}`,
+      label: i === 0 ? 'Today' : i === 1 ? 'Tmrw' : DAY_SHORT[d.getDay()],
+      sub: `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`,
     });
   }
   return chips;

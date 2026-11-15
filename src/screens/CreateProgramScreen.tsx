@@ -10,12 +10,11 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useProgramStore, startDayEdit, consumeDayEditResult, type ProgramDay, type ProgramDayExercise } from '../stores/useProgramStore';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { CalendarPicker } from '../components/workouts/create-program/CalendarPicker';
+import { WEEKDAY_SHORT, WEEKDAY_LONG, MONTH_SHORT } from '../constants/dateNames';
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'CreateProgram'>;
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 /* ─── Main screen ───────────────────────────────────── */
 
@@ -77,7 +76,7 @@ export default function CreateProgramScreen() {
     const existing = dayMap[dayIndex];
     startDayEdit({
       dayIndex,
-      dayName: DAYS_FULL[dayIndex],
+      dayName: WEEKDAY_LONG[dayIndex],
       label: existing?.label ?? '',
       exercises: existing?.exercises ?? [],
     });
@@ -95,8 +94,7 @@ export default function CreateProgramScreen() {
   const formatDate = (date: string | null) => {
     if (!date) return 'Select';
     const d = new Date(date);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
   };
 
   const handleSave = async () => {
@@ -210,7 +208,7 @@ export default function CreateProgramScreen() {
           <Text style={styles.label}>Weekly Schedule</Text>
           <Text style={styles.hint}>Tap a day to define its exercises. This repeats every week.</Text>
 
-          {DAYS.map((day, i) => {
+          {WEEKDAY_SHORT.map((day, i) => {
             const entry = dayMap[i];
             const isAssigned = !!entry && entry.exercises.length > 0;
 

@@ -9,7 +9,8 @@ import { Fonts } from '../../../theme/typography';
 import { sw, ms } from '../../../theme/responsive';
 import type { WorkoutWithDetails } from '../../../stores/useWorkoutStore';
 import WorkoutSummaryModal from '../../workout-sheet/WorkoutSummaryModal';
-import { DAY_LABELS, MONTH_NAMES, type MonthData, buildMonthCells } from './activityCalendarUtils';
+import { DAY_LABELS, type MonthData, buildMonthCells } from './activityCalendarUtils';
+import { MONTH_LONG } from '../../../constants/dateNames';
 
 /* ─── Year View Modal ────────────────────────────────── */
 
@@ -115,7 +116,7 @@ export function YearViewModal({
     const result: MonthData[] = [];
     for (let m = 0; m <= 11; m++) {
       const { cells, rows } = buildMonthCells(year, m);
-      result.push({ name: MONTH_NAMES[m], cells, rows });
+      result.push({ name: MONTH_LONG[m], cells, rows });
     }
     return result;
   }, [year]);

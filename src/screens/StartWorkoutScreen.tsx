@@ -16,6 +16,7 @@ import { useProgramStore } from '../stores/useProgramStore';
 import RoutineCard from '../components/workouts/RoutineCard';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
+import { WEEKDAY_SHORT } from '../constants/dateNames';
 
 const DISMISS_THRESHOLD = 120;
 const VELOCITY_THRESHOLD = 800;
@@ -102,7 +103,6 @@ export default function StartWorkoutScreen() {
     opacity: backdropOpacity.value,
   }));
 
-  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
     <View style={styles.container}>
@@ -197,7 +197,7 @@ export default function StartWorkoutScreen() {
                           {isActive ? ` · Week ${week}` : ''}
                         </Text>
                         <View style={styles.programDayDots}>
-                          {DAYS.map((day, i) => {
+                          {WEEKDAY_SHORT.map((day, i) => {
                             const hasDay = program.days.some((d) => d.day_of_week === i);
                             return (
                               <View

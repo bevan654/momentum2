@@ -8,8 +8,9 @@ import { useWorkoutStore, type WorkoutWithDetails } from '../../stores/useWorkou
 import { useStreakStore } from '../../stores/useStreakStore';
 import WorkoutSummaryModal from '../workout-sheet/WorkoutSummaryModal';
 import { toLocalDateString } from '../../utils/localDate';
-import { DAY_LABELS, MONTH_NAMES, type GridCell, buildMonthCells } from './activity/activityCalendarUtils';
+import { DAY_LABELS, type GridCell, buildMonthCells } from './activity/activityCalendarUtils';
 import { YearViewModal } from './activity/YearViewModal';
+import { MONTH_LONG } from '../../constants/dateNames';
 
 /* ─── Memoized Calendar Cell ─────────────────────────── */
 
@@ -68,7 +69,7 @@ export default function ActivityCard() {
   const selectedWorkout = selectedDayKey ? workoutMap.get(selectedDayKey) ?? null : null;
 
   const monthLabel = useMemo(() => {
-    return `${MONTH_NAMES[viewMonth]} ${viewYear}`;
+    return `${MONTH_LONG[viewMonth]} ${viewYear}`;
   }, [viewYear, viewMonth]);
 
   const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();

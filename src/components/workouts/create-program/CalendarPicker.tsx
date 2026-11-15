@@ -6,8 +6,8 @@ import { BlurView } from 'expo-blur';
 import type { ThemeColors } from '../../../theme/useColors';
 import { Fonts } from '../../../theme/typography';
 import { sw, ms } from '../../../theme/responsive';
+import { MONTH_LONG } from '../../../constants/dateNames';
 
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const DOW_HEADERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -97,7 +97,7 @@ export function CalendarPicker({
             <TouchableOpacity onPress={goBack} style={st.navBtn}>
               <Ionicons name="chevron-back" size={ms(20)} color={colors.textPrimary} />
             </TouchableOpacity>
-            <Text style={st.monthTitle}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
+            <Text style={st.monthTitle}>{MONTH_LONG[viewMonth]} {viewYear}</Text>
             <TouchableOpacity onPress={goForward} style={st.navBtn}>
               <Ionicons name="chevron-forward" size={ms(20)} color={colors.textPrimary} />
             </TouchableOpacity>

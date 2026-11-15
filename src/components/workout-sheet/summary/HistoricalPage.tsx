@@ -6,7 +6,7 @@ import { sw, ms } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
 import MuscleHeatmap from '../../body/MuscleHeatmap';
 import type { WorkoutWithDetails } from '../../../stores/useWorkoutStore';
-import { formatWorkoutDate } from './summaryFormat';
+import { formatWorkoutDate } from '../../../utils/dateLabels';
 
 /* ═══════════════════════════════════════════════════════════
    HistoricalPage — full-screen workout detail page
