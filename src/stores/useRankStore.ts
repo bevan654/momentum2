@@ -39,11 +39,8 @@ interface RankState {
   totalWorkouts: number;
   /** < 10 workouts → provisional. */
   isProvisional: boolean;
-  /** Rank name before the most recent updateFromWorkout. */
-  previousRankName: string;
 
   loading: boolean;
-  lastComputed: number | null;
 
   /** Full computation — fetches all workout data and computes from scratch. */
   computeRank: (userId: string) => Promise<void>;
@@ -133,9 +130,7 @@ export const useRankStore = create<RankState>((set, get) => ({
   diversityBonus: 0,
   totalWorkouts: 0,
   isProvisional: true,
-  previousRankName: 'Novice',
   loading: false,
-  lastComputed: null,
 
   /* ─── Full computation ─────────────────────────────── */
 
@@ -171,7 +166,6 @@ export const useRankStore = create<RankState>((set, get) => ({
           totalWorkouts: 0,
           isProvisional: true,
           loading: false,
-          lastComputed: Date.now(),
         });
         return;
       }
@@ -243,9 +237,7 @@ export const useRankStore = create<RankState>((set, get) => ({
         diversityBonus: result.diversityBonus,
         totalWorkouts,
         isProvisional: result.isProvisional,
-        previousRankName: result.rank.name,
         loading: false,
-        lastComputed: Date.now(),
       });
 
       get()._persistRank(userId);
@@ -294,12 +286,11 @@ export const useRankStore = create<RankState>((set, get) => ({
 
     if (!changed) {
       // Still bump workout count — rank stays the same
-      set({ totalWorkouts: totalWorkouts + 1, previousRankName: get().rank.name });
+      set({ totalWorkouts: totalWorkouts + 1 });
       if (userId) get()._persistRank(userId);
       return;
     }
 
-    const previousRankName = get().rank.name;
     const newTotal = totalWorkouts + 1;
     const result = computeFullRank({
       bestSets,
@@ -318,8 +309,6 @@ export const useRankStore = create<RankState>((set, get) => ({
       diversityBonus: result.diversityBonus,
       totalWorkouts: newTotal,
       isProvisional: result.isProvisional,
-      previousRankName,
-      lastComputed: Date.now(),
     });
 
     if (userId) get()._persistRank(userId);

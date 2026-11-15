@@ -168,8 +168,6 @@ interface FoodLogState {
   entries: FoodEntry[];
   mealConfigs: MealConfig[];
   goals: NutritionGoals;
-  // UI state
-  collapsedMeals: Record<string, boolean>;
   loading: boolean;
   // Search
   catalogResults: FoodCatalogItem[];
@@ -180,8 +178,6 @@ interface FoodLogState {
 
   // Actions
   setDate: (date: string) => void;
-  goNextDay: () => void;
-  goPrevDay: () => void;
   goToday: () => void;
   fetchDayEntries: (userId: string, date?: string) => Promise<void>;
   fetchMealConfigs: (userId: string) => Promise<void>;
@@ -190,7 +186,6 @@ interface FoodLogState {
   updateEntry: (entryId: string, updates: Partial<Omit<FoodEntry, 'id' | 'user_id' | 'created_at'>>) => Promise<void>;
   deleteEntry: (entryId: string) => Promise<void>;
   togglePlanned: (entryId: string) => Promise<void>;
-  toggleMealCollapse: (mealSlot: string) => void;
   updateGoals: (userId: string, goals: Partial<NutritionGoals>) => Promise<void>;
   addMealConfig: (userId: string, meal: Omit<MealConfig, 'id'>) => Promise<void>;
   updateMealConfig: (mealId: string, updates: Partial<Omit<MealConfig, 'id'>>) => Promise<void>;
@@ -211,7 +206,6 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   entries: [],
   mealConfigs: DEFAULT_MEALS,
   goals: { calorie_goal: 2000, protein_goal: 150, carbs_goal: 250, fat_goal: 65 },
-  collapsedMeals: {},
   loading: false,
   catalogResults: [],
   catalogLoading: false,
@@ -220,20 +214,6 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
 
   setDate: (date: string) => {
     set({ selectedDate: date });
-  },
-
-  goNextDay: () => {
-    const { selectedDate } = get();
-    const d = new Date(selectedDate + 'T12:00:00');
-    d.setDate(d.getDate() + 1);
-    set({ selectedDate: toLocalDateString(d) });
-  },
-
-  goPrevDay: () => {
-    const { selectedDate } = get();
-    const d = new Date(selectedDate + 'T12:00:00');
-    d.setDate(d.getDate() - 1);
-    set({ selectedDate: toLocalDateString(d) });
   },
 
   goToday: () => {
@@ -491,15 +471,6 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         ),
       }));
     }
-  },
-
-  toggleMealCollapse: (mealSlot: string) => {
-    set((s) => ({
-      collapsedMeals: {
-        ...s.collapsedMeals,
-        [mealSlot]: !s.collapsedMeals[mealSlot],
-      },
-    }));
   },
 
   updateGoals: async (userId: string, goals: Partial<NutritionGoals>) => {
