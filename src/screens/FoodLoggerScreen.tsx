@@ -244,6 +244,7 @@ function FoodLoggerScreen() {
       <FoodDetailModal
         visible={editDetailVisible}
         isBackActive={isScreenFocused}
+        bottomInset={sw(12)}
         food={editDetailData}
         initialMealSlot={editEntry?.meal_type || 'breakfast'}
         initialIsPlanned={editEntry?.is_planned || false}

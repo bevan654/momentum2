@@ -737,6 +737,7 @@ export default function CreateMealModal({
         onDismiss={handleDetailDismiss}
         onAdded={handleDetailDismiss}
         onAddToMeal={handleDetailAddToMeal}
+        isBackActive={isBackActive}
       />
     </View>
   );

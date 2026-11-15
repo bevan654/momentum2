@@ -5,7 +5,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useThemeStore } from '../../stores/useThemeStore';
 
-export interface MicroEditorRow {
+interface MicroEditorRow {
   key: string;
   label: string;
   unit: string;

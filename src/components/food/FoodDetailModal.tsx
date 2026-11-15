@@ -35,6 +35,8 @@ interface Props {
   onAdded: () => void;
   /** For screen-level use: Android back only closes this while it returns true (e.g. tab focused). */
   isBackActive?: () => boolean;
+  /** Space under the action button when the keyboard is closed (pass a small value above a tab bar). */
+  bottomInset?: number;
   editEntryId?: string;
   onDelete?: (id: string) => void;
   onFoodSwap?: (food: FoodDetailData) => void;
@@ -50,7 +52,7 @@ interface Props {
  */
 export default function FoodDetailModal({
   visible, food, initialMealSlot, initialIsPlanned, initialQuantity,
-  targetHour, onDismiss, onAdded, isBackActive, editEntryId, onDelete, onFoodSwap,
+  targetHour, onDismiss, onAdded, isBackActive, bottomInset, editEntryId, onDelete, onFoodSwap,
   onAddToMeal,
 }: Props) {
   const isMealMode = !!onAddToMeal;
@@ -131,8 +133,12 @@ export default function FoodDetailModal({
       // Fill the fields already scaled to the starting quantity: when the same entry is
       // reopened, neither `food` nor the scale changes, so the scale effect won't re-run.
       const q = initialQuantity && initialQuantity > 0 ? initialQuantity : 1;
-      // Use the user's own meal slot (e.g. meal_1 "Breakfast") when the caller passed a generic one.
-      setMealSlot(findMealConfig(useFoodLogStore.getState().mealConfigs, initialMealSlot)?.slot ?? initialMealSlot);
+      // When logging something new, use the user's own enabled meal slot (e.g. meal_1 "Breakfast")
+      // if the caller passed a generic one. Editing keeps the entry's saved meal untouched.
+      const enabledMeals = useFoodLogStore.getState().mealConfigs.filter((c) => c.enabled);
+      setMealSlot(!editEntryId && !onAddToMeal
+        ? findMealConfig(enabledMeals, initialMealSlot)?.slot ?? initialMealSlot
+        : initialMealSlot);
       setQuantity(String(q));
       setServingSize(String(food.serving_size));
       setIsPlanned(initialIsPlanned);
@@ -337,6 +343,7 @@ export default function FoodDetailModal({
       title={title}
       onBack={onDismiss}
       isBackActive={isBackActive}
+      bottomInset={bottomInset}
       footer={
         <PrimaryActionBar
           label={btnLabel}
@@ -389,8 +396,8 @@ export default function FoodDetailModal({
 
       {/* Macros */}
       <View style={s.row}>
-        <NumberField label="Protein" unit="g" accentColor={colors.protein} value={customPro} onChangeText={macroHandlers.pro} />
-        <NumberField label="Carbs" unit="g" accentColor={colors.carbs} value={customCarb} onChangeText={macroHandlers.carb} />
+        <NumberField label="Protein" unit="g" accentColor={colors.protein} value={customPro} onChangeText={macroHandlers.pro} returnKeyType="done" blurOnSubmit />
+        <NumberField label="Carbs" unit="g" accentColor={colors.carbs} value={customCarb} onChangeText={macroHandlers.carb} returnKeyType="done" blurOnSubmit />
         <NumberField label="Fat" unit="g" accentColor={colors.fat} value={customFat} onChangeText={macroHandlers.fat} returnKeyType="done" blurOnSubmit />
       </View>
 
@@ -404,7 +411,7 @@ export default function FoodDetailModal({
           </View>
         )}
         <View style={s.row}>
-          <NumberField label="Quantity" value={quantity} onChangeText={setQuantity} />
+          <NumberField label="Quantity" value={quantity} onChangeText={setQuantity} returnKeyType="done" blurOnSubmit />
           <View style={s.times}><Text style={s.timesText}>×</Text></View>
           <NumberField label="Serving size" unit={food.serving_unit} value={servingSize} onChangeText={setServingSize} returnKeyType="done" blurOnSubmit />
         </View>
