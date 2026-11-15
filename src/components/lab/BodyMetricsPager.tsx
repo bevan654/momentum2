@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
 import {
   View,
   ScrollView,
@@ -23,40 +23,74 @@ const PAGES = [
 
 const PAGE_W = SCREEN_WIDTH - sw(16) * 2;
 
+/**
+ * The current page, outside React state. Each card draws the page dots, so if the page lived in the
+ * pager's state, every page change would re-render all three chart cards; this way only the dots do.
+ */
+function createPageStore() {
+  let page = 0;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => page,
+    set: (next: number) => {
+      if (next === page) return;
+      page = next;
+      listeners.forEach((l) => l());
+    },
+    subscribe: (l: () => void) => {
+      listeners.add(l);
+      return () => { listeners.delete(l); };
+    },
+  };
+}
+type PageStore = ReturnType<typeof createPageStore>;
+
+const PageDots = React.memo(function PageDots({ store, onPress, styles, accent }: {
+  store: PageStore;
+  onPress: (index: number) => void;
+  styles: ReturnType<typeof createStyles>;
+  accent: string;
+}) {
+  const activePage = useSyncExternalStore(store.subscribe, store.get);
+  return (
+    <View style={styles.dotsRow}>
+      {PAGES.map((p, i) => (
+        <Pressable key={p.key} onPress={() => onPress(i)} hitSlop={6}>
+          <View style={[styles.dot, i === activePage && { backgroundColor: accent }]} />
+        </Pressable>
+      ))}
+    </View>
+  );
+});
+
 /* ─── Component ──────────────────────────────────────────── */
 
 export default function BodyMetricsPager() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [activePage, setActivePage] = useState(0);
+  const pageStore = useRef<PageStore | null>(null);
+  if (!pageStore.current) pageStore.current = createPageStore();
+  const store = pageStore.current;
   const scrollRef = useRef<ScrollView>(null);
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const x = e.nativeEvent.contentOffset.x;
-      const page = Math.round(x / PAGE_W);
-      setActivePage(page);
+      store.set(Math.round(x / PAGE_W));
     },
-    [],
+    [store],
   );
 
   const goToPage = useCallback((index: number) => {
     const clamped = Math.max(0, Math.min(index, PAGES.length - 1));
     scrollRef.current?.scrollTo({ x: clamped * PAGE_W, animated: true });
-    setActivePage(clamped);
-  }, []);
+    store.set(clamped);
+  }, [store]);
 
+  // Stable across page changes (only the theme changes it), so the cards don't re-render on swipe
   const pageIndicator = useMemo(
-    () => (
-      <View style={styles.dotsRow}>
-        {PAGES.map((p, i) => (
-          <Pressable key={p.key} onPress={() => goToPage(i)} hitSlop={6}>
-            <View style={[styles.dot, i === activePage && { backgroundColor: colors.accent }]} />
-          </Pressable>
-        ))}
-      </View>
-    ),
-    [activePage, colors.accent, styles, goToPage],
+    () => <PageDots store={store} onPress={goToPage} styles={styles} accent={colors.accent} />,
+    [store, goToPage, styles, colors.accent],
   );
 
   return (
