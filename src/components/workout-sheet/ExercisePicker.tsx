@@ -654,7 +654,7 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     backdrop: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: '#000000',
+      backgroundColor: colors.backdrop,
     },
     sheet: {
       position: 'absolute',

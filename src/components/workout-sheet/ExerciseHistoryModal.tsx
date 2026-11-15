@@ -588,7 +588,7 @@ export default React.memo(ExerciseHistoryModal);
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
+    backgroundColor: colors.backdrop,
   },
   sheet: {
     position: 'absolute',

@@ -72,7 +72,7 @@ export const GhostTally = React.memo(function GhostTally({
       alignItems: 'center',
       paddingVertical: sw(6),
       paddingHorizontal: sw(12),
-      backgroundColor: tally.wins > tally.losses ? '#34C759' + '15' : tally.losses > tally.wins ? colors.accentRed + '15' : colors.surface,
+      backgroundColor: tally.wins > tally.losses ? colors.positive + '15' : tally.losses > tally.wins ? colors.accentRed + '15' : colors.surface,
       borderRadius: 0,
       marginHorizontal: sw(16),
       marginBottom: 0,
@@ -82,10 +82,10 @@ export const GhostTally = React.memo(function GhostTally({
         SET SCORE
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: sw(6) }}>
-        <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: '#34C759' }}>
+        <Text style={{ fontSize: ms(10), fontFamily: Fonts.semiBold, color: colors.positive }}>
           You
         </Text>
-        <Text style={{ fontSize: ms(14), fontFamily: Fonts.bold, color: '#34C759' }}>
+        <Text style={{ fontSize: ms(14), fontFamily: Fonts.bold, color: colors.positive }}>
           {tally.wins}
         </Text>
         <Text style={{ fontSize: ms(10), fontFamily: Fonts.medium, color: colors.textPrimary }}>
@@ -136,9 +136,9 @@ const GhostSetChip = React.memo(function GhostSetChip({
     prevResult.current = result;
   }, [result]);
 
-  const resultColor = result === 'win' ? '#34C759' : result === 'loss' ? colors.accentRed : result === 'tie' ? colors.textPrimary : colors.textPrimary;
-  const borderColor = result === 'win' ? '#34C759' + '50' : result === 'loss' ? colors.accentRed + '50' : result === 'tie' ? colors.textPrimary + '30' : colors.cardBorder;
-  const bgColor = result === 'win' ? '#34C759' + '10' : result === 'loss' ? colors.accentRed + '10' : result === 'tie' ? colors.textPrimary + '08' : colors.card;
+  const resultColor = result === 'win' ? colors.positive : result === 'loss' ? colors.accentRed : result === 'tie' ? colors.textPrimary : colors.textPrimary;
+  const borderColor = result === 'win' ? colors.positive + '50' : result === 'loss' ? colors.accentRed + '50' : result === 'tie' ? colors.textPrimary + '30' : colors.cardBorder;
+  const bgColor = result === 'win' ? colors.positive + '10' : result === 'loss' ? colors.accentRed + '10' : result === 'tie' ? colors.textPrimary + '08' : colors.card;
 
   return (
     <View style={{

@@ -335,7 +335,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.bold,
   },
   deltaUp: {
-    color: '#34C759',
+    color: colors.positive,
   },
   deltaDown: {
     color: colors.accentRed,

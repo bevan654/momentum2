@@ -186,7 +186,7 @@ export default function SignUpScreen({ navigation }: Props) {
   })();
 
   const statusColor = (s: FieldStatus) =>
-    s === 'ok' ? colors.accent : (s === 'taken' || s === 'invalid') ? '#ef4444' : colors.textTertiary;
+    s === 'ok' ? colors.accent : (s === 'taken' || s === 'invalid') ? colors.accentRed : colors.textTertiary;
 
   const passwordHint =
     password.length > 0 && password.length < 6
@@ -293,7 +293,7 @@ export default function SignUpScreen({ navigation }: Props) {
                 <Ionicons name="checkmark-circle" size={ms(18)} color={colors.accent} />
               )}
               {(usernameStatus === 'taken' || usernameStatus === 'invalid') && (
-                <Ionicons name="close-circle" size={ms(18)} color="#ef4444" />
+                <Ionicons name="close-circle" size={ms(18)} color={colors.accentRed} />
               )}
             </View>
             {usernameHint && (
@@ -323,7 +323,7 @@ export default function SignUpScreen({ navigation }: Props) {
                 <Ionicons name="checkmark-circle" size={ms(18)} color={colors.accent} />
               )}
               {(emailStatus === 'taken' || emailStatus === 'invalid') && (
-                <Ionicons name="close-circle" size={ms(18)} color="#ef4444" />
+                <Ionicons name="close-circle" size={ms(18)} color={colors.accentRed} />
               )}
             </View>
             {emailHint && (

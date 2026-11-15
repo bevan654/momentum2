@@ -34,7 +34,7 @@ export default function RoutineCard({ routine, onPress, onPlay, onDelete }: Prop
       onPress={handleDelete}
       activeOpacity={0.7}
     >
-      <Ionicons name="trash" size={ms(22)} color="#fff" />
+      <Ionicons name="trash" size={ms(22)} color={colors.textOnColor} />
       <Text style={styles.deleteText}>Delete</Text>
     </TouchableOpacity>
   ), [handleDelete, styles]);
@@ -177,7 +177,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: sw(4),
   },
   deleteText: {
-    color: '#fff',
+    color: colors.textOnColor,
     fontSize: ms(12),
     fontFamily: Fonts.semiBold,
   },

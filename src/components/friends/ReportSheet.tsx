@@ -399,7 +399,7 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
     },
     submitButtonText: {
-      color: '#FFFFFF',
+      color: colors.textOnColor,
       fontSize: ms(15),
       lineHeight: ms(21),
       fontFamily: Fonts.bold,

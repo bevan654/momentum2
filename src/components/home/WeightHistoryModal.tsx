@@ -43,6 +43,7 @@ const SwipeableRow = React.memo(function SwipeableRow({
   onDelete?: (date: string) => void;
   styles: ReturnType<typeof createStyles>;
 }) {
+  const colors = useColors();
   const translateX = useSharedValue(0);
 
   const handleDelete = useCallback(() => {
@@ -77,7 +78,7 @@ const SwipeableRow = React.memo(function SwipeableRow({
   return (
     <View style={styles.swipeContainer}>
       <Animated.View style={[styles.deleteBackground, deleteStyle]}>
-        <Ionicons name="trash-outline" size={ms(20)} color="#fff" />
+        <Ionicons name="trash-outline" size={ms(20)} color={colors.textOnColor} />
       </Animated.View>
       <GestureDetector gesture={pan}>
         <Animated.View style={[styles.row, rowStyle]}>

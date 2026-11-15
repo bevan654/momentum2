@@ -180,13 +180,13 @@ export default function ProgramProgressScreen() {
             <Text style={styles.statLabel}>Missed</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={[styles.statValue, { color: stats.adherence >= 80 ? '#34C759' : stats.adherence >= 50 ? colors.accentOrange : colors.accentRed }]}>
+            <Text style={[styles.statValue, { color: stats.adherence >= 80 ? colors.positive : stats.adherence >= 50 ? colors.accentOrange : colors.accentRed }]}>
               {stats.adherence}%
             </Text>
             <Text style={styles.statLabel}>Adherence</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={[styles.statValue, { color: stats.volTrend >= 0 ? '#34C759' : colors.accentRed }]}>
+            <Text style={[styles.statValue, { color: stats.volTrend >= 0 ? colors.positive : colors.accentRed }]}>
               {stats.volTrend >= 0 ? '+' : ''}{stats.volTrend}%
             </Text>
             <Text style={styles.statLabel}>Volume</Text>
@@ -237,7 +237,7 @@ export default function ProgramProgressScreen() {
                   textColor = colors.textOnAccent;
                 } else if (day.isMissed) {
                   cellInnerStyle.push(styles.cellMissed);
-                  textColor = '#fff';
+                  textColor = colors.textOnColor;
                 } else if (day.isToday) {
                   cellInnerStyle.push(styles.cellToday);
                   textColor = colors.accent;

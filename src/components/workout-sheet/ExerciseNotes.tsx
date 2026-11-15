@@ -144,7 +144,7 @@ function ExerciseNotes({ exercise, exerciseIndex, onExerciseFocus }: Props) {
                     activeOpacity={0.7}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   >
-                    {selected && <Ionicons name="checkmark" size={ms(12)} color="#fff" />}
+                    {selected && <Ionicons name="checkmark" size={ms(12)} color={colors.textOnColor} />}
                   </TouchableOpacity>
                 );
               })}

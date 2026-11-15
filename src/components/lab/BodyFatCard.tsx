@@ -368,7 +368,7 @@ const SwipeableRow = React.memo(function SwipeableRow({
 
   return (
     <View style={styles.swipeContainer}>
-      <Animated.View style={[styles.deleteBackground, delStyle]}><Ionicons name="trash-outline" size={ms(20)} color="#fff" /></Animated.View>
+      <Animated.View style={[styles.deleteBackground, delStyle]}><Ionicons name="trash-outline" size={ms(20)} color={colors.textOnColor} /></Animated.View>
       <GestureDetector gesture={pan}>
         <Animated.View style={[styles.historyRow, { backgroundColor: colors.card }, rowStyle]}>
           <Text style={styles.historyDate}>{dateStr}</Text>

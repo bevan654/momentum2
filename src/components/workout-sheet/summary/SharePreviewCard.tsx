@@ -318,7 +318,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
   },
   previewAvatarText: {
-    color: '#fff',
+    color: colors.textOnColor,
     fontSize: ms(12),
     fontFamily: Fonts.bold,
   },

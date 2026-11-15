@@ -109,7 +109,7 @@ function GhostFinishContent({
     return { perExercise, userTotalVol, ghostTotalVol, setWins, setLosses, setTies, victory, tied };
   }, [exercises, ghostMap]);
 
-  const verdictColor = results.tied ? colors.textPrimary : results.victory ? '#34C759' : colors.accentRed;
+  const verdictColor = results.tied ? colors.textPrimary : results.victory ? colors.positive : colors.accentRed;
   const verdictText = results.tied ? 'DRAW' : results.victory ? 'VICTORY' : 'DEFEATED';
 
   const mins = Math.floor(summaryData.duration / 60);
@@ -174,7 +174,7 @@ function GhostFinishContent({
         {/* Set Score Bar */}
         <View style={{ marginBottom: sw(36) }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: sw(6) }}>
-            <Text style={{ fontSize: ms(12), fontFamily: Fonts.bold, color: '#34C759' }}>You  {results.setWins}</Text>
+            <Text style={{ fontSize: ms(12), fontFamily: Fonts.bold, color: colors.positive }}>You  {results.setWins}</Text>
             {results.setTies > 0 && (
               <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary }}>{results.setTies} tied</Text>
             )}
@@ -182,7 +182,7 @@ function GhostFinishContent({
           </View>
           <View style={{ flexDirection: 'row', height: sw(6), borderRadius: sw(3), overflow: 'hidden' }}>
             {results.setWins > 0 && (
-              <View style={{ flex: results.setWins, backgroundColor: '#34C759', borderTopLeftRadius: sw(3), borderBottomLeftRadius: sw(3) }} />
+              <View style={{ flex: results.setWins, backgroundColor: colors.positive, borderTopLeftRadius: sw(3), borderBottomLeftRadius: sw(3) }} />
             )}
             {results.setTies > 0 && (
               <View style={{ flex: results.setTies, backgroundColor: colors.textTertiary + '40' }} />
@@ -224,7 +224,7 @@ function GhostFinishContent({
             {ex.setResults.map((r, si) => {
               const userSet = ex.completedSets[si];
               const ghostSet = ex.ghostSets[si];
-              const bgColor = r === 'win' ? '#34C759' + '12' : r === 'loss' ? colors.accentRed + '12' : 'transparent';
+              const bgColor = r === 'win' ? colors.positive + '12' : r === 'loss' ? colors.accentRed + '12' : 'transparent';
               return (
                 <View key={si} style={{
                   flexDirection: 'row',

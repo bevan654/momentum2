@@ -346,7 +346,7 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
     },
     avatarText: {
-      color: '#FFFFFF',
+      color: colors.textOnColor,
       fontSize: ms(11),
       fontFamily: Fonts.bold,
     },

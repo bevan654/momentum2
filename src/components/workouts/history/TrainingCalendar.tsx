@@ -180,6 +180,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: colors.textPrimary,
   },
   calDotSelected: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: colors.accentBlue,
   },
 });

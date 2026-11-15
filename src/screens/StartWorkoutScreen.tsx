@@ -162,7 +162,7 @@ export default function StartWorkoutScreen() {
                             onPress={() => deleteProgram(program.id)}
                             activeOpacity={0.7}
                           >
-                            <Ionicons name="trash" size={ms(22)} color="#fff" />
+                            <Ionicons name="trash" size={ms(22)} color={colors.textOnColor} />
                             <Text style={styles.deleteActionText}>Delete</Text>
                           </TouchableOpacity>
                         </RNAnimated.View>
@@ -392,7 +392,7 @@ const createStyles = (colors: ThemeColors, sheetMarginTop: number) => StyleSheet
     gap: sw(4),
   },
   deleteActionText: {
-    color: '#fff',
+    color: colors.textOnColor,
     fontSize: ms(12),
     fontFamily: Fonts.semiBold,
   },
@@ -475,12 +475,12 @@ const createStyles = (colors: ThemeColors, sheetMarginTop: number) => StyleSheet
     backgroundColor: colors.accent,
   },
   activeBadge: {
-    backgroundColor: '#34C75920',
+    backgroundColor: colors.positive + '20',
     paddingHorizontal: sw(6),
     paddingVertical: sw(2),
   },
   activeBadgeText: {
-    color: '#34C759',
+    color: colors.positive,
     fontSize: ms(9),
     fontFamily: Fonts.bold,
     letterSpacing: 0.5,

@@ -6,14 +6,17 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { NotificationItem, NotificationType } from '../../lib/friendsDatabase';
 
-const NOTIFICATION_CONFIG: Record<NotificationType, { icon: string; color?: string }> = {
-  friend_request: { icon: 'person-add-outline', color: '#3B82F6' },
-  friend_accepted: { icon: 'people-outline', color: '#34D399' },
-  reaction: { icon: 'heart-outline', color: '#EF4444' },
-  nudge: { icon: 'flash-outline', color: '#F59E0B' },
-  leaderboard_weekly: { icon: 'trophy-outline', color: '#F59E0B' },
+type IconColorKey = 'accentBlue' | 'accentGreen' | 'accentRed' | 'accentOrange';
+
+/** Icon per notification type. colorKey picks a theme colour; no colour = the accent. */
+const NOTIFICATION_CONFIG: Record<NotificationType, { icon: string; colorKey?: IconColorKey; color?: string }> = {
+  friend_request: { icon: 'person-add-outline', colorKey: 'accentBlue' },
+  friend_accepted: { icon: 'people-outline', colorKey: 'accentGreen' },
+  reaction: { icon: 'heart-outline', colorKey: 'accentRed' },
+  nudge: { icon: 'flash-outline', colorKey: 'accentOrange' },
+  leaderboard_weekly: { icon: 'trophy-outline', colorKey: 'accentOrange' },
   leaderboard_overtake: { icon: 'trending-up-outline' },
-  ai_nudge: { icon: 'barbell-outline', color: '#8B5CF6' },
+  ai_nudge: { icon: 'barbell-outline', color: '#8B5CF6' }, // AI coach purple: no theme token
 };
 
 interface Props {
@@ -28,11 +31,11 @@ function NotificationRow({ notification, onPress, onAccept, onDecline, responded
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const config = NOTIFICATION_CONFIG[notification.type] || {
+  const config: { icon: string; colorKey?: IconColorKey; color?: string } = NOTIFICATION_CONFIG[notification.type] || {
     icon: 'notifications-outline',
     color: colors.textSecondary,
   };
-  const configColor = config.color ?? colors.accent;
+  const configColor = config.colorKey ? colors[config.colorKey] : config.color ?? colors.accent;
   const isUnread = !notification.read;
   const isActionable = notification.type === 'friend_request' && !responded;
 

@@ -231,7 +231,7 @@ export default function CreateCustomExerciseModal({
             <Text style={styles.sectionLabel}>MUSCLE GROUP</Text>
             <View style={styles.chipGrid}>
               {CATEGORIES.map((cat) => {
-                const color = UI_CATEGORY_COLORS[cat as keyof typeof UI_CATEGORY_COLORS] ?? '#6B7280';
+                const color = UI_CATEGORY_COLORS[cat as keyof typeof UI_CATEGORY_COLORS] ?? colors.textTertiary;
                 const active = category === cat;
                 return (
                   <TouchableOpacity

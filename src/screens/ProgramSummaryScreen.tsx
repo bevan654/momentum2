@@ -185,7 +185,7 @@ export default function ProgramSummaryScreen() {
               <Text style={styles.statLabel}>Sessions</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={[styles.statValue, { color: progressionStats.volChange >= 0 ? '#34C759' : colors.accentRed }]}>
+              <Text style={[styles.statValue, { color: progressionStats.volChange >= 0 ? colors.positive : colors.accentRed }]}>
                 {progressionStats.volChange >= 0 ? '+' : ''}{progressionStats.volChange}%
               </Text>
               <Text style={styles.statLabel}>Volume</Text>

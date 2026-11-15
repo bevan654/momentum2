@@ -31,7 +31,7 @@ function MuscleFilterChips({ selectedMuscle, setSelectedMuscle }: {
       </TouchableOpacity>
       {MAIN_MUSCLE_GROUPS.map((group) => {
         const active = selectedMuscle === group;
-        const gColor = GROUP_CHIP_COLORS[group] || '#6B7280';
+        const gColor = GROUP_CHIP_COLORS[group] || colors.textTertiary;
         return (
           <TouchableOpacity
             key={group}
