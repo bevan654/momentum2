@@ -6,42 +6,41 @@ import { Fonts } from '../../../theme/typography';
 import { BODY_FAT_METHODS, MEAS_BODY_PARTS, TIME_RANGES, type BodyFatMethod, type MeasDefault, type MeasBodyPart, type MeasSide, type MeasPump, type TimeRange } from '../../../stores/useProfileSettingsStore';
 import Sheet from '../../ui/Sheet';
 
-/* ─── Default Range Picker ───────────────────────────────── */
+/* ─── Single-choice picker sheet (range, method) ─────────── */
 
-export const DefaultRangePicker = React.memo(function DefaultRangePicker({
-  visible,
-  onClose,
-  selected,
-  onSelect,
-  colors,
-}: {
+interface OptionPickerProps<K extends string> {
   visible: boolean;
   onClose: () => void;
-  selected: TimeRange;
-  onSelect: (key: TimeRange) => void;
+  selected: K;
+  onSelect: (key: K) => void;
   colors: ThemeColors;
+}
+
+function OptionPickerSheet<K extends string>({ title, options, visible, onClose, selected, onSelect, colors }: OptionPickerProps<K> & {
+  title: string;
+  options: readonly { key: K; label: string }[];
 }) {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <Sheet visible={visible} onClose={onClose} height="45%" bgColor={colors.card}>
       <View style={styles.pickerHeader}>
-        <Text style={styles.pickerTitle}>Default Range</Text>
+        <Text style={styles.pickerTitle}>{title}</Text>
         <TouchableOpacity onPress={onClose}>
           <Text style={styles.pickerDoneText}>Done</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.pickerList}>
-        {TIME_RANGES.map((range) => {
-          const active = range.key === selected;
+        {options.map((option) => {
+          const active = option.key === selected;
           return (
             <Pressable
-              key={range.key}
+              key={option.key}
               style={[styles.pickerOption, active && { backgroundColor: colors.accent }]}
-              onPress={() => onSelect(range.key)}
+              onPress={() => onSelect(option.key)}
             >
               <Text style={[styles.pickerOptionText, active && { color: colors.textOnAccent }]}>
-                {range.label}
+                {option.label}
               </Text>
             </Pressable>
           );
@@ -49,51 +48,14 @@ export const DefaultRangePicker = React.memo(function DefaultRangePicker({
       </View>
     </Sheet>
   );
+}
+
+export const DefaultRangePicker = React.memo(function DefaultRangePicker(props: OptionPickerProps<TimeRange>) {
+  return <OptionPickerSheet title="Default Range" options={TIME_RANGES} {...props} />;
 });
 
-/* ─── Default Method Picker ──────────────────────────────── */
-
-export const DefaultMethodPicker = React.memo(function DefaultMethodPicker({
-  visible,
-  onClose,
-  selected,
-  onSelect,
-  colors,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  selected: BodyFatMethod;
-  onSelect: (key: BodyFatMethod) => void;
-  colors: ThemeColors;
-}) {
-  const styles = useMemo(() => createStyles(colors), [colors]);
-
-  return (
-    <Sheet visible={visible} onClose={onClose} height="45%" bgColor={colors.card}>
-      <View style={styles.pickerHeader}>
-        <Text style={styles.pickerTitle}>Default Method</Text>
-        <TouchableOpacity onPress={onClose}>
-          <Text style={styles.pickerDoneText}>Done</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.pickerList}>
-        {BODY_FAT_METHODS.map((method) => {
-          const active = method.key === selected;
-          return (
-            <Pressable
-              key={method.key}
-              style={[styles.pickerOption, active && { backgroundColor: colors.accent }]}
-              onPress={() => onSelect(method.key)}
-            >
-              <Text style={[styles.pickerOptionText, active && { color: colors.textOnAccent }]}>
-                {method.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </Sheet>
-  );
+export const DefaultMethodPicker = React.memo(function DefaultMethodPicker(props: OptionPickerProps<BodyFatMethod>) {
+  return <OptionPickerSheet title="Default Method" options={BODY_FAT_METHODS} {...props} />;
 });
 
 /* ─── Default Measurement Picker ─────────────────────────── */
