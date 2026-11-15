@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Pressable,
   FlatList,
-  ScrollView,
   StyleSheet,
   Dimensions,
   Keyboard,
@@ -14,7 +13,7 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
   Alert,
-  } from 'react-native';
+} from 'react-native';
 import Overlay from '../ui/Overlay';
 import Animated, {
   useSharedValue,
@@ -31,67 +30,20 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
-import { aliasesByCanonical } from '../../utils/exerciseCatalog';
 import { scoreWithAliases } from './exerciseSearch';
-import { getMuscleColor, toCanonical, CANONICAL_TO_UI_CATEGORY, UI_CATEGORY_COLORS } from '../../constants/muscles';
-
-/* ─── Muscle color (derived from muscles.ts) ─────────── */
-
-function muscleColor(muscle: string): string {
-  return getMuscleColor(muscle);
-}
 import { useAuthStore } from '../../stores/useAuthStore';
 import CreateCustomExerciseModal from './CreateCustomExerciseModal';
 import { PortalHost } from '../ui/Portal';
-
-/* ─── External API search (wger.de) ──────────────────── */
-
-const WGER_SEARCH_URL = 'https://wger.de/api/v2/exercise/search/?language=2&format=json';
-
-/** Wger muscle IDs → canonical muscle names */
-const WGER_MUSCLE_MAP: Record<number, string> = {
-  1: 'biceps',        // Biceps brachii
-  2: 'shoulders',     // Anterior deltoid
-  3: 'abs',           // Serratus anterior
-  4: 'chest',         // Pectoralis major
-  5: 'triceps',       // Triceps brachii
-  6: 'abs',           // Rectus abdominis
-  7: 'calves',        // Gastrocnemius
-  8: 'glutes',        // Gluteus maximus
-  9: 'traps',         // Trapezius
-  10: 'quads',        // Quadriceps femoris
-  11: 'hamstrings',   // Biceps femoris
-  12: 'lats',         // Latissimus dorsi
-  13: 'biceps',       // Brachialis
-  14: 'obliques',     // Obliquus externus abdominis
-  15: 'calves',       // Soleus
-};
-
-/** Wger category IDs → UI category strings */
-const WGER_CATEGORY_MAP: Record<number, string> = {
-  8: 'Arms', 9: 'Legs', 10: 'Core', 11: 'Chest',
-  12: 'Back', 13: 'Shoulders', 14: 'Legs', 15: 'Cardio',
-};
-
-/** Wger equipment IDs → exercise type */
-const WGER_BW_EQUIPMENT = new Set([7]); // 7 = "none (bodyweight)"
-
-interface WgerSearchResult {
-  value: string;  // exercise name
-  data: {
-    id: number;
-    base_id: number;
-    name: string;
-    category: string;
-  };
-}
-
-interface WgerExerciseInfo {
-  muscles: { id: number; name_en: string }[];
-  muscles_secondary: { id: number; name_en: string }[];
-  equipment: { id: number; name: string }[];
-  category: { id: number; name: string };
-}
+import {
+  LEADERBOARD_LIFTS, useDebouncedValue, getCachedSorted, getMainGroup, type CatalogEntry,
+} from './exercise-picker/pickerData';
+import {
+  WGER_SEARCH_URL, WGER_MUSCLE_MAP, WGER_CATEGORY_MAP, WGER_BW_EQUIPMENT,
+  type WgerSearchResult, type WgerExerciseInfo,
+} from './exercise-picker/wgerApi';
+import ExerciseRow, { createRowStyles } from './exercise-picker/ExerciseRow';
+import MuscleFilterChips from './exercise-picker/MuscleFilterChips';
+import ExerciseListHeader from './exercise-picker/ExerciseListHeader';
 
 /* ─── Constants ───────────────────────────────────────── */
 
@@ -105,142 +57,9 @@ const SEARCH_DEBOUNCE_MS = 150;
 /** Delay before mounting heavy list content (ms).
  *  Lets the spring animation run uncontested on the UI thread. */
 const CONTENT_DEFER_MS = 180;
-/** Lifts pinned at the top of the picker (the leaderboard lifts). Matched by catalog id, which survives
- *  catalog renames, with the current and previous names as a fallback. */
-const LEADERBOARD_LIFTS: { catalogId: string; names: string[] }[] = [
-  { catalogId: '9d6c70f6-9761-4b1b-bdfb-44e6042bbbdf', names: ['barbell bench press', 'bench press'] },
-  { catalogId: '6d6f46ec-ea92-4f38-9baa-d42975f1a706', names: ['barbell back squat'] },
-  { catalogId: '4f9a3d91-42e1-4b46-a907-1c68db1fb201', names: ['barbell deadlift', 'conventional deadlift'] },
-];
 
 const SNAP_SPRING = { damping: 24, stiffness: 350, mass: 0.7 };
 const CLOSE_CFG = { duration: 250, easing: Easing.in(Easing.cubic) };
-
-function titleCase(str: string): string {
-  return str.replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/* ── Debounce hook ────────────────────────────────────── */
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(timer);
-  }, [value, delayMs]);
-  return debounced;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Module-level cache for expensive computations
-   ─────────────────────────────────────────────────────────
-   The ExercisePicker unmounts on close and remounts on open.
-   Without caching, every open re-sorts the entire 10K+
-   exercise catalog. These caches persist across mount cycles
-   and only recompute when the underlying data changes.
-   ═══════════════════════════════════════════════════════════ */
-
-interface CatalogEntry {
-  name: string;
-  category: string | null;
-  exercise_type: string;
-  primary_muscles: string[];
-  secondary_muscles: string[];
-  done: boolean;
-  catalog_id?: string;
-  /** Other names that find this exercise in search (old catalog names, imported names). */
-  aliases?: string[];
-}
-
-let _sortedCache: CatalogEntry[] | null = null;
-let _sortedCatalogRef: any = null;
-let _sortedAliasRef: any = null;
-let _sortedPrevRef: any = null;
-
-function getCachedSorted(
-  catalogMap: Record<string, any>,
-  aliasMap: Record<string, any>,
-  prevMap: Record<string, any>,
-): CatalogEntry[] {
-  if (
-    catalogMap === _sortedCatalogRef &&
-    aliasMap === _sortedAliasRef &&
-    prevMap === _sortedPrevRef &&
-    _sortedCache
-  ) {
-    return _sortedCache;
-  }
-  _sortedCatalogRef = catalogMap;
-  _sortedAliasRef = aliasMap;
-  _sortedPrevRef = prevMap;
-  const aliases = aliasesByCanonical(aliasMap);
-  // Alias names and hidden rows stay in catalogMap so history still resolves, but aren't offered.
-  _sortedCache = Object.entries(catalogMap)
-    .filter(([name, entry]) => !aliasMap[name] && !entry.is_hidden)
-    .map(([name, entry]: [string, any]) => ({
-      name,
-      category: entry.category,
-      exercise_type: entry.exercise_type,
-      primary_muscles: entry.primary_muscles || [],
-      secondary_muscles: entry.secondary_muscles || [],
-      done: !!prevMap[name],
-      catalog_id: entry.catalog_id,
-      aliases: aliases[name] || [],
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  return _sortedCache;
-}
-
-const MAIN_MUSCLE_GROUPS = ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core', 'Cardio'];
-
-const GROUP_CHIP_COLORS: Record<string, string> = UI_CATEGORY_COLORS;
-
-function getMainGroup(muscle: string): string | null {
-  const canonical = toCanonical(muscle);
-  return canonical ? CANONICAL_TO_UI_CATEGORY[canonical] : null;
-}
-
-/* ── Memoized row component ───────────────────────────── */
-
-interface ExerciseRowProps {
-  name: string;
-  category: string;
-  exercise_type: string;
-  primary_muscles?: string[];
-  onSelect: (name: string, category: string, exerciseType: string) => void;
-  styles: ReturnType<typeof createStyles>;
-}
-
-const ExerciseRow = memo(function ExerciseRow({
-  name,
-  category,
-  exercise_type,
-  primary_muscles,
-  onSelect,
-  styles,
-}: ExerciseRowProps) {
-  const subtitle = primary_muscles && primary_muscles.length > 0
-    ? primary_muscles.map(titleCase).join(', ')
-    : titleCase(category || '');
-  return (
-    <TouchableOpacity
-      style={styles.exerciseRow}
-      onPress={() => onSelect(name, category, exercise_type)}
-      activeOpacity={0.6}
-    >
-      <View
-        style={[
-          styles.catDot,
-          { backgroundColor: muscleColor(primary_muscles?.[0] || category || '') },
-        ]}
-      />
-      <View style={styles.exerciseInfo}>
-        <Text style={styles.exerciseName} numberOfLines={1}>{titleCase(name)}</Text>
-        <Text style={styles.exerciseCat}>{subtitle}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-});
 
 /* ═══════════════════════════════════════════════════════════
    ExercisePicker
@@ -267,6 +86,7 @@ interface Props {
 export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add' }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const rowStyles = useMemo(() => createRowStyles(colors), [colors]);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const aliasMap = useWorkoutStore((s) => s.aliasMap);
   const prevMap = useWorkoutStore((s) => s.prevMap);
@@ -629,10 +449,10 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
         exercise_type={item.exercise_type}
         primary_muscles={item.primary_muscles}
         onSelect={handleSelect}
-        styles={styles}
+        styles={rowStyles}
       />
     ),
-    [handleSelect, styles],
+    [handleSelect, rowStyles],
   );
 
   const keyExtractor = useCallback((item: any, index: number) => `${item.name}-${index}`, []);
@@ -648,57 +468,10 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     [styles, showApiResults],
   );
 
-  const defaultListHeader = useMemo(() => {
-    if (!defaultSections.visible) return null;
-    return (
-      <View>
-        {defaultSections.leaderboard.length > 0 && (
-          <View style={styles.exerciseSection}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="trophy-outline" size={ms(13)} color={colors.accent} />
-              <Text style={styles.sectionTitle}>Leaderboard Exercises</Text>
-            </View>
-            {defaultSections.leaderboard.map((entry) => (
-              <ExerciseRow
-                key={`leaderboard-${entry.name}`}
-                name={entry.name}
-                category={entry.category || ''}
-                exercise_type={entry.exercise_type}
-                primary_muscles={entry.primary_muscles}
-                onSelect={handleSelect}
-                styles={styles}
-              />
-            ))}
-          </View>
-        )}
-
-        {defaultSections.recent.length > 0 && (
-          <View style={styles.exerciseSection}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="time-outline" size={ms(13)} color={colors.textTertiary} />
-              <Text style={styles.sectionTitle}>Recently Used</Text>
-            </View>
-            {defaultSections.recent.map((entry) => (
-              <ExerciseRow
-                key={`recent-${entry.name}`}
-                name={entry.name}
-                category={entry.category || ''}
-                exercise_type={entry.exercise_type}
-                primary_muscles={entry.primary_muscles}
-                onSelect={handleSelect}
-                styles={styles}
-              />
-            ))}
-          </View>
-        )}
-
-        <View style={styles.sectionHeader}>
-          <Ionicons name="list-outline" size={ms(13)} color={colors.textTertiary} />
-          <Text style={styles.sectionTitle}>All Exercises</Text>
-        </View>
-      </View>
-    );
-  }, [colors, defaultSections, handleSelect, styles]);
+  const defaultListHeader = useMemo(
+    () => <ExerciseListHeader defaultSections={defaultSections} handleSelect={handleSelect} rowStyles={rowStyles} />,
+    [defaultSections, handleSelect, rowStyles],
+  );
 
   /* ─── Render ────────────────────────────────────────── */
 
@@ -788,40 +561,7 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
 
             {/* Muscle filter chips */}
             {contentReady && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipRow}
-                keyboardShouldPersistTaps="handled"
-                style={styles.chipScroll}
-              >
-                <TouchableOpacity
-                  style={[styles.chip, !selectedMuscle && styles.chipActive]}
-                  onPress={() => setSelectedMuscle(null)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.chipText, !selectedMuscle && styles.chipTextActive]}>
-                    All
-                  </Text>
-                </TouchableOpacity>
-                {MAIN_MUSCLE_GROUPS.map((group) => {
-                  const active = selectedMuscle === group;
-                  const gColor = GROUP_CHIP_COLORS[group] || '#6B7280';
-                  return (
-                    <TouchableOpacity
-                      key={group}
-                      style={[styles.chip, active && { backgroundColor: gColor + '25', borderColor: gColor }]}
-                      onPress={() => setSelectedMuscle(active ? null : group)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.chipDot, { backgroundColor: gColor }]} />
-                      <Text style={[styles.chipText, active && { color: gColor }]}>
-                        {group}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+              <MuscleFilterChips selectedMuscle={selectedMuscle} setSelectedMuscle={setSelectedMuscle} />
             )}
 
             {/* Result count + Create */}
@@ -977,44 +717,6 @@ const createStyles = (colors: ThemeColors) =>
     reloadBtn: {
       padding: sw(4),
     },
-    chipScroll: {
-      maxHeight: sw(32),
-      minHeight: sw(32),
-      marginHorizontal: sw(16),
-      marginBottom: sw(4),
-    },
-    chipRow: {
-      gap: sw(6),
-      alignItems: 'center',
-    },
-    chip: {
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      gap: sw(5),
-      paddingHorizontal: sw(10),
-      paddingVertical: sw(4),
-      borderRadius: 0,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: 'transparent',
-    },
-    chipActive: {
-      backgroundColor: colors.accent + '20',
-      borderColor: colors.accent,
-    },
-    chipDot: {
-      width: sw(6),
-      height: sw(6),
-      borderRadius: 0,
-    },
-    chipText: {
-      color: colors.textSecondary,
-      fontSize: ms(11),
-      fontFamily: Fonts.semiBold,
-    },
-    chipTextActive: {
-      color: colors.accent,
-    },
     subHeaderRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -1043,56 +745,6 @@ const createStyles = (colors: ThemeColors) =>
     list: {
       flex: 1,
       paddingHorizontal: sw(16),
-    },
-    exerciseRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: sw(10),
-      paddingHorizontal: sw(4),
-      gap: sw(10),
-    },
-    exerciseSection: {
-      paddingBottom: sw(8),
-      marginBottom: sw(4),
-      borderBottomWidth: 1,
-      borderBottomColor: colors.cardBorder,
-    },
-    sectionHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: sw(6),
-      paddingHorizontal: sw(4),
-      paddingTop: sw(8),
-      paddingBottom: sw(5),
-    },
-    sectionTitle: {
-      color: colors.textTertiary,
-      fontSize: ms(10),
-      lineHeight: ms(13),
-      fontFamily: Fonts.bold,
-      letterSpacing: 0.6,
-      textTransform: 'uppercase',
-    },
-    catDot: {
-      width: sw(8),
-      height: sw(8),
-      borderRadius: 0,
-    },
-    exerciseInfo: {
-      flex: 1,
-      gap: sw(1),
-    },
-    exerciseName: {
-      color: colors.textPrimary,
-      fontSize: ms(14),
-      fontFamily: Fonts.medium,
-      lineHeight: ms(19),
-    },
-    exerciseCat: {
-      color: colors.textTertiary,
-      fontSize: ms(11),
-      fontFamily: Fonts.medium,
-      lineHeight: ms(14),
     },
     emptySearch: {
       alignItems: 'center',
