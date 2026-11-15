@@ -314,6 +314,13 @@ function ExerciseHistoryModal({ exerciseName, visible, onClose }: Props) {
   }, [history, chartMode, chartWidth]);
 
   const linePath = useMemo(() => buildSmoothPath(chartPoints), [chartPoints]);
+  // All data dots as one path, built when the points change (was one new Skia path per dot per render)
+  const dotsPath = useMemo(() => {
+    if (chartPoints.length === 0) return null;
+    const p = Skia.Path.Make();
+    for (const pt of chartPoints) p.addCircle(pt.x, pt.y, sw(3));
+    return p;
+  }, [chartPoints]);
 
   const fillPath = useMemo(() => {
     if (!linePath || chartPoints.length < 2) return null;
@@ -477,13 +484,7 @@ function ExerciseHistoryModal({ exerciseName, visible, onClose }: Props) {
                         <SkiaPath path={linePath} style="stroke" strokeWidth={sw(2)} color={colors.accent} />
                       )}
                       {/* Data dots */}
-                      {chartPoints.map((pt, i) => {
-                        const dotPath = Skia.Path.Make();
-                        dotPath.addCircle(pt.x, pt.y, sw(3));
-                        return (
-                          <SkiaPath key={`dot-${i}`} path={dotPath} color={colors.accent} style="fill" />
-                        );
-                      })}
+                      {dotsPath && <SkiaPath path={dotsPath} color={colors.accent} style="fill" />}
                     </Canvas>
                     {/* Y-axis labels */}
                     <View style={styles.yLabels}>
