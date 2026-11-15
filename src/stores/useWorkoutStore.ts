@@ -234,7 +234,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         ).catch(() => {});
       }
     } catch (err) {
-      console.error('[catalog] fetch failed:', err);
+      if (__DEV__) console.error('[catalog] fetch failed:', err);
     }
   },
 
@@ -650,7 +650,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     });
 
     if (error) {
-      console.error('[createUserExercise] insert failed:', error.message, error.code);
+      if (__DEV__) console.error('[createUserExercise] insert failed:', error.message, error.code);
       throw new Error(error.message);
     }
 

@@ -180,7 +180,7 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
         .single();
 
       if (error || !program) {
-        console.error('Create program error:', error);
+        if (__DEV__) console.error('Create program error:', error);
         return { error: error?.message || 'Failed to create program' };
       }
 
@@ -196,7 +196,7 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
           .single();
 
         if (dayErr || !dayRow) {
-          console.error('Insert program_day error:', dayErr);
+          if (__DEV__) console.error('Insert program_day error:', dayErr);
           continue;
         }
 
@@ -213,14 +213,14 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
             exercise_type: e.exercise_type,
           }));
           const { error: exErr } = await supabase.from('program_day_exercises').insert(rows);
-          if (exErr) console.error('Insert program_day_exercises error:', exErr);
+          if (__DEV__ && exErr) console.error('Insert program_day_exercises error:', exErr);
         }
       }
 
       await get().fetchPrograms(userId);
       return { error: null };
     } catch (e: any) {
-      console.error('createProgram exception:', e);
+      if (__DEV__) console.error('createProgram exception:', e);
       return { error: e?.message || 'Unexpected error' };
     }
   },

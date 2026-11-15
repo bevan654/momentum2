@@ -493,7 +493,7 @@ export default function CreateMealModal({
       const { data: inserted, error } = await supabase.from('food_entries').insert(rows).select('id');
 
       if (error) {
-        console.error('[CreateMeal] Supabase insert error:', error);
+        if (__DEV__) console.error('[CreateMeal] Supabase insert error:', error);
         Alert.alert('Log Failed', error.message);
         return;
       }
@@ -505,7 +505,7 @@ export default function CreateMealModal({
           // Undo the insert so the meal isn't duplicated.
           const newIds = (inserted || []).map((r: { id: string }) => r.id);
           if (newIds.length) await supabase.from('food_entries').delete().in('id', newIds);
-          console.error('[CreateMeal] Delete old group error:', delErr);
+          if (__DEV__) console.error('[CreateMeal] Delete old group error:', delErr);
           Alert.alert('Update Failed', delErr.message);
           return;
         }

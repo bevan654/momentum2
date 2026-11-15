@@ -135,7 +135,7 @@ export default function CreateProgramScreen() {
 
       navigation.goBack();
     } catch (e: any) {
-      console.error('Program save error:', e);
+      if (__DEV__) console.error('Program save error:', e);
       Alert.alert('Error', e?.message || 'Something went wrong');
     } finally {
       setSaving(false);

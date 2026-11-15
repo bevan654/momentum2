@@ -186,7 +186,7 @@ function ExerciseHistoryModal({ exerciseName, visible, onClose }: Props) {
 
         if (cancelled) return;
         if (error) {
-          console.error('[ExerciseHistory] query error:', error);
+          if (__DEV__) console.error('[ExerciseHistory] query error:', error);
           setLoading(false);
           return;
         }
@@ -226,7 +226,7 @@ function ExerciseHistoryModal({ exerciseName, visible, onClose }: Props) {
           setChartMode('volume');
         }
       } catch (err) {
-        console.error('[ExerciseHistory] fetch failed:', err);
+        if (__DEV__) console.error('[ExerciseHistory] fetch failed:', err);
       } finally {
         if (!cancelled) setLoading(false);
       }

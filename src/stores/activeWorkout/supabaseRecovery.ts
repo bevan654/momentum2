@@ -23,7 +23,7 @@ export async function runWithRecovery<T>(makeQuery: () => PromiseLike<T>): Promi
     return await withTimeout(makeQuery());
   } catch (e: any) {
     if (e?.message !== 'Request timed out') throw e;
-    console.warn('[runWithRecovery] request hung — rebuilding supabase client and retrying');
+    if (__DEV__) console.warn('[runWithRecovery] request hung — rebuilding supabase client and retrying');
     rebuildClient();
     return await withTimeout(makeQuery());
   }

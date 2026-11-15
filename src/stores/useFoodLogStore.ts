@@ -629,9 +629,9 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         .limit(20),
     ]);
 
-    if (catalogRes.error) console.warn('food_catalog search error:', catalogRes.error.message);
-    if (userRes.error) console.warn('user_created_foods search error:', userRes.error.message);
-    if (entryRes.error) console.warn('food_entries search error:', entryRes.error.message);
+    if (__DEV__ && catalogRes.error) console.warn('food_catalog search error:', catalogRes.error.message);
+    if (__DEV__ && userRes.error) console.warn('user_created_foods search error:', userRes.error.message);
+    if (__DEV__ && entryRes.error) console.warn('food_entries search error:', entryRes.error.message);
 
     const catalogItems: FoodCatalogItem[] = (catalogRes.data || []).map((d) => ({
       ...d,

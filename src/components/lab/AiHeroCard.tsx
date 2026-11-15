@@ -173,7 +173,7 @@ export default function AiHeroCard() {
 
         if (!res.ok) {
           const err = await res.text();
-          console.log('[AiCoach] HTTP', res.status, err.slice(0, 200));
+          if (__DEV__) console.warn('[AiCoach] HTTP', res.status, err.slice(0, 200));
           setMessages([
             ...next,
             { role: 'assistant', content: 'Sorry, I hit an error. Try again in a moment.' },
@@ -195,7 +195,7 @@ export default function AiHeroCard() {
             .then(() => {}, () => {});
         }
       } catch (err: any) {
-        console.log('[AiCoach] fetch failed:', err?.message || err);
+        if (__DEV__) console.warn('[AiCoach] fetch failed:', err?.message || err);
         setMessages([...next, { role: 'assistant', content: 'Network issue. Try again.' }]);
       } finally {
         setLoading(false);

@@ -237,7 +237,6 @@ async function _finishWorkout(
   // One call saves the workout, its exercises and sets in a single transaction
   // (upsert_workout). It's keyed by workoutId, so retrying after a timeout or a
   // lost response can't save the workout twice.
-  console.log('[finishWorkout] saving workout', workoutId, built.payload.mode);
   try {
     const res = await runWithRecovery(() =>
       supabase.rpc('upsert_workout', { p: built.payload })
@@ -248,18 +247,18 @@ async function _finishWorkout(
     // that copy untouched. Sets may have been added or edited since, so overwrite
     // it with the workout as it is now.
     if (!saveErr && built.payload.mode === 'create' && (res.data as { created?: boolean } | null)?.created === false) {
-      console.warn('[finishWorkout] already saved by an earlier attempt — replacing it');
+      if (__DEV__) console.warn('[finishWorkout] already saved by an earlier attempt — replacing it');
       ({ error: saveErr } = await runWithRecovery(() =>
         supabase.rpc('upsert_workout', { p: { ...built.payload, mode: 'replace' } })
       ));
     }
     if (saveErr) {
-      console.error('[finishWorkout] save error:', saveErr);
+      if (__DEV__) console.error('[finishWorkout] save error:', saveErr);
       restoreTimer();
       return { error: 'Failed to save workout — check your connection and try again.' };
     }
   } catch (e: any) {
-    console.error('[finishWorkout] save threw:', e);
+    if (__DEV__) console.error('[finishWorkout] save threw:', e);
     restoreTimer();
     return { error: 'Failed to save workout — check your connection and try again.' };
   }
@@ -274,7 +273,6 @@ async function _finishWorkout(
     return { error: null, incompleteCount, workoutId };
   }
 
-  console.log('[finishWorkout] done, showing summary');
 
   // Non-critical operations — fire and forget, never block summary
   try {
@@ -293,7 +291,6 @@ async function _finishWorkout(
       }
       ghostResult = w > l ? 'victory' : l > w ? 'defeated' : 'draw';
     }
-    console.log('[finishWorkout] feed insert starting, ghost:', ghostUserName, ghostResult);
 
     // Resolve routine context for feed
     let routineFeedData: Record<string, any> = {};
@@ -307,12 +304,9 @@ async function _finishWorkout(
 
     // Resolve program context for feed
     let programFeedData: Record<string, any> = {};
-    console.log('[finishWorkout] program context:', get().startedFromProgram, get().programWeek);
     if (get().startedFromProgram) {
       const { programs, getDurationWeeks } = useProgramStore.getState();
-      console.log('[finishWorkout] programs in store:', programs.length);
       const prog = programs.find((p) => p.id === get().startedFromProgram);
-      console.log('[finishWorkout] matched program:', prog?.name ?? 'NOT FOUND');
       if (prog) {
         // The day the workout was started on, as saved on the workout row
         const dayEntry = prog.days.find((d) => d.day_of_week === programDayOfWeek);
@@ -350,12 +344,11 @@ async function _finishWorkout(
         })),
       } : {}),
     };
-    console.log('[finishWorkout] feed payload prepared, deferred until share confirm');
     // Deferred: actual insert happens when the user taps Post on the Share screen
     // (or skips, in which case it does not post). See commitFeedPost / dismissShare.
     set({ pendingFeedPayload: feedPayload });
   } catch (feedCrash) {
-    console.error('[finishWorkout] feed block crashed:', feedCrash);
+    if (__DEV__) console.error('[finishWorkout] feed block crashed:', feedCrash);
   }
 
   try {
@@ -581,7 +574,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
       supabase.from('workouts').delete().eq('id', workoutId).then(({ error }) => {
         if (error) {
           // Offline or failed: retried on the next launch (_flushPendingDeletes)
-          console.warn('[discardWorkout] delete of the undone workout failed:', error);
+          if (__DEV__) console.warn('[discardWorkout] delete of the undone workout failed:', error);
           if (ownerId) addPendingWorkoutDelete(workoutId, ownerId).catch(() => {});
           return;
         }
@@ -693,7 +686,6 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     const visibility = opts?.visibility ?? 'public';
     // Private: don't create a feed row at all. Workout already saved to DB.
     if (visibility === 'private') {
-      console.log('[commitFeedPost] private — skipping feed insert');
       return;
     }
 
@@ -708,10 +700,9 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
 
     try {
       const { error } = await supabase.from('activity_feed').insert(finalPayload);
-      if (error) console.error('[commitFeedPost] insert error:', JSON.stringify(error));
-      else console.log('[commitFeedPost] feed insert ok');
+      if (__DEV__ && error) console.error('[commitFeedPost] insert error:', JSON.stringify(error));
     } catch (e) {
-      console.error('[commitFeedPost] threw:', e);
+      if (__DEV__) console.error('[commitFeedPost] threw:', e);
     }
   },
 
