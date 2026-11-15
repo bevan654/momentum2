@@ -97,16 +97,20 @@ export function Portal({ children }: { children: ReactNode }) {
  * BackHandler in the root host, or via the host's `closeTopLayer()` inside a
  * native <Modal>.
  */
-export function useLayerBackHandler(active: boolean, onBack: () => void) {
+export function useLayerBackHandler(active: boolean, onBack: () => void, canHandle?: () => boolean) {
   const host = useContext(HostContext);
   const onBackRef = useRef(onBack);
   onBackRef.current = onBack;
+  const canHandleRef = useRef(canHandle);
+  canHandleRef.current = canHandle;
 
   useEffect(() => {
     if (!active) return;
     const close = () => onBackRef.current();
     host?.backStack.push(close);
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Let the press fall through when the layer's screen isn't showing (e.g. another tab).
+      if (canHandleRef.current && !canHandleRef.current()) return false;
       close();
       return true;
     });

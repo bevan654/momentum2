@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { sw, ms } from '../theme/responsive';
@@ -18,7 +19,7 @@ import HydrationStrip from '../components/food/HydrationStrip';
 import DateNavigator from '../components/food/DateNavigator';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
-import { toLocalDateString } from '../utils/localDate';
+import { useToday } from '../hooks/useToday';
 
 function FoodLoggerScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -38,6 +39,17 @@ function FoodLoggerScreen() {
   const fetchDateSupplements = useSupplementStore((s) => s.fetchDateSupplements);
 
   const colors = useColors();
+
+  // Whether the Nutrition tab is showing, kept in a ref by navigation events: the tab freezes
+  // when hidden, so its sheets can't re-render to drop their Android back listeners.
+  const navigation = useNavigation();
+  const focusedRef = React.useRef(navigation.isFocused()); // React.useRef: the redesign drops the named import
+  useEffect(() => {
+    const onFocus = navigation.addListener('focus', () => { focusedRef.current = true; });
+    const onBlur = navigation.addListener('blur', () => { focusedRef.current = false; });
+    return () => { onFocus(); onBlur(); };
+  }, [navigation]);
+  const isScreenFocused = useCallback(() => focusedRef.current, []);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
 
@@ -70,8 +82,33 @@ function FoodLoggerScreen() {
   }, [userId, selectedDate]);
 
   // No auto-scroll to the current hour: the day summary at the top should stay in view.
-  const todayStr = useMemo(() => toLocalDateString(), []);
+  const todayStr = useToday();
   const isToday = selectedDate === todayStr;
+
+  // Past midnight: if the user was looking at "today", follow it to the new day.
+  // On first mount, compare against the store's starting day: it is set when the app loads,
+  // so an app that sat in the background overnight would otherwise open on yesterday.
+  const prevTodayRef = React.useRef(useFoodLogStore.getState().selectedDate);
+  // Wait while a log/edit sheet is open: it builds times from the selected day, so
+  // switching under it would log to the wrong day. Catch up once it closes.
+  const sheetOpen = addModalVisible || editDetailVisible || editGroupModalVisible;
+  useEffect(() => {
+    if (sheetOpen) return;
+    const prev = prevTodayRef.current;
+    prevTodayRef.current = todayStr;
+    if (prev !== todayStr && useFoodLogStore.getState().selectedDate === prev) {
+      setDate(todayStr);
+    }
+  }, [todayStr, setDate, sheetOpen]);
+
+  // The water strip shows today's live totals: reload them when the day rolls over
+  // while the app stays open, or they'd keep showing yesterday's water and supplements.
+  const totalsDayRef = React.useRef(todayStr);
+  useEffect(() => {
+    if (!userId || totalsDayRef.current === todayStr) return;
+    totalsDayRef.current = todayStr;
+    useSupplementStore.getState().fetchTodaySupplements(userId);
+  }, [userId, todayStr]);
 
   // Always pass an hour so food lands on the day being viewed: now for today,
   // otherwise the meal's usual start time.
@@ -104,7 +141,17 @@ function FoodLoggerScreen() {
   }, [userId, selectedDate, isToday]);
 
   // Tap entry → open detail modal
+  // Clear the edited entry after the close animation; cancel that if another entry opens first,
+  // or the new one would be wiped and the editor would show nothing.
+  const clearEditTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null); // React.useRef: the redesign drops the named import
+  const clearEditEntrySoon = useCallback(() => {
+    if (clearEditTimer.current) clearTimeout(clearEditTimer.current);
+    clearEditTimer.current = setTimeout(() => setEditEntry(null), 350);
+  }, []);
+  useEffect(() => () => { if (clearEditTimer.current) clearTimeout(clearEditTimer.current); }, []);
+
   const handlePressEntry = useCallback((entry: FoodEntry) => {
+    if (clearEditTimer.current) clearTimeout(clearEditTimer.current);
     setEditEntry(entry);
     setEditDetailVisible(true);
   }, []);
@@ -145,19 +192,19 @@ function FoodLoggerScreen() {
 
   const handleEditDismiss = useCallback(() => {
     setEditDetailVisible(false);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, []);
 
   // When edit detail saves, update the existing entry instead of creating new
   const handleEditSaved = useCallback(() => {
     setEditDetailVisible(false);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, []);
 
   const handleDeleteEntry = useCallback((id: string) => {
     setEditDetailVisible(false);
     deleteEntry(id);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, [deleteEntry]);
 
   // Meal group handlers
@@ -188,7 +235,7 @@ function FoodLoggerScreen() {
 
   return (
     <View style={styles.screen}>
-      <DateNavigator selectedDate={selectedDate} onDateSelect={setDate} />
+      <DateNavigator selectedDate={selectedDate} today={todayStr} onDateSelect={setDate} />
       <ScrollView
         style={styles.diaryPage}
         showsVerticalScrollIndicator={false}
@@ -221,9 +268,11 @@ function FoodLoggerScreen() {
       />
       <FoodDetailModal
         visible={editDetailVisible}
+        isBackActive={isScreenFocused}
         food={editDetailData}
         initialMealSlot={editEntry?.meal_type || 'breakfast'}
         initialIsPlanned={editEntry?.is_planned || false}
+        initialQuantity={editEntry?.quantity || 1}
         onDismiss={handleEditDismiss}
         onAdded={handleEditSaved}
         editEntryId={editEntry?.id}
@@ -231,6 +280,7 @@ function FoodLoggerScreen() {
       />
       <CreateMealModal
         visible={editGroupModalVisible}
+        isBackActive={isScreenFocused}
         mealSlot={addMealSlot}
         targetHour={addHour}
         onDismiss={handleDismissGroupEdit}
