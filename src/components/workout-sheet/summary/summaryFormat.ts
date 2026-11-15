@@ -1,3 +1,16 @@
+import type { SummaryExercise } from '../../../stores/useActiveWorkoutStore';
+import type { ExerciseWithSets } from '../../../stores/useWorkoutStore';
+
+/** A saved workout's exercises in the just-completed summary shape (top set, share image). */
+export function toSummaryExercises(exercises: ExerciseWithSets[]): SummaryExercise[] {
+  return exercises.map((ex) => ({
+    name: ex.name,
+    category: ex.category,
+    exercise_type: ex.exercise_type || 'weighted',
+    sets: ex.sets.map((s) => ({ kg: s.kg, reps: s.reps, completed: s.completed, set_type: s.set_type || 'working', parent_set_number: s.parent_set_number ?? null })),
+  }));
+}
+
 // ── Edit-mode types ──────────────────────────────────
 
 // origId: the row's id before editing (saved workouts only), so the save keeps what the editor
