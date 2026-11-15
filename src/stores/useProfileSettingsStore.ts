@@ -60,10 +60,6 @@ const DEFAULT_LAB_TRACKERS: LabTracker[] = [
 ];
 
 interface ProfileSettingsState {
-  showStreakOnProfile: boolean;
-  showStreakOnLeaderboard: boolean;
-  showRecoveryPercent: boolean;
-  showRankLabels: boolean;
   hasSeenLeaderboardInfo: boolean;
   labTrackers: LabTracker[];
   defaultWeightRange: TimeRange;
@@ -76,10 +72,6 @@ interface ProfileSettingsState {
   /** Detail level of the interactive body maps (groups / muscles / parts) */
   muscleMapLevel: Level;
   initialized: boolean;
-  setShowStreakOnProfile: (value: boolean) => void;
-  setShowStreakOnLeaderboard: (value: boolean) => void;
-  setShowRecoveryPercent: (value: boolean) => void;
-  setShowRankLabels: (value: boolean) => void;
   setHasSeenLeaderboardInfo: (value: boolean) => void;
   setLabTrackerEnabled: (id: string, enabled: boolean) => void;
   reorderLabTrackers: (trackers: LabTracker[]) => void;
@@ -107,10 +99,6 @@ function migrateTrackers(saved: LabTracker[]): LabTracker[] {
 
 function persist(state: ProfileSettingsState) {
   AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({
-    showStreakOnProfile: state.showStreakOnProfile,
-    showStreakOnLeaderboard: state.showStreakOnLeaderboard,
-    showRecoveryPercent: state.showRecoveryPercent,
-    showRankLabels: state.showRankLabels,
     hasSeenLeaderboardInfo: state.hasSeenLeaderboardInfo,
     labTrackers: state.labTrackers,
     defaultWeightRange: state.defaultWeightRange,
@@ -123,10 +111,6 @@ function persist(state: ProfileSettingsState) {
 }
 
 export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) => ({
-  showStreakOnProfile: true,
-  showStreakOnLeaderboard: true,
-  showRecoveryPercent: false,
-  showRankLabels: true,
   hasSeenLeaderboardInfo: false,
   labTrackers: DEFAULT_LAB_TRACKERS,
   defaultWeightRange: '1W' as TimeRange,
@@ -136,26 +120,6 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
   expandedNotes: {},
   muscleMapLevel: 'muscles' as Level,
   initialized: false,
-
-  setShowStreakOnProfile: (value: boolean) => {
-    set({ showStreakOnProfile: value });
-    persist(get());
-  },
-
-  setShowStreakOnLeaderboard: (value: boolean) => {
-    set({ showStreakOnLeaderboard: value });
-    persist(get());
-  },
-
-  setShowRecoveryPercent: (value: boolean) => {
-    set({ showRecoveryPercent: value });
-    persist(get());
-  },
-
-  setShowRankLabels: (value: boolean) => {
-    set({ showRankLabels: value });
-    persist(get());
-  },
 
   setHasSeenLeaderboardInfo: (value: boolean) => {
     set({ hasSeenLeaderboardInfo: value });
@@ -218,10 +182,6 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
     if (raw) {
       const data = JSON.parse(raw);
       set({
-        showStreakOnProfile: data.showStreakOnProfile ?? true,
-        showStreakOnLeaderboard: data.showStreakOnLeaderboard ?? true,
-        showRecoveryPercent: data.showRecoveryPercent ?? true,
-        showRankLabels: data.showRankLabels ?? true,
         hasSeenLeaderboardInfo: data.hasSeenLeaderboardInfo ?? false,
         labTrackers: migrateTrackers(data.labTrackers ?? DEFAULT_LAB_TRACKERS),
         defaultWeightRange: data.defaultWeightRange ?? '1W',
