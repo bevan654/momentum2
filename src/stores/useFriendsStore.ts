@@ -461,7 +461,8 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   clearSearch: () => set({ searchResults: [], searchLoading: false }),
 
   sendFriendRequest: async (userId, friendId) => {
-    await dbSendRequest(userId, friendId);
+    const sent = await dbSendRequest(userId, friendId);
+    if (!sent) return;
     set((s) => ({
       searchResults: s.searchResults.map((r) =>
         r.id === friendId ? { ...r, friendshipStatus: 'pending' as const } : r,

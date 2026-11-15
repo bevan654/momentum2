@@ -203,11 +203,13 @@ export async function sendNudge(
     }
   }
 
-  await supabase.from('nudges').insert({
+  const { error: insertError } = await supabase.from('nudges').insert({
     sender_id: senderId,
     receiver_id: receiverId,
     message,
   });
+  // Used to report success (and notify) even when the nudge wasn't saved
+  if (insertError) return { error: "Couldn't send the nudge. Try again." };
 
   const { data: profile } = await supabase
     .from('profiles')

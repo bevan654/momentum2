@@ -80,11 +80,12 @@ export async function getFriendIds(userId: string): Promise<string[]> {
   return data.map((f) => (f.user_id === userId ? f.friend_id : f.user_id));
 }
 
+/** Returns false if the request couldn't be saved (then no notification is sent). */
 export async function sendFriendRequest(
   userId: string,
   friendId: string,
-): Promise<void> {
-  const { data: friendship } = await supabase
+): Promise<boolean> {
+  const { data: friendship, error: insertError } = await supabase
     .from('friendships')
     .insert({
       user_id: userId,
@@ -93,6 +94,8 @@ export async function sendFriendRequest(
     })
     .select('id')
     .single();
+  // Failed insert (offline, duplicate request, blocked): don't notify about a request that doesn't exist
+  if (insertError || !friendship) return false;
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -105,8 +108,9 @@ export async function sendFriendRequest(
     'friend_request',
     'New Friend Request',
     `${profile?.username || profile?.email || 'Someone'} wants to be friends`,
-    { from_user_id: userId, friendship_id: friendship?.id },
+    { from_user_id: userId, friendship_id: friendship.id },
   );
+  return true;
 }
 
 export async function acceptFriendRequest(
