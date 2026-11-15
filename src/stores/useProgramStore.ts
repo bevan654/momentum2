@@ -13,7 +13,7 @@ export interface ProgramDay {
   exercises: ProgramDayExercise[];
 }
 
-interface Program {
+export interface Program {
   id: string;
   name: string;
   start_date: string | null;
