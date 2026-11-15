@@ -1,18 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, TouchableWithoutFeedback, ScrollView, StyleSheet, StatusBar } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
+import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../../../theme/useColors';
 import { Fonts } from '../../../theme/typography';
 import { sw, ms, SCREEN_HEIGHT } from '../../../theme/responsive';
 import type { WorkoutWithDetails } from '../../../stores/useWorkoutStore';
 import {
-  groupsForParts, workoutHitsGroups, DISMISS_THRESHOLD, VELOCITY_THRESHOLD,
+  groupsForParts, workoutHitsGroups,
   TIME_FILTERS, TIME_LABELS, TIME_MS, BODY_FILTERS, PLAN_FILTERS, SHEET_HEIGHT,
   type TimeFilter, type PlanFilter,
 } from './historyConstants';
+import { useSwipeDismissSheet } from './useSwipeDismissSheet';
 
 function formatVolume(vol: number): string {
   if (vol >= 1000) return `${(vol / 1000).toFixed(1)}k`;
@@ -71,57 +72,11 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
 }) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const translateY = useSharedValue(SHEET_HEIGHT);
-  const backdropOpacity = useSharedValue(0);
-  const ctx = useSharedValue(0);
-
-  useEffect(() => {
-    translateY.value = 0;
-    backdropOpacity.value = 1;
-  }, []);
+  const { dismiss, panGesture, sheetStyle, backdropStyle } = useSwipeDismissSheet(SHEET_HEIGHT, onClose);
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('All');
   const [bodyFilter, setBodyFilter] = useState<string>(debugPart.length > 0 ? debugPart[0] : 'All');
   const [planFilter, setPlanFilter] = useState<PlanFilter>('All');
-
-  const dismiss = useCallback(() => {
-    translateY.value = SHEET_HEIGHT;
-    backdropOpacity.value = 0;
-    onClose();
-  }, [onClose]);
-
-  const panGesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetY(8)
-        .onStart(() => {
-          ctx.value = translateY.value;
-        })
-        .onUpdate((e) => {
-          translateY.value = Math.max(0, ctx.value + e.translationY);
-        })
-        .onEnd((e) => {
-          if (
-            e.translationY > DISMISS_THRESHOLD ||
-            e.velocityY > VELOCITY_THRESHOLD
-          ) {
-            translateY.value = SHEET_HEIGHT;
-            backdropOpacity.value = 0;
-            runOnJS(onClose)();
-          } else {
-            translateY.value = 0;
-          }
-        }),
-    [onClose],
-  );
-
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: backdropOpacity.value,
-  }));
 
   const filtered = useMemo(() => {
     const now = Date.now();

@@ -1,12 +1,12 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableWithoutFeedback, ScrollView, StyleSheet, StatusBar } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
+import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated from 'react-native-reanimated';
 import type { ThemeColors } from '../../../theme/useColors';
 import { Fonts } from '../../../theme/typography';
 import { sw, ms, SCREEN_HEIGHT } from '../../../theme/responsive';
 import type { Routine } from '../../../stores/useRoutineStore';
-import { DISMISS_THRESHOLD, VELOCITY_THRESHOLD } from './historyConstants';
+import { useSwipeDismissSheet } from './useSwipeDismissSheet';
 
 /* ─── Routine Preview Overlay ─────────────────────────── */
 
@@ -22,48 +22,7 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
 }) {
   const os = useMemo(() => previewStyles(colors), [colors]);
 
-  const translateY = useSharedValue(PREVIEW_SHEET_HEIGHT);
-  const backdropOpacity = useSharedValue(0);
-  const ctx = useSharedValue(0);
-
-  useEffect(() => {
-    translateY.value = 0;
-    backdropOpacity.value = 1;
-  }, []);
-
-  const dismiss = useCallback(() => {
-    translateY.value = PREVIEW_SHEET_HEIGHT;
-    backdropOpacity.value = 0;
-    onDismiss();
-  }, [onDismiss]);
-
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: backdropOpacity.value,
-  }));
-
-  const panGesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetY(8)
-        .onStart(() => { ctx.value = translateY.value; })
-        .onUpdate((e) => {
-          translateY.value = Math.max(0, ctx.value + e.translationY);
-        })
-        .onEnd((e) => {
-          if (e.translationY > DISMISS_THRESHOLD || e.velocityY > VELOCITY_THRESHOLD) {
-            translateY.value = PREVIEW_SHEET_HEIGHT;
-            backdropOpacity.value = 0;
-            runOnJS(onDismiss)();
-          } else {
-            translateY.value = 0;
-          }
-        }),
-    [onDismiss],
-  );
-
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
+  const { dismiss, panGesture, sheetStyle, backdropStyle } = useSwipeDismissSheet(PREVIEW_SHEET_HEIGHT, onDismiss);
 
   const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const daysLabel = routine.days.length > 0
