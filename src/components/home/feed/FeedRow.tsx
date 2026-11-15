@@ -33,13 +33,13 @@ const FeedRow = React.memo(function FeedRow({ item }: FeedRowProps) {
   const photoUrl = item.photo_url;
 
   const currentUserId = useAuthStore((s) => s.user?.id);
-  const friendIds = useFriendsStore((s) => s.friendIds);
+  // Boolean selector: a change to someone else's friendship doesn't re-render this row.
+  const isFriend = useFriendsStore((s) => s.friendIds.includes(item.user_id));
   const sendFriendRequest = useFriendsStore((s) => s.sendFriendRequest);
   const blockUser = useFriendsStore((s) => s.blockUser);
   const addReaction = useFriendsStore((s) => s.addReaction);
   const removeReaction = useFriendsStore((s) => s.removeReaction);
   const isSelf = currentUserId === item.user_id;
-  const isFriend = friendIds.includes(item.user_id);
 
   const [actionsOpen, setActionsOpen] = useState(false);
   const [viewWorkoutOpen, setViewWorkoutOpen] = useState(false);

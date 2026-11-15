@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, TouchableWithoutFeedback, ScrollView, StyleSheet, StatusBar } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
@@ -50,6 +51,12 @@ const HistoryRow = React.memo(({ workout, dateStr, durationMin, styles, colors, 
     </TouchableOpacity>
   );
 });
+
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const LIST_WRAP = { flex: 1 } as const;
+const historyKey = (w: WorkoutWithDetails) => w.id;
+
 const HistoryOverlay = React.memo(function HistoryOverlay({
   workouts,
   catalogMap,
@@ -167,6 +174,22 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
     setOpenFilter((prev) => (prev === key ? null : key));
   }, []);
 
+  const renderHistoryRow = useCallback(({ item: w }: { item: WorkoutWithDetails }) => {
+    const d = new Date(w.created_at);
+    const dateStr = `${DAY_SHORT[d.getDay()]}, ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+    const durationMin = Math.round(w.duration / 60);
+    return (
+      <HistoryRow
+        workout={w}
+        dateStr={dateStr}
+        durationMin={durationMin}
+        styles={styles}
+        colors={colors}
+        onPress={() => onSelectWorkout(w)}
+      />
+    );
+  }, [styles, colors, onSelectWorkout]);
+
   return (
     <GestureHandlerRootView style={StyleSheet.absoluteFill}>
     <View style={styles.historyBackdropWrap}>
@@ -260,30 +283,17 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
         )}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.historyList}>
-        {filtered.length === 0 ? (
-          <Text style={styles.historyEmpty}>No workouts found</Text>
-        ) : (
-          filtered.map((w) => {
-            const d = new Date(w.created_at);
-            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-            const dateStr = `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
-            const durationMin = Math.round(w.duration / 60);
-            return (
-              <HistoryRow
-                key={w.id}
-                workout={w}
-                dateStr={dateStr}
-                durationMin={durationMin}
-                styles={styles}
-                colors={colors}
-                onPress={() => onSelectWorkout(w)}
-              />
-            );
-          })
-        )}
-      </ScrollView>
+      {/* Virtualised: someone with hundreds of workouts would otherwise mount every row on open */}
+      <View style={LIST_WRAP}>
+        <FlashList
+          data={filtered}
+          keyExtractor={historyKey}
+          renderItem={renderHistoryRow}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.historyList}
+          ListEmptyComponent={<Text style={styles.historyEmpty}>No workouts found</Text>}
+        />
+      </View>
       </Animated.View>
     </View>
     </GestureHandlerRootView>

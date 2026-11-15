@@ -100,6 +100,9 @@ export default function ActiveWorkoutSheet() {
     setPickerVisible(true);
   }, []);
 
+  // Stable: ExercisePicker's row callbacks depend on onClose, so an inline arrow re-rendered its whole list.
+  const handlePickerClose = useCallback(() => setPickerVisible(false), []);
+
   const handlePickerSelect = useCallback(
     (name: string, exerciseType: string, category: string | null) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -133,7 +136,7 @@ export default function ActiveWorkoutSheet() {
 
         <ExercisePicker
           visible={pickerVisible}
-          onClose={() => setPickerVisible(false)}
+          onClose={handlePickerClose}
           onSelect={handlePickerSelect}
           mode={pickerMode}
         />

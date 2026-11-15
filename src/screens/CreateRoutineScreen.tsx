@@ -114,6 +114,9 @@ export default function CreateRoutineScreen() {
   );
   const summaryMapColors = useMuscleMapColors();
 
+  // Stable: ExercisePicker's row callbacks depend on onClose (an inline arrow re-rendered its whole list).
+  const closeAddModal = useCallback(() => setShowAddModal(false), []);
+
   const handleAddExercise = useCallback((name: string, exerciseType: string, category: string | null) => {
     const prevMap = useWorkoutStore.getState().prevMap;
     const prevSets = prevMap[name] || [];
@@ -365,7 +368,7 @@ export default function CreateRoutineScreen() {
 
       <ExercisePicker
         visible={showAddModal}
-        onClose={() => setShowAddModal(false)}
+        onClose={closeAddModal}
         onSelect={handleAddExercise}
       />
     </View>
