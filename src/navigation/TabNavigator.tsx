@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, StyleSheet, InteractionManager } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import type { MaterialTopTabBarProps } from '@react-navigation/material-top-tabs';
@@ -245,9 +245,16 @@ export default function TabNavigator() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
-    if (userId) {
-      useActiveWorkoutStore.getState().restoreWorkout();
-      useWorkoutStore.getState().fetchExerciseCatalog(userId);
+    if (!userId) return;
+    // What the first screen needs (and the block list, so the feed never shows a blocked user)
+    useActiveWorkoutStore.getState().restoreWorkout();
+    useWorkoutStore.getState().fetchExerciseCatalog(userId);
+    useFriendsStore.getState().fetchBlockedIds(userId);
+    useFriendsStore.getState().fetchUnreadCount(userId);
+    initPushToken(userId);
+    // For the Workouts and Lab tabs and starting a workout: once the first screen has settled,
+    // so their responses don't compete with its first render.
+    const task = InteractionManager.runAfterInteractions(() => {
       useWorkoutStore.getState().fetchPrevData(userId);
       useRankStore.getState().loadRank(userId);
       // Ranks score with the latest weigh-in, so compute them once the weight has loaded.
@@ -256,10 +263,8 @@ export default function TabNavigator() {
         .then(() => useRankStore.getState().computeRank(userId));
       useProgramStore.getState().fetchPrograms(userId);
       useRoutineStore.getState().fetchRoutines(userId);
-      useFriendsStore.getState().fetchBlockedIds(userId);
-      useFriendsStore.getState().fetchUnreadCount(userId);
-      initPushToken(userId);
-    }
+    });
+    return () => task.cancel();
   }, [userId]);
 
   const showSummary = useActiveWorkoutStore((s) => s.showSummary);
