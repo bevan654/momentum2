@@ -24,8 +24,6 @@ export default function Header() {
   const unreadCount = useFriendsStore((s) => s.unreadCount);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const showStreak = true;
-
   const greeting = useMemo(() => {
     const h = new Date().getHours();
     if (h < 12) return 'Good Morning';
@@ -53,12 +51,10 @@ export default function Header() {
         <View style={styles.spacer} />
 
         {/* Streak + Avatar — right */}
-        {showStreak && (
-          <View style={styles.streakBadge}>
-            <Ionicons name="flame" size={ms(13)} color={colors.streak} />
-            <Text style={styles.streakText}>{currentStreak}</Text>
-          </View>
-        )}
+        <View style={styles.streakBadge}>
+          <Ionicons name="flame" size={ms(13)} color={colors.streak} />
+          <Text style={styles.streakText}>{currentStreak}</Text>
+        </View>
         <TouchableOpacity onPress={openNotif} activeOpacity={0.7} style={styles.bellWrap}>
           <Ionicons name="notifications-outline" size={ms(18)} color={colors.textPrimary} />
           {unreadCount > 0 && (

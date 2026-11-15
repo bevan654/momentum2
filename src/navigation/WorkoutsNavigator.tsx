@@ -59,13 +59,13 @@ function ProgramDayEditorModal() {
 
 /* ─── Backdrop wrappers for screens with own sheet chrome ── */
 function RoutineSummaryModal() {
-  return <SheetWrapper hasOwnSheet><RoutineSummaryScreen /></SheetWrapper>;
+  return <SheetWrapper><RoutineSummaryScreen /></SheetWrapper>;
 }
 function ProgramSummaryModal() {
-  return <SheetWrapper hasOwnSheet><ProgramSummaryScreen /></SheetWrapper>;
+  return <SheetWrapper><ProgramSummaryScreen /></SheetWrapper>;
 }
 function ProgramProgressModal() {
-  return <SheetWrapper hasOwnSheet><ProgramProgressScreen /></SheetWrapper>;
+  return <SheetWrapper><ProgramProgressScreen /></SheetWrapper>;
 }
 
 export default function WorkoutsNavigator() {

@@ -13,11 +13,9 @@ const VELOCITY_THRESHOLD = 800;
 
 interface SheetWrapperProps {
   children: React.ReactNode;
-  /** If true, only renders backdrop — child handles its own sheet chrome */
-  hasOwnSheet?: boolean;
 }
 
-export default function SheetWrapper({ children, hasOwnSheet = false }: SheetWrapperProps) {
+export default function SheetWrapper({ children }: SheetWrapperProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -65,24 +63,6 @@ export default function SheetWrapper({ children, hasOwnSheet = false }: SheetWra
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: backdropOpacity.value,
   }));
-
-  if (hasOwnSheet) {
-    return withHost(
-      <View style={styles.container}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={dismiss}>
-          <Animated.View style={[styles.backdrop, backdropStyle]} />
-        </Pressable>
-        <Animated.View style={[styles.sheet, { marginTop: sheetMarginTop, backgroundColor: colors.background }, sheetStyle]}>
-          <GestureDetector gesture={panGesture}>
-            <Animated.View style={styles.handleRow}>
-              <View style={[styles.handle, { backgroundColor: colors.textTertiary + '60' }]} />
-            </Animated.View>
-          </GestureDetector>
-          {children}
-        </Animated.View>
-      </View>
-    );
-  }
 
   return withHost(
     <View style={styles.container}>

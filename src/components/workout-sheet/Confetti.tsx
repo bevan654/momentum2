@@ -113,18 +113,14 @@ function ConfettiPiece({ p }: { p: Particle }) {
   );
 }
 
-interface Props {
-  colors?: string[];
-}
-
-export default function Confetti({ colors = DEFAULT_COLORS }: Props) {
+export default function Confetti() {
   const particles = useMemo<Particle[]>(() => {
     return Array.from({ length: PARTICLE_COUNT }, () => {
       const angle = Math.random() * Math.PI * 2;
       const velocity = Math.random() * 0.6 + 0.4; // 0.4–1.0
 
       return {
-        color: colors[Math.floor(Math.random() * colors.length)],
+        color: DEFAULT_COLORS[Math.floor(Math.random() * DEFAULT_COLORS.length)],
         size: Math.random() * 4 + 3,
         delay: Math.random() * 150,
         endX: Math.cos(angle) * (80 + Math.random() * 100) * velocity,
