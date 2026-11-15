@@ -11,10 +11,10 @@ import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import RestPickerModal from './RestPickerModal';
 import DurationPickerModal from './DurationPickerModal';
 import ActionSheet, { type ActionSheetItem } from './ActionSheet';
-import { formatClock } from '../../utils/formatDuration';
 import { workoutTotals } from '../../utils/workoutProgress';
 import { queueWorkoutFinishFeedback } from '../../services/workoutFinishFeedback';
 import { useShallow } from 'zustand/shallow';
+import ElapsedClock from './ElapsedClock';
 
 const FOUR_HOURS = 4 * 60 * 60; // 14400 seconds
 
@@ -22,12 +22,6 @@ function formatRestDuration(seconds: number): string {
   if (seconds >= 120) return `${seconds / 60}m`;
   return `${seconds}s`;
 }
-
-/** The running clock. Its own component so the 1 s tick re-renders this text, not the whole header and its modals. */
-const ElapsedClock = React.memo(function ElapsedClock() {
-  const elapsedSeconds = useActiveWorkoutStore((s) => s.elapsedSeconds);
-  return <>{formatClock(elapsedSeconds)}</>;
-});
 
 function WorkoutHeader() {
   const colors = useColors();
