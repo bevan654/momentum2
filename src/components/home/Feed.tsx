@@ -168,14 +168,13 @@ export default function Feed({
           />
         ) : undefined
       }
-      contentContainerStyle={{
-        paddingHorizontal: sw(8),
-        paddingTop: sw(8),
-        paddingBottom: sw(24),
-      }}
+      contentContainerStyle={FEED_CONTENT_STYLE}
     />
   );
 }
+
+/** Module-level so FlashList gets the same object every render. */
+const FEED_CONTENT_STYLE = { paddingHorizontal: sw(8), paddingTop: sw(8), paddingBottom: sw(24) };
 
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({

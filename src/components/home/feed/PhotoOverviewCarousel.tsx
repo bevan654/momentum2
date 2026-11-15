@@ -31,7 +31,6 @@ const PhotoOverviewCarousel = React.memo(function PhotoOverviewCarousel({
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={handleScroll}
-        scrollEventThrottle={16}
         snapToInterval={PHOTO_WIDTH}
         decelerationRate="fast"
         style={{ width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}

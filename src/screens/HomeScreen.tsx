@@ -20,7 +20,7 @@ import ActivityCard from '../components/home/ActivityCard';
 import { useNavigation } from '@react-navigation/native';
 
 function HomeScreen() {
-  const user = useAuthStore((s) => s.user);
+  const userId = useAuthStore((s) => s.user?.id);
   const fetchTodayNutrition = useNutritionStore((s) => s.fetchTodayNutrition);
   const fetchNutritionGoals = useNutritionStore((s) => s.fetchNutritionGoals);
   const fetchTodaySupplements = useSupplementStore((s) => s.fetchTodaySupplements);
@@ -36,27 +36,27 @@ function HomeScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
-    if (user?.id) {
-      fetchTodayNutrition(user.id);
-      fetchNutritionGoals(user.id);
-      fetchTodaySupplements(user.id);
-      fetchSupplementGoals(user.id);
-      fetchExerciseCatalog(user.id).then(() => fetchWorkoutHistory(user.id));
-      fetchWeightData(user.id);
-      initStreak(user.id);
+    if (userId) {
+      fetchTodayNutrition(userId);
+      fetchNutritionGoals(userId);
+      fetchTodaySupplements(userId);
+      fetchSupplementGoals(userId);
+      fetchExerciseCatalog(userId).then(() => fetchWorkoutHistory(userId));
+      fetchWeightData(userId);
+      initStreak(userId);
     }
-  }, [user?.id]);
+  }, [userId]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && user?.id) {
-        fetchTodayNutrition(user.id);
-        fetchTodaySupplements(user.id);
-        useStreakStore.getState().refreshStreak(user.id);
+      if (state === 'active' && userId) {
+        fetchTodayNutrition(userId);
+        fetchTodaySupplements(userId);
+        useStreakStore.getState().refreshStreak(userId);
       }
     });
     return () => sub.remove();
-  }, [user?.id]);
+  }, [userId]);
 
   const handleLogWorkout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
