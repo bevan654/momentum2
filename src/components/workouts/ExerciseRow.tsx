@@ -84,6 +84,10 @@ function ExerciseCard({
   onSetWeightChange,
   onRestChange,
   onRemove,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
 }: ExerciseCardProps) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -135,6 +139,31 @@ function ExerciseCard({
     <View style={styles.card}>
       {/* Header section */}
       <View style={styles.header}>
+        {/* Reorder: move this exercise up or down one place */}
+        {(onMoveUp || onMoveDown) && (
+          <View style={styles.reorderCol}>
+            <TouchableOpacity
+              onPress={onMoveUp}
+              disabled={isFirst || !onMoveUp}
+              style={styles.reorderBtn}
+              hitSlop={{ top: 4, bottom: 2, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={`Move ${name} up`}
+            >
+              <Ionicons name="chevron-up" size={ms(18)} color={isFirst ? colors.cardBorder : colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onMoveDown}
+              disabled={isLast || !onMoveDown}
+              style={styles.reorderBtn}
+              hitSlop={{ top: 2, bottom: 4, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={`Move ${name} down`}
+            >
+              <Ionicons name="chevron-down" size={ms(18)} color={isLast ? colors.cardBorder : colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.headerLeft}>
           <Text style={styles.name} numberOfLines={1}>
             {name.replace(/\b\w/g, (c) => c.toUpperCase())}
@@ -346,6 +375,8 @@ const createStyles = (colors: ThemeColors) =>
     },
     reorderCol: {
       gap: sw(0),
+      marginRight: sw(8),
+      alignSelf: 'center',
     },
     reorderBtn: {
       padding: sw(2),
