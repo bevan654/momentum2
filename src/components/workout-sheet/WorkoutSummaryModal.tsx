@@ -21,7 +21,7 @@ import CoachTakeCard, { type CoachResult } from './CoachTakeCard';
 import { pickAndUploadWorkoutPhoto } from '../../utils/uploadWorkoutPhoto';
 import { formatDuration, formatVolume } from './summary/summaryFormat';
 import { useSummaryEdit } from './summary/useSummaryEdit';
-import { ExerciseDetailCard, SummaryExerciseCard } from './summary/SummaryExerciseCards';
+import { ExerciseResultCard } from './summary/SummaryExerciseCards';
 import EditableExerciseSection from './summary/EditableExerciseSection';
 import AnimatedCheckmark from './summary/AnimatedCheckmark';
 import HistoricalPage from './summary/HistoricalPage';
@@ -313,13 +313,13 @@ export default function WorkoutSummaryModal(props: Props) {
   ) : isJustCompleted ? (
     <View style={styles.exerciseDetailList}>
       {(displayExercises ?? (data as WorkoutSummary).exercises).map((ex, i) => (
-        <SummaryExerciseCard key={i} exercise={ex} colors={colors} prevSets={prevMap[ex.name]} coachNote={coachNotesByName.get(ex.name.toLowerCase())} />
+        <ExerciseResultCard key={i} exercise={ex} colors={colors} prevSets={prevMap[ex.name]} coachNote={coachNotesByName.get(ex.name.toLowerCase())} />
       ))}
     </View>
   ) : (
     <View style={styles.exerciseDetailList}>
       {(data as WorkoutWithDetails).exercises.map((ex) => (
-        <ExerciseDetailCard key={ex.id} exercise={ex} colors={colors} prevSets={prevMap[ex.name]} coachNote={coachNotesByName.get(ex.name.toLowerCase())} />
+        <ExerciseResultCard key={ex.id} exercise={ex} colors={colors} prevSets={prevMap[ex.name]} coachNote={coachNotesByName.get(ex.name.toLowerCase())} />
       ))}
     </View>
   );
