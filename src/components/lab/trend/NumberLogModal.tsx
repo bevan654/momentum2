@@ -10,19 +10,26 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import Overlay from '../ui/Overlay';
-import { useColors, type ThemeColors } from '../../theme/useColors';
-import { Fonts } from '../../theme/typography';
-import { sw, ms } from '../../theme/responsive';
+import Overlay from '../../ui/Overlay';
+import { useColors, type ThemeColors } from '../../../theme/useColors';
+import { Fonts } from '../../../theme/typography';
+import { sw, ms } from '../../../theme/responsive';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
   onSave: (value: number) => Promise<{ error: string | null }>;
-  methodLabel: string;
+  title: string;
+  /** Line under the title (method, body part); omit for none. */
+  subtitle?: string;
+  placeholder: string;
+  /** Checks the parsed input (NaN when it isn't a number). */
+  isValid: (value: number) => boolean;
+  invalidMessage: string;
 }
 
-export default function BodyFatLogModal({ visible, onClose, onSave, methodLabel }: Props) {
+/** Centred dialog to log one number for a Lab trend card (weight, body fat %, a measurement). */
+function NumberLogModal({ visible, onClose, onSave, title, subtitle, placeholder, isValid, invalidMessage }: Props) {
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
   const colors = useColors();
@@ -30,8 +37,8 @@ export default function BodyFatLogModal({ visible, onClose, onSave, methodLabel 
 
   const handleSave = async () => {
     const parsed = parseFloat(value);
-    if (!parsed || parsed <= 0 || parsed > 70) {
-      Alert.alert('Error', 'Enter a valid body fat % (0–70)');
+    if (!isValid(parsed)) {
+      Alert.alert('Error', invalidMessage);
       return;
     }
     setSaving(true);
@@ -58,12 +65,12 @@ export default function BodyFatLogModal({ visible, onClose, onSave, methodLabel 
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <Pressable style={styles.modal}>
-            <Text style={styles.title}>Log Body Fat %</Text>
-            <Text style={styles.subtitle}>{methodLabel}</Text>
+            <Text style={[styles.title, subtitle === undefined && styles.titleSpaced]}>{title}</Text>
+            {subtitle !== undefined && <Text style={styles.subtitle}>{subtitle}</Text>}
 
             <TextInput
               style={styles.input}
-              placeholder="Body fat %"
+              placeholder={placeholder}
               placeholderTextColor={colors.textTertiary}
               value={value}
               onChangeText={setValue}
@@ -90,6 +97,8 @@ export default function BodyFatLogModal({ visible, onClose, onSave, methodLabel 
   );
 }
 
+export default React.memo(NumberLogModal);
+
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
@@ -113,6 +122,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(25),
     fontFamily: Fonts.bold,
     textAlign: 'center',
+  },
+  // Without a subtitle the title keeps the gap above the input.
+  titleSpaced: {
+    marginBottom: sw(20),
   },
   subtitle: {
     color: colors.textTertiary,
