@@ -64,13 +64,14 @@ This project is a continuation of an app built with an older model, so expect bu
 └── src/
     ├── screens/               # Top-level routes (19 screens)
     ├── components/
-    │   ├── auth/              # SocialAuthButtons (Google / Apple OAuth)
+    │   ├── auth/              # Auth screen pieces: AuthLayout, AuthBrand, AuthInput, FieldStatusIcon, authStyles, SocialAuthButtons (Google / Apple OAuth)
     │   ├── body/              # Body map wrappers around momentum-muscle-map: map pair, workout mini maps, exercise thumb, level toggle, region chip, workout heatmap
     │   ├── dev/               # Workout share card (WorkoutOverlay), story crop: production share UI despite the name
     │   ├── food/              # Nutrition tab: day summary (calorie ring, macro bars), water strip, meal cards, food popups; ui/ = shared kit for food popups (header, search, rows, fields, sub-screen, keyboard inset); macro-lens/ = AI photo scan pieces
     │   ├── friends/           # Leaderboard, notifications, reports, search, a friend's feed workout (feed-workout/)
     │   ├── home/              # Home dashboard cards and modals, global Header, Community feed (feed/), activity calendar (activity/)
     │   ├── lab/               # Recovery tab: body-metric cards (weight, body fat, measurements), weekly volume, muscle radar, quick stats, AI coach card
+    │   ├── onboarding/        # Onboarding steps (DetailsStep, GoalsStep, UnitInput) + onboardingPlan (activity levels, calorie/macro recommendation)
     │   ├── profile/           # Settings sub-views (settings/), goal editors
     │   ├── share/             # Share modal
     │   ├── ui/                # Shared primitives: Sheet (animated bottom sheet), Portal/PortalHost
@@ -83,7 +84,7 @@ This project is a continuation of an app built with an older model, so expect bu
     ├── lib/                   # supabase, friendsDatabase (re-exports the topic files in friends/), catalogDatabase, navigationBridge
     ├── theme/                 # useColors.ts, responsive.ts, typography.ts
     ├── utils/                 # barcodeApi, confirmReplaceWorkout, dateLabels (workout date, "Nov 14"), displayName, ema (trend line), exerciseCatalog, exerciseProgress, feedExerciseDetails, formatDuration (clock, h/m and rest text), formatVolume, ghostCompare, localDate (local YYYY-MM-DD), muscleLoad (effective load for heat/recovery), muscleVolume, planExercise (routine/program exercise row), smoothPath, streakCalculator, strengthScore, titleCase, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutProgress, workoutStorage
-    ├── hooks/                 # useAppUpdates (EAS OTA), useDebouncedValue, useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights), useToday (today's date, rolls over at midnight)
+    ├── hooks/                 # useAppUpdates (EAS OTA), useDebouncedValue, useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights), useUsernameAvailability (debounced username/email taken check), useToday (today's date, rolls over at midnight)
     └── constants/             # buildInfo, changelog, dateNames (day/month names), muscles, muscleMap (body-map config + heat/recovery reference values, bodyweight fractions), muscleMapLabels
 
 supabase/
