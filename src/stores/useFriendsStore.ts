@@ -476,8 +476,9 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     return dbSendNudge(senderId, receiverId, message);
   },
 
+  // Optimistic: the heart updates on tap, then the write goes out. (The db helpers log and swallow
+  // errors, so the UI ended in this state on failure before too, only a round-trip later.)
   addReaction: async (activityId, userId, emoji) => {
-    await dbAddReaction(activityId, userId, emoji);
     set((s) => ({
       feed: s.feed.map((item) => {
         if (item.id !== activityId) return item;
@@ -496,10 +497,10 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
         };
       }),
     }));
+    await dbAddReaction(activityId, userId, emoji);
   },
 
   removeReaction: async (activityId, userId, emoji) => {
-    await dbRemoveReaction(activityId, userId, emoji);
     set((s) => ({
       feed: s.feed.map((item) => {
         if (item.id !== activityId) return item;
@@ -513,6 +514,7 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
         };
       }),
     }));
+    await dbRemoveReaction(activityId, userId, emoji);
   },
 
   fetchBookmarks: async (userId) => {
