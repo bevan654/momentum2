@@ -1,20 +1,19 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../../theme/useColors';
 import { sw, ms } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
 import ExerciseMuscleThumb from '../../body/ExerciseMuscleThumb';
 import type { ActivityFeedItem, FeedExerciseDetail } from '../../../lib/friendsDatabase';
-import { useAuthStore } from '../../../stores/useAuthStore';
-import { useRoutineStore } from '../../../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../../stores/useWorkoutStore';
 import { confirmReplaceWorkout } from '../../../utils/confirmReplaceWorkout';
-import { formatVolume, postedExerciseType, targetKg, routineSetTargets } from './feedWorkoutHelpers';
+import { formatVolume, postedExerciseType, targetKg } from './feedWorkoutHelpers';
 import { formatHoursMinutes } from '../../../utils/formatDuration';
 import { formatWorkoutDate } from '../../../utils/dateLabels';
 import { titleCase } from '../../../utils/titleCase';
+import { useSaveFeedRoutine } from './useSaveFeedRoutine';
 
 /* ── Normal workout content ────────────────────────── */
 
@@ -24,33 +23,10 @@ export function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; on
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const userId = useAuthStore((s) => s.user?.id);
-  const createRoutine = useRoutineStore((s) => s.createRoutine);
   const startFromRoutine = useActiveWorkoutStore((s) => s.startFromRoutine);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
 
-  const handleSaveRoutine = useCallback(async () => {
-    if (!userId) return;
-    const routineExercises = exercises.map((ex, i) => ({
-      name: ex.name,
-      exercise_order: i + 1,
-      default_sets: ex.sets_count || 3,
-      default_reps: ex.best_reps || 10,
-      default_rest_seconds: 90,
-      ...routineSetTargets(ex),
-      exercise_type: postedExerciseType(ex.name, ex.exercise_type, catalogMap),
-    }));
-    const { error } = await createRoutine(
-      userId,
-      `${displayName}'s Workout`,
-      routineExercises,
-    );
-    if (error) {
-      Alert.alert('Error', error);
-    } else {
-      Alert.alert('Saved', 'Routine saved to My Routines');
-    }
-  }, [userId, exercises, displayName, createRoutine, catalogMap]);
+  const handleSaveRoutine = useSaveFeedRoutine(exercises, displayName);
 
   const handleTryWorkout = useCallback(() => {
     const ghostPrevMap: Record<string, { kg: number; reps: number }[]> = {};
