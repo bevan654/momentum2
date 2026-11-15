@@ -76,16 +76,23 @@ function Leaderboard({ headerComponent }: Props) {
     if (settingsInitialized && !hasSeenLeaderboardInfo) setInfoVisible(true);
   }, [settingsInitialized, hasSeenLeaderboardInfo]);
 
+  // The block list once per user (it isn't cached in the store); switching board or scope reuses it.
+  const blockedLoad = useRef<Promise<void> | null>(null);
+  useEffect(() => {
+    // A failed load keeps the list from sign-in (TabNavigator) rather than blocking the board
+    blockedLoad.current = userId ? fetchBlockedIds(userId).catch(() => {}) : null;
+  }, [userId, fetchBlockedIds]);
+
   useEffect(() => {
     if (!userId) return;
-    Promise.all([fetchFriends(userId), fetchBlockedIds(userId)])
+    // fetchFriends is cached (4 h), so this is a network call only the first time
+    Promise.all([fetchFriends(userId), blockedLoad.current])
       .then(() => fetchLeaderboard(userId));
   }, [
     userId,
     leaderboardType,
     leaderboardScope,
     fetchFriends,
-    fetchBlockedIds,
     fetchLeaderboard,
   ]);
 
