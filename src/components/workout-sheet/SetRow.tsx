@@ -26,6 +26,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { ActiveSet } from '../../stores/useActiveWorkoutStore';
 import { type ExerciseType } from '../../utils/exerciseProgress';
+import { formatTimeSecs, showsKg, isTimedType } from './summary/summaryFormat';
 
 /* ── Constants ─────────────────────────────────────────── */
 
@@ -63,17 +64,8 @@ function formatPrev(prevSet: { kg: number; reps: number } | null, exerciseType?:
   return `${prevSet.kg}×${prevSet.reps}`;
 }
 
-/** Convert seconds string to mm:ss display */
-function formatTimeDisplay(secs: string): string {
-  const n = parseInt(secs, 10);
-  if (isNaN(n) || n <= 0) return '0:00';
-  const m = Math.floor(n / 60);
-  const s = n % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-const showKg = (t?: ExerciseType) => t === 'weighted' || t === 'weighted+bodyweight' || !t;
-const isDuration = (t?: ExerciseType) => t === 'duration';
+/** A seconds string (as typed) as m:ss; empty or invalid shows 0:00. */
+const formatTimeDisplay = (secs: string) => formatTimeSecs(parseInt(secs, 10) || 0);
 
 /* ── Component ─────────────────────────────────────────── */
 
@@ -335,7 +327,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
               style={styles.prevContainer}
               onPress={() => {
                 if (!completed && prevSet) {
-                  if (showKg(exerciseType) && prevSet.kg > 0) {
+                  if (showsKg(exerciseType) && prevSet.kg > 0) {
                     const kgStr = String(prevSet.kg);
                     setLocalKg(kgStr);
                     onUpdate(index, 'kg', kgStr);
@@ -358,7 +350,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
           )}
 
           {/* KG input — only for weighted / weighted+bodyweight */}
-          {showKg(exerciseType) && (
+          {showsKg(exerciseType) && (
             <View style={[styles.inputContainer, completed && styles.inputContainerCompleted, !localKg && suggestedKg && styles.inputContainerSuggested]}>
               <TextInput
                 ref={kgRef}
@@ -376,7 +368,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
           )}
 
           {/* DURATION input — time in seconds with +/- 15s steppers */}
-          {isDuration(exerciseType) ? (
+          {isTimedType(exerciseType) ? (
             <View style={[styles.repsRow, { flex: 2 }, completed && styles.repsRowCompleted]}>
               {!completed && (
                 <TouchableOpacity
@@ -480,7 +472,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
           {/* Complete / uncomplete toggle */}
           <TouchableOpacity onPress={() => {
             if (!completed) {
-              if (showKg(exerciseType) && !localKg && suggestedKg) { setLocalKg(suggestedKg); onUpdate(index, 'kg', suggestedKg); }
+              if (showsKg(exerciseType) && !localKg && suggestedKg) { setLocalKg(suggestedKg); onUpdate(index, 'kg', suggestedKg); }
               if (!localReps && suggestedReps) { setLocalReps(suggestedReps); onUpdate(index, 'reps', suggestedReps); }
             }
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

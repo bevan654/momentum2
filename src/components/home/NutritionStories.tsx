@@ -6,35 +6,12 @@ import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
 import { useFriendsStore } from '../../stores/useFriendsStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { colorForId, displayNameFor, initialFor } from './feed/feedHelpers';
 
 /* ─── Sizing ─────────────────────────────────────────── */
 
 const RING_SIZE = sw(62);
 const ITEM_WIDTH = sw(68);
-
-/* ─── Helpers ────────────────────────────────────────── */
-
-const AVATAR_PALETTE = [
-  '#FF6B6B', '#4ECDC4', '#FFD93D', '#A78BFA',
-  '#60A5FA', '#F59E0B', '#EC4899', '#10B981',
-  '#8B5CF6', '#06B6D4',
-];
-
-function colorForId(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
-}
-
-function displayNameFor(username: string | null, email: string): string {
-  return username || (email ? email.split('@')[0] : 'friend');
-}
-
-function initialFor(username: string | null, email: string): string {
-  return (username || email || '?').charAt(0).toUpperCase();
-}
 
 /* ─── Add-friend Story ───────────────────────────────── */
 

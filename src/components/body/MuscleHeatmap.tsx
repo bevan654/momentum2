@@ -10,12 +10,9 @@ import MuscleMapPair from './MuscleMapPair';
 import LevelToggle from './LevelToggle';
 import RegionChip from './RegionChip';
 import { useMuscleMapColors, useMuscleMapLevel } from './useBodyMap';
+import { formatVolumeKg } from '../../utils/formatVolume';
 
 const BODY_HEIGHT = sw(190);
-
-function formatKg(kg: number): string {
-  return kg >= 1000 ? `${(kg / 1000).toFixed(1)}k kg` : `${Math.round(kg)} kg`;
-}
 
 interface Props {
   exercises: readonly VolumeExercise[];
@@ -56,8 +53,8 @@ function MuscleHeatmap({ exercises }: Props) {
       heat = Math.max(heat, values[part] ?? 0);
     }
     if (!(kg > 0)) return 'Not trained';
-    if (!hasPrimaryWork(work, selected.level, selected.key)) return `${formatKg(kg)} · secondary only`;
-    return `${formatKg(kg)} · ${Math.round(heat * 100)}% of a full session`;
+    if (!hasPrimaryWork(work, selected.level, selected.key)) return `${formatVolumeKg(kg)} · secondary only`;
+    return `${formatVolumeKg(kg)} · ${Math.round(heat * 100)}% of a full session`;
   }, [selected, work, values]);
 
   return (

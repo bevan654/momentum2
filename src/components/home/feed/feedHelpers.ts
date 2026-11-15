@@ -28,10 +28,7 @@ export function initialFor(username: string | null, email: string): string {
   return (username || email || '?').charAt(0).toUpperCase();
 }
 
-export function formatVolume(kg: number): string {
-  if (kg >= 1000) return `${(kg / 1000).toFixed(1)}k kg`;
-  return `${Math.round(kg)} kg`;
-}
+export { formatVolumeKg as formatVolume } from '../../../utils/formatVolume';
 
 export function formatCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
