@@ -103,6 +103,9 @@ interface WorkoutState {
   clearCaches: () => void;
 }
 
+/** Which user's catalog is in memory and when it was fetched (cache or network). Cleared on sign-out. */
+let _catalogLoaded: { userId: string; ts: number } | null = null;
+
 export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   workouts: [],
   loading: false,
@@ -160,6 +163,17 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       return map;
     };
 
+    // 0. Already loaded for this user and still fresh: nothing to do. Without this every tab focus
+    //    re-parsed the cache and swapped in a new catalogMap, re-rendering everything that reads it.
+    if (
+      !forceRefresh &&
+      _catalogLoaded?.userId === userId &&
+      Date.now() - _catalogLoaded.ts < CATALOG_TTL &&
+      Object.keys(get().catalogMap).length > 0
+    ) {
+      return;
+    }
+
     // 1. Load from cache immediately so the picker is usable right away (skip if force refresh)
     if (!forceRefresh) {
       try {
@@ -168,6 +182,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
           const cached = JSON.parse(raw);
           if (cached.userId === userId && cached.map && Object.keys(cached.map).length > 0) {
             set({ catalogMap: cached.map, aliasMap: cached.aliasMap || {} });
+            _catalogLoaded = { userId, ts: cached.ts || 0 };
             // If cache is fresh, skip network fetch
             if (Date.now() - (cached.ts || 0) < CATALOG_TTL) return;
           }
@@ -203,6 +218,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
 
       if (Object.keys(map).length > 0) {
         set({ catalogMap: map, aliasMap: aMap });
+        _catalogLoaded = { userId, ts: Date.now() };
         // 3. Persist to cache
         AsyncStorage.setItem(
           CATALOG_CACHE_KEY,
@@ -655,6 +671,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   },
 
   clearCaches: () => {
+    _catalogLoaded = null;
     set({ catalogMap: {}, aliasMap: {}, prevMap: {}, prevNoteMap: {}, sessionHistoryMap: {}, workouts: [] });
     AsyncStorage.removeItem(CATALOG_CACHE_KEY).catch(() => {});
   },
