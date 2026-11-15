@@ -9,9 +9,9 @@ Delete this file once the branch is merged.
 | 0 | Baseline + phone smoke checklist | done |
 | 2 | Fix known bugs | done (needs phone test) |
 | 1 | Remove unused code (Knip + ignored props) | done (needs phone test) |
-| 3 | Split oversized files (no behaviour change) | in progress: 4 of the big files done (see Phase 3 notes) |
-| 4 | Performance audit, fix top findings (judge on a release build) | todo |
-| 5 | Turn on `noUnusedLocals` / `noUnusedParameters` | todo |
+| 3 | Split oversized files (no behaviour change) | done except the Nutrition files (wait for bevan's PRs) |
+| 4 | Performance audit, fix top findings (judge on a release build) | done (needs phone test) |
+| 5 | Turn on `noUnusedLocals` / `noUnusedParameters` | done (`noUnusedLocals` was already on) |
 
 ## Baseline (main @ `5b879bc`, 2026-11-14)
 - `npx tsc --noEmit`: **24 errors in 11 files** (same list as `CODEBASE_MAP.md`).
@@ -58,9 +58,24 @@ Not bugs after checking: `WorkoutSummaryModal` `saving` prop (the edit footer al
   - #79 deletes `MealSection.tsx`: take the deletion (our missing-styles fix and `onEdit` removal there become moot); re-check `FoodLoggerScreen.tsx` (#77–#80, #83 all touch it; ours only removed `onEditEntry`).
   - #83 adds `onRequestClose={handleClose}` to the three `Overlay`s in `MacroLensModal`: after our split, put it on the main `Overlay` and the empty permission `Overlay` in `MacroLensModal.tsx`, and on the `Overlay` in `macro-lens/PermissionGate.tsx` (`onRequestClose={onClose}`).
 
-## Phase 4 candidates (found along the way)
-- All 5 tabs stay mounted and re-render in the background (no freeze). Option: `react-freeze` on tabs more than one away from the current one (neighbours must stay live for swipe).
-- `TabNavigator.tsx` imports RN `Animated` (convention says Reanimated only).
+## Phase 3: also split (rule: only files whose code, excluding styles, is over ~450 lines or that hold several components)
+- `ProfileSettingsView` (1059 → 196 + 6 files in `profile/settings/`), `FeedWorkoutModal` (795 → 32 + 3 in `friends/feed-workout/`), `ActivityCard` (702 → 361 + 2 in `home/activity/`), `CreateProgramScreen` (688 → 452 + `workouts/create-program/CalendarPicker`), `ProgramDayEditorScreen` (770 → 591 + 3 in `workouts/program-day-editor/`), `useActiveWorkoutStore` (1612 → ~1300; types, constants and pure helpers in `stores/activeWorkout/`; module state, finish/restore and the store stay).
+- Left on purpose: `OnboardingScreen` (only testable with a new account), `ExerciseHistoryModal` (only small helpers were movable), single-component files of 500–700 lines where ~200 lines are styles, the medium stores, and the Nutrition files.
+
+## Phase 4: performance changes
+1. **Tabs more than one away from the current tab are frozen** (`navigation/freezeFarTabs.tsx`, `react-freeze`). Neighbours stay live for swiping. Tapping straight across several tabs can show the in-between tabs blank for a moment as they slide past (unvisited lazy tabs already did).
+2. **Exercise catalog isn't re-parsed and replaced on every Home/Recovery focus** (`useWorkoutStore.fetchExerciseCatalog` returns early when fresh in memory).
+3. **Set rows don't re-render when another set of the same exercise is typed in** (stable index-based callbacks `ExerciseCard` → `SetRow`).
+4. **Workout header doesn't re-render every second** (clock is its own component).
+5. **Feed rows** select a boolean, not the whole `friendIds` array.
+6. **ExercisePicker callers** pass a stable `onClose` (it fed the row callbacks).
+7. **History sheet list** is a FlashList.
+8. **NutritionCard / WaterCard** select only the fields they show.
+9. **Feed likes** update on tap, then write.
+- Not done (logged): a TTL for `fetchWorkoutHistory` (reloaded on every Home mount / Recovery focus; risk of stale history after edits), the ExercisePicker catalog `FlatList` → `FlashList`, sharing one muscle-load lookup across feed rows, `FloatingWorkoutBanner` ticking while hidden. `TabNavigator` keeps RN `Animated`: material-top-tabs' `position` prop is an RN Animated value.
+
+## Phase 5
+- `noUnusedParameters` on (`noUnusedLocals` already was). Type-error baseline: **17 in 10 files** (`CODEBASE_MAP.md` updated).
 
 ## Phone smoke checklist (iPhone 14, dev build)
 Run after every phase. Android, iPad and other screen sizes can't be tested here: ask bevan to check them before merging.
