@@ -6,8 +6,7 @@ import {
   type LeaderboardEntry,
   type LeaderboardType,
   type SearchResult,
-  getFriendsList,
-  getFriendIds,
+  getFriends,
   getGlobalFeed,
   getFriendsFeed,
   getLeaderboard as dbGetLeaderboard,
@@ -167,10 +166,7 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       return;
     }
 
-    const [friends, friendIds] = await Promise.all([
-      getFriendsList(userId),
-      getFriendIds(userId),
-    ]);
+    const { friends, friendIds } = await getFriends(userId);
     set({ friends, friendIds, friendsFetchedAt: Date.now() });
   },
 

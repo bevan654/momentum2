@@ -40,15 +40,18 @@ export async function searchProfiles(
     }));
 }
 
-export async function getFriendsList(userId: string): Promise<FriendProfile[]> {
+/**
+ * Accepted friends: every friend's id (for the feed and leaderboard filters) and the profiles of up
+ * to 500 of them (for lists). One friendships query serves both.
+ */
+export async function getFriends(userId: string): Promise<{ friends: FriendProfile[]; friendIds: string[] }> {
   const { data: friendships } = await supabase
     .from('friendships')
-    .select('id, user_id, friend_id, status, created_at')
+    .select('user_id, friend_id')
     .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
-    .eq('status', 'accepted')
-    .limit(500);
+    .eq('status', 'accepted');
 
-  if (!friendships || friendships.length === 0) return [];
+  if (!friendships || friendships.length === 0) return { friends: [], friendIds: [] };
 
   const friendIds = friendships.map((f) =>
     f.user_id === userId ? f.friend_id : f.user_id,
@@ -57,27 +60,15 @@ export async function getFriendsList(userId: string): Promise<FriendProfile[]> {
   const { data: profiles } = await supabase
     .from('public_profiles')
     .select('id, username')
-    .in('id', friendIds);
+    .in('id', friendIds.slice(0, 500));
 
-  if (!profiles) return [];
-
-  return profiles.map((p) => ({
+  const friends = (profiles ?? []).map((p) => ({
     id: p.id,
     username: p.username,
     email: '',
     currentStreak: 0,
   }));
-}
-
-export async function getFriendIds(userId: string): Promise<string[]> {
-  const { data } = await supabase
-    .from('friendships')
-    .select('user_id, friend_id')
-    .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
-    .eq('status', 'accepted');
-
-  if (!data) return [];
-  return data.map((f) => (f.user_id === userId ? f.friend_id : f.user_id));
+  return { friends, friendIds };
 }
 
 /** Returns false if the request couldn't be saved (then no notification is sent). */

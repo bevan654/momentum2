@@ -17,8 +17,7 @@ export type {
 } from './friends/types';
 export {
   searchProfiles,
-  getFriendsList,
-  getFriendIds,
+  getFriends,
   sendFriendRequest,
   acceptFriendRequest,
   declineFriendRequest,
