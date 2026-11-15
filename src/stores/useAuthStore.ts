@@ -134,9 +134,14 @@ async function ensureProfileFromMetadata(user: User): Promise<void> {
     { id: user.id, email: user.email, username },
     { onConflict: 'id' },
   );
+  await upsertDefaultGoals(user.id);
+}
+
+/** A new account's starting nutrition and water/creatine goals (kept if the rows already exist). */
+async function upsertDefaultGoals(userId: string): Promise<void> {
   await supabase.from('nutrition_goals').upsert(
     {
-      user_id: user.id,
+      user_id: userId,
       calorie_goal: 2000,
       protein_goal: 150,
       carbs_goal: 250,
@@ -145,7 +150,7 @@ async function ensureProfileFromMetadata(user: User): Promise<void> {
     { onConflict: 'user_id' },
   );
   await supabase.from('supplement_goals').upsert(
-    { user_id: user.id, water_goal: 2500, creatine_goal: 5 },
+    { user_id: userId, water_goal: 2500, creatine_goal: 5 },
     { onConflict: 'user_id' },
   );
 }
@@ -321,19 +326,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return { error: profileError.message };
         }
 
-        await supabase.from('nutrition_goals').upsert({
-          user_id: data.user.id,
-          calorie_goal: 2000,
-          protein_goal: 150,
-          carbs_goal: 250,
-          fat_goal: 65,
-        }, { onConflict: 'user_id' });
-
-        await supabase.from('supplement_goals').upsert({
-          user_id: data.user.id,
-          water_goal: 2500,
-          creatine_goal: 5,
-        }, { onConflict: 'user_id' });
+        await upsertDefaultGoals(data.user.id);
 
         await get().fetchProfile(data.user.id);
       }
