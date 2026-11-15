@@ -26,6 +26,7 @@ import MuscleMapPair from '../components/body/MuscleMapPair';
 import { useMuscleMapColors } from '../components/body/useBodyMap';
 import { useRegionWeightLookup } from '../hooks/useRegionWeightLookup';
 import { regionEmphasis, relativeValues } from '../utils/muscleVolume';
+import { makeUuid } from '../utils/uuid';
 
 interface LocalSet {
   goal_reps: number;
@@ -33,6 +34,8 @@ interface LocalSet {
 }
 
 interface LocalExercise {
+  /** Local-only React key (never saved): keeps a card's typed text and swipe state when exercises are moved. */
+  uid: string;
   name: string;
   sets: LocalSet[];
   rest_seconds: number;
@@ -73,6 +76,7 @@ export default function CreateRoutineScreen() {
       const weights = ex.set_weights || Array(ex.default_sets).fill(0);
       const entry = catalogMap[ex.name];
       return {
+        uid: makeUuid(),
         name: ex.name,
         sets: reps.map((r: number, i: number) => ({
           goal_reps: r,
@@ -126,7 +130,7 @@ export default function CreateRoutineScreen() {
       goal_weight: prevSets[i]?.kg ?? 0,
     }));
 
-    setExercises((prev) => [...prev, { name, sets: defaultSets, rest_seconds: 90, category, exercise_type: exerciseType, prevSets }]);
+    setExercises((prev) => [...prev, { uid: makeUuid(), name, sets: defaultSets, rest_seconds: 90, category, exercise_type: exerciseType, prevSets }]);
   }, []);
 
   const handleAddSet = useCallback((exerciseIndex: number) => {
@@ -311,7 +315,7 @@ export default function CreateRoutineScreen() {
 
               <Text style={styles.label}>Exercises</Text>
               {exercises.map((ex, i) => (
-                <View key={`${ex.name}-${i}`} style={styles.exerciseItem}>
+                <View key={ex.uid} style={styles.exerciseItem}>
                   <View style={styles.exerciseNumber}>
                     <Text style={styles.exerciseNumberText}>{i + 1}</Text>
                   </View>

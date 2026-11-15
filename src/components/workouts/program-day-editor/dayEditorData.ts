@@ -9,6 +9,8 @@ export interface LocalSet {
 }
 
 export interface LocalExercise {
+  /** Local-only React key (never saved): keeps a card's typed text and swipe state when exercises are moved. */
+  uid: string;
   name: string;
   sets: LocalSet[];
   rest_seconds: number;

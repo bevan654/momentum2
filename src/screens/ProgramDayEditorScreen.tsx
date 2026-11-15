@@ -15,6 +15,7 @@ import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { type LocalSet, type LocalExercise, type CatalogEntry, MUSCLE_FILTERS, titleCase, muscleColor, getSortedCatalog } from '../components/workouts/program-day-editor/dayEditorData';
 import { InlineExerciseRow } from '../components/workouts/program-day-editor/InlineExerciseRow';
 import { RoutinePickerRow } from '../components/workouts/program-day-editor/RoutinePickerRow';
+import { makeUuid } from '../utils/uuid';
 
 /* ─── Main screen ────────────────────────────────────── */
 
@@ -45,6 +46,7 @@ export default function ProgramDayEditorScreen() {
       const weights = ex.set_weights.length > 0 ? ex.set_weights : Array(ex.default_sets).fill(0);
       const entry = catalogMap[ex.name];
       return {
+        uid: makeUuid(),
         name: ex.name,
         sets: reps.map((r: number, i: number) => ({
           goal_reps: r,
@@ -89,7 +91,7 @@ export default function ProgramDayEditorScreen() {
 
     setSearch('');
     setSelectedCategory(null);
-    setExercises((prev) => [...prev, { name, sets: defaultSets, rest_seconds: 90, category, exercise_type: exerciseType, prevSets }]);
+    setExercises((prev) => [...prev, { uid: makeUuid(), name, sets: defaultSets, rest_seconds: 90, category, exercise_type: exerciseType, prevSets }]);
     setShowCatalog(false);
   }, []);
 
@@ -173,6 +175,7 @@ export default function ProgramDayEditorScreen() {
       const entry = catalogMap[re.name];
       const prevSets = prev[re.name] || [];
       return {
+        uid: makeUuid(),
         name: re.name,
         sets: reps.map((r: number, i: number) => ({
           goal_reps: r,
@@ -348,7 +351,7 @@ export default function ProgramDayEditorScreen() {
             )}
 
             {exercises.map((ex, i) => (
-              <View key={`${ex.name}-${i}`} style={styles.exerciseCardWrapper}>
+              <View key={ex.uid} style={styles.exerciseCardWrapper}>
                 <ExerciseCard
                   name={ex.name}
                   sets={ex.sets}
