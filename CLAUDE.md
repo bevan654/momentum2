@@ -70,7 +70,7 @@ This project is a continuation of an app built with an older model, so expect bu
     │   ├── food/              # Nutrition tab: day summary (calorie ring, macro bars), water strip, meal cards, food popups; ui/ = shared kit for food popups (header, search, rows, fields, sub-screen, keyboard inset); macro-lens/ = AI photo scan pieces
     │   ├── friends/           # Leaderboard, notifications, reports, search, a friend's feed workout (feed-workout/)
     │   ├── home/              # Home dashboard cards and modals, global Header, Community feed (feed/), activity calendar (activity/)
-    │   ├── lab/               # Recovery tab: body-metric cards (weight, body fat, measurements), weekly volume, muscle radar, quick stats, AI coach card
+    │   ├── lab/               # Recovery tab: body-metric cards (weight, body fat, measurements; shared chart/history/log pieces in trend/), weekly volume, muscle radar, quick stats, AI coach card
     │   ├── onboarding/        # Onboarding steps (DetailsStep, GoalsStep, UnitInput) + onboardingPlan (activity levels, calorie/macro recommendation)
     │   ├── profile/           # Settings sub-views (settings/), goal editors
     │   ├── share/             # Share modal
