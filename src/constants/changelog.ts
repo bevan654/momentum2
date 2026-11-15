@@ -17,7 +17,7 @@ interface ChangelogEntry {
 const changelog: ChangelogEntry[] = [
   {
     version: '1.0.47',
-    date: '2026-11-14',
+    date: '2026-11-15',
     title: "What's New",
     items: [
       'Push notifications now work from the moment you sign in, not only after opening Community',

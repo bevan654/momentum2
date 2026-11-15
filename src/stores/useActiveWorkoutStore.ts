@@ -273,7 +273,6 @@ async function _finishWorkout(
     return { error: null, incompleteCount, workoutId };
   }
 
-
   // Non-critical operations — fire and forget, never block summary
   try {
     let ghostResult: string | null = null;
