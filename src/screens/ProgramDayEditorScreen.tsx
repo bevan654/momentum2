@@ -12,12 +12,13 @@ import { useRoutineStore, type Routine } from '../stores/useRoutineStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import ExerciseCard from '../components/workouts/ExerciseRow';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
-import { type LocalSet, type LocalExercise, type CatalogEntry, MUSCLE_FILTERS, getSortedCatalog } from '../components/workouts/program-day-editor/dayEditorData';
+import { type CatalogEntry, MUSCLE_FILTERS, getSortedCatalog } from '../components/workouts/program-day-editor/dayEditorData';
 import { InlineExerciseRow } from '../components/workouts/program-day-editor/InlineExerciseRow';
 import { RoutinePickerRow } from '../components/workouts/program-day-editor/RoutinePickerRow';
 import { makeUuid } from '../utils/uuid';
 import { titleCase } from '../utils/titleCase';
 import { getMuscleColor } from '../constants/muscles';
+import { useExerciseListEditor, newLocalExercise, toPlanExercises, type LocalExercise } from '../components/workouts/useExerciseListEditor';
 
 /* ─── Main screen ────────────────────────────────────── */
 
@@ -41,7 +42,11 @@ export default function ProgramDayEditorScreen() {
   const dayName = input?.dayName ?? 'Day';
 
   const [label, setLabel] = useState(() => input?.label ?? '');
-  const [exercises, setExercises] = useState<LocalExercise[]>(() => {
+  const {
+    exercises, setExercises,
+    handleAddSet, handleRemoveSet, handleSetRepsChange, handleSetWeightChange,
+    handleRestChange, handleRemove, handleMoveUp, handleMoveDown,
+  } = useExerciseListEditor((): LocalExercise[] => {
     if (!input?.exercises.length) return [];
     return input.exercises.map((ex) => {
       const reps = ex.set_reps.length > 0 ? ex.set_reps : Array(ex.default_sets).fill(ex.default_reps);
@@ -84,89 +89,10 @@ export default function ProgramDayEditorScreen() {
   /* ─── Exercise handlers ───────────────────────────── */
 
   const handleAddExercise = useCallback((name: string, exerciseType: string, category: string | null) => {
-    const prev = useWorkoutStore.getState().prevMap;
-    const prevSets = prev[name] || [];
-    const defaultSets: LocalSet[] = Array.from({ length: 3 }, (_, i) => ({
-      goal_reps: 10,
-      goal_weight: prevSets[i]?.kg ?? 0,
-    }));
-
     setSearch('');
     setSelectedCategory(null);
-    setExercises((prev) => [...prev, { uid: makeUuid(), name, sets: defaultSets, rest_seconds: 90, category, exercise_type: exerciseType, prevSets }]);
+    setExercises((prev) => [...prev, newLocalExercise(name, exerciseType, category)]);
     setShowCatalog(false);
-  }, []);
-
-  const handleAddSet = useCallback((exerciseIndex: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      const last = ex.sets[ex.sets.length - 1];
-      ex.sets = [...ex.sets, { goal_reps: last?.goal_reps ?? 10, goal_weight: last?.goal_weight ?? 0 }];
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleRemoveSet = useCallback((exerciseIndex: number, setIndex: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      if (ex.sets.length <= 1) return prev;
-      ex.sets = ex.sets.filter((_, i) => i !== setIndex);
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleSetRepsChange = useCallback((exerciseIndex: number, setIndex: number, reps: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      ex.sets = ex.sets.map((s, i) => (i === setIndex ? { ...s, goal_reps: reps } : s));
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleSetWeightChange = useCallback((exerciseIndex: number, setIndex: number, weight: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      ex.sets = ex.sets.map((s, i) => (i === setIndex ? { ...s, goal_weight: weight } : s));
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleRestChange = useCallback((exerciseIndex: number, seconds: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      next[exerciseIndex] = { ...next[exerciseIndex], rest_seconds: seconds };
-      return next;
-    });
-  }, []);
-
-  const handleRemove = useCallback((index: number) => {
-    setExercises((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const handleMoveUp = useCallback((index: number) => {
-    if (index === 0) return;
-    setExercises((prev) => {
-      const next = [...prev];
-      [next[index - 1], next[index]] = [next[index], next[index - 1]];
-      return next;
-    });
-  }, []);
-
-  const handleMoveDown = useCallback((index: number) => {
-    setExercises((prev) => {
-      if (index >= prev.length - 1) return prev;
-      const next = [...prev];
-      [next[index], next[index + 1]] = [next[index + 1], next[index]];
-      return next;
-    });
   }, []);
 
   const handleImportRoutine = useCallback((routine: Routine) => {
@@ -195,16 +121,7 @@ export default function ProgramDayEditorScreen() {
   }, [catalogMap]);
 
   const handleSave = useCallback(() => {
-    const programExercises: ProgramDayExercise[] = exercises.map((e, i) => ({
-      name: e.name,
-      exercise_order: i + 1,
-      default_sets: e.sets.length,
-      default_reps: e.sets[0]?.goal_reps ?? 10,
-      default_rest_seconds: e.rest_seconds,
-      set_reps: e.sets.map((s) => s.goal_reps),
-      set_weights: e.sets.map((s) => s.goal_weight),
-      exercise_type: e.exercise_type || 'weighted',
-    }));
+    const programExercises: ProgramDayExercise[] = toPlanExercises(exercises);
     saveDayEdit(label.trim() || 'Workout', programExercises);
     navigation.goBack();
   }, [exercises, label, navigation]);

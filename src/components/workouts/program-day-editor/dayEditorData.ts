@@ -2,22 +2,6 @@ import { aliasesByCanonical } from '../../../utils/exerciseCatalog';
 
 /* ─── Types ──────────────────────────────────────────── */
 
-export interface LocalSet {
-  goal_reps: number;
-  goal_weight: number;
-}
-
-export interface LocalExercise {
-  /** Local-only React key (never saved): keeps a card's typed text and swipe state when exercises are moved. */
-  uid: string;
-  name: string;
-  sets: LocalSet[];
-  rest_seconds: number;
-  category: string | null;
-  exercise_type: string;
-  prevSets: { kg: number; reps: number }[];
-}
-
 export interface CatalogEntry {
   name: string;
   category: string;
