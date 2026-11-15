@@ -13,7 +13,7 @@ import DeleteAccountModal from './DeleteAccountModal';
 import { SectionHeader, LinkRow } from './settings/SettingsPrimitives';
 import { NutritionGoalsEditor } from './settings/NutritionGoalsEditor';
 import { BodyStatsEditor } from './settings/BodyStatsEditor';
-import { ProteinPowderToggle, ProgressChartsToggle } from './settings/SettingsToggles';
+import { ProgressChartsToggle } from './settings/SettingsToggles';
 import { LabTrackersSection, LabTrackersEditor } from './settings/LabTrackersEditor';
 
 interface Props {
@@ -82,12 +82,6 @@ export default function ProfileSettingsView({ onBack }: Props) {
         <SectionHeader title="Supplements" />
         <View style={styles.card}>
           <SupplementConfigEditor />
-        </View>
-
-        {/* 7. Protein Powder */}
-        <SectionHeader title="Protein Powder" />
-        <View style={styles.card}>
-          <ProteinPowderToggle />
         </View>
 
         {/* Workouts */}

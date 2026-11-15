@@ -28,7 +28,7 @@ This project is a continuation of an app built with an older model, so expect bu
 | Language | TypeScript 5.9 (strict) |
 | React | 19.1 |
 | Navigation | React Navigation 7 — `native-stack`, `material-top-tabs` (used as bottom bar with custom UI) |
-| State | Zustand 5 (24 stores) |
+| State | Zustand 5 (23 stores) |
 | Animations | Reanimated 4.1 + react-native-worklets — UI-thread only. Never RN `Animated`. |
 | Graphics | @shopify/react-native-skia 2.2 for performance-critical visuals; react-native-svg 15.12 is still installed but no longer imported (removing it needs a native build) |
 | Body map | `momentum-muscle-map` (our own library, git dependency pinned to a release tag; the lockfile pins its commit): Skia + Reanimated renderer, JS only, so OTA-safe |
@@ -77,7 +77,7 @@ This project is a continuation of an app built with an older model, so expect bu
         │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, confetti, finish flow
     │   ├── workouts/          # Workout history cards, exercise rows, rank/routine cards
     │   └── SheetWrapper.tsx   # Shared modal-sheet chrome
-    ├── stores/                # 24 Zustand stores (see State Management)
+    ├── stores/                # 23 Zustand stores (see State Management)
     ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, navigationRef
     ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
     ├── lib/                   # supabase, friendsDatabase, catalogDatabase, navigationBridge
@@ -181,7 +181,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 
 ---
 
-## State Management — 24 Zustand Stores
+## State Management — 23 Zustand Stores
 
 | Store | Persistence | Responsibility |
 |---|---|---|
@@ -196,7 +196,6 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | `useNutrientGoalStore` | Supabase | Macro + micronutrient targets |
 | `useSavedMealsStore` | Supabase | User-saved meal templates |
 | `useFavouritesStore` | Supabase | Favourited foods |
-| `useProteinPowderStore` | Supabase | Powder catalog + serving log |
 | `useSupplementStore` | Supabase | Water + creatine entries/goals (optimistic) |
 | `useWeightStore` | Supabase | Weight entries + EMA trend |
 | `useBodyFatStore` | Supabase | Body-fat % entries |

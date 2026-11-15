@@ -17,7 +17,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `src/screens/` | 20 route-level screens |
 | `src/navigation/` | `AuthNavigator`, `TabNavigator` (the 5 tabs), `WorkoutsNavigator` (Workouts tab stack), `navigationRef`, `freezeFarTabs` (stops tabs more than one away from the current tab re-rendering) |
 | `src/components/<feature>/` | UI per feature (table below) |
-| `src/stores/` | 24 Zustand stores, `use[Domain]Store.ts`: app state and most Supabase reads/writes |
+| `src/stores/` | 23 Zustand stores, `use[Domain]Store.ts`: app state and most Supabase reads/writes |
 | `src/lib/` | Supabase client (`supabase.ts`), social DB calls (`friendsDatabase.ts`, which re-exports the topic files in `lib/friends/`), catalog DB (`catalogDatabase.ts`), `navigationBridge.ts` |
 | `src/services/` | Side-effect services: `notificationService` (Realtime), `liveActivityManager` (Lock Screen), `workoutFinishFeedback` |
 | `src/utils/` | Helpers, mostly pure (dates, volume, strength score, payloads). Exceptions with side effects: `barcodeApi`, `uploadWorkoutPhoto`, `workoutStorage` (I/O), `confirmReplaceWorkout` (alerts + store writes) |
