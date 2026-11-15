@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, Pressable, Platform } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -38,7 +38,8 @@ export default function SheetWrapper({ children }: SheetWrapperProps) {
     goBack();
   }, [goBack]);
 
-  const panGesture = Gesture.Pan()
+  // Built once: a new gesture object each render makes the handler re-attach
+  const panGesture = useMemo(() => Gesture.Pan()
     .activeOffsetY(8)
     .onStart(() => {
       ctx.value = translateY.value;
@@ -54,7 +55,7 @@ export default function SheetWrapper({ children }: SheetWrapperProps) {
       } else {
         translateY.value = 0;
       }
-    });
+    }), [goBack]);
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],

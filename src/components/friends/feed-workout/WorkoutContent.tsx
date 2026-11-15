@@ -138,9 +138,11 @@ function ExerciseCard({
   exercise: FeedExerciseDetail;
   styles: ReturnType<typeof createStyles>;
 }) {
-  const sets = ex.sets?.length > 0
-    ? [...ex.sets].sort((a, b) => a.set_number - b.set_number)
-    : [];
+  // Memoised so the rep-range memo below can actually cache (a fresh array every render defeated it)
+  const sets = useMemo(
+    () => (ex.sets?.length > 0 ? [...ex.sets].sort((a, b) => a.set_number - b.set_number) : []),
+    [ex.sets],
+  );
 
   const repRange = useMemo(() => {
     if (sets.length === 0) return `${ex.best_reps}`;
