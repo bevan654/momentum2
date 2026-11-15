@@ -88,7 +88,19 @@ if (Platform.OS === 'android') {
 }
 
 function App() {
-  const { session, profile, initialized, initialize, showWelcome } = useAuthStore();
+  // Narrow selectors: App sits above the whole tree, so it should only re-render when what it shows changes
+  // (not on every profile edit or loading flag in the auth store).
+  const hasSession = useAuthStore((s) => !!s.session);
+  const initialized = useAuthStore((s) => s.initialized);
+  const initialize = useAuthStore((s) => s.initialize);
+  const showWelcome = useAuthStore((s) => s.showWelcome);
+  const profileState = useAuthStore((s) => {
+    const p = s.profile;
+    if (!p) return 'none';
+    return p.username != null && p.height != null && p.age != null && p.gender != null && p.starting_weight != null
+      ? 'complete'
+      : 'incomplete';
+  });
   const mode = useThemeStore((s) => s.mode);
   const accentColor = useThemeStore((s) => s.accent);
   const hasUnseenChangelog = useChangelogStore((s) => s.hasUnseen);
@@ -162,18 +174,14 @@ function App() {
         >
           <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
           <PortalHost>
-          {session
+          {hasSession
             ? showWelcome
               ? <WelcomeSplashScreen />
-              : !profile
+              : profileState === 'none'
                 ? <View style={[styles.loading, { backgroundColor: colors.background }]}>
                     <ActivityIndicator size="large" color={colors.accent} />
                   </View>
-                : (profile.username != null
-                    && profile.height != null
-                    && profile.age != null
-                    && profile.gender != null
-                    && profile.starting_weight != null
+                : (profileState === 'complete'
                   ? <>
                       <TabNavigator />
                       <WorkoutFinishFeedbackPrompt enabled={betaDismissed && !hasUnseenChangelog} />
