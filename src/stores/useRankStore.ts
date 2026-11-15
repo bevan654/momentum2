@@ -179,21 +179,22 @@ export const useRankStore = create<RankState>((set, get) => ({
     set({ loading: true });
 
     try {
-      // 1. Fetch total workout count
-      const { count } = await supabase
-        .from('workouts')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
+      // 1. Total workout count, and 2. the most recent 500 workout ids (enough for an accurate rank
+      // without loading the whole history), in parallel
+      const [{ count }, { data: workoutsData }] = await Promise.all([
+        supabase
+          .from('workouts')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId),
+        supabase
+          .from('workouts')
+          .select('id')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(500),
+      ]);
 
       const totalWorkouts = count ?? 0;
-
-      // 2. Fetch workout IDs (most recent 500 — enough for accurate rank, avoids loading entire history)
-      const { data: workoutsData } = await supabase
-        .from('workouts')
-        .select('id')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(500);
 
       if (!workoutsData || workoutsData.length === 0) {
         set({
@@ -215,13 +216,15 @@ export const useRankStore = create<RankState>((set, get) => ({
 
       // Batch fetch to avoid URL-length limits on large histories
       const BATCH = 200;
+      const batches: string[][] = [];
+      for (let i = 0; i < workoutIds.length; i += BATCH) batches.push(workoutIds.slice(i, i + BATCH));
+      // In parallel; results are concatenated in batch order, as before
+      const results = await Promise.all(batches.map((batch) => supabase
+        .from('exercises')
+        .select('name, exercise_type, sets(kg, reps, completed, set_type)')
+        .in('workout_id', batch)));
       const allExercises: any[] = [];
-      for (let i = 0; i < workoutIds.length; i += BATCH) {
-        const batch = workoutIds.slice(i, i + BATCH);
-        const { data } = await supabase
-          .from('exercises')
-          .select('name, exercise_type, sets(kg, reps, completed, set_type)')
-          .in('workout_id', batch);
+      for (const { data } of results) {
         if (data) allExercises.push(...data);
       }
 
