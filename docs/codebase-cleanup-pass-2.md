@@ -4,7 +4,7 @@ Plan from 8 codebase-scout audits (2026-11-14). tv's decision: all on `tv/chore/
 
 ## Status
 - Step 0 (merge main): done, `20b5abf`.
-- Batch A (dead code): done. tv: "if it doesn't have a purpose in the app or isn't used, get rid of it". Also removed: WorkoutDetailScreen, protein powder store + switch, bookmarks/comments/nudges, share-card variants, completeProgram, meal-config add/update/delete, 4 unread profile settings. Kept as possible lost features (asked tv): FriendProfileModal (mounted, but nothing opens it; the only way to remove a friend) and useSavedMealsStore.deleteMeal (no delete button). Unblock has no UI either (unblockUser removed as unused).
+- Batch A (dead code): done. tv: "if it doesn't have a purpose in the app or isn't used, get rid of it". Also removed: WorkoutDetailScreen, protein powder store + switch, bookmarks/comments/nudges, share-card variants, completeProgram, meal-config add/update/delete, 4 unread profile settings. Then (tv: "if nothing pops up, get rid of it") also removed FriendProfileModal (mounted, nothing opened it; took removeFriend + getFriendStats with it) and useSavedMealsStore.deleteMeal. Unblock and remove-friend have no UI now. A re-run of the unused styles / store keys / lib exports sweeps finds nothing.
 - Batches B–E and bugs: not started.
 
 Source: 8 codebase-scout audits (2026-11-14), every file in src/ read in full. Food/stores audited on latest main.
