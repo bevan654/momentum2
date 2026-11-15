@@ -82,6 +82,22 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, isCurrent, showGhostSet
   const removeSet = useActiveWorkoutStore((s) => s.removeSet);
   const updateSet = useActiveWorkoutStore((s) => s.updateSet);
   const toggleSetComplete = useActiveWorkoutStore((s) => s.toggleSetComplete);
+
+  // Same functions for every set row (each gets its index back), so typing in one set
+  // doesn't re-render the other rows of this exercise.
+  const handleSetUpdate = useCallback((setIdx: number, field: 'kg' | 'reps', value: string) => {
+    onExerciseFocus?.(exerciseIndex);
+    updateSet(exerciseIndex, setIdx, field, value);
+  }, [exerciseIndex, onExerciseFocus, updateSet]);
+  const handleSetToggle = useCallback((setIdx: number) => {
+    onExerciseFocus?.(exerciseIndex);
+    toggleSetComplete(exerciseIndex, setIdx);
+  }, [exerciseIndex, onExerciseFocus, toggleSetComplete]);
+  const handleSetDelete = useCallback((setIdx: number) => removeSet(exerciseIndex, setIdx), [exerciseIndex, removeSet]);
+  const handleSetInputFocus = useCallback((y: number) => {
+    onExerciseFocus?.(exerciseIndex);
+    onInputFocus?.(y);
+  }, [exerciseIndex, onExerciseFocus, onInputFocus]);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const isGhost = !!useActiveWorkoutStore((s) => s.ghostUserName);
   // Index of this card's set that started the current rest (-1 = none). A
@@ -278,10 +294,10 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, isCurrent, showGhostSet
                   exerciseType={exercise.exercise_type}
                   suggestedKg={ghostPrev ? String(ghostPrev.kg) : (suggestedSets[setIdx]?.kg ? String(suggestedSets[setIdx]!.kg) : undefined)}
                   suggestedReps={ghostPrev ? String(ghostPrev.reps) : (suggestedSets[setIdx]?.reps ? String(suggestedSets[setIdx]!.reps) : undefined)}
-                  onUpdate={(field, value) => { onExerciseFocus?.(exerciseIndex); updateSet(exerciseIndex, setIdx, field, value); }}
-                  onToggle={() => { onExerciseFocus?.(exerciseIndex); toggleSetComplete(exerciseIndex, setIdx); }}
-                  onDelete={exercise.sets.length > 1 && !isGhost ? () => removeSet(exerciseIndex, setIdx) : null}
-                  onInputFocus={(y) => { onExerciseFocus?.(exerciseIndex); onInputFocus?.(y); }}
+                  onUpdate={handleSetUpdate}
+                  onToggle={handleSetToggle}
+                  onDelete={exercise.sets.length > 1 && !isGhost ? handleSetDelete : null}
+                  onInputFocus={handleSetInputFocus}
                   isGhost={isGhost}
                   ghostResult={ghostResult}
                   isDropSet={isDropSetRow}

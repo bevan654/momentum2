@@ -43,9 +43,10 @@ interface Props {
   suggestedKg?: string;
   suggestedReps?: string;
   exerciseType?: ExerciseType;
-  onUpdate: (field: 'kg' | 'reps', value: string) => void;
-  onToggle: () => void;
-  onDelete: (() => void) | null;
+  /** Callbacks get the set's index so the parent can pass the same functions to every row (keeps React.memo effective). */
+  onUpdate: (index: number, field: 'kg' | 'reps', value: string) => void;
+  onToggle: (index: number) => void;
+  onDelete: ((index: number) => void) | null;
   onInputFocus?: (y: number) => void;
   isGhost?: boolean;
   ghostResult?: 'win' | 'loss' | 'tie' | null;
@@ -180,20 +181,20 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
   const fireComplete = useCallback(() => {
     if (!localKgRef.current && suggestedKgRef.current) {
       setLocalKg(suggestedKgRef.current);
-      onUpdate('kg', suggestedKgRef.current);
+      onUpdate(index, 'kg', suggestedKgRef.current);
     }
     if (!localRepsRef.current && suggestedRepsRef.current) {
       setLocalReps(suggestedRepsRef.current);
-      onUpdate('reps', suggestedRepsRef.current);
+      onUpdate(index, 'reps', suggestedRepsRef.current);
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onToggleRef.current();
-  }, [onUpdate]);
+    onToggleRef.current(index);
+  }, [onUpdate, index]);
 
   const fireDelete = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    onDeleteRef.current?.();
-  }, []);
+    onDeleteRef.current?.(index);
+  }, [index]);
 
   /* ── Gesture Handler pan ─────────────────────────── */
 
@@ -330,11 +331,11 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
                   if (showKg(exerciseType) && prevSet.kg > 0) {
                     const kgStr = String(prevSet.kg);
                     setLocalKg(kgStr);
-                    onUpdate('kg', kgStr);
+                    onUpdate(index, 'kg', kgStr);
                   }
                   const repsStr = String(prevSet.reps);
                   setLocalReps(repsStr);
-                  onUpdate('reps', repsStr);
+                  onUpdate(index, 'reps', repsStr);
                   Haptics.selectionAsync();
                 }
               }}
@@ -356,9 +357,9 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
                 ref={kgRef}
                 style={[styles.input, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
                 value={localKg}
-                onChangeText={(v) => { setLocalKg(v); onUpdate('kg', v); }}
+                onChangeText={(v) => { setLocalKg(v); onUpdate(index, 'kg', v); }}
                 onFocus={() => handleFocus(kgRef, localKg)}
-                onBlur={() => { if (localKg !== set.kg) onUpdate('kg', localKg); }}
+                onBlur={() => { if (localKg !== set.kg) onUpdate(index, 'kg', localKg); }}
                 placeholder={suggestedKg || '—'}
                 placeholderTextColor={suggestedKg ? colors.textSecondary : colors.textTertiary + '50'}
                 keyboardType="decimal-pad"
@@ -378,7 +379,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
                     if (cur >= 15) {
                       const v = String(cur - 15);
                       setLocalReps(v);
-                      onUpdate('reps', v);
+                      onUpdate(index, 'reps', v);
                     }
                   }}
                   activeOpacity={0.5}
@@ -396,10 +397,10 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
                     // Strip non-numeric, treat raw input as seconds
                     const raw = v.replace(/[^0-9]/g, '');
                     setLocalReps(raw);
-                    onUpdate('reps', raw);
+                    onUpdate(index, 'reps', raw);
                   }}
                   onFocus={() => handleFocus(repsRef, localReps)}
-                  onBlur={() => { if (localReps !== set.reps) onUpdate('reps', localReps); }}
+                  onBlur={() => { if (localReps !== set.reps) onUpdate(index, 'reps', localReps); }}
                   placeholder="0:00"
                   placeholderTextColor={colors.textTertiary + '50'}
                   keyboardType="number-pad"
@@ -413,7 +414,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
                     const cur = parseInt(localReps, 10) || 0;
                     const v = String(cur + 15);
                     setLocalReps(v);
-                    onUpdate('reps', v);
+                    onUpdate(index, 'reps', v);
                   }}
                   activeOpacity={0.5}
                 >
@@ -432,7 +433,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
                     if (cur > 0) {
                       const v = String(cur - 1);
                       setLocalReps(v);
-                      onUpdate('reps', v);
+                      onUpdate(index, 'reps', v);
                     }
                   }}
                   activeOpacity={0.5}
@@ -444,9 +445,9 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
                 ref={repsRef}
                 style={[styles.repsInput, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
                 value={localReps}
-                onChangeText={(v) => { setLocalReps(v); onUpdate('reps', v); }}
+                onChangeText={(v) => { setLocalReps(v); onUpdate(index, 'reps', v); }}
                 onFocus={() => handleFocus(repsRef, localReps)}
-                onBlur={() => { if (localReps !== set.reps) onUpdate('reps', localReps); }}
+                onBlur={() => { if (localReps !== set.reps) onUpdate(index, 'reps', localReps); }}
                 placeholder={suggestedReps || '—'}
                 placeholderTextColor={suggestedReps ? colors.textSecondary : colors.textTertiary + '50'}
                 keyboardType="number-pad"
@@ -459,7 +460,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
                     const cur = parseInt(localReps, 10) || 0;
                     const v = String(cur + 1);
                     setLocalReps(v);
-                    onUpdate('reps', v);
+                    onUpdate(index, 'reps', v);
                   }}
                   activeOpacity={0.5}
                 >
@@ -472,11 +473,11 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
           {/* Complete / uncomplete toggle */}
           <TouchableOpacity onPress={() => {
             if (!completed) {
-              if (showKg(exerciseType) && !localKg && suggestedKg) { setLocalKg(suggestedKg); onUpdate('kg', suggestedKg); }
-              if (!localReps && suggestedReps) { setLocalReps(suggestedReps); onUpdate('reps', suggestedReps); }
+              if (showKg(exerciseType) && !localKg && suggestedKg) { setLocalKg(suggestedKg); onUpdate(index, 'kg', suggestedKg); }
+              if (!localReps && suggestedReps) { setLocalReps(suggestedReps); onUpdate(index, 'reps', suggestedReps); }
             }
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            onToggle();
+            onToggle(index);
           }} style={styles.checkBtn} activeOpacity={0.6}>
             <Ionicons
               name={completed ? 'checkmark-circle' : 'ellipse-outline'}
