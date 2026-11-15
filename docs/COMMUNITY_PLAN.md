@@ -1,5 +1,7 @@
 # Community Instagram-Style Feed — Implementation Plan
 
+> **Done (historical plan).** The Instagram-style feed shipped: it is `src/components/home/Feed.tsx` with its rows in `src/components/home/feed/`. Later cleanups removed the bookmark, comment and friend-profile parts; see `CODEBASE_MAP.md` for the current code.
+
 ## Overview
 
 Transform the Community tab into an Instagram-style feed experience. Enhance the existing

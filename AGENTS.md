@@ -66,24 +66,24 @@ This project is a continuation of an app built with an older model, so expect bu
     ├── components/
     │   ├── auth/              # SocialAuthButtons (Google / Apple OAuth)
     │   ├── body/              # Body map wrappers around momentum-muscle-map: map pair, workout mini maps, exercise thumb, level toggle, region chip, workout heatmap
-    │   ├── dev/               # Story/Workout share overlays, story crop
-    │   ├── food/              # Nutrition tab: day summary (calorie ring, macro bars), water strip, meal cards, food popups; ui/ = shared kit for food popups (header, search, rows, fields, sub-screen, keyboard inset)
-    │   ├── friends/           # Feed, leaderboard, notifications, reports, search
-    │   ├── home/              # Home dashboard cards, feed and modals
-    │   ├── lab/               # Recovery/analytics: timers, charts, body metrics, muscle radar
-        │   ├── profile/           # Settings sub-views, goal editors
+    │   ├── dev/               # Workout share card (WorkoutOverlay), story crop: production share UI despite the name
+    │   ├── food/              # Nutrition tab: day summary (calorie ring, macro bars), water strip, meal cards, food popups; ui/ = shared kit for food popups (header, search, rows, fields, sub-screen, keyboard inset); macro-lens/ = AI photo scan pieces
+    │   ├── friends/           # Leaderboard, notifications, reports, search, a friend's feed workout (feed-workout/)
+    │   ├── home/              # Home dashboard cards and modals, global Header, Community feed (feed/), activity calendar (activity/)
+    │   ├── lab/               # Recovery tab: body-metric cards (weight, body fat, measurements), weekly volume, muscle radar, quick stats, AI coach card
+    │   ├── profile/           # Settings sub-views (settings/), goal editors
     │   ├── share/             # Share modal
     │   ├── ui/                # Shared primitives: Sheet (animated bottom sheet), Portal/PortalHost
-        │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, confetti, finish flow
-    │   ├── workouts/          # Workout history cards, exercise rows, rank/routine cards
+    │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, exercise picker (exercise-picker/), finish flow and summary (summary/), ghost mode
+    │   ├── workouts/          # Workouts tab: recovery body map, routine cards, today's plan, exercise rows; history/, create-program/, program-day-editor/
     │   └── SheetWrapper.tsx   # Shared modal-sheet chrome
     ├── stores/                # 23 Zustand stores (see State Management)
-    ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, navigationRef
+    ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, navigationRef, freezeFarTabs (react-freeze for far tabs)
     ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
-    ├── lib/                   # supabase, friendsDatabase, catalogDatabase, navigationBridge
+    ├── lib/                   # supabase, friendsDatabase (re-exports the topic files in friends/), catalogDatabase, navigationBridge
     ├── theme/                 # useColors.ts, responsive.ts, typography.ts
-    ├── utils/                 # barcodeApi, displayName, exerciseCatalog, exerciseProgress, localDate (local YYYY-MM-DD), muscleLoad (effective load for heat/recovery), muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutStorage
-    ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights)
+    ├── utils/                 # barcodeApi, confirmReplaceWorkout, displayName, exerciseCatalog, exerciseProgress, feedExerciseDetails, formatDuration (clock, h/m and rest text), localDate (local YYYY-MM-DD), muscleLoad (effective load for heat/recovery), muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutProgress, workoutStorage
+    ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights), useToday (today's date, rolls over at midnight)
     └── constants/             # buildInfo, changelog, muscles, muscleMap (body-map config + heat/recovery reference values, bodyweight fractions), muscleMapLabels
 
 supabase/
@@ -185,8 +185,8 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 
 | Store | Persistence | Responsibility |
 |---|---|---|
-| `useAuthStore` | Supabase Auth + SecureStore | Session, profile CRUD, email verification, beta-welcome flag |
-| `useActiveWorkoutStore` | AsyncStorage + Supabase | Active workout state, sets, rest timer, finish → one `upsert_workout` RPC keyed by the workout's client-generated id (payload built in `utils/workoutPayload.ts`), Undo reopens under the same id (largest store, ~1.4k LOC) |
+| `useAuthStore` | Supabase Auth + SecureStore | Session, profile CRUD, email verification, post-sign-up welcome flag |
+| `useActiveWorkoutStore` | AsyncStorage + Supabase | Active workout state, sets, rest timer, finish → one `upsert_workout` RPC keyed by the workout's client-generated id (payload built in `utils/workoutPayload.ts`), Undo reopens under the same id (largest store, ~1.3k LOC; types and pure helpers in `stores/activeWorkout/`) |
 | `useWorkoutStore` | Supabase + AsyncStorage (24h) | History, exercise catalog cache, previous-set lookups |
 | `useRegionTargetsStore` | Supabase + AsyncStorage (24h) | Body-map region weights per catalog exercise (`exercise_region_targets`); empty while the table isn't deployed |
 | `useRoutineStore` | Supabase | Saved routines + exercises |
@@ -202,8 +202,8 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | `useMeasurementStore` | Supabase | Tape measurements (chest/arms/etc.) |
 | `useRankStore` | Supabase (cached) | Strength scoring, e1RM, per-muscle/overall rank |
 | `useStreakStore` | Computed + fire-and-forget | Streak from workout dates |
-| `useMuscleAnalysisStore` | Pure compute | Weekly muscle volume |
-| `useFriendsStore` | Supabase (4h cache) | Friends, feed, leaderboard, notifications, paginated |
+| `useMuscleAnalysisStore` | Pure compute | Recovery % per muscle group, from workout history |
+| `useFriendsStore` | Supabase (4h cache) | Friends, feed (paginated), reactions, leaderboard, notifications, block/report |
 | `useThemeStore` | AsyncStorage (100ms debounce) | Accent + dark/light mode |
 | `useProfileSettingsStore` | AsyncStorage | Local UI prefs (incl. body-map detail level) |
 | `useChangelogStore` | AsyncStorage | Last-seen changelog version |

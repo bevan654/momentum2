@@ -1,6 +1,6 @@
 # Codebase Map
 
-**Last verified:** 2026-11-15, against the code at commit `5b879bc` (plus the Nutrition redesign PRs #75–#89, merged as `d0c4b93`).
+**Last verified:** 2026-11-15, against the code at commit `d0c4b93` (main) plus the cleanup branch merged on top.
 
 An index of where things live and how they connect. Rules and conventions are in `CLAUDE.md`; database tables are in `database-schema.md`. If `CLAUDE.md`'s Project Structure tree disagrees with this map, this map is current.
 
@@ -14,14 +14,14 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 |---|---|
 | `index.ts`, `App.tsx` | App entry and root component (see Entry points) |
 | `app.config.ts`, `eas.json` | Expo config (bundle ids, plugins, runtime version) and EAS build/update profiles |
-| `src/screens/` | 20 route-level screens |
+| `src/screens/` | 19 route-level screens |
 | `src/navigation/` | `AuthNavigator`, `TabNavigator` (the 5 tabs), `WorkoutsNavigator` (Workouts tab stack), `navigationRef`, `freezeFarTabs` (stops tabs more than one away from the current tab re-rendering) |
 | `src/components/<feature>/` | UI per feature (table below) |
 | `src/stores/` | 23 Zustand stores, `use[Domain]Store.ts`: app state and most Supabase reads/writes |
 | `src/lib/` | Supabase client (`supabase.ts`), social DB calls (`friendsDatabase.ts`, which re-exports the topic files in `lib/friends/`), catalog DB (`catalogDatabase.ts`), `navigationBridge.ts` |
 | `src/services/` | Side-effect services: `notificationService` (Realtime), `liveActivityManager` (Lock Screen), `workoutFinishFeedback` |
 | `src/utils/` | Helpers, mostly pure (dates, volume, strength score, payloads). Exceptions with side effects: `barcodeApi`, `uploadWorkoutPhoto`, `workoutStorage` (I/O), `confirmReplaceWorkout` (alerts + store writes) |
-| `src/hooks/` | Shared hooks (OTA updates, force-update gate, muscle load, region weights) |
+| `src/hooks/` | Shared hooks (OTA updates, force-update gate, muscle load, region weights, today's date, linger-mount for exit animations) |
 | `src/theme/` | `useColors.ts` (theme tokens), `responsive.ts` (`sw`/`ms`/`sh`), `typography.ts` (`Fonts`) |
 | `src/constants/` | Static data: `muscles`, `muscleMap`, `muscleMapLabels`, `changelog`, `buildInfo` (auto-stamped, don't move) |
 | `modules/workout-live-activity/` | Local native Expo module (Swift/Kotlin + `index.ts`): Live Activity / ongoing notification. Native: changes need a store build |
@@ -41,7 +41,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `body/` | Body map wrappers around `momentum-muscle-map` | `useBodyMap.ts` exports `useBodies`, `useMuscleMapColors` and other helpers, but no `useBodyMap` |
 | `dev/` | **Production share UI**, not dev tools | `WorkoutOverlay` = share card, `StoryCropModal`; used by `share/` and the workout summary |
 | `food/` | Nutrition tab: day summary (`NutritionHero`: calorie ring, macro bars), water/supplement strip, meal cards, add-food, barcode, AI scan, food detail | Meal cards: `MealList` → `MealCard`; entries are grouped by `groupEntriesByMeal.ts`, which matches `meal_type` to the user's `meal_config` by slot, then by name (many accounts use `meal_1`… labelled Breakfast…). Popups are built from the shared kit in `food/ui/` (`FoodSheetHeader`, `FoodSearchBar`, `FoodRow`, `FoodSegmentChips`, `FoodEmptyState`, `FavouriteButton`, `useKeyboardInset`); reuse it for new food screens. `macro-lens/` holds the pieces of `MacroLensModal` (AI photo scan). |
-| `friends/` | Community tab: leaderboard, search, notifications, profiles, reports | `AvatarCircle`, `ReportSheet` are also used by other features. `feed-workout/` holds the pieces of `FeedWorkoutModal` |
+| `friends/` | Community tab: leaderboard, search, notifications, reports | `AvatarCircle`, `ReportSheet` are also used by other features. `feed-workout/` holds the pieces of `FeedWorkoutModal` |
 | `home/` | Home tab cards (activity, nutrition, water, supplements) | Also holds app-wide pieces: `Header` (global header), `ChangelogModal`, `BetaWelcomeModal`, the Community `Feed` (its rows and pieces live in `home/feed/`) and `NutritionStories`; `activity/` holds the year view and calendar helpers of `ActivityCard`; and weight modals used by `lab/WeightCard` |
 | `lab/` | **Recovery tab** (screen is `LaboratoryScreen`): body metrics, charts, AI card | |
 | `profile/` | Profile sheet sub-views and goal editors | `settings/` holds the sections of `ProfileSettingsView` |
@@ -79,15 +79,15 @@ Changes here ripple widely, so check all references (LSP) before editing.
 
 | Module | Imported by |
 |---|---|
-| `src/theme/useColors.ts`, `src/theme/responsive.ts` | ~106 files each |
-| `src/theme/typography.ts` | ~100 files |
-| `src/stores/useAuthStore.ts` | ~53 files |
-| `src/stores/useWorkoutStore.ts` | ~31 files |
-| `src/lib/supabase.ts` | ~27 files |
-| `src/stores/useActiveWorkoutStore.ts` | ~26 files; saves workouts, 1.3k lines (types, constants and pure helpers in `stores/activeWorkout/`; import them through the store file). Older app builds write workouts differently, so see the Compatibility rule in `CLAUDE.md` |
+| `src/theme/useColors.ts`, `src/theme/responsive.ts` | ~165 files each |
+| `src/theme/typography.ts` | ~145 files |
+| `src/stores/useAuthStore.ts` | ~60 files |
+| `src/stores/useWorkoutStore.ts` | ~40 files |
+| `src/lib/supabase.ts` | ~35 files |
+| `src/stores/useActiveWorkoutStore.ts` | ~30 files; saves workouts, 1.3k lines (types, constants and pure helpers in `stores/activeWorkout/`; import them through the store file). Older app builds write workouts differently, so see the Compatibility rule in `CLAUDE.md` |
 | `src/lib/friendsDatabase.ts` (code in `src/lib/friends/`) | ~19 files; most social reads/writes. Import from `friendsDatabase`, not from `lib/friends/*` directly |
-| `src/utils/localDate.ts` | ~13 files; day boundaries |
-| `src/constants/muscles.ts` | ~9 files; legacy muscle names that every app build understands |
+| `src/utils/localDate.ts` | ~14 files; day boundaries |
+| `src/constants/muscles.ts` | ~12 files; legacy muscle names that every app build understands |
 
 ## Where to find X
 | Task | Look in |
