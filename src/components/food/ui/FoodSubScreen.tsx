@@ -13,6 +13,8 @@ interface Props {
   title: string;
   subtitle?: string;
   onBack: () => void;
+  /** Screen-level use: Android back only closes this while it returns true (e.g. tab focused). */
+  isBackActive?: () => boolean;
   right?: React.ReactNode;
   /** Pinned under the scroll content (e.g. the main action button). */
   footer?: React.ReactNode;
@@ -27,14 +29,16 @@ interface Props {
  * fades in over the sheet, back button + Android back close only this screen,
  * scrollable body with a pinned footer that respects the home indicator and keyboard.
  */
-function FoodSubScreen({ visible, title, subtitle, onBack, right, footer, bottomInset, children }: Props) {
+function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, footer, bottomInset, children }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
 
   // Starts hidden so the first show fades in, whether the screen is always mounted or mounted on open.
   const progress = useSharedValue(0);
-  const kbInset = useKeyboardInset();
+  // Only while showing: food detail stays mounted on the Nutrition screen and inside Make a meal,
+  // and a hidden screen shouldn't re-measure and re-pad on every frame of another keyboard.
+  const kbInset = useKeyboardInset(visible);
   // Home-indicator spacing under the footer, dropped while the keyboard sits right below it.
   const restInset = bottomInset ?? Math.max(insets.bottom, sw(12));
   const kbOpen = kbInset.open;
@@ -45,7 +49,7 @@ function FoodSubScreen({ visible, title, subtitle, onBack, right, footer, bottom
   }, [visible]);
   const animStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
 
-  useLayerBackHandler(visible, onBack);
+  useLayerBackHandler(visible, onBack, isBackActive);
 
   return (
     <Animated.View
