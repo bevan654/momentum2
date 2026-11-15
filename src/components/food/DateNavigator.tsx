@@ -12,8 +12,6 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-const TODAY_STR = toLocalDateString();
-
 /** Mon–Sun week containing the given date */
 function getWeek(dateStr: string) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -39,15 +37,17 @@ function getMonthLabel(dateStr: string): string {
 
 interface Props {
   selectedDate: string;
+  /** Today's local date; passed in so it stays current past midnight. */
+  today: string;
   onDateSelect: (date: string) => void;
 }
 
-function DateNavigator({ selectedDate, onDateSelect }: Props) {
+function DateNavigator({ selectedDate, today, onDateSelect }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const week = useMemo(() => getWeek(selectedDate), [selectedDate]);
   const monthLabel = useMemo(() => getMonthLabel(selectedDate), [selectedDate]);
-  const viewingToday = selectedDate === TODAY_STR;
+  const viewingToday = selectedDate === today;
 
   const jumpWeek = useCallback(
     (dir: 1 | -1) => {
@@ -58,7 +58,7 @@ function DateNavigator({ selectedDate, onDateSelect }: Props) {
     [selectedDate, onDateSelect],
   );
 
-  const goToday = useCallback(() => onDateSelect(TODAY_STR), [onDateSelect]);
+  const goToday = useCallback(() => onDateSelect(today), [today, onDateSelect]);
 
   return (
     <View style={styles.outer}>
@@ -83,7 +83,7 @@ function DateNavigator({ selectedDate, onDateSelect }: Props) {
 
         {week.map((day) => {
           const sel = day.dateStr === selectedDate;
-          const today = day.dateStr === TODAY_STR;
+          const isTodayCell = day.dateStr === today;
           return (
             <TouchableOpacity
               key={day.dateStr}
@@ -95,7 +95,7 @@ function DateNavigator({ selectedDate, onDateSelect }: Props) {
                 style={[
                   styles.dayLabel,
                   sel && styles.dayLabelSel,
-                  !sel && today && styles.dayLabelToday,
+                  !sel && isTodayCell && styles.dayLabelToday,
                 ]}
               >
                 {day.label}
@@ -104,14 +104,14 @@ function DateNavigator({ selectedDate, onDateSelect }: Props) {
                 style={[
                   styles.pill,
                   sel && { backgroundColor: colors.accent },
-                  !sel && today && styles.pillToday,
+                  !sel && isTodayCell && styles.pillToday,
                 ]}
               >
                 <Text
                   style={[
                     styles.dayNum,
                     sel && styles.dayNumSel,
-                    !sel && today && styles.dayNumToday,
+                    !sel && isTodayCell && styles.dayNumToday,
                   ]}
                 >
                   {day.dayNum}
