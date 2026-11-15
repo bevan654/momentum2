@@ -108,7 +108,6 @@ export default function FriendSearch() {
             data={searchResults}
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
-            estimatedItemSize={sw(60)}
             showsVerticalScrollIndicator={false}
           />
         )}

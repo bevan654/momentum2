@@ -101,7 +101,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
     if (set.reps !== localRepsRef.current) setLocalReps(set.reps);
   }, [set.reps]);
 
-  const handleFocus = useCallback((inputRef: React.RefObject<TextInput>, value: string) => {
+  const handleFocus = useCallback((inputRef: React.RefObject<TextInput | null>, value: string) => {
     if (value.length > 0 && inputRef.current) {
       inputRef.current.setNativeProps({ selection: { start: 0, end: value.length } });
     }

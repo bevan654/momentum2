@@ -386,7 +386,6 @@ export const useRankStore = create<RankState>((set, get) => ({
         },
         { onConflict: 'user_id' },
       )
-      .then(() => {})
-      .catch(() => {});
+      .then(() => {}, () => {});
   },
 }));

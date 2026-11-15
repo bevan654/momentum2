@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -225,7 +225,7 @@ export default function ProgramProgressScreen() {
             <View style={styles.calendarWeek}>
               {days.map((day, i) => {
                 let cellStyle = styles.calendarCell;
-                let cellInnerStyle = [styles.calendarCellInner];
+                const cellInnerStyle: StyleProp<ViewStyle>[] = [styles.calendarCellInner];
                 let textColor = colors.textTertiary;
 
                 if (!day.isInProgram) {

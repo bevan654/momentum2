@@ -158,7 +158,6 @@ export default function NotificationList() {
             data={notifications}
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
-            estimatedItemSize={sw(80)}
             showsVerticalScrollIndicator={false}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}

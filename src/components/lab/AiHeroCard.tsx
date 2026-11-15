@@ -143,8 +143,7 @@ export default function AiHeroCard() {
         supabase
           .from('ai_coach_messages')
           .insert({ user_id: userId, role: 'user', content: trimmed })
-          .then(() => {})
-          .catch(() => {});
+          .then(() => {}, () => {});
       }
 
       try {
@@ -193,8 +192,7 @@ export default function AiHeroCard() {
           supabase
             .from('ai_coach_messages')
             .insert({ user_id: userId, role: 'assistant', content: reply })
-            .then(() => {})
-            .catch(() => {});
+            .then(() => {}, () => {});
         }
       } catch (err: any) {
         console.log('[AiCoach] fetch failed:', err?.message || err);
