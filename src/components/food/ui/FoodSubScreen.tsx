@@ -36,7 +36,9 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
 
   // Starts hidden so the first show fades in, whether the screen is always mounted or mounted on open.
   const progress = useSharedValue(0);
-  const kbInset = useKeyboardInset();
+  // Only while showing: food detail stays mounted on the Nutrition screen and inside Make a meal,
+  // and a hidden screen shouldn't re-measure and re-pad on every frame of another keyboard.
+  const kbInset = useKeyboardInset(visible);
   // Home-indicator spacing under the footer, dropped while the keyboard sits right below it.
   const restInset = bottomInset ?? Math.max(insets.bottom, sw(12));
   const kbOpen = kbInset.open;
