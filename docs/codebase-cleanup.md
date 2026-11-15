@@ -77,6 +77,14 @@ Not bugs after checking: `WorkoutSummaryModal` `saving` prop (the edit footer al
 ## Phase 5
 - `noUnusedParameters` on (`noUnusedLocals` already was). Type-error baseline: **17 in 10 files** (`CODEBASE_MAP.md` updated).
 
+## Existing bugs fixed (after the cleanup)
+- Type errors 17 → 4: Supabase `.then().catch()` chains (types only; the builder returns a real Promise), `SetRow` / `ProgramProgressScreen` style and ref types, `estimatedItemSize` on two FlashLists. Left: `app.config.ts` (native build, for bevan) and the three Nutrition files with open PRs.
+- Streaks and friend stats read the whole history (paged), not the first 1000 rows.
+- A friend request or nudge that failed to save no longer notifies or reports success.
+- MacroLens: scan aborted when the screen closes, stale replies ignored, timeout always cleared, logs dev-only.
+- Closing a past workout no longer waits 350 ms for an animation nothing showed.
+- Not changed: `getGlobalFeed` still returns `[]` on an RPC error (needs a feed error state to show it); `bookmarks` table / `get_global_feed` RPC undocumented (bevan).
+
 ## Pre-PR review (independent reviewer, 3 rounds)
 - Round 1: no lost code in any split (all 12 compared line by line, 613 style references checked). Fixed: notification permission re-asked on every foreground (Android 13+), like/unlike write ordering, catalog re-fetch after creating a custom exercise, an in-code open-question comment.
 - Round 2: no bugs. Fixed: a catalog fetch in flight during createUserExercise could mark a stale catalog fresh.
