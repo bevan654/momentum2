@@ -176,10 +176,15 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       return;
     }
 
+    // A custom exercise created (or a sign-out) while this call is waiting makes its result stale:
+    // then it stops without touching the store, and the next call starts over.
+    const gen = _catalogGen;
+
     // 1. Load from cache immediately so the picker is usable right away (skip if force refresh)
     if (!forceRefresh) {
       try {
         const raw = await AsyncStorage.getItem(CATALOG_CACHE_KEY);
+        if (gen !== _catalogGen) return;
         if (raw) {
           const cached = JSON.parse(raw);
           if (cached.userId === userId && cached.map && Object.keys(cached.map).length > 0) {
@@ -193,7 +198,6 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     }
 
     // 2. Fetch from Supabase
-    const gen = _catalogGen;
     try {
       const [catalogRows, userRes, aliasRes] = await Promise.all([
         fetchCatalogRows(),
@@ -201,6 +205,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         supabase.from('exercise_aliases').select('alias, canonical_name'),
       ]);
 
+      if (gen !== _catalogGen) return;
       if (!catalogRows) return; // keep what we have rather than caching a catalog without its rows
       const map = buildMap(catalogRows, userRes.data);
       const customNames = new Set<string>((userRes.data || []).map((e: any) => e.name));
@@ -221,7 +226,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
 
       if (Object.keys(map).length > 0) {
         set({ catalogMap: map, aliasMap: aMap });
-        if (gen === _catalogGen) _catalogLoaded = { userId, ts: Date.now() };
+        _catalogLoaded = { userId, ts: Date.now() };
         // 3. Persist to cache
         AsyncStorage.setItem(
           CATALOG_CACHE_KEY,
