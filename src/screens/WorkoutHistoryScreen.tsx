@@ -52,6 +52,11 @@ function WorkoutHistoryScreen() {
     setHistoryVisible(true);
   }, []);
 
+  const handleSelectFromHistory = useCallback((w: WorkoutWithDetails) => {
+    setHistoryVisible(false);
+    setSelectedWorkout(w);
+  }, []);
+
   const closeHistory = useCallback(() => {
     setHistoryVisible(false);
   }, []);
@@ -219,10 +224,7 @@ function WorkoutHistoryScreen() {
           catalogMap={catalogMap}
           debugPart={debugParts}
           onClose={closeHistory}
-          onSelectWorkout={(w) => {
-            setHistoryVisible(false);
-            setSelectedWorkout(w);
-          }}
+          onSelectWorkout={handleSelectFromHistory}
         />
       </Overlay>
 

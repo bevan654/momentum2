@@ -28,7 +28,7 @@ const HistoryRow = React.memo(({ workout, dateStr, durationMin, styles, colors, 
   durationMin: number;
   styles: ReturnType<typeof createStyles>;
   colors: ThemeColors;
-  onPress: () => void;
+  onPress: (workout: WorkoutWithDetails) => void;
 }) => {
   const title = workout.programName || dateStr;
 
@@ -36,7 +36,7 @@ const HistoryRow = React.memo(({ workout, dateStr, durationMin, styles, colors, 
     <TouchableOpacity
       style={styles.historyRowCard}
       activeOpacity={0.6}
-      onPress={onPress}
+      onPress={() => onPress(workout)}
     >
       <View style={styles.historyRowLeft}>
         <Text style={styles.historyRowTitle} numberOfLines={1}>{title}</Text>
@@ -117,7 +117,7 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
         durationMin={durationMin}
         styles={styles}
         colors={colors}
-        onPress={() => onSelectWorkout(w)}
+        onPress={onSelectWorkout}
       />
     );
   }, [styles, colors, onSelectWorkout]);
