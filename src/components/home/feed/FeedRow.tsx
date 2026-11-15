@@ -71,8 +71,9 @@ const FeedRow = React.memo(function FeedRow({ item }: FeedRowProps) {
       setActionsOpen(false);
       return;
     }
-    sendFriendRequest(currentUserId, item.user_id);
     setRequestSent(true);
+    // Back to 'Add' if it didn't go through (it used to stay on 'Sent')
+    sendFriendRequest(currentUserId, item.user_id).then((sent) => { if (!sent) setRequestSent(false); });
     setActionsOpen(false);
   }, [currentUserId, isSelf, isFriend, requestSent, sendFriendRequest, item.user_id]);
 

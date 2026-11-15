@@ -127,7 +127,8 @@ interface FriendsState {
   setNotificationResponded: (notificationId: string, responded: 'accepted' | 'declined') => Promise<void>;
   searchUsers: (query: string, userId: string) => Promise<void>;
   clearSearch: () => void;
-  sendFriendRequest: (userId: string, friendId: string) => Promise<void>;
+  /** Resolves false if the request couldn't be sent. */
+  sendFriendRequest: (userId: string, friendId: string) => Promise<boolean>;
   acceptRequest: (friendshipId: string, userId: string) => Promise<void>;
   declineRequest: (friendshipId: string) => Promise<void>;
   removeFriend: (friendshipId: string, userId: string) => Promise<void>;
@@ -462,12 +463,13 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
 
   sendFriendRequest: async (userId, friendId) => {
     const sent = await dbSendRequest(userId, friendId);
-    if (!sent) return;
+    if (!sent) return false;
     set((s) => ({
       searchResults: s.searchResults.map((r) =>
         r.id === friendId ? { ...r, friendshipStatus: 'pending' as const } : r,
       ),
     }));
+    return true;
   },
 
   acceptRequest: async (friendshipId, userId) => {

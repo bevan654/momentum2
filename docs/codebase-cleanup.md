@@ -80,7 +80,8 @@ Not bugs after checking: `WorkoutSummaryModal` `saving` prop (the edit footer al
 ## Existing bugs fixed (after the cleanup)
 - Type errors 17 → 4: Supabase `.then().catch()` chains (types only; the builder returns a real Promise), `SetRow` / `ProgramProgressScreen` style and ref types, `estimatedItemSize` on two FlashLists. Left: `app.config.ts` (native build, for bevan) and the three Nutrition files with open PRs.
 - Streaks and friend stats read the whole history (paged), not the first 1000 rows.
-- A friend request or nudge that failed to save no longer notifies or reports success.
+- A friend request or nudge that failed to save no longer notifies or reports success. The feed's Add button goes back to 'Add' if the request failed. (Nothing in the app calls `sendNudge` today, so its new error message isn't shown anywhere yet.)
+- Streaks: if the workout history can't be read (offline), the streak is left alone instead of saving 0 / 0 to `user_streaks`.
 - MacroLens: scan aborted when the screen closes, stale replies ignored, timeout always cleared, logs dev-only.
 - Closing a past workout no longer waits 350 ms for an animation nothing showed.
 - Not changed: `getGlobalFeed` still returns `[]` on an RPC error (needs a feed error state to show it); `bookmarks` table / `get_global_feed` RPC undocumented (bevan).
