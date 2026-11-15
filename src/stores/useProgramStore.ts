@@ -1,18 +1,10 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { planExerciseColumns, type PlanExercise } from '../utils/planExercise';
 
 /* ─── Types ──────────────────────────────────────────── */
 
-export interface ProgramDayExercise {
-  name: string;
-  exercise_order: number;
-  default_sets: number;
-  default_reps: number;
-  default_rest_seconds: number;
-  set_reps: number[];
-  set_weights: number[];
-  exercise_type: string;
-}
+export type ProgramDayExercise = PlanExercise;
 
 export interface ProgramDay {
   id?: string;
@@ -200,17 +192,7 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
         }
 
         if (day.exercises.length > 0) {
-          const rows = day.exercises.map((e) => ({
-            program_day_id: dayRow.id,
-            name: e.name,
-            exercise_order: e.exercise_order,
-            default_sets: e.default_sets,
-            default_reps: e.default_reps,
-            default_rest_seconds: e.default_rest_seconds,
-            set_reps: e.set_reps,
-            set_weights: e.set_weights,
-            exercise_type: e.exercise_type,
-          }));
+          const rows = day.exercises.map((e) => ({ program_day_id: dayRow.id, ...planExerciseColumns(e) }));
           const { error: exErr } = await supabase.from('program_day_exercises').insert(rows);
           if (__DEV__ && exErr) console.error('Insert program_day_exercises error:', exErr);
         }
@@ -251,17 +233,7 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
       if (dayErr || !dayRow) continue;
 
       if (day.exercises.length > 0) {
-        const rows = day.exercises.map((e) => ({
-          program_day_id: dayRow.id,
-          name: e.name,
-          exercise_order: e.exercise_order,
-          default_sets: e.default_sets,
-          default_reps: e.default_reps,
-          default_rest_seconds: e.default_rest_seconds,
-          set_reps: e.set_reps,
-          set_weights: e.set_weights,
-          exercise_type: e.exercise_type,
-        }));
+        const rows = day.exercises.map((e) => ({ program_day_id: dayRow.id, ...planExerciseColumns(e) }));
         await supabase.from('program_day_exercises').insert(rows);
       }
     }
