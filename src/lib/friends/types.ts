@@ -113,29 +113,11 @@ export type LeaderboardType =
   | 'streak'
   | 'streak_best';
 
-export interface NudgeRow {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
-  message: string;
-  created_at: string;
-}
-
 export interface SearchResult {
   id: string;
   username: string | null;
   email: string;
   friendshipStatus: FriendshipStatus | null;
-}
-
-export interface CommentItem {
-  id: string;
-  activity_id: string;
-  user_id: string;
-  parent_id: string | null;
-  text: string;
-  created_at: string;
-  profile: { username: string | null; email: string };
 }
 
 export type ReportTargetType = 'user' | 'activity' | 'comment' | 'message' | 'nudge' | 'ai_message';

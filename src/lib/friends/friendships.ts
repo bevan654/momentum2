@@ -172,15 +172,6 @@ export async function blockUser(
   });
 }
 
-export async function unblockUser(userId: string, blockedUserId: string): Promise<void> {
-  await supabase
-    .from('friendships')
-    .delete()
-    .eq('user_id', userId)
-    .eq('friend_id', blockedUserId)
-    .eq('status', 'blocked');
-}
-
 /** IDs of users this user has blocked. One-way: who I've chosen not to see. */
 export async function getBlockedUserIds(userId: string): Promise<string[]> {
   const { data } = await supabase

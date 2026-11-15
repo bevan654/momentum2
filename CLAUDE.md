@@ -68,7 +68,7 @@ This project is a continuation of an app built with an older model, so expect bu
     │   ├── body/              # Body map wrappers around momentum-muscle-map: map pair, workout mini maps, exercise thumb, level toggle, region chip, workout heatmap
     │   ├── dev/               # Story/Workout share overlays, story crop
     │   ├── food/              # Nutrition tab: day summary (calorie ring, macro bars), water strip, meal cards, food popups; ui/ = shared kit for food popups (header, search, rows, fields, sub-screen, keyboard inset)
-    │   ├── friends/           # Feed, leaderboard, notifications, nudges, comments, search
+    │   ├── friends/           # Feed, leaderboard, notifications, reports, search
     │   ├── home/              # Home dashboard cards, feed and modals
     │   ├── lab/               # Recovery/analytics: timers, charts, body metrics, muscle radar
         │   ├── profile/           # Settings sub-views, goal editors

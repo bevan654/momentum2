@@ -105,7 +105,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | Barcode lookup | `utils/barcodeApi.ts` |
 | Water, creatine, supplements | `stores/useSupplementStore.ts`, `components/home/SupplementsCard.tsx`, `components/home/WaterCard.tsx` |
 | Weight, body fat, measurements | `components/lab/`, `stores/useWeightStore.ts`, `stores/useBodyFatStore.ts`, `stores/useMeasurementStore.ts` |
-| Feed, friends, leaderboard, comments | `components/friends/`, `components/home/Feed.tsx`, `stores/useFriendsStore.ts`, `lib/friendsDatabase.ts` |
+| Feed, friends, leaderboard, reactions | `components/friends/`, `components/home/Feed.tsx`, `stores/useFriendsStore.ts`, `lib/friendsDatabase.ts` |
 | Global header | `components/home/Header.tsx` |
 | Profile, settings | `screens/ProfileScreen.tsx`, `components/profile/`, `stores/useProfileSettingsStore.ts` |
 | Share images | `components/share/ShareModal.tsx`, `components/dev/` |

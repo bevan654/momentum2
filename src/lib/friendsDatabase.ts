@@ -1,5 +1,5 @@
 /**
- * Friends, feed, comments, reactions, nudges, leaderboards, notifications and streaks.
+ * Friends, feed, reactions, reports, leaderboards, notifications and streaks.
  * The code lives in ./friends/ by topic; this file re-exports the public API so imports stay
  * `from '../lib/friendsDatabase'`.
  */
@@ -12,7 +12,6 @@ export type {
   LeaderboardEntry,
   LeaderboardType,
   SearchResult,
-  CommentItem,
   ReportTargetType,
   ReportReason,
 } from './friends/types';
@@ -25,22 +24,13 @@ export {
   declineFriendRequest,
   removeFriend,
   blockUser,
-  unblockUser,
   getBlockedUserIds,
   getFriendshipBetween,
 } from './friends/friendships';
 export {
   reportContent,
-  getBookmarks,
-  addBookmark,
-  removeBookmark,
-  getComments,
-  addComment,
-  deleteComment,
-  getCommentCounts,
   addReaction,
   removeReaction,
-  sendNudge,
 } from './friends/social';
 export {
   getFriendsFeed,
