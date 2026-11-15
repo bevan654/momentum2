@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
-import { supabase, rebuildClient } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference, addPendingWorkoutDelete, loadPendingWorkoutDeletes, removePendingWorkoutDeletes } from '../utils/workoutStorage';
 import { buildWorkoutPayload } from '../utils/workoutPayload';
 import { buildFeedExerciseDetails } from '../utils/feedExerciseDetails';
@@ -16,358 +15,48 @@ import { useRoutineStore } from './useRoutineStore';
 import { useAuthStore } from './useAuthStore';
 import { useWeightStore } from './useWeightStore';
 import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity, clearStaleWorkoutActivity } from '../services/liveActivityManager';
-import type { WorkoutActivitySnapshot } from '../services/liveActivityManager';
-
-const REST_NOTIF_ID = 'rest-timer';
-const SUPABASE_TIMEOUT = 20_000; // 20s per request
-
-/** Race a promise against a timeout — rejects with an error if it takes too long */
-function withTimeout<T>(promise: PromiseLike<T>, ms: number = SUPABASE_TIMEOUT): Promise<T> {
-  let id: ReturnType<typeof setTimeout>;
-  const timer = new Promise<never>((_, reject) => {
-    id = setTimeout(() => reject(new Error('Request timed out')), ms);
-  });
-  return Promise.race([Promise.resolve(promise), timer]).finally(() => clearTimeout(id));
-}
-
-/**
- * Run a Supabase query with a timeout; on timeout, rebuild the wedged client
- * and retry once. After backgrounding, the client's auth lock can be stuck so
- * requests hang before ever reaching the network (supabase/supabase#36046) —
- * a rebuild + retry recovers without the user force-closing the app. Takes a
- * factory because a PostgrestBuilder can't be re-executed after it settles.
- */
-async function runWithRecovery<T>(makeQuery: () => PromiseLike<T>): Promise<T> {
-  try {
-    return await withTimeout(makeQuery());
-  } catch (e: any) {
-    if (e?.message !== 'Request timed out') throw e;
-    console.warn('[runWithRecovery] request hung — rebuilding supabase client and retrying');
-    rebuildClient();
-    return await withTimeout(makeQuery());
-  }
-}
-
-// ── Types ──────────────────────────────────────────────
-
-export interface ActiveSet {
-  kg: string;
-  reps: string;
-  completed: boolean;
-  set_type: 'working' | 'warmup' | 'drop' | 'failure';
-  parent_set_number: number | null;
-  /** When the set was ticked off (ms). Cleared when it's unticked. */
-  completedAt?: number | null;
-  /** The weight and reps the app suggested when the set was ticked off. */
-  target?: { kg: number; reps: number; source: 'progression' | 'previous' } | null;
-}
-
-export interface ActiveExercise {
-  /** Stable per-session id, used as the React key so cards survive reorder/remove. */
-  id: string;
-  name: string;
-  exercise_type: 'weighted' | 'bodyweight' | 'duration' | 'weighted+bodyweight';
-  category: string | null;
-  sets: ActiveSet[];
-  prevSets: { kg: number; reps: number }[];
-  supersetWith: number | null;
-  notes?: string;
-  /** Color tag for today's note: 'green' | 'orange' | 'red' (undefined = none) */
-  noteColor?: string;
-  /** Note history from previous sessions, newest first (read-only) */
-  prevNotes?: { note: string; date: string; color?: string }[];
-}
-
-export interface SummaryExercise {
-  name: string;
-  category: string | null;
-  exercise_type: string;
-  sets: { kg: number; reps: number; completed: boolean; set_type: string; parent_set_number: number | null }[];
-}
-
-interface GhostExerciseData {
-  name: string;
-  sets: { kg: number; reps: number }[];
-}
-
-export interface WorkoutSummary {
-  workoutId?: string;
-  duration: number;
-  totalVolume: number;
-  totalSets: number;
-  totalExercises: number;
-  exerciseNames: string[];
-  exercises: SummaryExercise[];
-  prCount: number;
-  ghostUserName?: string | null;
-  ghostExercises?: GhostExerciseData[];
-  /** Snapshot of prevMap at finish time so background refetches don't overwrite it */
-  prevMap?: Record<string, { kg: number; reps: number }[]>;
-}
-
-// ── Constants ──────────────────────────────────────────
-
-const EMPTY_SET: ActiveSet = {
-  kg: '',
-  reps: '',
-  completed: false,
-  set_type: 'working',
-  parent_set_number: null,
-};
-
-const EXERCISE_TYPE_CYCLE: Record<string, string> = {
-  weighted: 'bodyweight',
-  bodyweight: 'duration',
-  duration: 'weighted+bodyweight',
-  'weighted+bodyweight': 'weighted',
-};
-
-const SET_TYPE_CYCLE: Record<string, string> = {
-  working: 'warmup',
-  warmup: 'drop',
-  drop: 'failure',
-  failure: 'working',
-};
+import { REST_NOTIF_ID, EMPTY_SET, EXERCISE_TYPE_CYCLE, SET_TYPE_CYCLE } from './activeWorkout/constants';
+import { runWithRecovery } from './activeWorkout/supabaseRecovery';
+import { type ActiveSet, type ActiveExercise, type SummaryExercise, type WorkoutSummary, type ActiveWorkoutState, type FinishResult, type UndoSnapshot } from './activeWorkout/types';
+import { _shiftAnchorForInsert } from './activeWorkout/setHelpers';
+import { _buildSnapshot } from './activeWorkout/liveActivitySnapshot';
+import { _scheduleRestNotification } from './activeWorkout/restNotification';
+export { type ActiveSet, type ActiveExercise, type SummaryExercise, type WorkoutSummary } from './activeWorkout/types';
 
 // ── Module-level refs ──────────────────────────────────
 
 let _timerInterval: ReturnType<typeof setInterval> | null = null;
+
 let _persistTimeout: ReturnType<typeof setTimeout> | null = null;
+
 let _workoutRestored = false; // Guard: prevent _persist before restore
+
 let _restoring: Promise<void> | null = null; // In-flight restore, shared by concurrent callers
+
 let _finishing: Promise<FinishResult> | null = null; // In-flight finish, shared by concurrent callers
+
 // Bumped on sign-out: a restore or finish that was in flight then belongs to the
 // previous account and must not write into the store afterwards.
 let _sessionGen = 0;
+
 let _undoSnapshot: UndoSnapshot | null = null; // The finished workout as it was, for Undo
+
 let _preferredRestDuration = 90; // Loaded from AsyncStorage at module init
+
 loadRestPreference().then((d) => { _preferredRestDuration = d; });
-
-/** The user's preferred rest length (what each new rest starts at). */
-export type RestAnchor = { exerciseIndex: number; setIndex: number } | null;
-
-/** Keep the rest anchor on the same set when a set is inserted before it. */
-function _shiftAnchorForInsert(anchor: RestAnchor, exerciseIndex: number, insertAt: number): RestAnchor {
-  if (!anchor || anchor.exerciseIndex !== exerciseIndex || anchor.setIndex < insertAt) return anchor;
-  return { ...anchor, setIndex: anchor.setIndex + 1 };
-}
 
 export function getPreferredRestDuration(): number {
   return _preferredRestDuration;
 }
 
-// ── Store interface ────────────────────────────────────
-
-interface ActiveWorkoutState {
-  isActive: boolean;
-  sheetVisible: boolean;
-  startTime: number | null;
-  elapsedSeconds: number;
-  exercises: ActiveExercise[];
-
-  /** Seconds from restStartedAt until the current rest ends (restStartedAt + restDuration = end). */
-  restDuration: number;
-  restRemaining: number;
-  restStartedAt: number | null;
-  isResting: boolean;
-  /** Full length of the current rest incl. ±15s adjustments — for the progress bar only. */
-  restTotal: number;
-  /** When the last rest ran out on its own (not skipped) — drives the "rest done" moment. */
-  restEndedAt: number | null;
-  /** Routine / program-day name shown in the header; null = plain workout. */
-  workoutTitle: string | null;
-  /** The set whose completion started the current/last rest — the inline rest row renders under it. */
-  restAnchor: RestAnchor;
-
-  // Summary + share
-  showSummary: boolean;
-  summaryData: WorkoutSummary | null;
-  pendingFeedPayload: Record<string, any> | null;
-
-  startedFromRoutine: string | null;
-  startedFromProgram: string | null;
-  programWeek: number | null;
-  ghostUserName: string | null;
-  /** The workout's id in the database, generated when it starts so saving it twice can't duplicate it. */
-  workoutId: string | null;
-  /** 'replace' after Undo: the workout is already saved, and finishing again overwrites it. */
-  saveMode: 'create' | 'replace';
-
-  // Workout lifecycle
-  startWorkout: () => void;
-  startFromRoutine: (
-    routine: { id: string; name?: string; exercises: { name: string; default_sets: number; exercise_type: string }[] },
-    catalogMap: Record<string, { category: string; exercise_type: string }>,
-    prevMap: Record<string, { kg: number; reps: number }[]>,
-    ghostUserName?: string,
-  ) => void;
-  startFromProgram: (
-    routine: { id: string; name?: string; exercises: { name: string; default_sets: number; exercise_type: string }[] },
-    catalogMap: Record<string, { category: string; exercise_type: string }>,
-    prevMap: Record<string, { kg: number; reps: number }[]>,
-    programId: string,
-    programWeek: number,
-  ) => void;
-  discardWorkout: () => void;
-  /** True while Finish is saving; starts, discards and edits are ignored until it settles. */
-  isSaving: () => boolean;
-  finishWorkout: (userId: string, durationOverride?: number) => Promise<{
-    error: string | null;
-    incompleteCount?: number;
-    workoutId?: string;
-  }>;
-  restoreWorkout: () => Promise<void>;
-  /** Signing out: drop the in-memory workout (its saved copy stays for the same account). */
-  resetForSignOut: () => void;
-  showSheet: () => void;
-  hideSheet: () => void;
-  dismissSummary: () => void;
-  commitFeedPost: (opts?: {
-    visibility?: 'public' | 'friends' | 'private';
-    title?: string;
-    caption?: string;
-  }) => Promise<void>;
-  undoFinish: () => void;
-
-  // Exercise management
-  addExercise: (name: string, exerciseType: string, category: string | null, prevSets?: { kg: number; reps: number }[]) => void;
-  removeExercise: (index: number) => void;
-  replaceExercise: (index: number, name: string, exerciseType: string, category: string | null, prevSets: { kg: number; reps: number }[]) => void;
-  moveExercise: (fromIndex: number, direction: 'up' | 'down') => void;
-  cycleExerciseType: (index: number) => void;
-  setExerciseNotes: (index: number, notes: string) => void;
-  setExerciseNoteColor: (index: number, color: string | undefined) => void;
-
-  // Set management
-  addSet: (exerciseIndex: number) => void;
-  addDropSet: (exerciseIndex: number, parentSetIndex: number) => void;
-  duplicateSet: (exerciseIndex: number, setIndex: number) => void;
-  removeSet: (exerciseIndex: number, setIndex: number) => void;
-  updateSet: (exerciseIndex: number, setIndex: number, field: 'kg' | 'reps', value: string) => void;
-  toggleSetComplete: (exerciseIndex: number, setIndex: number) => void;
-  cycleSetType: (exerciseIndex: number, setIndex: number) => void;
-
-  // Superset
-  linkSuperset: (exerciseIndex: number) => void;
-  unlinkSuperset: (exerciseIndex: number) => void;
-
-  // Rest timer
-  setRestDuration: (seconds: number) => void;
-  startRest: () => void;
-  stopRest: () => void;
-  /** Add or remove time from the running rest (e.g. ±15s). Ending at ≤0 stops the rest. */
-  adjustRest: (deltaSeconds: number) => void;
-  tick: () => void;
-
-  // Internal
-  _persist: () => void;
-}
-
 // ── Live Activity snapshot helper ──────────────────────
 
 let _exerciseSeq = 0;
+
 /** Unique within a device session; only used for React keys, never stored in the DB. */
 function _newExerciseId(): string {
   _exerciseSeq += 1;
   return `ex-${Date.now().toString(36)}-${_exerciseSeq}`;
-}
-
-type ExerciseInfo = { name: string; currentSet: number; totalSets: number; nextName: string | null };
-
-const _hasSetsLeft = (ex: ActiveExercise) => ex.sets.some((s) => !s.completed);
-
-/**
- * The exercise and set the user is on, and the one after it, for the Live Activity.
- * Current = the exercise of the most recently completed set while it has sets left,
- * else the next exercise (in list order, wrapping) with sets left. Next = its
- * superset partner if that has sets left, else the following exercise with sets left.
- */
-function _getExerciseInfo(exercises: ActiveExercise[]): ExerciseInfo {
-  const n = exercises.length;
-  if (n === 0) return { name: '', currentSet: 0, totalSets: 0, nextName: null };
-
-  let anchor = -1;
-  let latest = -Infinity;
-  exercises.forEach((ex, i) => {
-    for (const set of ex.sets) {
-      const at = set.completedAt ?? 0;
-      if (set.completed && at >= latest) { latest = at; anchor = i; }
-    }
-  });
-
-  /** First exercise with sets left, scanning from `from` and wrapping; -1 if none. */
-  const firstWithSetsLeft = (from: number, skip: number): number => {
-    for (let k = 0; k < n; k++) {
-      const i = (from + k) % n;
-      if (i !== skip && _hasSetsLeft(exercises[i])) return i;
-    }
-    return -1;
-  };
-
-  const current = anchor >= 0 && _hasSetsLeft(exercises[anchor])
-    ? anchor
-    : firstWithSetsLeft(anchor + 1, -1);
-
-  if (current === -1) {
-    // Every set is done: show the last exercise worked on as complete.
-    const last = exercises[anchor >= 0 ? anchor : n - 1];
-    return { name: last.name, currentSet: last.sets.length, totalSets: last.sets.length, nextName: null };
-  }
-
-  const ex = exercises[current];
-  const done = ex.sets.filter((s) => s.completed).length;
-  const partner = ex.supersetWith;
-  const next = partner !== null && exercises[partner] && _hasSetsLeft(exercises[partner])
-    ? partner
-    : firstWithSetsLeft(current + 1, current);
-  return {
-    name: ex.name,
-    currentSet: done + 1,
-    totalSets: ex.sets.length,
-    nextName: next === -1 ? null : exercises[next].name,
-  };
-}
-
-function _buildSnapshot(
-  state: Pick<ActiveWorkoutState, 'startTime' | 'exercises' | 'isResting' | 'restStartedAt' | 'restDuration' | 'restTotal'>,
-): WorkoutActivitySnapshot {
-  const info = _getExerciseInfo(state.exercises);
-  return {
-    startTime: state.startTime!,
-    exerciseName: info.name,
-    currentSet: info.currentSet,
-    totalSets: info.totalSets,
-    nextExerciseName: info.nextName,
-    isResting: state.isResting,
-    restStartedAt: state.restStartedAt,
-    restDuration: state.restDuration,
-    restTotal: state.restTotal,
-  };
-}
-
-/**
- * Cancel any pending rest notification, then schedule a new one.
- * Awaits the cancel so Android doesn't race and kill the new one.
- * Uses the high-priority 'rest_timer' channel on Android for exact delivery.
- */
-async function _scheduleRestNotification(seconds: number) {
-  try {
-    await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID);
-  } catch {}
-  Notifications.scheduleNotificationAsync({
-    identifier: REST_NOTIF_ID,
-    content: {
-      title: 'Rest Complete!',
-      body: 'Time for your next set.',
-      sound: 'default',
-      data: { type: 'rest_complete' },
-      ...(Platform.OS === 'android' ? { channelId: 'rest_timer' } : {}),
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds,
-    },
-  }).catch(() => {});
 }
 
 // ── Store ──────────────────────────────────────────────
@@ -470,14 +159,6 @@ async function _restoreSavedWorkout(
   _timerInterval = setInterval(() => get().tick(), 1000);
   startWorkoutActivity(_buildSnapshot(get()));
 }
-
-type FinishResult = { error: string | null; incompleteCount?: number; workoutId?: string };
-
-/** The workout as it was when finished, so Undo can reopen it exactly (same id, sets, notes, context). */
-type UndoSnapshot = Pick<
-  ActiveWorkoutState,
-  'exercises' | 'startTime' | 'restDuration' | 'workoutTitle' | 'startedFromRoutine' | 'startedFromProgram' | 'programWeek' | 'ghostUserName'
-> & { workoutId: string };
 
 /** Saves the active workout and opens the summary. Use `finishWorkout`, which runs one at a time. */
 async function _finishWorkout(

@@ -84,7 +84,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | `src/stores/useAuthStore.ts` | ~53 files |
 | `src/stores/useWorkoutStore.ts` | ~31 files |
 | `src/lib/supabase.ts` | ~27 files |
-| `src/stores/useActiveWorkoutStore.ts` | ~26 files; saves workouts, 1.6k lines. Older app builds write workouts differently, so see the Compatibility rule in `CLAUDE.md` |
+| `src/stores/useActiveWorkoutStore.ts` | ~26 files; saves workouts, 1.3k lines (types, constants and pure helpers in `stores/activeWorkout/`; import them through the store file). Older app builds write workouts differently, so see the Compatibility rule in `CLAUDE.md` |
 | `src/lib/friendsDatabase.ts` (code in `src/lib/friends/`) | ~19 files; most social reads/writes. Import from `friendsDatabase`, not from `lib/friends/*` directly |
 | `src/utils/localDate.ts` | ~13 files; day boundaries |
 | `src/constants/muscles.ts` | ~9 files; legacy muscle names that every app build understands |
