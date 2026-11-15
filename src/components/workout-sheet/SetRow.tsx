@@ -166,10 +166,17 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
 
   /* ── Callback refs (always fresh for gesture) ────── */
 
+  // The pan gesture below is built once per canDelete, so everything it calls goes through refs.
+  // (It used to capture the first onUpdate: after an earlier exercise was removed, swipe-to-complete
+  // wrote the suggested kg/reps into the wrong exercise.)
   const onToggleRef = useRef(onToggle);
   const onDeleteRef = useRef(onDelete);
+  const onUpdateRef = useRef(onUpdate);
+  const indexRef = useRef(index);
   useEffect(() => { onToggleRef.current = onToggle; }, [onToggle]);
   useEffect(() => { onDeleteRef.current = onDelete; }, [onDelete]);
+  useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+  useEffect(() => { indexRef.current = index; }, [index]);
 
   /* ── JS-thread callbacks for gestures ─────────────── */
 
@@ -181,20 +188,20 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
   const fireComplete = useCallback(() => {
     if (!localKgRef.current && suggestedKgRef.current) {
       setLocalKg(suggestedKgRef.current);
-      onUpdate(index, 'kg', suggestedKgRef.current);
+      onUpdateRef.current(indexRef.current, 'kg', suggestedKgRef.current);
     }
     if (!localRepsRef.current && suggestedRepsRef.current) {
       setLocalReps(suggestedRepsRef.current);
-      onUpdate(index, 'reps', suggestedRepsRef.current);
+      onUpdateRef.current(indexRef.current, 'reps', suggestedRepsRef.current);
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onToggleRef.current(index);
-  }, [onUpdate, index]);
+    onToggleRef.current(indexRef.current);
+  }, []);
 
   const fireDelete = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    onDeleteRef.current?.(index);
-  }, [index]);
+    onDeleteRef.current?.(indexRef.current);
+  }, []);
 
   /* ── Gesture Handler pan ─────────────────────────── */
 
