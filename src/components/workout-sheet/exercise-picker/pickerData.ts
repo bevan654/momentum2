@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
 import { aliasesByCanonical } from '../../../utils/exerciseCatalog';
-import { toCanonical, CANONICAL_TO_UI_CATEGORY, UI_CATEGORY_COLORS } from '../../../constants/muscles';
+import { toCanonical, CANONICAL_TO_UI_CATEGORY } from '../../../constants/muscles';
 
 /** Lifts pinned at the top of the picker (the leaderboard lifts). Matched by catalog id, which survives
  *  catalog renames, with the current and previous names as a fallback. */
@@ -9,17 +8,6 @@ export const LEADERBOARD_LIFTS: { catalogId: string; names: string[] }[] = [
   { catalogId: '6d6f46ec-ea92-4f38-9baa-d42975f1a706', names: ['barbell back squat'] },
   { catalogId: '4f9a3d91-42e1-4b46-a907-1c68db1fb201', names: ['barbell deadlift', 'conventional deadlift'] },
 ];
-
-/* ── Debounce hook ────────────────────────────────────── */
-
-export function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(timer);
-  }, [value, delayMs]);
-  return debounced;
-}
 
 /* ═══════════════════════════════════════════════════════════
    Module-level cache for expensive computations
@@ -82,8 +70,6 @@ export function getCachedSorted(
 }
 
 export const MAIN_MUSCLE_GROUPS = ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core', 'Cardio'];
-
-export const GROUP_CHIP_COLORS: Record<string, string> = UI_CATEGORY_COLORS;
 
 export function getMainGroup(muscle: string): string | null {
   const canonical = toCanonical(muscle);

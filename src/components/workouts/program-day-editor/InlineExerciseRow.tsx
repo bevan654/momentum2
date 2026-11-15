@@ -3,8 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { ThemeColors } from '../../../theme/useColors';
 import { Fonts } from '../../../theme/typography';
 import { sw, ms } from '../../../theme/responsive';
-import { type CatalogEntry, muscleColor } from './dayEditorData';
+import { type CatalogEntry } from './dayEditorData';
 import { titleCase } from '../../../utils/titleCase';
+import { getMuscleColor } from '../../../constants/muscles';
 
 /* ─── Memoised exercise row for inline list ──────────── */
 
@@ -23,7 +24,7 @@ export const InlineExerciseRow = memo(function InlineExerciseRow({
       onPress={() => onSelect(item.name, item.exercise_type, item.category)}
       activeOpacity={0.6}
     >
-      <View style={[inlineRowStyles.dot, { backgroundColor: muscleColor(item.primary_muscles[0] || '') }]} />
+      <View style={[inlineRowStyles.dot, { backgroundColor: getMuscleColor(item.primary_muscles[0] || '') }]} />
       <View style={inlineRowStyles.info}>
         <Text style={[inlineRowStyles.name, { color: colors.textPrimary }]} numberOfLines={1}>
           {titleCase(item.name)}

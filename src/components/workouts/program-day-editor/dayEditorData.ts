@@ -1,5 +1,4 @@
 import { aliasesByCanonical } from '../../../utils/exerciseCatalog';
-import { getMuscleColor } from '../../../constants/muscles';
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -32,12 +31,6 @@ export const MUSCLE_FILTERS = [
   'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms',
   'quadriceps', 'hamstrings', 'glutes', 'calves', 'abs', 'traps',
 ];
-
-/* ─── Helpers ────────────────────────────────────────── */
-
-export function muscleColor(muscle: string): string {
-  return getMuscleColor(muscle);
-}
 
 /* ─── Module-level sorted catalog cache ──────────────── */
 

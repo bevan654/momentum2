@@ -35,7 +35,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import CreateCustomExerciseModal from './CreateCustomExerciseModal';
 import { PortalHost } from '../ui/Portal';
 import {
-  LEADERBOARD_LIFTS, useDebouncedValue, getCachedSorted, getMainGroup, type CatalogEntry,
+  LEADERBOARD_LIFTS, getCachedSorted, getMainGroup, type CatalogEntry,
 } from './exercise-picker/pickerData';
 import {
   WGER_SEARCH_URL, WGER_MUSCLE_MAP, WGER_CATEGORY_MAP, WGER_BW_EQUIPMENT,
@@ -44,6 +44,7 @@ import {
 import ExerciseRow, { createRowStyles } from './exercise-picker/ExerciseRow';
 import MuscleFilterChips from './exercise-picker/MuscleFilterChips';
 import ExerciseListHeader from './exercise-picker/ExerciseListHeader';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 /* ─── Constants ───────────────────────────────────────── */
 

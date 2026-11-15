@@ -3,7 +3,8 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-nati
 import { useColors, type ThemeColors } from '../../../theme/useColors';
 import { sw, ms } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
-import { MAIN_MUSCLE_GROUPS, GROUP_CHIP_COLORS } from './pickerData';
+import { MAIN_MUSCLE_GROUPS } from './pickerData';
+import { UI_CATEGORY_COLORS } from '../../../constants/muscles';
 
 /** "All" plus one chip per main muscle group; tapping the active chip clears it. */
 function MuscleFilterChips({ selectedMuscle, setSelectedMuscle }: {
@@ -31,7 +32,7 @@ function MuscleFilterChips({ selectedMuscle, setSelectedMuscle }: {
       </TouchableOpacity>
       {MAIN_MUSCLE_GROUPS.map((group) => {
         const active = selectedMuscle === group;
-        const gColor = GROUP_CHIP_COLORS[group] || colors.textTertiary;
+        const gColor = (UI_CATEGORY_COLORS as Record<string, string>)[group] || colors.textTertiary;
         return (
           <TouchableOpacity
             key={group}

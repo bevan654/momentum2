@@ -6,12 +6,6 @@ import { Fonts } from '../../../theme/typography';
 import { getMuscleColor } from '../../../constants/muscles';
 import { titleCase } from '../../../utils/titleCase';
 
-/* ─── Muscle color (derived from muscles.ts) ─────────── */
-
-function muscleColor(muscle: string): string {
-  return getMuscleColor(muscle);
-}
-
 /** Styles for ExerciseRow. Built once by the picker and passed to every row (the list can hold thousands). */
 export type RowStyles = ReturnType<typeof createRowStyles>;
 
@@ -46,7 +40,7 @@ const ExerciseRow = memo(function ExerciseRow({
       <View
         style={[
           styles.catDot,
-          { backgroundColor: muscleColor(primary_muscles?.[0] || category || '') },
+          { backgroundColor: getMuscleColor(primary_muscles?.[0] || category || '') },
         ]}
       />
       <View style={styles.exerciseInfo}>
