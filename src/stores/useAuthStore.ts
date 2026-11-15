@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { rebuildClient, supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
-import { cleanupNotifications, stopPushToken } from '../services/notificationService';
+import { cleanupNotifications, stopPushToken, clearPushTokenForSignOut } from '../services/notificationService';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useActiveWorkoutStore } from './useActiveWorkoutStore';
 import { clearWorkout as clearStoredWorkout } from '../utils/workoutStorage';
@@ -448,6 +448,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     cleanupNotifications();
     stopPushToken();
+    // Before auth.signOut: the profile write needs this session. Without it the next account on
+    // this phone kept getting the previous account's pushes.
+    const signedOutId = get().user?.id;
+    if (signedOutId) await clearPushTokenForSignOut(signedOutId);
     // Release heavy caches held by stores
     useWorkoutStore.getState().clearCaches();
     // Drop the active workout from memory; its saved copy only comes back for this account

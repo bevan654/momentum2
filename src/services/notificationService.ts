@@ -148,6 +148,9 @@ let pushUserId: string | null = null;
 let pushAppState: AppStateStatus = AppState.currentState;
 let pushAppStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
 let tokenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+/** This device's Expo push token, once fetched this session (used to clear it on sign-out). */
+let deviceToken: string | null = null;
+const EAS_PROJECT_ID = '157d9970-0ab2-46aa-8b0a-e12bc42c009d';
 
 function handlePushAppStateChange(nextState: AppStateStatus) {
   const prev = pushAppState;
@@ -182,10 +185,8 @@ async function registerPushToken(allowPrompt: boolean): Promise<void> {
     if (finalStatus !== 'granted') return;
 
     // Get push token — projectId required for EAS builds
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: '157d9970-0ab2-46aa-8b0a-e12bc42c009d',
-    });
-    const token = tokenData.data;
+    const token = (await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID })).data;
+    deviceToken = token;
 
     // Only write if token changed
     const { data: profile, error: fetchError } = await supabase
@@ -230,6 +231,26 @@ export function stopPushToken(): void {
     tokenDebounceTimer = null;
   }
   pushUserId = null;
+}
+
+/**
+ * On sign-out: remove this device's push token from the profile, so the next person to use this
+ * phone doesn't get the previous account's notifications. Only clears it if the profile still holds
+ * this device's token (another phone may have registered since). Best-effort, gives up after 3 s.
+ * Call while still signed in (RLS: own row).
+ */
+export async function clearPushTokenForSignOut(userId: string): Promise<void> {
+  if (!Device.isDevice) return;
+  const work = (async () => {
+    let token = deviceToken;
+    if (!token) {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') return;
+      token = (await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID })).data;
+    }
+    await supabase.from('profiles').update({ push_token: null }).eq('id', userId).eq('push_token', token);
+  })().catch(() => {});
+  await Promise.race([work, new Promise<void>((resolve) => setTimeout(resolve, 3000))]);
 }
 
 // ── Public API ────────────────────────────────────────
