@@ -84,34 +84,3 @@ export async function upsertUserStreak(
   );
 }
 
-export async function getFriendStats(
-  userId: string,
-): Promise<{ workoutCount: number; totalVolume: number; streak: number }> {
-  const [countRes, volumeRes, streakData] = await Promise.all([
-    supabase
-      .from('activity_feed')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId),
-    // Every post's volume (a single request stopped at 1000, so heavy users' totals were too low)
-    fetchAllRows<{ total_volume: number | null }>((from, to) =>
-      supabase
-        .from('activity_feed')
-        .select('total_volume')
-        .eq('user_id', userId)
-        .order('id', { ascending: true })
-        .range(from, to),
-    ),
-    getUserStreak(userId),
-  ]);
-
-  const totalVolume = (volumeRes ?? []).reduce(
-    (sum: number, r: any) => sum + (Number(r.total_volume) || 0),
-    0,
-  );
-
-  return {
-    workoutCount: countRes.count || 0,
-    totalVolume: Math.round(totalVolume),
-    streak: streakData?.current_streak ?? 0,
-  };
-}

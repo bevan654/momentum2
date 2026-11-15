@@ -23,7 +23,6 @@ import {
   declineFriendRequest as dbDeclineRequest,
   addReaction as dbAddReaction,
   removeReaction as dbRemoveReaction,
-  removeFriend as dbRemoveFriend,
   blockUser as dbBlockUser,
   getBlockedUserIds as dbGetBlockedUserIds,
   reportContent as dbReportContent,
@@ -82,12 +81,6 @@ interface FriendsState {
   // Blocks (users this user has blocked — one-way)
   blockedIds: string[];
 
-  // Profile sheet
-  profileSheetFriend: FriendProfile | null;
-  profileSheetVisible: boolean;
-  showProfileSheet: (friend: FriendProfile) => void;
-  hideProfileSheet: () => void;
-
   // Actions
   fetchFriends: (userId: string, force?: boolean) => Promise<void>;
   fetchFeed: (userId: string, reset?: boolean, force?: boolean) => Promise<void>;
@@ -106,7 +99,6 @@ interface FriendsState {
   sendFriendRequest: (userId: string, friendId: string) => Promise<boolean>;
   acceptRequest: (friendshipId: string, userId: string) => Promise<void>;
   declineRequest: (friendshipId: string) => Promise<void>;
-  removeFriend: (friendshipId: string, userId: string) => Promise<void>;
   addReaction: (activityId: string, userId: string, emoji: string) => Promise<void>;
   removeReaction: (activityId: string, userId: string, emoji: string) => Promise<void>;
   fetchBlockedIds: (userId: string) => Promise<void>;
@@ -163,15 +155,6 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   searchLoading: false,
 
   blockedIds: [],
-
-  profileSheetFriend: null,
-  profileSheetVisible: false,
-  showProfileSheet: (friend) => set({ profileSheetFriend: friend, profileSheetVisible: true }),
-  hideProfileSheet: () => {
-    set({ profileSheetVisible: false });
-    // Delay clearing friend data so the close animation can play before unmounting
-    setTimeout(() => set({ profileSheetFriend: null }), 350);
-  },
 
   fetchFriends: async (userId, force = false) => {
     const { friendsFetchedAt, friends: cached } = get();
@@ -408,11 +391,6 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
 
   declineRequest: async (friendshipId) => {
     await dbDeclineRequest(friendshipId);
-  },
-
-  removeFriend: async (friendshipId, userId) => {
-    await dbRemoveFriend(friendshipId);
-    await get().fetchFriends(userId, true);
   },
 
   // Optimistic: the heart updates on tap, then the write goes out. (The db helpers log and swallow

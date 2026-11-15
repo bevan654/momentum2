@@ -149,10 +149,6 @@ export async function declineFriendRequest(friendshipId: string): Promise<void> 
   await supabase.from('friendships').delete().eq('id', friendshipId);
 }
 
-export async function removeFriend(friendshipId: string): Promise<void> {
-  await supabase.from('friendships').delete().eq('id', friendshipId);
-}
-
 export async function blockUser(
   userId: string,
   blockedUserId: string,

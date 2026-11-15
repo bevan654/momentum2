@@ -22,7 +22,6 @@ export {
   sendFriendRequest,
   acceptFriendRequest,
   declineFriendRequest,
-  removeFriend,
   blockUser,
   getBlockedUserIds,
   getFriendshipBetween,
@@ -43,7 +42,6 @@ export {
   getUserStreak,
   fetchWorkoutDates,
   upsertUserStreak,
-  getFriendStats,
 } from './friends/streaks';
 export {
   getNotifications,
