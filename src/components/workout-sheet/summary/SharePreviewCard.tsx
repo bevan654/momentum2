@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../../theme/useColors';
@@ -14,22 +14,21 @@ import { titleCase } from '../../../utils/titleCase';
 
 export type ShareVisibility = 'public' | 'friends' | 'private';
 
+/** The post's title and caption as typed. The card owns them; the parent reads this ref when posting. */
+export type ShareTextRef = React.MutableRefObject<{ title: string; caption: string }>;
+
 /** Just-finished workout: live preview of the feed post, with title, photo, caption and visibility. */
 function SharePreviewCard({
   data,
   shareVisibility, setShareVisibility,
-  shareTitle, setShareTitle,
-  shareCaption, setShareCaption,
+  shareTextRef,
   sharePhotoUrl, sharePhotoUploading,
   handlePickSharePhoto, handleRemoveSharePhoto,
 }: {
   data: WorkoutSummary;
   shareVisibility: ShareVisibility;
   setShareVisibility: (v: ShareVisibility) => void;
-  shareTitle: string;
-  setShareTitle: (v: string) => void;
-  shareCaption: string;
-  setShareCaption: (v: string) => void;
+  shareTextRef: ShareTextRef;
   sharePhotoUrl: string | null;
   sharePhotoUploading: boolean;
   handlePickSharePhoto: () => void;
@@ -39,6 +38,12 @@ function SharePreviewCard({
   const styles = useMemo(() => createStyles(colors), [colors]);
   const userEmail = useAuthStore((s) => s.user?.email);
   const profileUsername = useAuthStore((s) => s.profile?.username);
+
+  // Typing only re-renders this card, not the whole summary above it.
+  const [shareTitle, setTitle] = useState(() => shareTextRef.current.title);
+  const [shareCaption, setCaption] = useState(() => shareTextRef.current.caption);
+  const setShareTitle = useCallback((v: string) => { shareTextRef.current.title = v; setTitle(v); }, [shareTextRef]);
+  const setShareCaption = useCallback((v: string) => { shareTextRef.current.caption = v; setCaption(v); }, [shareTextRef]);
 
   // ── Preview data for the inline feed-post preview ─────────────
   const previewRows = useMemo(() => {

@@ -26,7 +26,7 @@ import EditableExerciseSection from './summary/EditableExerciseSection';
 import AnimatedCheckmark from './summary/AnimatedCheckmark';
 import HistoricalPage from './summary/HistoricalPage';
 import SummaryConfirmExit from './summary/SummaryConfirmExit';
-import SharePreviewCard, { type ShareVisibility } from './summary/SharePreviewCard';
+import SharePreviewCard, { type ShareVisibility, type ShareTextRef } from './summary/SharePreviewCard';
 import { formatHoursMinutes } from '../../utils/formatDuration';
 
 type Props = {
@@ -128,8 +128,7 @@ export default function WorkoutSummaryModal(props: Props) {
   const [sharePhotoUrl, setSharePhotoUrl] = useState<string | null>(null);
   const [sharePhotoUploading, setSharePhotoUploading] = useState(false);
   const [shareVisibility, setShareVisibility] = useState<ShareVisibility>('public');
-  const [shareTitle, setShareTitle] = useState('');
-  const [shareCaption, setShareCaption] = useState('');
+  const shareTextRef: ShareTextRef = useRef({ title: '', caption: '' });
   const [shareSubmitting, setShareSubmitting] = useState(false);
 
   const handlePickSharePhoto = useCallback(async () => {
@@ -159,13 +158,13 @@ export default function WorkoutSummaryModal(props: Props) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     commitFeedPost({
       visibility: shareVisibility,
-      title: shareTitle,
-      caption: shareCaption,
+      title: shareTextRef.current.title,
+      caption: shareTextRef.current.caption,
     }).catch(() => {});
     // Dismiss immediately — feed insert is fire-and-forget
     onDismiss();
 
-  }, [shareSubmitting, commitFeedPost, shareVisibility, shareTitle, shareCaption, onDismiss]);
+  }, [shareSubmitting, commitFeedPost, shareVisibility, onDismiss]);
 
   // Confirm before exiting the just-completed summary without sharing.
   // Workout is already in `workouts`; the dialog exists so users don't lose the feed post by accident.
@@ -485,10 +484,7 @@ export default function WorkoutSummaryModal(props: Props) {
               data={data as WorkoutSummary}
               shareVisibility={shareVisibility}
               setShareVisibility={setShareVisibility}
-              shareTitle={shareTitle}
-              setShareTitle={setShareTitle}
-              shareCaption={shareCaption}
-              setShareCaption={setShareCaption}
+              shareTextRef={shareTextRef}
               sharePhotoUrl={sharePhotoUrl}
               sharePhotoUploading={sharePhotoUploading}
               handlePickSharePhoto={handlePickSharePhoto}
