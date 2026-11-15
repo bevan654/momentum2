@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PortalHost, type PortalHostHandle } from '../ui/Portal';
 import { useLingerMount } from '../../hooks/useLingerMount';
-import { useSharedValue, withTiming, Easing, runOnJS } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -46,32 +45,13 @@ export default function WorkoutSummaryModal(props: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  // ── Crossfade animation for historical modal ────
-  const contentOpacity = useSharedValue(0);
-  const backdropOpacity = useSharedValue(0);
-
-  useEffect(() => {
-    if (!inline && mode === 'historical') {
-      backdropOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
-      contentOpacity.value = withTiming(1, { duration: 400, easing: Easing.out(Easing.quad) });
-    }
-  }, []);
-
-  const animatedDismiss = useCallback(() => {
-    contentOpacity.value = withTiming(0, { duration: 300, easing: Easing.in(Easing.quad) });
-    backdropOpacity.value = withTiming(0, { duration: 350, easing: Easing.in(Easing.quad) }, () => {
-      runOnJS(onDismiss)();
-    });
-  }, [onDismiss]);
-
   // ── Edit state ───────────────────────────────────
   const [durationPickerVisible, setDurationPickerVisible] = useState(false);
   const durationPickerMounted = useLingerMount(durationPickerVisible);
 
-  // Share modal + workout name
+  // Share modal
   const [showShare, setShowShare] = useState(false);
   const shareMounted = useLingerMount(showShare);
-  const [workoutName] = useState('');
 
   // Themed confirm-before-exit dialog (just-completed mode only)
   const [confirmExitVisible, setConfirmExitVisible] = useState(false);
@@ -209,7 +189,7 @@ export default function WorkoutSummaryModal(props: Props) {
 
   // Use saved overrides if available, otherwise use original data
   const displayDuration = savedDuration ?? data.duration;
-  const totalVolume = isJustCompleted ? data.totalVolume : data.totalVolume;
+  const totalVolume = data.totalVolume;
 
   const displayExercises: SummaryExercise[] | null = savedExercises ?? (
     isJustCompleted ? (data as WorkoutSummary).exercises : null
@@ -373,8 +353,8 @@ export default function WorkoutSummaryModal(props: Props) {
     ),
     duration: displayDuration,
     date: isJustCompleted ? new Date() : new Date((data as WorkoutWithDetails).created_at),
-    workoutName: workoutName.trim() || null,
-  }), [displayExercises, isJustCompleted, data, displayDuration, workoutName]);
+    workoutName: null,
+  }), [displayExercises, isJustCompleted, data, displayDuration]);
 
   const subModals = (
     <>
@@ -410,7 +390,7 @@ export default function WorkoutSummaryModal(props: Props) {
           data={data as WorkoutWithDetails}
           colors={colors}
           editing={editing}
-          onDismiss={inline ? onDismiss : animatedDismiss}
+          onDismiss={onDismiss}
           onDelete={onDelete}
           handleDelete={handleDelete}
           deleting={deleting}
@@ -435,7 +415,7 @@ export default function WorkoutSummaryModal(props: Props) {
         presentationStyle="fullScreen"
         statusBarTranslucent
         onRequestClose={() => {
-          if (!portalHostRef.current?.closeTopLayer()) animatedDismiss();
+          if (!portalHostRef.current?.closeTopLayer()) onDismiss();
         }}
       >
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
