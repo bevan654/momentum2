@@ -48,7 +48,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `profile/` | Profile sheet sub-views and goal editors | `settings/` holds the sections of `ProfileSettingsView` |
 | `share/` | `ShareModal` | |
 | `ui/` | Shared primitives: `Sheet`, `Overlay`, `Portal` | `SheetWrapper.tsx` sits at `components/` root |
-| `workout-sheet/` | Active workout sheet, sets, rest timer, finish flow | Also `WorkoutSummaryModal` (post-workout/history summary; its pieces live in `summary/`), `ExercisePicker` (used by routines too; pieces in `exercise-picker/`), `GhostFinishScreen` (a component, not a route) |
+| `workout-sheet/` | Active workout sheet, sets, rest timer, finish flow | Also `WorkoutSummaryModal` (post-workout/history summary; its pieces live in `summary/`), `ExercisePicker` (used by routines too; pieces in `exercise-picker/`), `GhostFinishScreen` (a component, not a route); `SetRow` (swipe shell; inputs and styles in `workout-sheet/set-row/`) |
 | `workouts/` | Workouts tab: recovery body map, routines, today's plan | `ExerciseRow.tsx` exports a component named `ExerciseCard`. `history/` holds the pieces of `WorkoutHistoryScreen` (history sheet, routine preview, recovery chips, training calendar); `create-program/` and `program-day-editor/` hold pieces of those two screens. |
 
 ## Entry points

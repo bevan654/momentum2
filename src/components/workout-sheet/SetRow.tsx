@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useRef, useEffect, useState } from 'react';
 import {
   StyleSheet,
-  TextInput,
   View,
   Text,
   Pressable,
@@ -21,18 +20,13 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useColors, type ThemeColors } from '../../theme/useColors';
+import { useColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
-import { Fonts } from '../../theme/typography';
 import type { ActiveSet } from '../../stores/useActiveWorkoutStore';
 import { type ExerciseType } from '../../utils/exerciseProgress';
-import { formatTimeSecs, showsKg, isTimedType } from './summary/summaryFormat';
-
-/* ── Constants ─────────────────────────────────────────── */
-
-const SWIPE_THRESHOLD = 80;
-const ACTION_WIDTH = sw(72);
-const ROW_HEIGHT = sw(42);
+import { showsKg } from './summary/summaryFormat';
+import { createSetRowStyles, SWIPE_THRESHOLD, ROW_HEIGHT } from './set-row/setRowStyles';
+import SetRowInputs, { formatTimeDisplay } from './set-row/SetRowInputs';
 
 /* ── Props ─────────────────────────────────────────────── */
 
@@ -63,22 +57,17 @@ function formatPrev(prevSet: { kg: number; reps: number } | null, exerciseType?:
   return `${prevSet.kg}×${prevSet.reps}`;
 }
 
-/** A seconds string (as typed) as m:ss; empty or invalid shows 0:00. */
-const formatTimeDisplay = (secs: string) => formatTimeSecs(parseInt(secs, 10) || 0);
-
 /* ── Component ─────────────────────────────────────────── */
 
 function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType, onUpdate, onToggle, onDelete, onInputFocus, isGhost, ghostResult, isDropSet, dropIndex }: Props) {
   const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createSetRowStyles(colors), [colors]);
 
   const completed = set.completed;
 
   /* ── Local input state (prevents fast-typing race conditions) ── */
   const [localKg, setLocalKg] = useState(set.kg);
   const [localReps, setLocalReps] = useState(set.reps);
-  const kgRef = useRef<TextInput>(null);
-  const repsRef = useRef<TextInput>(null);
 
   const localKgRef = useRef(localKg);
   const localRepsRef = useRef(localReps);
@@ -91,17 +80,6 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
   useEffect(() => {
     if (set.reps !== localRepsRef.current) setLocalReps(set.reps);
   }, [set.reps]);
-
-  const handleFocus = useCallback((inputRef: React.RefObject<TextInput | null>, value: string) => {
-    if (value.length > 0 && inputRef.current) {
-      inputRef.current.setNativeProps({ selection: { start: 0, end: value.length } });
-    }
-    if (onInputFocus && inputRef.current) {
-      (inputRef.current as any).measureInWindow((_x: number, y: number) => {
-        onInputFocus(y);
-      });
-    }
-  }, [onInputFocus]);
 
   /* ── Animated values ───────────────────────────────── */
 
@@ -139,9 +117,13 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
     transform: [{ translateX: translateX.value }],
   }));
 
-  const ghostFlashColor = ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : ghostResult === 'tie' ? colors.textPrimary : colors.accentGreen;
+  // Ghost-mode result colour (null outside ghost mode or before a result): completed text, badge, check and row tint.
+  const ghostColor = isGhost && ghostResult
+    ? (ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary)
+    : null;
+  const flashColor = ghostColor ?? colors.accentGreen;
   const flashOverlayStyle = useAnimatedStyle(() => ({
-    backgroundColor: isGhost ? ghostFlashColor : colors.accentGreen,
+    backgroundColor: flashColor,
     opacity: interpolate(flashAnim.value, [0, 1], [0, 0.15]),
   }));
 
@@ -301,8 +283,8 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
         <Animated.View
           style={[
             styles.row,
-            completed && (isGhost && ghostResult
-              ? { backgroundColor: (ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) + '08', borderColor: (ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) + '15' }
+            completed && (ghostColor
+              ? { backgroundColor: ghostColor + '08', borderColor: ghostColor + '15' }
               : styles.rowCompleted),
             rowSwipeStyle,
           ]}
@@ -315,7 +297,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
 
           {/* Set number / type badge */}
           <View style={[styles.setNumBadge, { backgroundColor: typeConfig.bg }]}>
-            <Text style={[styles.setNumText, { color: completed ? (isGhost && ghostResult ? (ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) : colors.accentGreen) : typeConfig.color }]}>
+            <Text style={[styles.setNumText, { color: completed ? (ghostColor ?? colors.accentGreen) : typeConfig.color }]}>
               {badgeLabel}
             </Text>
           </View>
@@ -348,125 +330,23 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
             </Pressable>
           )}
 
-          {/* KG input — only for weighted / weighted+bodyweight */}
-          {showsKg(exerciseType) && (
-            <View style={[styles.inputContainer, completed && styles.inputContainerCompleted, !localKg && suggestedKg && styles.inputContainerSuggested]}>
-              <TextInput
-                ref={kgRef}
-                style={[styles.input, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
-                value={localKg}
-                onChangeText={(v) => { setLocalKg(v); onUpdate(index, 'kg', v); }}
-                onFocus={() => handleFocus(kgRef, localKg)}
-                onBlur={() => { if (localKg !== set.kg) onUpdate(index, 'kg', localKg); }}
-                placeholder={suggestedKg || '—'}
-                placeholderTextColor={suggestedKg ? colors.textSecondary : colors.textTertiary + '50'}
-                keyboardType="decimal-pad"
-                editable={!completed}
-              />
-            </View>
-          )}
-
-          {/* DURATION input — time in seconds with +/- 15s steppers */}
-          {isTimedType(exerciseType) ? (
-            <View style={[styles.repsRow, { flex: 2 }, completed && styles.repsRowCompleted]}>
-              {!completed && (
-                <TouchableOpacity
-                  style={styles.repStepBtn}
-                  onPress={() => {
-                    const cur = parseInt(localReps, 10) || 0;
-                    if (cur >= 15) {
-                      const v = String(cur - 15);
-                      setLocalReps(v);
-                      onUpdate(index, 'reps', v);
-                    }
-                  }}
-                  activeOpacity={0.5}
-                >
-                  <Ionicons name="remove" size={ms(12)} color={colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-              <View style={styles.timeDisplay}>
-                <Ionicons name="timer-outline" size={ms(11)} color={completed ? colors.accentGreen : colors.textTertiary} style={{ marginRight: sw(3) }} />
-                <TextInput
-                  ref={repsRef}
-                  style={[styles.repsInput, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
-                  value={localReps ? formatTimeDisplay(localReps) : ''}
-                  onChangeText={(v) => {
-                    // Strip non-numeric, treat raw input as seconds
-                    const raw = v.replace(/[^0-9]/g, '');
-                    setLocalReps(raw);
-                    onUpdate(index, 'reps', raw);
-                  }}
-                  onFocus={() => handleFocus(repsRef, localReps)}
-                  onBlur={() => { if (localReps !== set.reps) onUpdate(index, 'reps', localReps); }}
-                  placeholder="0:00"
-                  placeholderTextColor={colors.textTertiary + '50'}
-                  keyboardType="number-pad"
-                  editable={!completed}
-                />
-              </View>
-              {!completed && (
-                <TouchableOpacity
-                  style={styles.repStepBtn}
-                  onPress={() => {
-                    const cur = parseInt(localReps, 10) || 0;
-                    const v = String(cur + 15);
-                    setLocalReps(v);
-                    onUpdate(index, 'reps', v);
-                  }}
-                  activeOpacity={0.5}
-                >
-                  <Ionicons name="add" size={ms(12)} color={colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : (
-            /* REPS input with +/- 1 steppers */
-            <View style={[styles.repsRow, completed && styles.repsRowCompleted, !localReps && suggestedReps && styles.repsRowSuggested]}>
-              {!completed && (
-                <TouchableOpacity
-                  style={styles.repStepBtn}
-                  onPress={() => {
-                    const cur = parseInt(localReps, 10) || 0;
-                    if (cur > 0) {
-                      const v = String(cur - 1);
-                      setLocalReps(v);
-                      onUpdate(index, 'reps', v);
-                    }
-                  }}
-                  activeOpacity={0.5}
-                >
-                  <Ionicons name="remove" size={ms(12)} color={colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-              <TextInput
-                ref={repsRef}
-                style={[styles.repsInput, completed && (isGhost && ghostResult ? { color: ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary } : styles.inputTextCompleted)]}
-                value={localReps}
-                onChangeText={(v) => { setLocalReps(v); onUpdate(index, 'reps', v); }}
-                onFocus={() => handleFocus(repsRef, localReps)}
-                onBlur={() => { if (localReps !== set.reps) onUpdate(index, 'reps', localReps); }}
-                placeholder={suggestedReps || '—'}
-                placeholderTextColor={suggestedReps ? colors.textSecondary : colors.textTertiary + '50'}
-                keyboardType="number-pad"
-                editable={!completed}
-              />
-              {!completed && (
-                <TouchableOpacity
-                  style={styles.repStepBtn}
-                  onPress={() => {
-                    const cur = parseInt(localReps, 10) || 0;
-                    const v = String(cur + 1);
-                    setLocalReps(v);
-                    onUpdate(index, 'reps', v);
-                  }}
-                  activeOpacity={0.5}
-                >
-                  <Ionicons name="add" size={ms(12)} color={colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+          <SetRowInputs
+            styles={styles}
+            index={index}
+            setKg={set.kg}
+            setReps={set.reps}
+            localKg={localKg}
+            localReps={localReps}
+            setLocalKg={setLocalKg}
+            setLocalReps={setLocalReps}
+            suggestedKg={suggestedKg}
+            suggestedReps={suggestedReps}
+            exerciseType={exerciseType}
+            completed={completed}
+            ghostColor={ghostColor}
+            onUpdate={onUpdate}
+            onInputFocus={onInputFocus}
+          />
 
           {/* Complete / uncomplete toggle */}
           <TouchableOpacity onPress={() => {
@@ -480,7 +360,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
             <Ionicons
               name={completed ? 'checkmark-circle' : 'ellipse-outline'}
               size={ms(22)}
-              color={completed ? (isGhost && ghostResult ? (ghostResult === 'win' ? colors.accentGreen : ghostResult === 'loss' ? colors.accentRed : colors.textPrimary) : colors.accentGreen) : colors.textTertiary + '60'}
+              color={completed ? (ghostColor ?? colors.accentGreen) : colors.textTertiary + '60'}
             />
           </TouchableOpacity>
         </Animated.View>
@@ -490,176 +370,3 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
 }
 
 export default React.memo(SetRow);
-
-/* ── Styles ────────────────────────────────────────────── */
-
-const createStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
-    wrapper: {
-      borderRadius: sw(10),
-    },
-    wrapperDrop: {
-      marginLeft: sw(16),
-    },
-    dropLine: {
-      position: 'absolute' as const,
-      left: 0,
-      top: 0,
-      bottom: 0,
-      width: 2,
-      backgroundColor: colors.accentBabyBlue + '30',
-      borderRadius: 1,
-    },
-
-    /* ── Background actions ──────────────────────────── */
-    actionsContainer: {
-      ...StyleSheet.absoluteFillObject,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      borderRadius: sw(10),
-      overflow: 'hidden',
-    },
-    actionLeft: {
-      width: ACTION_WIDTH,
-      height: '100%',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    actionRight: {
-      width: ACTION_WIDTH,
-      height: '100%',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    actionIconCircle: {
-      width: sw(30),
-      height: sw(30),
-      borderRadius: sw(15),
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-
-    /* ── Row ──────────────────────────────────────────── */
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: sw(5),
-      paddingHorizontal: sw(6),
-      gap: sw(6),
-      borderRadius: sw(10),
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: 'transparent',
-    },
-    rowCompleted: {
-      backgroundColor: colors.accentGreen + '08',
-      borderColor: colors.accentGreen + '15',
-    },
-
-    /* ── Set number badge ────────────────────────────── */
-    setNumBadge: {
-      width: sw(28),
-      height: sw(28),
-      borderRadius: sw(8),
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    setNumText: {
-      fontSize: ms(10),
-      fontFamily: Fonts.medium,
-      lineHeight: ms(14),
-      textAlign: 'center',
-    },
-
-    /* ── Previous ────────────────────────────────────── */
-    prevContainer: {
-      width: sw(46),
-      alignItems: 'center',
-    },
-    prevText: {
-      color: colors.textTertiary,
-      fontSize: ms(10),
-      fontFamily: Fonts.medium,
-      lineHeight: ms(14),
-      textAlign: 'center',
-    },
-    prevTextCompleted: {
-      color: colors.textTertiary + '80',
-    },
-
-    /* ── Inputs ──────────────────────────────────────── */
-    inputContainer: {
-      flex: 1,
-      backgroundColor: colors.surface,
-      borderRadius: sw(8),
-      borderWidth: 1,
-      borderColor: colors.surface,
-    },
-    inputContainerCompleted: {
-      backgroundColor: colors.accentGreen + '08',
-      borderColor: colors.accentGreen + '18',
-    },
-    input: {
-      paddingVertical: sw(6),
-      paddingHorizontal: sw(6),
-      color: colors.textPrimary,
-      fontSize: ms(11),
-      fontFamily: Fonts.semiBold,
-      lineHeight: ms(15),
-      textAlign: 'center',
-    },
-    inputTextCompleted: {
-      color: colors.accentGreen,
-    },
-    inputContainerSuggested: {
-      borderColor: colors.textTertiary + '55',
-      borderStyle: 'dashed',
-    },
-
-    /* ── Reps row with steppers ────────────────────── */
-    repsRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-      backgroundColor: colors.surface,
-      borderRadius: sw(8),
-      borderWidth: 1,
-      borderColor: colors.surface,
-      height: sw(32),
-    },
-    repsRowCompleted: {
-      backgroundColor: colors.accentGreen + '08',
-      borderColor: colors.accentGreen + '18',
-    },
-    repsRowSuggested: {
-      borderColor: colors.textTertiary + '55',
-      borderStyle: 'dashed',
-    },
-    repsInput: {
-      flex: 1,
-      paddingVertical: 0,
-      paddingHorizontal: sw(2),
-      color: colors.textPrimary,
-      fontSize: ms(11),
-      fontFamily: Fonts.semiBold,
-      textAlign: 'center',
-    },
-    repStepBtn: {
-      paddingHorizontal: sw(5),
-      height: '100%',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    timeDisplay: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    /* ── Check button ────────────────────────────────── */
-    checkBtn: {
-      padding: sw(1),
-    },
-  });
