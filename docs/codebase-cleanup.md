@@ -77,6 +77,12 @@ Not bugs after checking: `WorkoutSummaryModal` `saving` prop (the edit footer al
 ## Phase 5
 - `noUnusedParameters` on (`noUnusedLocals` already was). Type-error baseline: **17 in 10 files** (`CODEBASE_MAP.md` updated).
 
+## Pre-PR review (independent reviewer, 3 rounds)
+- Round 1: no lost code in any split (all 12 compared line by line, 613 style references checked). Fixed: notification permission re-asked on every foreground (Android 13+), like/unlike write ordering, catalog re-fetch after creating a custom exercise, an in-code open-question comment.
+- Round 2: no bugs. Fixed: a catalog fetch in flight during createUserExercise could mark a stale catalog fresh.
+- Round 3: one low-severity gap in the same code. Fixed after the 3-round cap (not re-reviewed): stale catalog results are now dropped instead of applied.
+- Left for the PR / bevan: every signed-in user now registers a push token (AI workout and social pushes reach users who never got them; more profiles webhooks once after release); sign-out never clears `profiles.push_token` (pre-existing); `SetRow` swipe-to-complete keeps a stale `onUpdate` after an earlier exercise is removed (pre-existing).
+
 ## Phone smoke checklist (iPhone 14, dev build)
 Run after every phase. Android, iPad and other screen sizes can't be tested here: ask bevan to check them before merging.
 1. Cold start: app opens, Home loads, no red screen.
