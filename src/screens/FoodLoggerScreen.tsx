@@ -19,7 +19,7 @@ import HydrationStrip from '../components/food/HydrationStrip';
 import DateNavigator from '../components/food/DateNavigator';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
-import { toLocalDateString } from '../utils/localDate';
+import { useToday } from '../hooks/useToday';
 
 function FoodLoggerScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -82,8 +82,33 @@ function FoodLoggerScreen() {
   }, [userId, selectedDate]);
 
   // No auto-scroll to the current hour: the day summary at the top should stay in view.
-  const todayStr = useMemo(() => toLocalDateString(), []);
+  const todayStr = useToday();
   const isToday = selectedDate === todayStr;
+
+  // Past midnight: if the user was looking at "today", follow it to the new day.
+  // On first mount, compare against the store's starting day: it is set when the app loads,
+  // so an app that sat in the background overnight would otherwise open on yesterday.
+  const prevTodayRef = React.useRef(useFoodLogStore.getState().selectedDate);
+  // Wait while a log/edit sheet is open: it builds times from the selected day, so
+  // switching under it would log to the wrong day. Catch up once it closes.
+  const sheetOpen = addModalVisible || editDetailVisible || editGroupModalVisible;
+  useEffect(() => {
+    if (sheetOpen) return;
+    const prev = prevTodayRef.current;
+    prevTodayRef.current = todayStr;
+    if (prev !== todayStr && useFoodLogStore.getState().selectedDate === prev) {
+      setDate(todayStr);
+    }
+  }, [todayStr, setDate, sheetOpen]);
+
+  // The water strip shows today's live totals: reload them when the day rolls over
+  // while the app stays open, or they'd keep showing yesterday's water and supplements.
+  const totalsDayRef = React.useRef(todayStr);
+  useEffect(() => {
+    if (!userId || totalsDayRef.current === todayStr) return;
+    totalsDayRef.current = todayStr;
+    useSupplementStore.getState().fetchTodaySupplements(userId);
+  }, [userId, todayStr]);
 
   // Always pass an hour so food lands on the day being viewed: now for today,
   // otherwise the meal's usual start time.
@@ -210,7 +235,7 @@ function FoodLoggerScreen() {
 
   return (
     <View style={styles.screen}>
-      <DateNavigator selectedDate={selectedDate} onDateSelect={setDate} />
+      <DateNavigator selectedDate={selectedDate} today={todayStr} onDateSelect={setDate} />
       <ScrollView
         style={styles.diaryPage}
         showsVerticalScrollIndicator={false}

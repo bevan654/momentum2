@@ -51,13 +51,6 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
-  const kbInset = useKeyboardInset();
-  // Above the home indicator normally; just above the keyboard when it's open.
-  const kbOpen = kbInset.open;
-  // Plain numbers worked out here: sw() isn't a worklet, so it can't run inside the animated style.
-  const deepBase = sw(16);
-  const deepRest = deepBase + insets.bottom;
-  const deepBtnStyle = useAnimatedStyle(() => ({ bottom: kbOpen.value ? deepBase : deepRest }));
 
   const userId = useAuthStore((st) => st.user?.id);
   const catalogResults = useFoodLogStore((st) => st.catalogResults);
@@ -88,6 +81,16 @@ export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss 
   const [createMealVisible, setCreateMealVisible] = useState(false);
   const [selectedSavedMeal, setSelectedSavedMeal] = useState<SavedMeal | null>(null);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
+  // Only track the keyboard while this sheet is open and no child screen covers it.
+  const kbInset = useKeyboardInset(
+    visible && !detailVisible && !scannerVisible && !macroLensVisible && !createMealVisible && !quickAddVisible,
+  );
+  // Above the home indicator normally; just above the keyboard when it's open.
+  const kbOpen = kbInset.open;
+  // Plain numbers worked out here: sw() isn't a worklet, so it can't run inside the animated style.
+  const deepBase = sw(16);
+  const deepRest = deepBase + insets.bottom;
+  const deepBtnStyle = useAnimatedStyle(() => ({ bottom: kbOpen.value ? deepBase : deepRest }));
   const [reportTarget, setReportTarget] = useState<{ id: string; content: string } | null>(null);
 
   /* ── Open / close ─────────────────────────────────── */

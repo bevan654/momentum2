@@ -17,8 +17,12 @@ import Animated, {
  *
  * Attach `ref` to an Animated.View and add `style` to it. `open` is 1 while the keyboard covers
  * the view, for content that should drop its home-indicator spacing then.
+ *
+ * Pass `enabled = false` while the view is closed or covered by another screen: the keyboard
+ * tracker is app-wide, so otherwise a hidden view would be re-measured and re-padded every frame
+ * whenever any keyboard opens.
  */
-export function useKeyboardInset() {
+export function useKeyboardInset(enabled = true) {
   const ref = useAnimatedRef<Animated.View>();
   const keyboard = useAnimatedKeyboard();
   const { height: windowHeight } = useWindowDimensions();
@@ -31,13 +35,15 @@ export function useKeyboardInset() {
         padding.value = 0;
         return;
       }
+      // Hidden or covered: keep the current padding until this view is showing again.
+      if (!enabled) return;
       const m = measure(ref);
       if (!m) return;
       // Distance from the view's bottom edge to the bottom of the window.
       const below = Math.max(0, windowHeight - (m.pageY + m.height));
       padding.value = Math.max(0, kb - below);
     },
-    [windowHeight],
+    [windowHeight, enabled],
   );
 
   const style = useAnimatedStyle(() => ({ paddingBottom: padding.value }));
