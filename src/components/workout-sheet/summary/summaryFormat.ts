@@ -5,13 +5,6 @@
 type EditSet = { kg: string; reps: string; completed: boolean; set_type: string; origId?: string; parentOrigId?: string | null };
 export type EditExercise = { name: string; category: string | null; exercise_type?: string; sets: EditSet[]; origId?: string };
 
-export function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
 export function formatVolume(kg: number): string {
   if (kg >= 1000) return `${(kg / 1000).toFixed(1)}k`;
   return `${kg.toLocaleString()} kg`;

@@ -9,6 +9,7 @@ import { sw, ms } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
+import { formatHoursMinutes } from '../utils/formatDuration';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -130,14 +131,6 @@ export default function ProgramProgressScreen() {
     return { totalTrained, totalMissed, adherence, totalVolume, totalDuration, volTrend };
   }, [progressData, calendarGrid, currentWeek]);
 
-  // Format duration
-  const formatDuration = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m`;
-  };
-
 
   if (!program) {
     return (
@@ -197,7 +190,7 @@ export default function ProgramProgressScreen() {
           <View style={styles.totalRow}>
             <View style={styles.totalItem}>
               <Ionicons name="time-outline" size={ms(14)} color={colors.textTertiary} />
-              <Text style={styles.totalText}>{formatDuration(stats.totalDuration)} total</Text>
+              <Text style={styles.totalText}>{formatHoursMinutes(stats.totalDuration)} total</Text>
             </View>
             <View style={styles.totalItem}>
               <Ionicons name="barbell-outline" size={ms(14)} color={colors.textTertiary} />
@@ -306,7 +299,7 @@ export default function ProgramProgressScreen() {
                   </View>
                   <View style={styles.workoutStats}>
                     <Text style={styles.workoutVolume}>{(entry.total_volume / 1000).toFixed(1)}t</Text>
-                    <Text style={styles.workoutDuration}>{formatDuration(entry.duration)}</Text>
+                    <Text style={styles.workoutDuration}>{formatHoursMinutes(entry.duration)}</Text>
                   </View>
                 </View>
               );

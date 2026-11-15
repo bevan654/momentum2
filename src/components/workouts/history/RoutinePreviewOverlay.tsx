@@ -7,6 +7,7 @@ import { Fonts } from '../../../theme/typography';
 import { sw, ms, SCREEN_HEIGHT } from '../../../theme/responsive';
 import type { Routine } from '../../../stores/useRoutineStore';
 import { useSwipeDismissSheet } from './useSwipeDismissSheet';
+import { formatRest } from '../../../utils/formatDuration';
 
 /* ─── Routine Preview Overlay ─────────────────────────── */
 
@@ -65,15 +66,6 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
             const minR = Math.min(...reps);
             const maxR = Math.max(...reps);
             const repRange = minR === maxR ? `${minR}` : `${minR}-${maxR}`;
-
-            const formatRest = (s: number) => {
-              if (s >= 60) {
-                const m = Math.floor(s / 60);
-                const rem = s % 60;
-                return rem > 0 ? `${m}m${rem}s` : `${m}m`;
-              }
-              return `${s}s`;
-            };
 
             return (
               <View key={i} style={os.card}>

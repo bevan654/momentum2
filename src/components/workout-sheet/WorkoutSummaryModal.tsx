@@ -19,7 +19,7 @@ import ShareModal from '../share/ShareModal';
 import WorkoutOverlay from '../dev/WorkoutOverlay';
 import CoachTakeCard, { type CoachResult } from './CoachTakeCard';
 import { pickAndUploadWorkoutPhoto } from '../../utils/uploadWorkoutPhoto';
-import { formatDuration, formatVolume } from './summary/summaryFormat';
+import { formatVolume } from './summary/summaryFormat';
 import { useSummaryEdit } from './summary/useSummaryEdit';
 import { ExerciseResultCard } from './summary/SummaryExerciseCards';
 import EditableExerciseSection from './summary/EditableExerciseSection';
@@ -27,6 +27,7 @@ import AnimatedCheckmark from './summary/AnimatedCheckmark';
 import HistoricalPage from './summary/HistoricalPage';
 import SummaryConfirmExit from './summary/SummaryConfirmExit';
 import SharePreviewCard, { type ShareVisibility } from './summary/SharePreviewCard';
+import { formatHoursMinutes } from '../../utils/formatDuration';
 
 type Props = {
   onDismiss: () => void;
@@ -247,7 +248,7 @@ export default function WorkoutSummaryModal(props: Props) {
   const statsContent = editing ? (
     <View style={styles.statsRow}>
       <TouchableOpacity style={styles.statItem} onPress={() => setDurationPickerVisible(true)} activeOpacity={0.7}>
-        <Text style={styles.statValue}>{formatDuration(editDuration)}</Text>
+        <Text style={styles.statValue}>{formatHoursMinutes(editDuration)}</Text>
         <Text style={styles.durationEditHint}>tap to edit</Text>
       </TouchableOpacity>
       <View style={styles.statDivider} />
@@ -264,7 +265,7 @@ export default function WorkoutSummaryModal(props: Props) {
   ) : (
     <View style={styles.statsRow}>
       <View style={styles.statItem}>
-        <Text style={styles.statValue}>{formatDuration(displayDuration)}</Text>
+        <Text style={styles.statValue}>{formatHoursMinutes(displayDuration)}</Text>
         <Text style={styles.statLabel}>Duration</Text>
       </View>
       <View style={styles.statDivider} />

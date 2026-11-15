@@ -6,14 +6,9 @@ import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import WorkoutMiniMaps from '../body/WorkoutMiniMaps';
 import type { SummaryExercise } from '../../stores/useActiveWorkoutStore';
+import { formatHoursMinutes } from '../../utils/formatDuration';
 
 /* ─── Helpers ──────────────────────────────────────────── */
-
-function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -103,7 +98,7 @@ export default function WorkoutOverlay({ backgroundUri, data: d }: Props) {
       <View style={{ flex: 1 }} />
 
       <View style={styles.heroSection}>
-        <Text style={styles.heroNumber}>{formatDuration(d.duration)}</Text>
+        <Text style={styles.heroNumber}>{formatHoursMinutes(d.duration)}</Text>
         <Text style={styles.heroLabel}>workout time</Text>
       </View>
 

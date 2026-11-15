@@ -11,7 +11,8 @@ import { useRoutineStore } from '../../../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../../stores/useWorkoutStore';
 import { confirmReplaceWorkout } from '../../../utils/confirmReplaceWorkout';
-import { formatDuration, formatVolume, formatDate, postedExerciseType, targetKg, routineSetTargets } from './feedWorkoutHelpers';
+import { formatVolume, formatDate, postedExerciseType, targetKg, routineSetTargets } from './feedWorkoutHelpers';
+import { formatHoursMinutes } from '../../../utils/formatDuration';
 
 /* ── Normal workout content ────────────────────────── */
 
@@ -94,7 +95,7 @@ export function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; on
           <Text style={styles.workoutDate}>{formatDate(item.created_at)}</Text>
           <Text style={styles.workoutSub}>
             {exercises.length} exercise{exercises.length !== 1 ? 's' : ''}
-            {'  \u00b7  '}{formatDuration(item.duration)}
+            {'  \u00b7  '}{formatHoursMinutes(item.duration)}
             {'  \u00b7  '}{formatVolume(item.total_volume)}
           </Text>
         </View>

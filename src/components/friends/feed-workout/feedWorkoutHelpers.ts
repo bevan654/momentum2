@@ -1,13 +1,6 @@
 import type { FeedExerciseDetail } from '../../../lib/friendsDatabase';
 import { resolveLoadType } from '../../../utils/muscleLoad';
 
-export function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
 export function formatVolume(kg: number): string {
   if (kg >= 1000) return `${(kg / 1000).toFixed(1)}k kg`;
   return `${kg} kg`;

@@ -13,6 +13,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import ExerciseMuscleThumb from '../body/ExerciseMuscleThumb';
+import { formatRest } from '../../utils/formatDuration';
 
 interface LocalSet {
   goal_reps: number;
@@ -101,15 +102,6 @@ function ExerciseCard({
     const max = Math.max(...reps);
     return min === max ? `${min}` : `${min}-${max}`;
   }, [sets]);
-
-  const formatRest = useCallback((s: number) => {
-    if (s >= 60) {
-      const m = Math.floor(s / 60);
-      const rem = s % 60;
-      return rem > 0 ? `${m}m${rem}s` : `${m}m`;
-    }
-    return `${s}s`;
-  }, []);
 
   const summary = `${sets.length} sets · ${repRange} reps`;
 
