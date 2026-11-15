@@ -21,7 +21,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `src/lib/` | Supabase client (`supabase.ts`), social DB calls (`friendsDatabase.ts`, which re-exports the topic files in `lib/friends/`), catalog DB (`catalogDatabase.ts`), `navigationBridge.ts` |
 | `src/services/` | Side-effect services: `notificationService` (Realtime), `liveActivityManager` (Lock Screen), `workoutFinishFeedback` |
 | `src/utils/` | Helpers, mostly pure (dates, volume, strength score, payloads). Exceptions with side effects: `barcodeApi`, `uploadWorkoutPhoto`, `workoutStorage` (I/O), `confirmReplaceWorkout` (alerts + store writes) |
-| `src/hooks/` | Shared hooks (OTA updates, force-update gate, muscle load, region weights, today's date, linger-mount for exit animations) |
+| `src/hooks/` | Shared hooks (OTA updates, force-update gate, muscle load, region weights, today's date, linger-mount for exit animations, debounced value) |
 | `src/theme/` | `useColors.ts` (theme tokens), `responsive.ts` (`sw`/`ms`/`sh`), `typography.ts` (`Fonts`) |
 | `src/constants/` | Static data: `muscles`, `muscleMap`, `muscleMapLabels`, `changelog`, `buildInfo` (auto-stamped, don't move) |
 | `modules/workout-live-activity/` | Local native Expo module (Swift/Kotlin + `index.ts`): Live Activity / ongoing notification. Native: changes need a store build |

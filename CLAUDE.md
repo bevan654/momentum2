@@ -82,9 +82,9 @@ This project is a continuation of an app built with an older model, so expect bu
     ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
     ├── lib/                   # supabase, friendsDatabase (re-exports the topic files in friends/), catalogDatabase, navigationBridge
     ├── theme/                 # useColors.ts, responsive.ts, typography.ts
-    ├── utils/                 # barcodeApi, confirmReplaceWorkout, displayName, exerciseCatalog, exerciseProgress, feedExerciseDetails, formatDuration (clock, h/m and rest text), localDate (local YYYY-MM-DD), muscleLoad (effective load for heat/recovery), muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutProgress, workoutStorage
-    ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights), useToday (today's date, rolls over at midnight)
-    └── constants/             # buildInfo, changelog, muscles, muscleMap (body-map config + heat/recovery reference values, bodyweight fractions), muscleMapLabels
+    ├── utils/                 # barcodeApi, confirmReplaceWorkout, dateLabels (workout date, "Nov 14"), displayName, ema (trend line), exerciseCatalog, exerciseProgress, feedExerciseDetails, formatDuration (clock, h/m and rest text), formatVolume, ghostCompare, localDate (local YYYY-MM-DD), muscleLoad (effective load for heat/recovery), muscleVolume, planExercise (routine/program exercise row), smoothPath, streakCalculator, strengthScore, titleCase, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutProgress, workoutStorage
+    ├── hooks/                 # useAppUpdates (EAS OTA), useDebouncedValue, useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights), useToday (today's date, rolls over at midnight)
+    └── constants/             # buildInfo, changelog, dateNames (day/month names), muscles, muscleMap (body-map config + heat/recovery reference values, bodyweight fractions), muscleMapLabels
 
 supabase/
 ├── functions/                 # Edge functions: ai-coach, ai-workout-summary, ai-workout-notifications,
