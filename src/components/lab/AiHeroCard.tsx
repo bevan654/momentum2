@@ -56,7 +56,7 @@ const CARD_PAD = sw(12);
 
 export default function AiHeroCard() {
   const colors = useColors();
-  const profile = useAuthStore((s) => s.profile);
+  const username = useAuthStore((s) => s.profile?.username);
   const userId = useAuthStore((s) => s.user?.id);
   const aiCoachEnabled = useAuthStore((s) => s.profile?.ai_coach_enabled ?? false);
   const insets = useSafeAreaInsets();
@@ -90,7 +90,7 @@ export default function AiHeroCard() {
     );
   }, []);
 
-  const firstName = profile?.username?.split(' ')[0] ?? 'there';
+  const firstName = username?.split(' ')[0] ?? 'there';
   const latestMsg = messages[messages.length - 1];
 
   useEffect(() => {

@@ -20,8 +20,6 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
   const getCurrentWeek = useProgramStore((s) => s.getCurrentWeek);
   const startFromRoutine = useActiveWorkoutStore((s) => s.startFromRoutine);
   const startFromProgram = useActiveWorkoutStore((s) => s.startFromProgram);
-  const catalogMap = useWorkoutStore((s) => s.catalogMap);
-  const prevMap = useWorkoutStore((s) => s.prevMap);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -142,7 +140,7 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
                 };
                 confirmReplaceWorkout(() => {
                   hideRecoveryOverlay();
-                  startFromProgram(pseudoRoutine, catalogMap, prevMap, activeProgram.id, week);
+                  startFromProgram(pseudoRoutine, useWorkoutStore.getState().catalogMap, useWorkoutStore.getState().prevMap, activeProgram.id, week);
                 });
               }}
             >
@@ -199,7 +197,7 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
               onPress={() => {
                 confirmReplaceWorkout(() => {
                   hideRecoveryOverlay();
-                  startFromRoutine(routine, catalogMap, prevMap);
+                  startFromRoutine(routine, useWorkoutStore.getState().catalogMap, useWorkoutStore.getState().prevMap);
                 });
               }}
             >
