@@ -27,14 +27,16 @@ interface ExerciseCardProps {
   restSeconds: number;
   category: string | null;
   prevSets: { kg: number; reps: number }[];
-  onAddSet: () => void;
-  onRemoveSet: (setIndex: number) => void;
-  onSetRepsChange: (setIndex: number, reps: number) => void;
-  onSetWeightChange: (setIndex: number, weight: number) => void;
-  onRestChange: (seconds: number) => void;
-  onRemove: () => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
+  /** This card's position. The callbacks get it back, so the parent can pass the same stable functions to every card. */
+  index: number;
+  onAddSet: (index: number) => void;
+  onRemoveSet: (index: number, setIndex: number) => void;
+  onSetRepsChange: (index: number, setIndex: number, reps: number) => void;
+  onSetWeightChange: (index: number, setIndex: number, weight: number) => void;
+  onRestChange: (index: number, seconds: number) => void;
+  onRemove: (index: number) => void;
+  onMoveUp?: (index: number) => void;
+  onMoveDown?: (index: number) => void;
   isFirst: boolean;
   isLast: boolean;
 }
@@ -80,6 +82,7 @@ function ExerciseCard({
   restSeconds,
   category,
   prevSets,
+  index,
   onAddSet,
   onRemoveSet,
   onSetRepsChange,
@@ -113,14 +116,14 @@ function ExerciseCard({
       style={styles.deleteAction}
       onPress={() => {
         swipeableRef.current?.close();
-        onRemove();
+        onRemove(index);
       }}
       activeOpacity={0.7}
     >
       <Ionicons name="trash" size={ms(22)} color={colors.textOnColor} />
       <Text style={styles.deleteText}>Delete</Text>
     </TouchableOpacity>
-  ), [onRemove, styles]);
+  ), [onRemove, index, styles]);
 
   return (
     <Swipeable
@@ -136,7 +139,7 @@ function ExerciseCard({
         {(onMoveUp || onMoveDown) && (
           <View style={styles.reorderCol}>
             <TouchableOpacity
-              onPress={onMoveUp}
+              onPress={onMoveUp ? () => onMoveUp(index) : undefined}
               disabled={isFirst || !onMoveUp}
               style={styles.reorderBtn}
               hitSlop={{ top: 4, bottom: 2, left: 8, right: 8 }}
@@ -146,7 +149,7 @@ function ExerciseCard({
               <Ionicons name="chevron-up" size={ms(18)} color={isFirst ? colors.cardBorder : colors.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={onMoveDown}
+              onPress={onMoveDown ? () => onMoveDown(index) : undefined}
               disabled={isLast || !onMoveDown}
               style={styles.reorderBtn}
               hitSlop={{ top: 2, bottom: 4, left: 8, right: 8 }}
@@ -205,7 +208,7 @@ function ExerciseCard({
               <View style={[styles.colWeight, styles.inputContainer]}>
                 <CellInput
                   value={setItem.goal_weight > 0 ? String(setItem.goal_weight) : ''}
-                  onCommit={(n) => onSetWeightChange(setIndex, n)}
+                  onCommit={(n) => onSetWeightChange(index, setIndex, n)}
                   placeholder="—"
                   placeholderTextColor={colors.textTertiary}
                   keyboardType="decimal-pad"
@@ -217,7 +220,7 @@ function ExerciseCard({
               <View style={[styles.colReps, styles.inputContainer]}>
                 <CellInput
                   value={String(setItem.goal_reps)}
-                  onCommit={(n) => onSetRepsChange(setIndex, n)}
+                  onCommit={(n) => onSetRepsChange(index, setIndex, n)}
                   keyboardType="number-pad"
                   style={styles.cellInput}
                   maxLength={3}
@@ -226,7 +229,7 @@ function ExerciseCard({
               </View>
               <View style={styles.colAction}>
                 {sets.length > 1 && (
-                  <TouchableOpacity onPress={() => onRemoveSet(setIndex)} style={styles.removeSetBtn}>
+                  <TouchableOpacity onPress={() => onRemoveSet(index, setIndex)} style={styles.removeSetBtn}>
                     <Ionicons name="close" size={ms(14)} color={colors.accentRed + '80'} />
                   </TouchableOpacity>
                 )}
@@ -236,7 +239,7 @@ function ExerciseCard({
         })}
 
         {/* Add Set button */}
-        <TouchableOpacity onPress={onAddSet} style={styles.addSetBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => onAddSet(index)} style={styles.addSetBtn} activeOpacity={0.7}>
           <Ionicons name="add" size={ms(14)} color={colors.accent} />
           <Text style={styles.addSetText}>Add Set</Text>
         </TouchableOpacity>
@@ -264,7 +267,7 @@ function ExerciseCard({
                     sec === restSeconds && { backgroundColor: colors.accent },
                   ]}
                   onPress={() => {
-                    onRestChange(sec);
+                    onRestChange(index, sec);
                     setShowRestPicker(false);
                   }}
                 >

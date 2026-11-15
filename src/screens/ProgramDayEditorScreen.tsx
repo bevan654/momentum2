@@ -360,14 +360,15 @@ export default function ProgramDayEditorScreen() {
                   restSeconds={ex.rest_seconds}
                   category={ex.category}
                   prevSets={ex.prevSets}
-                  onAddSet={() => handleAddSet(i)}
-                  onRemoveSet={(setIndex) => handleRemoveSet(i, setIndex)}
-                  onSetRepsChange={(setIndex, reps) => handleSetRepsChange(i, setIndex, reps)}
-                  onSetWeightChange={(setIndex, weight) => handleSetWeightChange(i, setIndex, weight)}
-                  onRestChange={(seconds) => handleRestChange(i, seconds)}
-                  onRemove={() => handleRemove(i)}
-                  onMoveUp={() => handleMoveUp(i)}
-                  onMoveDown={() => handleMoveDown(i)}
+                  index={i}
+                  onAddSet={handleAddSet}
+                  onRemoveSet={handleRemoveSet}
+                  onSetRepsChange={handleSetRepsChange}
+                  onSetWeightChange={handleSetWeightChange}
+                  onRestChange={handleRestChange}
+                  onRemove={handleRemove}
+                  onMoveUp={handleMoveUp}
+                  onMoveDown={handleMoveDown}
                   isFirst={i === 0}
                   isLast={i === exercises.length - 1}
                 />
