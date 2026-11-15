@@ -370,15 +370,4 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: INDICATOR_H / 2,
     backgroundColor: colors.textPrimary,
   },
-
-  /* Home button */
-  homeButton: {
-    width: HOME_BTN,
-    height: HOME_BTN,
-    borderRadius: HOME_BTN / 2,
-    backgroundColor: colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: sw(2),
-  },
 });

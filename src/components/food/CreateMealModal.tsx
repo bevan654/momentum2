@@ -951,12 +951,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(14),
     fontFamily: Fonts.medium,
   },
-  itemCal: {
-    color: colors.accent,
-    fontSize: ms(12),
-    lineHeight: ms(16),
-    fontFamily: Fonts.bold,
-  },
   removeBtn: {
     width: sw(24),
     height: sw(24),
@@ -1132,17 +1126,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(9),
     lineHeight: ms(12),
     fontFamily: Fonts.semiBold,
-  },
-  /* Results section labels */
-  resultsSectionLabel: {
-    color: colors.textSecondary,
-    fontSize: ms(11),
-    lineHeight: ms(15),
-    fontFamily: Fonts.bold,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginTop: sw(8),
-    marginBottom: sw(6),
   },
   /* Saved meal card */
   savedMealCard: {

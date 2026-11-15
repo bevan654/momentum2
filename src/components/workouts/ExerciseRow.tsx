@@ -330,11 +330,6 @@ const createStyles = (colors: ThemeColors) =>
       gap: sw(4),
       marginRight: sw(10),
     },
-    nameRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: sw(8),
-    },
     name: {
       color: colors.textPrimary,
       fontSize: ms(14),
@@ -368,11 +363,6 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.semiBold,
       lineHeight: ms(14),
     },
-    headerRight: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: sw(4),
-    },
     reorderCol: {
       gap: sw(0),
       marginRight: sw(8),
@@ -385,9 +375,6 @@ const createStyles = (colors: ThemeColors) =>
       overflow: 'hidden',
       borderRadius: sw(8),
       opacity: 0.85,
-    },
-    removeBtn: {
-      padding: sw(4),
     },
 
     // Divider

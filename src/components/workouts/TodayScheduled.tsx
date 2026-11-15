@@ -285,11 +285,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(13),
     fontFamily: Fonts.bold,
   },
-  todayMeta: {
-    color: colors.textTertiary,
-    fontSize: ms(10),
-    fontFamily: Fonts.medium,
-  },
   todayBtnRow: {
     flexDirection: 'row',
     gap: sw(6),
@@ -353,17 +348,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textTertiary,
     fontSize: ms(10),
     fontFamily: Fonts.medium,
-  },
-  todayProgramName: {
-    flex: 1,
-    color: colors.accent,
-    fontSize: ms(10),
-    fontFamily: Fonts.bold,
-  },
-  todayDivider: {
-    height: 1,
-    backgroundColor: colors.cardBorder,
-    marginVertical: sw(6),
   },
   todayCardRoutine: {
     backgroundColor: colors.surface,

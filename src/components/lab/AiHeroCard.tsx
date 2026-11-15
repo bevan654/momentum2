@@ -482,12 +482,6 @@ const createStyles = (colors: ThemeColors, insetTop: number) =>
     previewAreaPlaceholder: {
       opacity: 0.55,
     },
-    hintText: {
-      color: colors.textTertiary,
-      fontSize: ms(10),
-      lineHeight: ms(14),
-      fontFamily: Fonts.medium,
-    },
     previewBubble: {
       maxWidth: '92%',
       borderRadius: sw(8),

@@ -694,16 +694,4 @@ const createStyles = (colors: ThemeColors) =>
       lineHeight: ms(13),
       fontFamily: Fonts.medium,
     },
-    emptyState: {
-      backgroundColor: colors.surface,
-      borderRadius: sw(10),
-      paddingVertical: sw(32),
-      alignItems: 'center',
-    },
-    emptyText: {
-      color: colors.textTertiary,
-      fontSize: ms(13),
-      lineHeight: ms(18),
-      fontFamily: Fonts.medium,
-    },
   });

@@ -5,7 +5,6 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { sw, ms } from '../theme/responsive';
-import { Fonts } from '../theme/typography';
 import { useFoodLogStore } from '../stores/useFoodLogStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
@@ -304,37 +303,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  headerSection: {
-    paddingHorizontal: sw(16),
-    paddingTop: sw(14),
-    gap: sw(8),
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  titleSpacer: {
-    width: sw(32),
-  },
-  pageTitle: {
-    color: colors.textPrimary,
-    fontSize: ms(18),
-    lineHeight: ms(24),
-    fontFamily: Fonts.bold,
-    letterSpacing: -0.3,
-    paddingHorizontal: sw(16),
-    paddingTop: sw(10),
-    paddingBottom: sw(8),
-  },
-  editBtn: {
-    width: sw(32),
-    height: sw(32),
-    borderRadius: sw(10),
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   mealsGap: {
     height: sw(12),

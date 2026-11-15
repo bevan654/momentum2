@@ -546,15 +546,6 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textPrimary,
       fontFamily: Fonts.semiBold,
     },
-    verifyHint: {
-      color: colors.textTertiary,
-      fontSize: ms(13),
-      lineHeight: ms(18),
-      fontFamily: Fonts.regular,
-      textAlign: 'center',
-      marginTop: sw(12),
-      paddingHorizontal: sw(8),
-    },
     resendBtn: {
       alignItems: 'center',
       paddingVertical: sw(12),
