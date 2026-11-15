@@ -29,6 +29,7 @@ import { lookupBarcodeUSDA } from '../../utils/barcodeApi';
 import type { MealConfig } from '../../stores/useFoodLogStore';
 import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
 import { toLocalDateString } from '../../utils/localDate';
+import { useLayerBackHandler } from '../ui/Portal';
 
 /* ─── Types ────────────────────────────────────────────── */
 
@@ -90,6 +91,8 @@ interface Props {
   targetHour?: number;
   onDismiss: () => void;
   onAdded: () => void;
+  /** For screen-level use: Android back only closes this while it returns true (e.g. tab focused). */
+  isBackActive?: () => boolean;
   editEntryId?: string;
   onDelete?: (id: string) => void;
   onFoodSwap?: (food: FoodDetailData) => void;
@@ -417,7 +420,7 @@ const DateSection = React.memo(function DateSection({
 
 export default function FoodDetailModal({
   visible, food, initialMealSlot, initialIsPlanned, initialQuantity,
-  targetHour, onDismiss, onAdded, editEntryId, onDelete, onFoodSwap,
+  targetHour, onDismiss, onAdded, isBackActive, editEntryId, onDelete, onFoodSwap,
   onAddToMeal,
 }: Props) {
   const isMealMode = !!onAddToMeal;
@@ -432,6 +435,10 @@ export default function FoodDetailModal({
   useEffect(() => {
     progress.value = visible ? 1 : 0;
   }, [visible]);
+
+  // Android back closes only this screen, not the whole Add Food sheet underneath.
+  useLayerBackHandler(visible, onDismiss, isBackActive);
+
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
