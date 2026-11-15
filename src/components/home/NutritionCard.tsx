@@ -12,6 +12,7 @@ import { useSharedValue, withTiming, Easing } from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { useNutritionStore } from '../../stores/useNutritionStore';
+import { useShallow } from 'zustand/shallow';
 import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
 import { sw, ms } from '../../theme/responsive';
@@ -49,8 +50,13 @@ function makeRing(cx: number, cy: number, r: number) {
 /* ─── Main component ─────────���───────────────────────── */
 
 export default function NutritionCard() {
-  const { calories, calorieGoal, protein, proteinGoal, carbs, carbsGoal, fat, fatGoal } =
-    useNutritionStore();
+  // Only these fields: a whole-store subscription re-rendered the card on every loading flag and fetch.
+  const { calories, calorieGoal, protein, proteinGoal, carbs, carbsGoal, fat, fatGoal } = useNutritionStore(
+    useShallow((s) => ({
+      calories: s.calories, calorieGoal: s.calorieGoal, protein: s.protein, proteinGoal: s.proteinGoal,
+      carbs: s.carbs, carbsGoal: s.carbsGoal, fat: s.fat, fatGoal: s.fatGoal,
+    })),
+  );
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 

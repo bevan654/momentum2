@@ -6,11 +6,15 @@ import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { useSupplementStore } from '../../stores/useSupplementStore';
+import { useShallow } from 'zustand/shallow';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { sw, ms } from '../../theme/responsive';
 
 export default function WaterCard() {
-  const { water, waterGoal, addWater, undoLastWater } = useSupplementStore();
+  // Only these fields: a whole-store subscription re-rendered the card on any supplement change.
+  const { water, waterGoal, addWater, undoLastWater } = useSupplementStore(
+    useShallow((s) => ({ water: s.water, waterGoal: s.waterGoal, addWater: s.addWater, undoLastWater: s.undoLastWater })),
+  );
   const userId = useAuthStore((s) => s.user?.id);
   const progress = Math.min(water / waterGoal, 1);
   const colors = useColors();

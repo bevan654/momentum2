@@ -22,10 +22,15 @@ function formatRestDuration(seconds: number): string {
   return `${seconds}s`;
 }
 
+/** The running clock. Its own component so the 1 s tick re-renders this text, not the whole header and its modals. */
+const ElapsedClock = React.memo(function ElapsedClock() {
+  const elapsedSeconds = useActiveWorkoutStore((s) => s.elapsedSeconds);
+  return <>{formatClock(elapsedSeconds)}</>;
+});
+
 function WorkoutHeader() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const elapsedSeconds = useActiveWorkoutStore((s) => s.elapsedSeconds);
   const workoutTitle = useActiveWorkoutStore((s) => s.workoutTitle);
   const setRestDuration = useActiveWorkoutStore((s) => s.setRestDuration);
   const discardWorkout = useActiveWorkoutStore((s) => s.discardWorkout);
@@ -71,7 +76,7 @@ function WorkoutHeader() {
       {
         text: 'Finish',
         onPress: () => {
-          if (elapsedSeconds >= FOUR_HOURS) {
+          if (useActiveWorkoutStore.getState().elapsedSeconds >= FOUR_HOURS) {
             setDurationPickerVisible(true);
           } else {
             doFinish();
@@ -125,7 +130,7 @@ function WorkoutHeader() {
       <View style={styles.titleBlock}>
         <Text style={styles.title} numberOfLines={1}>{workoutTitle || 'Workout'}</Text>
         <Text style={styles.elapsed} numberOfLines={1}>
-          {formatClock(elapsedSeconds)}
+          <ElapsedClock />
           {totals.volumeKg > 0 ? `  ·  ${Math.round(totals.volumeKg).toLocaleString()} kg` : ''}
         </Text>
       </View>
