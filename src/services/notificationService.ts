@@ -159,11 +159,13 @@ function handlePushAppStateChange(nextState: AppStateStatus) {
   if (tokenDebounceTimer) clearTimeout(tokenDebounceTimer);
   tokenDebounceTimer = setTimeout(() => {
     tokenDebounceTimer = null;
-    registerPushToken();
+    registerPushToken(false);
   }, TOKEN_DEBOUNCE_MS);
 }
 
-async function registerPushToken(): Promise<void> {
+/** allowPrompt: ask for permission if not granted. Only on the first call per session, so a user who
+ * declined isn't asked again on every foreground (Android 13+ would show the prompt again). */
+async function registerPushToken(allowPrompt: boolean): Promise<void> {
   const userId = pushUserId;
   if (!Device.isDevice || !userId) return;
 
@@ -172,7 +174,7 @@ async function registerPushToken(): Promise<void> {
     const { status: existing } = await Notifications.getPermissionsAsync();
     let finalStatus = existing;
 
-    if (existing !== 'granted') {
+    if (existing !== 'granted' && allowPrompt) {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
@@ -216,7 +218,7 @@ export function initPushToken(userId: string): void {
   pushUserId = userId;
   pushAppState = AppState.currentState;
   pushAppStateSubscription = AppState.addEventListener('change', handlePushAppStateChange);
-  registerPushToken();
+  registerPushToken(true);
 }
 
 /** Stop push-token refreshes. Call on sign-out. */
