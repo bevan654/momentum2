@@ -364,7 +364,7 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
   /* ── Permission gate ───────────────────────────────────── */
   if (!permission) {
     return (
-      <Overlay visible animationType="slide">
+      <Overlay visible animationType="slide" onRequestClose={handleClose}>
         <View style={styles.container} />
       </Overlay>
     );
@@ -382,7 +382,7 @@ export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Prop
 
   /* ── Main render ───────────────────────────────────────── */
   return (
-    <Overlay visible animationType="slide">
+    <Overlay visible animationType="slide" onRequestClose={handleClose}>
       <View style={styles.container}>
         {mode === 'camera' ? (
           <CameraView

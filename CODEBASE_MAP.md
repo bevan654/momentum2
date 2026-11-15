@@ -1,6 +1,6 @@
 # Codebase Map
 
-**Last verified:** 2026-11-14, against the code at commit `5b879bc`.
+**Last verified:** 2026-11-15, against the code at commit `5b879bc` (plus the Nutrition redesign PRs #75–#89, merged as `d0c4b93`).
 
 An index of where things live and how they connect. Rules and conventions are in `CLAUDE.md`; database tables are in `database-schema.md`. If `CLAUDE.md`'s Project Structure tree disagrees with this map, this map is current.
 
@@ -40,7 +40,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `auth/` | Login/sign-up social buttons | |
 | `body/` | Body map wrappers around `momentum-muscle-map` | `useBodyMap.ts` exports `useBodies`, `useMuscleMapColors` and other helpers, but no `useBodyMap` |
 | `dev/` | **Production share UI**, not dev tools | `WorkoutOverlay` = share card, `StoryCropModal`; used by `share/` and the workout summary |
-| `food/` | Nutrition tab: meals, add-food, barcode, AI scan, food detail | `macro-lens/` holds the pieces of `MacroLensModal` (AI photo scan). |
+| `food/` | Nutrition tab: day summary (`NutritionHero`: calorie ring, macro bars), water/supplement strip, meal cards, add-food, barcode, AI scan, food detail | Meal cards: `MealList` → `MealCard`; entries are grouped by `groupEntriesByMeal.ts`, which matches `meal_type` to the user's `meal_config` by slot, then by name (many accounts use `meal_1`… labelled Breakfast…). Popups are built from the shared kit in `food/ui/` (`FoodSheetHeader`, `FoodSearchBar`, `FoodRow`, `FoodSegmentChips`, `FoodEmptyState`, `FavouriteButton`, `useKeyboardInset`); reuse it for new food screens. `macro-lens/` holds the pieces of `MacroLensModal` (AI photo scan). |
 | `friends/` | Community tab: leaderboard, search, notifications, profiles, reports | `AvatarCircle`, `ReportSheet` are also used by other features. `feed-workout/` holds the pieces of `FeedWorkoutModal` |
 | `home/` | Home tab cards (activity, nutrition, water, supplements) | Also holds app-wide pieces: `Header` (global header), `ChangelogModal`, `BetaWelcomeModal`, the Community `Feed` (its rows and pieces live in `home/feed/`) and `NutritionStories`; `activity/` holds the year view and calendar helpers of `ActivityCard`; and weight modals used by `lab/WeightCard` |
 | `lab/` | **Recovery tab** (screen is `LaboratoryScreen`): body metrics, charts, AI card | |
@@ -68,7 +68,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 
 ## How the pieces connect
 - **Usual flow:** screen → feature components → Zustand store (`src/stores/`) → `supabase` client (`src/lib/supabase.ts`) → Postgres (with RLS). Social data mostly goes store → `src/lib/friendsDatabase.ts` → Supabase; `friends/FriendProfileModal` and `friends/NotificationList` call `friendsDatabase` directly, and the finished-workout feed post (`activity_feed`) is written by `useActiveWorkoutStore` and the workout-summary edit-save (`workout-sheet/summary/useSummaryEdit`).
-- **Exceptions:** some screens, components and hooks call Supabase, edge functions or external APIs directly: `hooks/useForceUpdate` (`app_config`), `screens/OnboardingScreen`, `screens/SignUpScreen`, `food/MacroLensModal`, `food/AddFoodModal`, `food/CreateMealModal`, `lab/AiHeroCard`, `workout-sheet/CoachTakeCard`, `workout-sheet/ExercisePicker` (wger API), `workout-sheet/summary/useSummaryEdit` (edit-save), `workout-sheet/ExerciseHistoryModal`.
+- **Exceptions:** some screens, components and hooks call Supabase, edge functions or external APIs directly: `hooks/useForceUpdate` (`app_config`), `screens/OnboardingScreen`, `screens/SignUpScreen`, `food/MacroLensModal`, `food/AddFoodModal` (feature flag) and `food/useAiFoodSearch` (AI cache, Deep Search), `food/CreateMealModal`, `lab/AiHeroCard`, `workout-sheet/CoachTakeCard`, `workout-sheet/ExercisePicker` (wger API), `workout-sheet/summary/useSummaryEdit` (edit-save), `workout-sheet/ExerciseHistoryModal`.
 - **Active workout:** `components/workout-sheet/*` → `useActiveWorkoutStore` (AsyncStorage while active) → on finish, `utils/workoutPayload.ts` builds the payload → one `upsert_workout` RPC. It also drives `services/liveActivityManager.ts` → `modules/workout-live-activity`. History is read through `useWorkoutStore`.
 - **Notifications:** `services/notificationService.ts` opens a Realtime channel on the `notifications` table. It is started by `screens/FriendsScreen.tsx` when the Community tab is focused (only if the user has friends) and closed again on blur, so it isn't always on. It is also cleaned up on sign-out (`useAuthStore`). The 5-minute fallback poll only runs while it is started and the Realtime channel is down. Push-token registration is separate and runs for the whole session: `initPushToken` from `TabNavigator` (asks for permission once per session, re-checks on foreground), `stopPushToken` and `clearPushTokenForSignOut` from `useAuthStore` on sign-out. Push tokens are stored on `profiles`.
 - **Navigation from outside navigators:** `src/lib/navigationBridge.ts` (open profile sheet, recovery overlay, workouts nav ref).
@@ -111,7 +111,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | Share images | `components/share/ShareModal.tsx`, `components/dev/` |
 | Theme colours, sizing, fonts | `src/theme/` |
 | Changelog entry | `src/constants/changelog.ts` |
-| Env vars | `.env` (not in git; `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`), read in `src/lib/supabase.ts`, and also directly by `food/AddFoodModal`, `food/MacroLensModal` and `lab/AiHeroCard` for raw `fetch` calls to edge functions |
+| Env vars | `.env` (not in git; `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`), read in `src/lib/supabase.ts`, and also directly by `food/useAiFoodSearch` (Deep Search), `food/MacroLensModal` and `lab/AiHeroCard` for raw `fetch` calls to edge functions |
 | App/native config | `app.config.ts` (native changes need a store build) |
 | Database tables / columns | `database-schema.md` (changes go through bevan) |
 | Edge functions | `supabase/functions/<name>/` (Deno; changes go through bevan) |
@@ -119,8 +119,8 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | Unused code (files, exports, packages) | `npm run knip` (config in `knip.json`; runs Knip through `npx`, not installed in the project). It exits with code 1 whenever it finds something. Every feature and fix runs it before the PR (see "No new unused code" in `.claude/rules/navigation.md`); for clearing out older unused code, its results are candidates, not proof (see the cleanup rule there). `react-native-svg` is reported unused and is, but removing a native package needs a store build, not an OTA |
 
 ## Known baseline type errors
-After the 2026-11 codebase cleanup, `npx tsc --noEmit` reports **4 errors in these 4 files** (it was 24 in 11 before). Run it before you start to see the current list. Errors that were there before your change aren't caused by your edit. Don't fix them as part of other work: flag them and ask (see `CLAUDE.md`, Existing bugs). `noUnusedLocals` and `noUnusedParameters` are on, so unused variables and parameters are errors (prefix a deliberately unused parameter with `_`).
-`app.config.ts` (`android.minSdkVersion` isn't an Expo config key, so it's ignored: fixing it properly needs `expo-build-properties` and a native build), `src/components/food/MealSection.tsx`, `src/components/food/AddFoodModal.tsx`, `src/screens/FoodLoggerScreen.tsx`.
+After the 2026-11 codebase cleanup, `npx tsc --noEmit` reports **1 error in this 1 file** (it was 24 in 11 before; the Nutrition tab redesign fixed the food ones). Run it before you start to see the current list. Errors that were there before your change aren't caused by your edit. Don't fix them as part of other work: flag them and ask (see `CLAUDE.md`, Existing bugs). `noUnusedLocals` and `noUnusedParameters` are on, so unused variables and parameters are errors (prefix a deliberately unused parameter with `_`).
+`app.config.ts` (`android.minSdkVersion` isn't an Expo config key, so it's ignored: fixing it properly needs `expo-build-properties` and a native build).
 
 ## Ignore
 Don't read or edit:

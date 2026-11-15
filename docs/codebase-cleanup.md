@@ -36,11 +36,11 @@ Not bugs after checking: `WorkoutSummaryModal` `saving` prop (the edit footer al
 - Dead props: `HistoricalPage.saving`, `EntryCard.onEdit` (+ `onEditEntry` chain to `FoodLoggerScreen`), `Header.activeTab` (+ the `activeTab` state and `BottomTabBar.onTabChange` effect in `TabNavigator`), workout-sheet `ExerciseCard.totalExercises`, `RoutinePreviewOverlay.catalogMap`, `WeightHistoryModal` `SwipeableRow.colors`.
 - Kept: `react-native-svg` (removal needs a store build: do it with the next native release), `@expo/prebuild-config` (installed by expo anyway; no gain).
 - Knip after: only those two remain.
-- Still pending: `ExerciseRow` move up/down props (waiting on the reorder decision).
+- `ExerciseRow` move up/down: tv chose to restore the arrows (done, see the decisions below).
 - Noticed: `WeightHistoryModal.tsx` and `ExerciseRow.tsx` hardcode `#fff` on the swipe-delete icon/text (theme rule).
 
 ## Open questions / for bevan
-- Routine + program-day editors pass move up/down to `ExerciseRow`, but the buttons were removed in `cae9aae` (March redesign). Restore reorder or delete the props? (ask tv)
+- ~~Restore reorder or delete the move up/down props?~~ tv: restore. Done.
 - `CLAUDE.md` says `initNotifications` runs in `TabNavigator`; it actually runs from `FriendsScreen` on focus. bevan's file: tell him.
 
 ## Phase 3 notes
@@ -90,7 +90,7 @@ Not bugs after checking: `WorkoutSummaryModal` `saving` prop (the edit footer al
 - Round 1: no lost code in any split (all 12 compared line by line, 613 style references checked). Fixed: notification permission re-asked on every foreground (Android 13+), like/unlike write ordering, catalog re-fetch after creating a custom exercise, an in-code open-question comment.
 - Round 2: no bugs. Fixed: a catalog fetch in flight during createUserExercise could mark a stale catalog fresh.
 - Round 3: one low-severity gap in the same code. Fixed after the 3-round cap (not re-reviewed): stale catalog results are now dropped instead of applied.
-- Left for the PR / bevan: every signed-in user now registers a push token (AI workout and social pushes reach users who never got them; more profiles webhooks once after release); sign-out never clears `profiles.push_token` (pre-existing); `SetRow` swipe-to-complete keeps a stale `onUpdate` after an earlier exercise is removed (pre-existing).
+- Left for the PR / bevan: every signed-in user now registers a push token (AI workout and social pushes reach users who never got them; more profiles webhooks once after release); sign-out now clears this device's `profiles.push_token` (fixed, `clearPushTokenForSignOut`); `SetRow` swipe-to-complete stale `onUpdate` (fixed, refs).
 
 ## Phone smoke checklist (iPhone 14, dev build)
 Run after every phase. Android, iPad and other screen sizes can't be tested here: ask bevan to check them before merging.

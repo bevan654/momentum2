@@ -15,7 +15,7 @@ function PermissionGate({ canAsk, onRequest, onClose }: {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   return (
-    <Overlay visible animationType="slide">
+    <Overlay visible animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.permissionContainer}>
           <View style={styles.permIcon}>

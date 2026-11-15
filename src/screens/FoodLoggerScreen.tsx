@@ -1,22 +1,25 @@
-import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { sw, ms } from '../theme/responsive';
 import { Fonts } from '../theme/typography';
 import { useFoodLogStore } from '../stores/useFoodLogStore';
 import { useAuthStore } from '../stores/useAuthStore';
-import { useSupplementStore, type SupplementEntry } from '../stores/useSupplementStore';
-import MealSection from '../components/food/MealSection';
+import { useSupplementStore } from '../stores/useSupplementStore';
+import MealList from '../components/food/MealList';
+import { hourFromTimeStart, mealSlotForHour, OTHER_SLOT, type MealBucket } from '../components/food/groupEntriesByMeal';
 import AddFoodModal from '../components/food/AddFoodModal';
 import FoodDetailModal from '../components/food/FoodDetailModal';
 import CreateMealModal from '../components/food/CreateMealModal';
 import NutritionHero from '../components/food/NutritionHero';
+import HydrationStrip from '../components/food/HydrationStrip';
 import DateNavigator from '../components/food/DateNavigator';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
-import { toLocalDateString } from '../utils/localDate';
+import { useToday } from '../hooks/useToday';
 
 function FoodLoggerScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -31,20 +34,24 @@ function FoodLoggerScreen() {
   const fetchGoals = useFoodLogStore((s) => s.fetchGoals);
   const deleteEntry = useFoodLogStore((s) => s.deleteEntry);
   const togglePlanned = useFoodLogStore((s) => s.togglePlanned);
-  const moveEntryToHour = useFoodLogStore((s) => s.moveEntryToHour);
   const deleteMealGroup = useFoodLogStore((s) => s.deleteMealGroup);
 
-  const supplementEntries = useSupplementStore((s) => s.dateEntries);
   const fetchDateSupplements = useSupplementStore((s) => s.fetchDateSupplements);
-  const deleteSupplementEntry = useSupplementStore((s) => s.deleteSupplementEntry);
 
   const colors = useColors();
+
+  // Whether the Nutrition tab is showing, kept in a ref by navigation events: the tab freezes
+  // when hidden, so its sheets can't re-render to drop their Android back listeners.
+  const navigation = useNavigation();
+  const focusedRef = React.useRef(navigation.isFocused()); // React.useRef: the redesign drops the named import
+  useEffect(() => {
+    const onFocus = navigation.addListener('focus', () => { focusedRef.current = true; });
+    const onBlur = navigation.addListener('blur', () => { focusedRef.current = false; });
+    return () => { onFocus(); onBlur(); };
+  }, [navigation]);
+  const isScreenFocused = useCallback(() => focusedRef.current, []);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const scrollRef = useRef<ScrollView>(null);
-  const contentRef = useRef<View>(null);
-  const nowRef = useRef<View>(null);
-  const hasScrolledRef = useRef(false);
 
   // Add food modal state
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -70,43 +77,54 @@ function FoodLoggerScreen() {
   // Fetch entries when date changes
   useEffect(() => {
     if (!userId) return;
-    hasScrolledRef.current = false;
     fetchDayEntries(userId, selectedDate);
     fetchDateSupplements(userId, selectedDate);
   }, [userId, selectedDate]);
 
-  // Auto-scroll to current time after layout (only for today)
-  const todayStr = useMemo(() => toLocalDateString(), []);
+  // No auto-scroll to the current hour: the day summary at the top should stay in view.
+  const todayStr = useToday();
   const isToday = selectedDate === todayStr;
 
+  // Past midnight: if the user was looking at "today", follow it to the new day.
+  // On first mount, compare against the store's starting day: it is set when the app loads,
+  // so an app that sat in the background overnight would otherwise open on yesterday.
+  const prevTodayRef = React.useRef(useFoodLogStore.getState().selectedDate);
+  // Wait while a log/edit sheet is open: it builds times from the selected day, so
+  // switching under it would log to the wrong day. Catch up once it closes.
+  const sheetOpen = addModalVisible || editDetailVisible || editGroupModalVisible;
   useEffect(() => {
-    if (loading || hasScrolledRef.current || !isToday) return;
-    const timer = setTimeout(() => {
-      if (nowRef.current && contentRef.current) {
-        nowRef.current.measureLayout(
-          contentRef.current as any,
-          (_x: number, y: number) => {
-            scrollRef.current?.scrollTo({ y: Math.max(0, y - sw(80)), animated: true });
-            hasScrolledRef.current = true;
-          },
-          () => {},
-        );
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [loading]);
+    if (sheetOpen) return;
+    const prev = prevTodayRef.current;
+    prevTodayRef.current = todayStr;
+    if (prev !== todayStr && useFoodLogStore.getState().selectedDate === prev) {
+      setDate(todayStr);
+    }
+  }, [todayStr, setDate, sheetOpen]);
 
-  const handleAddFood = useCallback((mealSlot: string, hour?: number) => {
-    setAddMealSlot(mealSlot);
+  // The water strip shows today's live totals: reload them when the day rolls over
+  // while the app stays open, or they'd keep showing yesterday's water and supplements.
+  const totalsDayRef = React.useRef(todayStr);
+  useEffect(() => {
+    if (!userId || totalsDayRef.current === todayStr) return;
+    totalsDayRef.current = todayStr;
+    useSupplementStore.getState().fetchTodaySupplements(userId);
+  }, [userId, todayStr]);
+
+  // Always pass an hour so food lands on the day being viewed: now for today,
+  // otherwise the meal's usual start time.
+  const handleAddToMeal = useCallback((meal: MealBucket) => {
+    const configs = useFoodLogStore.getState().mealConfigs;
+    const nowHour = new Date().getHours();
+    const hour = isToday ? nowHour : hourFromTimeStart(meal.timeStart);
+    setAddMealSlot(meal.slot === OTHER_SLOT ? mealSlotForHour(configs, hour) : meal.slot);
     setAddHour(hour);
     setAddModalVisible(true);
-  }, []);
+  }, [isToday]);
 
   const handleFabPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const h = new Date().getHours();
-    const slot = h < 11 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'snack' : 'dinner';
-    setAddMealSlot(slot);
+    setAddMealSlot(mealSlotForHour(useFoodLogStore.getState().mealConfigs, h));
     setAddHour(h);
     setAddModalVisible(true);
   }, []);
@@ -118,10 +136,22 @@ function FoodLoggerScreen() {
   const handleRefresh = useCallback(() => {
     if (!userId) return;
     fetchDayEntries(userId, selectedDate);
-  }, [userId, selectedDate]);
+    fetchDateSupplements(userId, selectedDate);
+    if (isToday) useSupplementStore.getState().fetchTodaySupplements(userId);
+  }, [userId, selectedDate, isToday]);
 
   // Tap entry → open detail modal
+  // Clear the edited entry after the close animation; cancel that if another entry opens first,
+  // or the new one would be wiped and the editor would show nothing.
+  const clearEditTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null); // React.useRef: the redesign drops the named import
+  const clearEditEntrySoon = useCallback(() => {
+    if (clearEditTimer.current) clearTimeout(clearEditTimer.current);
+    clearEditTimer.current = setTimeout(() => setEditEntry(null), 350);
+  }, []);
+  useEffect(() => () => { if (clearEditTimer.current) clearTimeout(clearEditTimer.current); }, []);
+
   const handlePressEntry = useCallback((entry: FoodEntry) => {
+    if (clearEditTimer.current) clearTimeout(clearEditTimer.current);
     setEditEntry(entry);
     setEditDetailVisible(true);
   }, []);
@@ -162,19 +192,19 @@ function FoodLoggerScreen() {
 
   const handleEditDismiss = useCallback(() => {
     setEditDetailVisible(false);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, []);
 
   // When edit detail saves, update the existing entry instead of creating new
   const handleEditSaved = useCallback(() => {
     setEditDetailVisible(false);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, []);
 
   const handleDeleteEntry = useCallback((id: string) => {
     setEditDetailVisible(false);
     deleteEntry(id);
-    setTimeout(() => setEditEntry(null), 350);
+    clearEditEntrySoon();
   }, [deleteEntry]);
 
   // Meal group handlers
@@ -191,11 +221,6 @@ function FoodLoggerScreen() {
     deleteMealGroup(groupId);
   }, [deleteMealGroup]);
 
-  const handleDeleteSupplement = useCallback((supplement: SupplementEntry) => {
-    if (!userId) return;
-    deleteSupplementEntry(userId, supplement);
-  }, [userId, deleteSupplementEntry]);
-
   const handleDismissGroupEdit = useCallback(() => {
     setEditGroupModalVisible(false);
     setEditGroupId(null);
@@ -210,10 +235,8 @@ function FoodLoggerScreen() {
 
   return (
     <View style={styles.screen}>
-      <NutritionHero entries={entries} goals={goals} />
-      <DateNavigator selectedDate={selectedDate} onDateSelect={setDate} />
+      <DateNavigator selectedDate={selectedDate} today={todayStr} onDateSelect={setDate} />
       <ScrollView
-        ref={scrollRef}
         style={styles.diaryPage}
         showsVerticalScrollIndicator={false}
         bounces={false}
@@ -223,19 +246,17 @@ function FoodLoggerScreen() {
           <RefreshControl refreshing={loading} onRefresh={handleRefresh} />
         }
       >
-        <View ref={contentRef} collapsable={false}>
-          <MealSection
+        <View>
+          <NutritionHero entries={entries} goals={goals} />
+          <HydrationStrip isToday={isToday} />
+          <View style={styles.mealsGap} />
+          <MealList
             entries={entries}
-            supplementEntries={supplementEntries}
-            onTogglePlanned={togglePlanned}
-            onAddFood={handleAddFood}
+            onAdd={handleAddToMeal}
             onPressEntry={handlePressEntry}
-            onMoveEntry={moveEntryToHour}
-            onPressMealGroup={handlePressMealGroup}
-            onDeleteMealGroup={handleDeleteMealGroup}
-            onDeleteSupplement={handleDeleteSupplement}
-            nowRef={nowRef}
-            isToday={isToday}
+            onTogglePlanned={togglePlanned}
+            onPressGroup={handlePressMealGroup}
+            onDeleteGroup={handleDeleteMealGroup}
           />
         </View>
       </ScrollView>
@@ -247,9 +268,12 @@ function FoodLoggerScreen() {
       />
       <FoodDetailModal
         visible={editDetailVisible}
+        isBackActive={isScreenFocused}
+        bottomInset={sw(12)}
         food={editDetailData}
         initialMealSlot={editEntry?.meal_type || 'breakfast'}
         initialIsPlanned={editEntry?.is_planned || false}
+        initialQuantity={editEntry?.quantity || 1}
         onDismiss={handleEditDismiss}
         onAdded={handleEditSaved}
         editEntryId={editEntry?.id}
@@ -257,6 +281,7 @@ function FoodLoggerScreen() {
       />
       <CreateMealModal
         visible={editGroupModalVisible}
+        isBackActive={isScreenFocused}
         mealSlot={addMealSlot}
         targetHour={addHour}
         onDismiss={handleDismissGroupEdit}
@@ -310,6 +335,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  mealsGap: {
+    height: sw(12),
   },
   diaryPage: {
     flex: 1,

@@ -188,7 +188,6 @@ interface FoodLogState {
   fetchGoals: (userId: string) => Promise<void>;
   addEntry: (userId: string, entry: Omit<FoodEntry, 'id' | 'user_id' | 'created_at'>, targetDate?: string, targetHour?: number) => Promise<void>;
   updateEntry: (entryId: string, updates: Partial<Omit<FoodEntry, 'id' | 'user_id' | 'created_at'>>) => Promise<void>;
-  moveEntryToHour: (entryId: string, hour: number) => Promise<void>;
   deleteEntry: (entryId: string) => Promise<void>;
   togglePlanned: (entryId: string) => Promise<void>;
   toggleMealCollapse: (mealSlot: string) => void;
@@ -201,6 +200,11 @@ interface FoodLogState {
   clearSearch: () => void;
   fetchDefaultFoods: (userId: string) => Promise<void>;
 }
+
+/** Guards fetchDayEntries against out-of-order responses when days are switched quickly. */
+let dayRequestId = 0;
+/** The user and day (`userId:date`) whose entries are currently in the store. */
+let loadedEntriesKey: string | null = null;
 
 export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   selectedDate: toLocalDateString(),
@@ -238,7 +242,15 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
 
   fetchDayEntries: async (userId: string, date?: string) => {
     const dateStr = date || get().selectedDate;
-    set({ loading: true });
+    const requestId = ++dayRequestId;
+    // Switching to another day (or account): drop the old entries so totals never show the wrong day.
+    const key = `${userId}:${dateStr}`;
+    if (key !== loadedEntriesKey) {
+      loadedEntriesKey = key;
+      set({ entries: [], loading: true });
+    } else {
+      set({ loading: true });
+    }
 
     const { start, end } = dateRange(dateStr);
     const { data, error } = await supabase
@@ -248,6 +260,9 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       .gte('created_at', start)
       .lt('created_at', end)
       .order('created_at', { ascending: true });
+
+    // A newer request (e.g. the user tapped another day) has started: ignore this response.
+    if (requestId !== dayRequestId) return;
 
     if (!error && data) {
       set({
@@ -430,32 +445,6 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     } else {
       const uid = prev.find((e) => e.id === entryId)?.user_id;
       if (uid) syncNutrition(uid);
-    }
-  },
-
-  moveEntryToHour: async (entryId: string, hour: number) => {
-    const prev = get().entries;
-    const entry = prev.find((e) => e.id === entryId);
-    if (!entry) return;
-
-    const d = new Date(entry.created_at);
-    d.setHours(hour, 0, 0, 0);
-    const newCreatedAt = d.toISOString();
-
-    // Optimistic update
-    set((s) => ({
-      entries: s.entries.map((e) =>
-        e.id === entryId ? { ...e, created_at: newCreatedAt } : e,
-      ),
-    }));
-
-    const { error } = await supabase
-      .from('food_entries')
-      .update({ created_at: newCreatedAt })
-      .eq('id', entryId);
-
-    if (error) {
-      set({ entries: prev });
     }
   },
 
