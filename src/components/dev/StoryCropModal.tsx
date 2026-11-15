@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { View, Text, Image, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -53,42 +53,48 @@ export default function StoryCropModal({ visible, imageUri, onConfirm, onCancel 
   // Store layout dimensions in shared values so worklets can access them
   const renderedW = useSharedValue(coverLayout.renderedW);
   const renderedH = useSharedValue(coverLayout.renderedH);
-  renderedW.value = coverLayout.renderedW;
-  renderedH.value = coverLayout.renderedH;
+  // Synced in an effect: writing shared values during render is unsafe in Reanimated 4
+  useEffect(() => {
+    renderedW.value = coverLayout.renderedW;
+    renderedH.value = coverLayout.renderedH;
+  }, [coverLayout]);
 
-  const panGesture = Gesture.Pan()
-    .onUpdate((e) => {
-      'worklet';
-      const s = pinchScale.value;
-      const maxX = Math.max(0, (renderedW.value * s - FRAME_WIDTH) / 2);
-      const maxY = Math.max(0, (renderedH.value * s - FRAME_HEIGHT) / 2);
-      translateX.value = Math.max(-maxX, Math.min(maxX, savedX.value + e.translationX));
-      translateY.value = Math.max(-maxY, Math.min(maxY, savedY.value + e.translationY));
-    })
-    .onEnd(() => {
-      'worklet';
-      savedX.value = translateX.value;
-      savedY.value = translateY.value;
-    });
+  // Built once (they only read shared values), not on every render
+  const composedGesture = useMemo(() => {
+    const panGesture = Gesture.Pan()
+      .onUpdate((e) => {
+        'worklet';
+        const s = pinchScale.value;
+        const maxX = Math.max(0, (renderedW.value * s - FRAME_WIDTH) / 2);
+        const maxY = Math.max(0, (renderedH.value * s - FRAME_HEIGHT) / 2);
+        translateX.value = Math.max(-maxX, Math.min(maxX, savedX.value + e.translationX));
+        translateY.value = Math.max(-maxY, Math.min(maxY, savedY.value + e.translationY));
+      })
+      .onEnd(() => {
+        'worklet';
+        savedX.value = translateX.value;
+        savedY.value = translateY.value;
+      });
 
-  const pinchGesture = Gesture.Pinch()
-    .onUpdate((e) => {
-      'worklet';
-      const newScale = Math.max(1, Math.min(3, savedScale.value * e.scale));
-      pinchScale.value = newScale;
-      const maxX = Math.max(0, (renderedW.value * newScale - FRAME_WIDTH) / 2);
-      const maxY = Math.max(0, (renderedH.value * newScale - FRAME_HEIGHT) / 2);
-      translateX.value = Math.max(-maxX, Math.min(maxX, translateX.value));
-      translateY.value = Math.max(-maxY, Math.min(maxY, translateY.value));
-    })
-    .onEnd(() => {
-      'worklet';
-      savedScale.value = pinchScale.value;
-      savedX.value = translateX.value;
-      savedY.value = translateY.value;
-    });
+    const pinchGesture = Gesture.Pinch()
+      .onUpdate((e) => {
+        'worklet';
+        const newScale = Math.max(1, Math.min(3, savedScale.value * e.scale));
+        pinchScale.value = newScale;
+        const maxX = Math.max(0, (renderedW.value * newScale - FRAME_WIDTH) / 2);
+        const maxY = Math.max(0, (renderedH.value * newScale - FRAME_HEIGHT) / 2);
+        translateX.value = Math.max(-maxX, Math.min(maxX, translateX.value));
+        translateY.value = Math.max(-maxY, Math.min(maxY, translateY.value));
+      })
+      .onEnd(() => {
+        'worklet';
+        savedScale.value = pinchScale.value;
+        savedX.value = translateX.value;
+        savedY.value = translateY.value;
+      });
 
-  const composedGesture = Gesture.Simultaneous(panGesture, pinchGesture);
+    return Gesture.Simultaneous(panGesture, pinchGesture);
+  }, []);
 
   const imageStyle = useAnimatedStyle(() => ({
     width: renderedW.value,
