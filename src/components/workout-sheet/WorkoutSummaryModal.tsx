@@ -187,7 +187,6 @@ export default function WorkoutSummaryModal(props: Props) {
     onDismiss();
   }, [onDismiss]);
 
-
   // Use saved overrides if available, otherwise use original data
   const displayDuration = savedDuration ?? data.duration;
   const totalVolume = data.totalVolume;

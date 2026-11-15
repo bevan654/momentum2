@@ -70,7 +70,6 @@ const FriendStory = React.memo(function FriendStory({
   );
 });
 
-
 /* ─── Stories row ────────────────────────────────────── */
 
 interface NutritionStoriesProps {

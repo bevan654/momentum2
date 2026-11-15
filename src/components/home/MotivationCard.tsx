@@ -5,7 +5,6 @@ import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
 import { DAY_LONG, MONTH_SHORT } from '../../constants/dateNames';
 
-
 function MotivationCard() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);

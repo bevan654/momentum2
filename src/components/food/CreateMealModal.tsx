@@ -38,9 +38,6 @@ function generateGroupId(): string {
   return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-${hex()}-${hex()}${hex()}${hex()}`;
 }
 
-/** Micronutrients the meal editor doesn't show; kept from the original entries when editing. */
-const KEPT_MICRO_KEYS = MICRO_KEYS;
-
 const round = (v: number, factor: number) => Math.round(v * factor) / factor;
 
 interface Props {
@@ -57,7 +54,6 @@ interface Props {
   /** When editing a logged meal group, pass the group's entries */
   editMealGroupEntries?: FoodEntry[] | null;
 }
-
 
 /* ─── Meal item row (memoized) ─────────────────────────── */
 
@@ -158,7 +154,6 @@ export default function CreateMealModal({
 
   // Android back closes only this screen, not the whole Add Food sheet underneath.
   useLayerBackHandler(visible, onDismiss, isBackActive);
-
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
@@ -478,7 +473,8 @@ export default function CreateMealModal({
           const servingRatio = origServing > 0 && item.serving_size > 0
             ? item.serving_size / origServing
             : origCalPerUnit > 0 ? item.calories / origCalPerUnit : 1;
-          for (const key of KEPT_MICRO_KEYS) {
+          // Micronutrients the meal editor doesn't show: kept from the original entries
+          for (const key of MICRO_KEYS) {
             const v = orig[key];
             row[key] = v != null ? round((Number(v) / origQty) * servingRatio * qty, 100) : null;
           }

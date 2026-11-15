@@ -294,7 +294,6 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     return { visible: true, leaderboard, recent, regular };
   }, [aliasMap, baseSorted, debouncedSearch, exercises, prevMap, selectedMuscle, showApiResults]);
 
-
   /* ─── Handlers ──────────────────────────────────────── */
 
   const handleReload = useCallback(async () => {

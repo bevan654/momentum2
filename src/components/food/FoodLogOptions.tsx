@@ -17,7 +17,6 @@ export interface DateChip {
   sub: string;
 }
 
-
 /** The next 14 days as plan-ahead chips, built when called (so "Today" is right after midnight). */
 export function buildDateChips(): DateChip[] {
   const chips: DateChip[] = [];

@@ -12,7 +12,6 @@ import { hideRecoveryOverlay } from '../../lib/navigationBridge';
 import { confirmReplaceWorkout } from '../../utils/confirmReplaceWorkout';
 import { WEEKDAY_LONG } from '../../constants/dateNames';
 
-
 function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHeader?: React.ReactNode; onPreview?: (routine: Routine) => void; onOpenPlans?: () => void }) {
   const routines = useRoutineStore((s) => s.routines);
   const programs = useProgramStore((s) => s.programs);

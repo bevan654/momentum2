@@ -36,7 +36,6 @@ const ROW_HEIGHT = sw(42);
 
 /* ── Props ─────────────────────────────────────────────── */
 
-
 interface Props {
   index: number;
   set: ActiveSet;

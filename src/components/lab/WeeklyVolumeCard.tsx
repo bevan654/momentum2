@@ -36,7 +36,6 @@ const PERIOD_DAYS: { label: Period; days: number }[] = [
   { label: '3M', days: 90 },
 ];
 
-
 /* ─── Types ──────────────────────────────────────────────── */
 
 interface Slot {

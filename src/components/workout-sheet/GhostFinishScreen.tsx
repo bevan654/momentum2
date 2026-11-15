@@ -10,8 +10,6 @@ import type { WorkoutSummary } from '../../stores/useActiveWorkoutStore';
 import { titleCase } from '../../utils/titleCase';
 import { compareGhostSet } from '../../utils/ghostCompare';
 
-/* ─── Ghost set comparison ─────────────────────────────── */
-
 /* ─── Component ────────────────────────────────────────── */
 
 export default function GhostFinishScreen() {

@@ -5,12 +5,9 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { toLocalDateString } from '../../utils/localDate';
+import { MONTH_LONG } from '../../constants/dateNames';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
 
 /** Mon–Sun week containing the given date */
 function getWeek(dateStr: string) {
@@ -31,7 +28,7 @@ function getWeek(dateStr: string) {
 
 function getMonthLabel(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');
-  const name = MONTH_NAMES[d.getMonth()];
+  const name = MONTH_LONG[d.getMonth()];
   return d.getFullYear() === new Date().getFullYear() ? name : `${name} ${d.getFullYear()}`;
 }
 

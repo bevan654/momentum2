@@ -9,7 +9,6 @@ import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import type { Routine } from '../../stores/useRoutineStore';
 import { WEEKDAY_SHORT } from '../../constants/dateNames';
 
-
 interface Props {
   routine: Routine;
   onPress: () => void;

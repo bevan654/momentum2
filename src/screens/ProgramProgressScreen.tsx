@@ -12,7 +12,6 @@ import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { formatHoursMinutes } from '../utils/formatDuration';
 import { WEEKDAY_SHORT, DAY_SHORT, MONTH_SHORT } from '../constants/dateNames';
 
-
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'ProgramProgress'>;
 
 export default function ProgramProgressScreen() {
@@ -130,7 +129,6 @@ export default function ProgramProgressScreen() {
 
     return { totalTrained, totalMissed, adherence, totalVolume, totalDuration, volTrend };
   }, [progressData, calendarGrid, currentWeek]);
-
 
   if (!program) {
     return (

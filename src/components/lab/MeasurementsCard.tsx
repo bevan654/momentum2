@@ -33,7 +33,6 @@ const BAR_RADIUS = sw(3);
 const EMA_COLOR = '#3B82F6';
 const DELETE_THRESHOLD = -80;
 
-
 const RANGES = [
   { label: '1W', days: 7 },
   { label: '2W', days: 14 },
@@ -61,9 +60,6 @@ type Side = 'left' | 'right';
 
 const GROWTH_KEYS = new Set<string>(['chest', 'shoulders', 'bicep', 'forearm', 'thigh', 'calf']);
 const GROUPS: string[] = ['Core', 'Arms', 'Legs'];
-
-/* ─── Helpers ────────────────────────────────────────────── */
-
 
 /* ─── Component ──────────────────────────────────────────── */
 

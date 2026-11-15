@@ -68,7 +68,6 @@ interface Props {
 
 /* ─── Helpers ───────────────────────────────────────────── */
 
-
 function fmtDate(d: Date): string {
   return `${DAY_SHORT[d.getDay()]} ${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 }

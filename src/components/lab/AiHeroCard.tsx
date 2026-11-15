@@ -422,7 +422,6 @@ export default function AiHeroCard() {
   );
 }
 
-
 const createStyles = (colors: ThemeColors, insetTop: number) =>
   StyleSheet.create({
     card: {

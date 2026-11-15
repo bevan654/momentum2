@@ -51,7 +51,6 @@ function FoodLoggerScreen() {
   const isScreenFocused = useCallback(() => focusedRef.current, []);
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-
   // Add food modal state
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [addMealSlot, setAddMealSlot] = useState('breakfast');

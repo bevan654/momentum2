@@ -15,7 +15,6 @@ import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
 import { formatRest } from '../utils/formatDuration';
 import { WEEKDAY_SHORT } from '../constants/dateNames';
 
-
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'RoutineSummary'>;
 
 export default function RoutineSummaryScreen() {

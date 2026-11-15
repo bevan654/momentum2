@@ -26,8 +26,6 @@ import { GhostSetsCard } from './GhostMode';
 import { titleCase } from '../../utils/titleCase';
 import { compareGhostSet } from '../../utils/ghostCompare';
 
-/* ─── Ghost set comparison ─────────────────────────────── */
-
 /* ─── Body-part label helpers ─────────────────────────── */
 
 const CATEGORY_SLUGS: Record<string, string[]> = {

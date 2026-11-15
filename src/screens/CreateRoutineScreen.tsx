@@ -99,7 +99,6 @@ export default function CreateRoutineScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-
   const toggleDay = useCallback((index: number) => {
     setSelectedDays((prev) =>
       prev.includes(index) ? prev.filter((d) => d !== index) : [...prev, index].sort()

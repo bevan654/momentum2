@@ -8,7 +8,6 @@ import { Fonts } from '../../../theme/typography';
 import { sw, ms } from '../../../theme/responsive';
 import { MONTH_LONG } from '../../../constants/dateNames';
 
-
 const DOW_HEADERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 /* ─── Inline calendar picker ────────────────────────── */

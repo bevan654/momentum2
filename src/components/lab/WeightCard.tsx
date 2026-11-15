@@ -34,7 +34,6 @@ const BAR_RADIUS = sw(3);
 const EMA_COLOR = '#3B82F6';
 const GOAL_COLOR = '#10B981';
 
-
 // Placeholder curve shown when the user has no weight entries yet.
 // Normalised 0..1 (0 = top of chart, 1 = bottom). Gentle downward trend with some noise.
 const PLACEHOLDER_CURVE = [0.18, 0.22, 0.30, 0.28, 0.38, 0.45, 0.42, 0.52, 0.60, 0.58, 0.66, 0.72];
@@ -48,9 +47,6 @@ const RANGES = [
 ] as const;
 
 type RangeLabel = typeof RANGES[number]['label'];
-
-/* ─── Helpers ────────────────────────────────────────────── */
-
 
 /* ─── Component ──────────────────────────────────────────── */
 

@@ -1197,7 +1197,6 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     get()._persist();
   },
 
-
   tick: () => {
     const { startTime, isResting, restDuration, restStartedAt } = get();
     const patch: Partial<ActiveWorkoutState> = {};

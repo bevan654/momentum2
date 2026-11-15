@@ -11,7 +11,6 @@ import { DAY_LONG, MONTH_SHORT, DAY_SHORT } from '../../constants/dateNames';
 
 /* ─── Helpers ──────────────────────────────────────────── */
 
-
 function formatDate(date: Date): string {
   return `${DAY_SHORT[date.getDay()]}, ${MONTH_SHORT[date.getMonth()]} ${date.getDate()}`;
 }

@@ -7,14 +7,6 @@ import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore, type ActiveExercise } from '../../stores/useActiveWorkoutStore';
 import { compareGhostSet } from '../../utils/ghostCompare';
 
-/* ─── Ghost set comparison logic ─────────────────────────── */
-
-/** Compare a single set: user vs ghost.
- *  - Weight decreased → loss
- *  - Same weight → compare reps
- *  - Weight increased → compare volume (kg×reps)
- */
-
 /* ─── GhostTally ─────────────────────────────────────────── */
 
 export const GhostTally = React.memo(function GhostTally({

@@ -33,7 +33,6 @@ const BAR_RADIUS = sw(3);
 const EMA_COLOR = '#3B82F6';
 const DELETE_THRESHOLD = -80;
 
-
 const RANGES = [
   { label: '1W', days: 7 },
   { label: '2W', days: 14 },
@@ -51,9 +50,6 @@ const METHODS = [
   { key: 'bod_pod' as const, label: 'Bod Pod', description: 'Air displacement' },
   { key: 'dexa' as const, label: 'DEXA Scan', description: 'X-ray absorptiometry' },
 ];
-
-/* ─── Helpers ────────────────────────────────────────────── */
-
 
 /* ─── Component ──────────────────────────────────────────── */
 

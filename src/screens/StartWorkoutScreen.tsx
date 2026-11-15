@@ -103,7 +103,6 @@ export default function StartWorkoutScreen() {
     opacity: backdropOpacity.value,
   }));
 
-
   return (
     <View style={styles.container}>
       <TouchableWithoutFeedback onPress={dismiss}>

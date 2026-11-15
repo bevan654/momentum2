@@ -1,6 +1,8 @@
 import { sw, SCREEN_WIDTH } from '../../../theme/responsive';
 import type { ActivityFeedItem } from '../../../lib/friendsDatabase';
 
+export { formatVolumeKg as formatVolume } from '../../../utils/formatVolume';
+
 export const PHOTO_WIDTH = SCREEN_WIDTH - sw(16); // small gutter (sw(8) on each side)
 export const PHOTO_HEIGHT = Math.round(PHOTO_WIDTH * 0.5625); // 16:9 landscape — denser feed
 
@@ -27,8 +29,6 @@ export function displayNameFor(username: string | null, email: string): string {
 export function initialFor(username: string | null, email: string): string {
   return (username || email || '?').charAt(0).toUpperCase();
 }
-
-export { formatVolumeKg as formatVolume } from '../../../utils/formatVolume';
 
 export function formatCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;

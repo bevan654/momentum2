@@ -14,8 +14,6 @@ import { WEEKDAY_SHORT, WEEKDAY_LONG, MONTH_SHORT } from '../constants/dateNames
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'CreateProgram'>;
 
-
-
 /* ─── Main screen ───────────────────────────────────── */
 
 export default function CreateProgramScreen() {
@@ -242,7 +240,6 @@ export default function CreateProgramScreen() {
               </TouchableOpacity>
             );
           })}
-
 
           <View style={{ height: sw(80) }} />
         </ScrollView>

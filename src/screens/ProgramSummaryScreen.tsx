@@ -14,7 +14,6 @@ import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
 import { WEEKDAY_SHORT, MONTH_SHORT } from '../constants/dateNames';
 
-
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'ProgramSummary'>;
 
 export default function ProgramSummaryScreen() {
@@ -74,7 +73,6 @@ export default function ProgramSummaryScreen() {
 
     return { totalSessions: progressData.length, volChange };
   }, [progressData, currentWeek]);
-
 
   const handleStartToday = useCallback(() => {
     if (!todaysRoutine || !program) return;
