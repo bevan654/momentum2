@@ -236,14 +236,14 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
 
   /* ── Set type config ───────────────────────────────── */
 
-  const SET_TYPE_CONFIG: Record<string, { bg: string; color: string; label: string | null }> = {
+  const setTypeConfig = useMemo<Record<string, { bg: string; color: string; label: string | null }>>(() => ({
     working: { bg: colors.surface, color: colors.textSecondary, label: null },
     warmup: { bg: colors.accentOrange + '18', color: colors.accentOrange, label: 'W' },
     drop: { bg: colors.accentBabyBlue + '18', color: colors.accentBabyBlue, label: 'D' },
     failure: { bg: colors.accentRed + '18', color: colors.accentRed, label: 'F' },
-  };
+  }), [colors]);
 
-  const typeConfig = SET_TYPE_CONFIG[set.set_type] || SET_TYPE_CONFIG.working;
+  const typeConfig = setTypeConfig[set.set_type] || setTypeConfig.working;
 
   /* ── Render ────────────────────────────────────────── */
 

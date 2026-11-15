@@ -102,6 +102,7 @@ export default function ActiveWorkoutSheet() {
 
   // Stable: ExercisePicker's row callbacks depend on onClose, so an inline arrow re-rendered its whole list.
   const handlePickerClose = useCallback(() => setPickerVisible(false), []);
+  const handleHistoryClose = useCallback(() => setHistoryExerciseName(null), []);
 
   const handlePickerSelect = useCallback(
     (name: string, exerciseType: string, category: string | null) => {
@@ -144,7 +145,7 @@ export default function ActiveWorkoutSheet() {
         <ExerciseHistoryModal
           exerciseName={historyExerciseName}
           visible={historyExerciseName !== null}
-          onClose={() => setHistoryExerciseName(null)}
+          onClose={handleHistoryClose}
         />
         </PortalHost>
       </GestureHandlerRootView>
@@ -324,6 +325,10 @@ const SheetOverlay = React.memo(function SheetOverlay({
 
   const kbHeight = Platform.OS === 'ios' ? iosKb : androidKb;
   const kbOpen = Platform.OS === 'ios' ? iosKb > 0 : androidKb > 100;
+  // Read by handleInputFocus through a ref, so the callback (passed to every exercise card) stays stable
+  // when the keyboard opens or closes.
+  const kbHeightRef = useRef(kbHeight);
+  kbHeightRef.current = kbHeight;
 
   /* Auto-scroll to focused input */
   useEffect(() => () => {
@@ -341,7 +346,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
       inputTimerRef.current = setTimeout(() => {
         const screenH = Dimensions.get('window').height;
         const visibleBottom =
-          Platform.OS === 'ios' ? screenH - (kbHeight || 300) : screenH;
+          Platform.OS === 'ios' ? screenH - (kbHeightRef.current || 300) : screenH;
         const inputBottom = pageY + 50;
         if (inputBottom > visibleBottom - 40) {
           scrollRef.current?.scrollTo({
@@ -351,7 +356,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
         }
       }, delay);
     },
-    [kbHeight],
+    [],
   );
 
   /* ─── Render ────────────────────────────────────────── */
