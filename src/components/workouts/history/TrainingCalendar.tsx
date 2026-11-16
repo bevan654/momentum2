@@ -8,10 +8,10 @@ import { toLocalDateString } from '../../../utils/localDate';
 import { toDateKey, groupsForParts, workoutHitsGroups } from './historyConstants';
 
 /** Last 56 days as a 4 × 14 dot grid. Tap a trained day to open that workout, a rest day to see its date. */
-function TrainingCalendar({ workouts, catalogMap, debugParts, onSelectWorkout }: {
+function TrainingCalendar({ workouts, catalogMap, bodyParts, onSelectWorkout }: {
   workouts: WorkoutWithDetails[];
   catalogMap: Record<string, any>;
-  debugParts: string[];
+  bodyParts: string[];
   onSelectWorkout: (w: WorkoutWithDetails) => void;
 }) {
   const colors = useColors();
@@ -51,7 +51,7 @@ function TrainingCalendar({ workouts, catalogMap, debugParts, onSelectWorkout }:
 
   const trainedDaysMap = useMemo(() => {
     const days = new Map<string, WorkoutWithDetails>();
-    const allTargetGroups = groupsForParts(debugParts);
+    const allTargetGroups = groupsForParts(bodyParts);
 
     for (const w of workouts) {
       const dateKey = toDateKey(w.created_at);
@@ -65,7 +65,7 @@ function TrainingCalendar({ workouts, catalogMap, debugParts, onSelectWorkout }:
     }
 
     return days;
-  }, [workouts, catalogMap, debugParts]);
+  }, [workouts, catalogMap, bodyParts]);
 
   return (
     <>
@@ -80,7 +80,7 @@ function TrainingCalendar({ workouts, catalogMap, debugParts, onSelectWorkout }:
                 const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
                 return `${days[date.getDay()]}, ${months[date.getMonth()]} ${d}${trainedDaysMap.has(selectedCalDate) ? ' — trained' : ' — rest day'}`;
               })()
-            : `${debugParts.length > 0 ? `${debugParts.join(', ')} training` : 'All training'} — 8 weeks`}
+            : `${bodyParts.length > 0 ? `${bodyParts.join(', ')} training` : 'All training'} — 8 weeks`}
         </Text>
       </View>
       <View style={styles.calendarSection}>

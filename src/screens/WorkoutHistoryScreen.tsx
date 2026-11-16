@@ -79,18 +79,18 @@ function WorkoutHistoryScreen() {
   }, [workouts, catalogMap, bodyweightKg]);
 
   // Selected body part filter — must be before any early return
-  const [debugParts, setDebugParts] = useState<string[]>([]);
+  const [bodyParts, setBodyParts] = useState<string[]>([]);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   // Body-graph groups picked in the filter (empty = whole body)
-  const activeGroups = useMemo(() => groupsForParts(debugParts), [debugParts]);
+  const activeGroups = useMemo(() => groupsForParts(bodyParts), [bodyParts]);
 
   // Overall recovery % — use min (not average) so platform matches the most fatigued visible muscle
   const overallRecovery = useMemo(() => {
     if (!analysis?.groups) return 100;
-    if (debugParts.length > 0) {
+    if (bodyParts.length > 0) {
       const allKeys: string[] = [];
-      for (const part of debugParts) {
+      for (const part of bodyParts) {
         const groups = PART_GROUPS[part];
         if (groups) allKeys.push(...groups);
       }
@@ -105,7 +105,7 @@ function WorkoutHistoryScreen() {
     const groups = Object.values(analysis.groups) as { recoveryPercent?: number }[];
     if (groups.length === 0) return 100;
     return Math.min(...groups.map((g) => g.recoveryPercent ?? 100));
-  }, [analysis, debugParts]);
+  }, [analysis, bodyParts]);
 
 
   // Last trained date per body part (primary muscles only — secondary don't count)
@@ -151,8 +151,8 @@ function WorkoutHistoryScreen() {
         {/* ── Recovery header ── */}
         <Text style={styles.recoveryTitle}>Recovery Overview — {Math.round(overallRecovery)}%</Text>
         <RecoveryFilterChips
-          debugParts={debugParts}
-          setDebugParts={setDebugParts}
+          bodyParts={bodyParts}
+          setBodyParts={setBodyParts}
           expandedSection={expandedSection}
           setExpandedSection={setExpandedSection}
           lastTrainedMap={lastTrainedMap}
@@ -164,7 +164,7 @@ function WorkoutHistoryScreen() {
         <TrainingCalendar
           workouts={workouts}
           catalogMap={catalogMap}
-          debugParts={debugParts}
+          bodyParts={bodyParts}
           onSelectWorkout={setSelectedWorkout}
         />
 
@@ -222,7 +222,7 @@ function WorkoutHistoryScreen() {
         <HistoryOverlay
           workouts={workouts}
           catalogMap={catalogMap}
-          debugPart={debugParts}
+          bodyParts={bodyParts}
           onClose={closeHistory}
           onSelectWorkout={handleSelectFromHistory}
         />

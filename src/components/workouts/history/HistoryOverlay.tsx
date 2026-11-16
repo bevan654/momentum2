@@ -60,13 +60,13 @@ const historyKey = (w: WorkoutWithDetails) => w.id;
 const HistoryOverlay = React.memo(function HistoryOverlay({
   workouts,
   catalogMap,
-  debugPart,
+  bodyParts,
   onClose,
   onSelectWorkout,
 }: {
   workouts: WorkoutWithDetails[];
   catalogMap: Record<string, any>;
-  debugPart: string[];
+  bodyParts: string[];
   onClose: () => void;
   onSelectWorkout: (w: WorkoutWithDetails) => void;
 }) {
@@ -75,7 +75,7 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
   const { dismiss, panGesture, sheetStyle, backdropStyle } = useSwipeDismissSheet(SHEET_HEIGHT, onClose);
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('All');
-  const [bodyFilter, setBodyFilter] = useState<string>(debugPart.length > 0 ? debugPart[0] : 'All');
+  const [bodyFilter, setBodyFilter] = useState<string>(bodyParts.length > 0 ? bodyParts[0] : 'All');
   const [planFilter, setPlanFilter] = useState<PlanFilter>('All');
 
   const filtered = useMemo(() => {
@@ -90,14 +90,14 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
       if (planFilter === 'Program' && !w.programName) return false;
       if (planFilter === 'Quick' && w.programName) return false;
       // Body part filter
-      const activeParts = bodyFilter !== 'All' ? [bodyFilter] : debugPart;
+      const activeParts = bodyFilter !== 'All' ? [bodyFilter] : bodyParts;
       if (activeParts.length > 0) {
         const targetGroups = groupsForParts(activeParts);
         if (targetGroups.size > 0 && !workoutHitsGroups(w, targetGroups, catalogMap)) return false;
       }
       return true;
     });
-  }, [workouts, timeFilter, bodyFilter, planFilter, debugPart, catalogMap]);
+  }, [workouts, timeFilter, bodyFilter, planFilter, bodyParts, catalogMap]);
 
   const activeFilterCount = (timeFilter !== 'All' ? 1 : 0) + (bodyFilter !== 'All' ? 1 : 0) + (planFilter !== 'All' ? 1 : 0);
   const [openFilter, setOpenFilter] = useState<'time' | 'muscle' | 'type' | null>(null);
@@ -138,7 +138,7 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
 
       <View style={styles.historyHeader}>
         <View style={{ gap: sw(2) }}>
-          <Text style={styles.historyTitle}>{debugPart.length > 0 ? `${debugPart.join(', ')} History` : 'Workout History'}</Text>
+          <Text style={styles.historyTitle}>{bodyParts.length > 0 ? `${bodyParts.join(', ')} History` : 'Workout History'}</Text>
           <Text style={styles.historySubtitle}>{filtered.length} workout{filtered.length !== 1 ? 's' : ''}</Text>
         </View>
         {activeFilterCount > 0 && (

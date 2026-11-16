@@ -42,10 +42,10 @@ function latestOf(parts: string[], lastTrainedMap: Record<string, Date | null>):
 }
 
 export default function RecoveryFilterChips({
-  debugParts, setDebugParts, expandedSection, setExpandedSection, lastTrainedMap, latestWorkoutDate,
+  bodyParts, setBodyParts, expandedSection, setExpandedSection, lastTrainedMap, latestWorkoutDate,
 }: {
-  debugParts: string[];
-  setDebugParts: React.Dispatch<React.SetStateAction<string[]>>;
+  bodyParts: string[];
+  setBodyParts: React.Dispatch<React.SetStateAction<string[]>>;
   expandedSection: string | null;
   setExpandedSection: React.Dispatch<React.SetStateAction<string | null>>;
   lastTrainedMap: Record<string, Date | null>;
@@ -55,22 +55,22 @@ export default function RecoveryFilterChips({
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const togglePart = (part: string) =>
-    setDebugParts((prev) => (prev.includes(part) ? prev.filter((p) => p !== part) : [...prev, part]));
+    setBodyParts((prev) => (prev.includes(part) ? prev.filter((p) => p !== part) : [...prev, part]));
 
   const toggleSection = (section: 'Arms' | 'Legs') => {
     // Clears the section's own name as well as its parts (as the old per-section code did)
     const members = [section, ...SECTIONS[section]];
     if (expandedSection === section) {
       setExpandedSection(null);
-      setDebugParts((prev) => prev.filter((p) => !members.includes(p)));
+      setBodyParts((prev) => prev.filter((p) => !members.includes(p)));
     } else {
       setExpandedSection(section);
-      setDebugParts((prev) => [...prev.filter((p) => !members.includes(p)), ...SECTIONS[section]]);
+      setBodyParts((prev) => [...prev.filter((p) => !members.includes(p)), ...SECTIONS[section]]);
     }
   };
 
   const sectionActive = (section: 'Arms' | 'Legs') =>
-    debugParts.some((p) => p === section || SECTIONS[section].includes(p));
+    bodyParts.some((p) => p === section || SECTIONS[section].includes(p));
 
   const expanded = expandedSection === 'Arms' || expandedSection === 'Legs' ? SECTIONS[expandedSection] : null;
 
@@ -81,8 +81,8 @@ export default function RecoveryFilterChips({
         <FilterChip
           label="Whole"
           sub={getLastLabel(latestWorkoutDate ? new Date(latestWorkoutDate) : null)}
-          active={debugParts.length === 0}
-          onPress={() => { setDebugParts([]); setExpandedSection(null); }}
+          active={bodyParts.length === 0}
+          onPress={() => { setBodyParts([]); setExpandedSection(null); }}
           styles={styles}
         />
         {MAIN_PARTS.map((part) => (
@@ -90,7 +90,7 @@ export default function RecoveryFilterChips({
             key={part}
             label={part}
             sub={getLastLabel(lastTrainedMap[part])}
-            active={debugParts.includes(part)}
+            active={bodyParts.includes(part)}
             onPress={() => { setExpandedSection(null); togglePart(part); }}
             styles={styles}
           />
@@ -114,7 +114,7 @@ export default function RecoveryFilterChips({
               key={label}
               label={label}
               sub={getLastLabel(lastTrainedMap[label])}
-              active={debugParts.includes(label)}
+              active={bodyParts.includes(label)}
               onPress={() => togglePart(label)}
               styles={styles}
             />
