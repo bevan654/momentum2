@@ -8,6 +8,7 @@ import { useRoutineStore } from '../useRoutineStore';
 import { useWorkoutStore } from '../useWorkoutStore';
 import { buildFeedExerciseDetails } from '../../utils/feedExerciseDetails';
 import { hasSetValues } from '../../utils/workoutPayload';
+import { compareGhostSet } from '../../utils/ghostCompare';
 import type { ActiveExercise, SummaryExercise, WorkoutSummary } from './types';
 
 /** The program day a workout belongs to: the weekday it was started on (0 = Monday) and that day's label. */
@@ -20,19 +21,36 @@ export function programDayOf(start: number, programId: string | null): { program
   return { programDayOfWeek, programDayLabel };
 }
 
-/** Ghost challenge result over the completed sets, compared position by position with last time's. */
-function ghostVerdict(saved: ActiveExercise[]): 'victory' | 'defeated' | 'draw' {
+/**
+ * For each saved exercise, where each of its sets was in the workout as logged (before
+ * buildWorkoutPayload dropped the empty ones), so a set is compared with the ghost's set at
+ * that position. undefined when the logged exercise can't be matched.
+ */
+function ghostSetPositions(saved: ActiveExercise[], liveExercises: ActiveExercise[]): (number[] | undefined)[] {
+  // saved holds the logged exercises that have a set with values, in order, each with those sets
+  const liveKept = liveExercises.filter((ex) => ex.sets.some(hasSetValues));
+  return saved.map((_, k) => {
+    const live = liveKept[k];
+    return live ? live.sets.flatMap((s, i) => (hasSetValues(s) ? [i] : [])) : undefined;
+  });
+}
+
+/**
+ * Ghost challenge result: each completed set against last time's set at the same position in
+ * the workout as logged. The same rule as the live tally (GhostTally) and GhostFinishScreen.
+ */
+function ghostVerdict(saved: ActiveExercise[], positions: (number[] | undefined)[]): 'victory' | 'defeated' | 'draw' {
   let w = 0, l = 0;
-  for (const ex of saved) {
-    const completed = ex.sets.filter((s: any) => s.completed);
-    for (let i = 0; i < Math.min(completed.length, ex.prevSets.length); i++) {
-      const uk = parseFloat(completed[i].kg) || 0, ur = parseInt(completed[i].reps) || 0;
-      const gk = ex.prevSets[i].kg, gr = ex.prevSets[i].reps;
-      if (uk < gk) l++;
-      else if (uk === gk) { if (ur > gr) w++; else if (ur < gr) l++; }
-      else { if (uk * ur > gk * gr) w++; else if (uk * ur < gk * gr) l++; }
-    }
-  }
+  saved.forEach((ex, k) => {
+    ex.sets.forEach((s, j) => {
+      if (!s.completed) return;
+      const g = ex.prevSets[positions[k]?.[j] ?? j];
+      if (!g) return;
+      const result = compareGhostSet(parseFloat(s.kg) || 0, parseInt(s.reps, 10) || 0, g.kg, g.reps);
+      if (result === 'win') w++;
+      else if (result === 'loss') l++;
+    });
+  });
   return w > l ? 'victory' : l > w ? 'defeated' : 'draw';
 }
 
@@ -47,6 +65,8 @@ interface FeedContext {
   programId: string | null;
   programWeek: number | null;
   programDayOfWeek: number | null;
+  /** The workout as logged, before buildWorkoutPayload dropped empty sets (for the ghost set positions). */
+  liveExercises: ActiveExercise[];
 }
 
 /** The activity_feed row for a finished workout. Posted later, if the user shares it (commitFeedPost). */
@@ -92,7 +112,7 @@ export function buildFeedPayload(saved: ActiveExercise[], ctx: FeedContext): Rec
     ...programFeedData,
     ...(ghostUserName ? {
       ghost_username: ghostUserName,
-      ghost_result: ghostVerdict(saved),
+      ghost_result: ghostVerdict(saved, ghostSetPositions(saved, ctx.liveExercises)),
       ghost_exercises: saved.map((ex) => ({
         name: ex.name,
         sets: ex.prevSets.map((ps: any) => ({ kg: ps.kg, reps: ps.reps })),
@@ -124,7 +144,7 @@ export function buildSummary(
     liveExercises: ActiveExercise[];
   },
 ): WorkoutSummary {
-  const liveKept = ctx.liveExercises.filter((ex) => ex.sets.some(hasSetValues));
+  const positions = ctx.ghostUserName ? ghostSetPositions(saved, ctx.liveExercises) : [];
   const exercises: SummaryExercise[] = saved.map((ex) => ({
     name: ex.name,
     category: ex.category,
@@ -147,15 +167,11 @@ export function buildSummary(
     exercises,
     prCount: 0,
     ghostUserName: ctx.ghostUserName || null,
-    ghostExercises: ctx.ghostUserName ? saved.map((ex, k) => {
-      // saved holds the logged exercises that have a set with values, in order, each with those sets
-      const live = liveKept[k];
-      return {
-        name: ex.name,
-        sets: ex.prevSets.map((s) => ({ kg: s.kg, reps: s.reps })),
-        setPositions: live ? live.sets.flatMap((s, i) => (hasSetValues(s) ? [i] : [])) : undefined,
-      };
-    }) : undefined,
+    ghostExercises: ctx.ghostUserName ? saved.map((ex, k) => ({
+      name: ex.name,
+      sets: ex.prevSets.map((s) => ({ kg: s.kg, reps: s.reps })),
+      setPositions: positions[k],
+    })) : undefined,
     prevMap: { ...useWorkoutStore.getState().prevMap },
   };
 }

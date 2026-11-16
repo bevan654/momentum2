@@ -304,6 +304,7 @@ async function _finishWorkout(
       pendingFeedPayload: buildFeedPayload(filteredExercises, {
         userId, workoutId, duration, totalVolume, totalSets, ghostUserName,
         routineId: startedFromRoutine, programId: startedFromProgram, programWeek, programDayOfWeek,
+        liveExercises: exercises,
       }),
     });
   } catch (feedCrash) {
