@@ -181,7 +181,7 @@ export const useRankStore = create<RankState>((set, get) => ({
     try {
       // 1. Total workout count, and 2. the most recent 500 workout ids (enough for an accurate rank
       // without loading the whole history), in parallel
-      const [{ count }, { data: workoutsData }] = await Promise.all([
+      const [{ count, error: countError }, { data: workoutsData, error: workoutsError }] = await Promise.all([
         supabase
           .from('workouts')
           .select('*', { count: 'exact', head: true })
@@ -193,6 +193,13 @@ export const useRankStore = create<RankState>((set, get) => ({
           .order('created_at', { ascending: false })
           .limit(500),
       ]);
+
+      // A failed query (offline, timeout) is not "no workouts": keep the current/cached rank and
+      // don't persist, so a lower rank from missing data never overwrites the saved one.
+      if (countError || workoutsError) {
+        set({ loading: false });
+        return;
+      }
 
       const totalWorkouts = count ?? 0;
 
@@ -223,6 +230,11 @@ export const useRankStore = create<RankState>((set, get) => ({
         .from('exercises')
         .select('name, exercise_type, sets(kg, reps, completed, set_type)')
         .in('workout_id', batch)));
+      // One failed batch would leave the rank computed from partial history: keep the current one
+      if (results.some((r) => r.error)) {
+        set({ loading: false });
+        return;
+      }
       const allExercises: any[] = [];
       for (const { data } of results) {
         if (data) allExercises.push(...data);
