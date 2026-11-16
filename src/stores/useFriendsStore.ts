@@ -33,6 +33,8 @@ const FEED_PAGE_SIZE = 15;
 const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 const MAX_FEED_ITEMS = 500;
 const MAX_NOTIFICATIONS = 100;
+/** Bumped by every feed reset and mode switch; a fetch applies only if it is still current. */
+let feedGeneration = 0;
 
 type LeaderboardScope = 'friends' | 'global';
 type LeaderboardCacheKey = `${LeaderboardScope}:${LeaderboardType}`;
@@ -135,7 +137,10 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   feedFetchedAt: null,
   feedMode: 'global',
   setFeedMode: (mode) => {
-    set({ feedMode: mode, feedCursor: null, feedHasMore: true, feedFetchedAt: null });
+    // Drop the other mode's list (and any fetch still in flight for it) so it never shows, or
+    // gets merged, under the new mode
+    feedGeneration++;
+    set({ feedMode: mode, feed: [], feedCursor: null, feedHasMore: true, feedFetchedAt: null, feedLoading: false });
   },
 
   leaderboard: [],
@@ -186,6 +191,9 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     if (!reset && !feedHasMore) return;
 
     const cursor = reset ? null : feedCursor;
+    // A reset (or a mode switch) starts a new generation: answers from older ones are ignored
+    if (reset) feedGeneration++;
+    const generation = feedGeneration;
 
     set({ feedLoading: true });
     try {
@@ -193,6 +201,8 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       const items = feedMode === 'friends'
         ? await getFriendsFeed(friendIds, userId, FEED_PAGE_SIZE, reset ? 0 : cached.length, blockedIds)
         : await getGlobalFeed(userId, FEED_PAGE_SIZE, cursor, blockedIds);
+
+      if (generation !== feedGeneration || get().feedMode !== feedMode) return;
 
       const merged = reset ? items : [...get().feed, ...items];
       const seen = new Set<string>();
@@ -211,7 +221,8 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
         feedFetchedAt: reset ? Date.now() : get().feedFetchedAt,
       });
     } finally {
-      set({ feedLoading: false });
+      // A newer fetch owns the loading flag
+      if (generation === feedGeneration) set({ feedLoading: false });
     }
   },
 
