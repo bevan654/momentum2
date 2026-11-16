@@ -33,6 +33,9 @@ export interface ActiveExercise {
 interface GhostExerciseData {
   name: string;
   sets: { kg: number; reps: number }[];
+  /** For each set of the matching summary exercise, its position in the workout as it was logged
+   * (before empty sets were dropped). Ghost sets are compared at that position, like the live tally. */
+  setPositions?: number[];
 }
 
 export interface SummaryExercise {

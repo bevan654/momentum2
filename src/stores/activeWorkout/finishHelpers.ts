@@ -7,6 +7,7 @@ import { useProgramStore } from '../useProgramStore';
 import { useRoutineStore } from '../useRoutineStore';
 import { useWorkoutStore } from '../useWorkoutStore';
 import { buildFeedExerciseDetails } from '../../utils/feedExerciseDetails';
+import { hasSetValues } from '../../utils/workoutPayload';
 import type { ActiveExercise, SummaryExercise, WorkoutSummary } from './types';
 
 /** The program day a workout belongs to: the weekday it was started on (0 = Monday) and that day's label. */
@@ -117,8 +118,13 @@ export function toRankExercises(saved: ActiveExercise[]) {
 /** The just-finished summary sheet's data. */
 export function buildSummary(
   saved: ActiveExercise[],
-  ctx: { workoutId: string; duration: number; totalVolume: number; totalSets: number; ghostUserName: string | null },
+  ctx: {
+    workoutId: string; duration: number; totalVolume: number; totalSets: number; ghostUserName: string | null;
+    /** The workout as logged, before buildWorkoutPayload dropped empty sets (for the ghost set positions). */
+    liveExercises: ActiveExercise[];
+  },
 ): WorkoutSummary {
+  const liveKept = ctx.liveExercises.filter((ex) => ex.sets.some(hasSetValues));
   const exercises: SummaryExercise[] = saved.map((ex) => ({
     name: ex.name,
     category: ex.category,
@@ -141,10 +147,15 @@ export function buildSummary(
     exercises,
     prCount: 0,
     ghostUserName: ctx.ghostUserName || null,
-    ghostExercises: ctx.ghostUserName ? saved.map((ex) => ({
-      name: ex.name,
-      sets: ex.prevSets.map((s) => ({ kg: s.kg, reps: s.reps })),
-    })) : undefined,
+    ghostExercises: ctx.ghostUserName ? saved.map((ex, k) => {
+      // saved holds the logged exercises that have a set with values, in order, each with those sets
+      const live = liveKept[k];
+      return {
+        name: ex.name,
+        sets: ex.prevSets.map((s) => ({ kg: s.kg, reps: s.reps })),
+        setPositions: live ? live.sets.flatMap((s, i) => (hasSetValues(s) ? [i] : [])) : undefined,
+      };
+    }) : undefined,
     prevMap: { ...useWorkoutStore.getState().prevMap },
   };
 }

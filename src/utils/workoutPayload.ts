@@ -83,7 +83,7 @@ export interface BuiltWorkout {
 }
 
 /** A set counts once it has a weight or reps entered (ticked or not). */
-function hasSetValues(s: { kg: string; reps: string }): boolean {
+export function hasSetValues(s: { kg: string; reps: string }): boolean {
   return s.kg.trim() !== '' || s.reps.trim() !== '';
 }
 

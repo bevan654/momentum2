@@ -319,7 +319,7 @@ async function _finishWorkout(
     useRankStore.getState().updateFromWorkout(toRankExercises(filteredExercises), userId);
   } catch {}
 
-  const summaryData = buildSummary(filteredExercises, { workoutId, duration, totalVolume, totalSets, ghostUserName });
+  const summaryData = buildSummary(filteredExercises, { workoutId, duration, totalVolume, totalSets, ghostUserName, liveExercises: exercises });
 
   _undoSnapshot = {
     workoutId,

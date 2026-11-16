@@ -47,9 +47,9 @@ function GhostFinishContent({
   const exercises = summaryData.exercises;
 
   const ghostMap = useMemo(() => {
-    const map: Record<string, { sets: { kg: number; reps: number }[] }> = {};
+    const map: Record<string, { sets: { kg: number; reps: number }[]; setPositions?: number[] }> = {};
     for (const gex of ghostExercises) {
-      map[gex.name] = { sets: gex.sets };
+      map[gex.name] = gex;
     }
     return map;
   }, [ghostExercises]);
@@ -61,9 +61,10 @@ function GhostFinishContent({
     let setLosses = 0;
     let setTies = 0;
 
-    const perExercise = exercises.map((ex) => {
+    const perExercise = exercises.map((ex, k) => {
       const completedSets = ex.sets.filter((s) => s.completed);
-      const ghost = ghostMap[ex.name];
+      // ghostExercises is built alongside exercises, in the same order
+      const ghost = ghostExercises[k]?.name === ex.name ? ghostExercises[k] : ghostMap[ex.name];
       const ghostSets = ghost?.sets ?? [];
 
       const userVol = completedSets.reduce((sum, s) => sum + s.kg * s.reps, 0);
@@ -74,18 +75,23 @@ function GhostFinishContent({
       let exWins = 0;
       let exLosses = 0;
       let exTies = 0;
-      const setResults: ('win' | 'loss' | 'tie')[] = [];
-      const count = Math.min(completedSets.length, ghostSets.length);
-      for (let i = 0; i < count; i++) {
-        const r = compareGhostSet(completedSets[i].kg, completedSets[i].reps, ghostSets[i].kg, ghostSets[i].reps);
-        setResults.push(r);
-        if (r === 'win') { exWins++; setWins++; }
-        else if (r === 'loss') { exLosses++; setLosses++; }
+      // Same rule as the live tally (GhostTally / ExerciseCard): each completed set against the
+      // ghost's set at the same position in the workout as it was logged.
+      const rows: { position: number; user: { kg: number; reps: number }; ghost: { kg: number; reps: number }; result: 'win' | 'loss' | 'tie' }[] = [];
+      ex.sets.forEach((s, j) => {
+        if (!s.completed) return;
+        const position = ghost?.setPositions?.[j] ?? j;
+        const g = ghostSets[position];
+        if (!g) return;
+        const result = compareGhostSet(s.kg, s.reps, g.kg, g.reps);
+        rows.push({ position, user: s, ghost: g, result });
+        if (result === 'win') { exWins++; setWins++; }
+        else if (result === 'loss') { exLosses++; setLosses++; }
         else { exTies++; setTies++; }
-      }
+      });
 
       const displayName = titleCase(ex.name);
-      return { name: displayName, userVol, ghostVol, exWins, exLosses, exTies, setResults, completedSets, ghostSets };
+      return { name: displayName, userVol, ghostVol, exWins, exLosses, exTies, rows };
     });
 
     const victory = setWins > setLosses;
@@ -172,17 +178,15 @@ function GhostFinishContent({
             </View>
 
             {/* Set rows */}
-            {ex.setResults.map((r, si) => {
-              const userSet = ex.completedSets[si];
-              const ghostSet = ex.ghostSets[si];
+            {ex.rows.map(({ position, user: userSet, ghost: ghostSet, result: r }) => {
               const bgColor = r === 'win' ? colors.positive + '12' : r === 'loss' ? colors.accentRed + '12' : 'transparent';
               return (
-                <View key={si} style={[styles.setRow, { backgroundColor: bgColor }]}>
+                <View key={position} style={[styles.setRow, { backgroundColor: bgColor }]}>
                   <Text style={styles.setUser}>
                     {userSet.kg} × {userSet.reps}
                   </Text>
                   <Text style={styles.setNumber}>
-                    {si + 1}
+                    {position + 1}
                   </Text>
                   <Text style={styles.setGhost}>
                     {ghostSet.kg} × {ghostSet.reps}
