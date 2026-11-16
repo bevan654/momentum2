@@ -62,6 +62,8 @@ const INDICATOR_W = sw(28);
 const INDICATOR_H = sw(3);
 
 /* ─── Animated tab icon ─────────────────────────────────── */
+// Uses React Native's Animated on purpose (the one exception to "Reanimated only"): material-top-tabs
+// hands the tab bar its swipe position as an RN Animated value, so the icon scale/opacity interpolate it.
 
 const AnimatedTabIcon = memo(function AnimatedTabIcon({
   index,

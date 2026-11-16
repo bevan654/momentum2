@@ -129,7 +129,7 @@ supabase/
 - Extract heavy sub-components.
 
 ### Animations
-- Always Reanimated: `useSharedValue`, `useAnimatedStyle`, `withTiming`, `withSpring`. Never RN's `Animated`. UI-thread only.
+- Always Reanimated: `useSharedValue`, `useAnimatedStyle`, `withTiming`, `withSpring`. Never RN's `Animated`. UI-thread only. (One exception: the custom tab bar in `TabNavigator` interpolates the swipe position material-top-tabs gives it, which is an RN Animated value.)
 
 ### Graphics
 - Skia for rings, arcs, gradients, glows. Use Skia, not react-native-svg, for new visuals.

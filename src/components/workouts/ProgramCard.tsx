@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Pressable, Animated as RNAnimated } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Pressable } from 'react-native';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, { useAnimatedStyle, interpolate, Extrapolation, type SharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
@@ -8,6 +9,28 @@ import { sw, ms } from '../../theme/responsive';
 import { useProgramStore, type Program } from '../../stores/useProgramStore';
 import { WEEKDAY_SHORT } from '../../constants/dateNames';
 import { formatMonthDay } from '../../utils/dateLabels';
+
+const ACTION_W = sw(80);
+
+/** The red Delete button behind a swiped card; slides in with the swipe. */
+function DeleteAction({ progress, onPress, styles, iconColor }: {
+  progress: SharedValue<number>;
+  onPress: () => void;
+  styles: ReturnType<typeof createStyles>;
+  iconColor: string;
+}) {
+  const slide = useAnimatedStyle(() => ({
+    transform: [{ translateX: interpolate(progress.value, [0, 1], [ACTION_W, 0], Extrapolation.CLAMP) }],
+  }));
+  return (
+    <Animated.View style={[styles.deleteAction, slide]}>
+      <TouchableOpacity style={styles.deleteActionInner} onPress={onPress} activeOpacity={0.7}>
+        <Ionicons name="trash" size={ms(22)} color={iconColor} />
+        <Text style={styles.deleteActionText}>Delete</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 /**
  * A program on the Plans screen: name, active badge, days per week, the week's day dots, Review
@@ -30,29 +53,18 @@ function ProgramCard({ program, week, onOpen, onReview, onDelete, onAbandon, onS
 
   return (
     <View style={styles.swipeContainer}>
-      <Swipeable
+      <ReanimatedSwipeable
         overshootRight={false}
         friction={2}
         rightThreshold={40}
-        renderRightActions={(progress) => {
-          const trans = progress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [sw(80), 0],
-            extrapolate: 'clamp',
-          });
-          return (
-            <RNAnimated.View style={[styles.deleteAction, { transform: [{ translateX: trans }] }]}>
-              <TouchableOpacity
-                style={styles.deleteActionInner}
-                onPress={() => onDelete(program.id)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="trash" size={ms(22)} color={colors.textOnColor} />
-                <Text style={styles.deleteActionText}>Delete</Text>
-              </TouchableOpacity>
-            </RNAnimated.View>
-          );
-        }}
+        renderRightActions={(progress) => (
+          <DeleteAction
+            progress={progress}
+            onPress={() => onDelete(program.id)}
+            styles={styles}
+            iconColor={colors.textOnColor}
+          />
+        )}
       >
         <View style={styles.programCard}>
           <Pressable
@@ -123,7 +135,7 @@ function ProgramCard({ program, week, onOpen, onReview, onDelete, onAbandon, onS
             </TouchableOpacity>
           )}
         </View>
-      </Swipeable>
+      </ReanimatedSwipeable>
     </View>
   );
 }
