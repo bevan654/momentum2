@@ -256,8 +256,8 @@ export async function clearPushTokenForSignOut(userId: string): Promise<void> {
 // ── Public API ────────────────────────────────────────
 
 /**
- * Initialize the notification system.
- * Call once after authentication (in TabNavigator).
+ * Open the Realtime channel for in-app notifications. Called by FriendsScreen while the Community
+ * tab is focused (and closed by cleanupNotifications when it loses focus).
  * Safe to call multiple times — cleans up previous channel.
  */
 export function initNotifications(userId: string): void {
