@@ -105,7 +105,11 @@ function App() {
   const accentColor = useThemeStore((s) => s.accent);
   const hasUnseenChangelog = useChangelogStore((s) => s.hasUnseen);
   const themeReady = useThemeStore((s) => s.initialized);
-  const [betaDismissed, setBetaDismissed] = useState(false);
+  // Which account has dismissed (now or on an earlier launch) the beta welcome, so a different
+  // account signing in gets its own welcome before the changelog / finish-feedback prompts
+  const userId = useAuthStore((s) => s.user?.id ?? null);
+  const [betaDismissedFor, setBetaDismissedFor] = useState<string | null>(null);
+  const betaDismissed = userId != null && betaDismissedFor === userId;
 
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -185,7 +189,7 @@ function App() {
                   ? <>
                       <TabNavigator />
                       <WorkoutFinishFeedbackPrompt enabled={betaDismissed && !hasUnseenChangelog} />
-                      <BetaWelcomeModal onDismiss={() => setBetaDismissed(true)} />
+                      <BetaWelcomeModal onDismiss={() => setBetaDismissedFor(userId)} />
                       {betaDismissed && <ChangelogModal />}
                     </>
                   : <OnboardingScreen />)
