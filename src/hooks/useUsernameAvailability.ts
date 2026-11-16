@@ -53,11 +53,15 @@ function useTakenCheck(
       return;
     }
     setStatus('checking');
+    // Set when the input changes (or the field unmounts): an answer for an older value is ignored,
+    // so a slow reply can't overwrite the status of what is typed now
+    let stale = false;
     const handle = setTimeout(async () => {
       const { data, error } = await supabase.rpc('username_or_email_taken', {
         p_username: kind === 'username' ? value : '',
         p_email: kind === 'email' ? value : '',
       });
+      if (stale) return;
       if (error) {
         setStatus(errorStatus);
         return;
@@ -66,7 +70,10 @@ function useTakenCheck(
       const taken = kind === 'username' ? row?.username_taken : row?.email_taken;
       setStatus(taken ? 'taken' : 'ok');
     }, check.delayMs);
-    return () => clearTimeout(handle);
+    return () => {
+      stale = true;
+      clearTimeout(handle);
+    };
   }, [kind, raw, enabled, errorStatus]);
 
   return status;
