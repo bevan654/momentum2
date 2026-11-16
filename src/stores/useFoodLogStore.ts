@@ -3,6 +3,9 @@ import { supabase } from '../lib/supabase';
 import { useNutritionStore } from './useNutritionStore';
 import { toLocalDateString } from '../utils/localDate';
 
+/** Increments per search (and clear), so a slow earlier search can't overwrite newer results. */
+let _searchSeq = 0;
+
 /** Micronutrient columns (vitamins, minerals, sodium, caffeine). Fiber and sugar travel with the macros. */
 export const MICRO_KEYS = [
   'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k', 'vitamin_b6', 'vitamin_b12',
@@ -504,6 +507,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   searchCatalog: async (query: string) => {
+    const req = ++_searchSeq;
     if (query.length < 2) {
       set({ catalogResults: [], catalogLoading: false });
       return;
@@ -531,6 +535,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         .order('created_at', { ascending: false })
         .limit(20),
     ]);
+    if (req !== _searchSeq) return; // a newer search (or a clear) has started since
 
     if (__DEV__ && catalogRes.error) console.warn('food_catalog search error:', catalogRes.error.message);
     if (__DEV__ && userRes.error) console.warn('user_created_foods search error:', userRes.error.message);
@@ -600,6 +605,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   clearSearch: () => {
+    _searchSeq++;
     set({ catalogResults: [], catalogLoading: false });
   },
 
