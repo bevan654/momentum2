@@ -77,7 +77,12 @@ function SetRowInputs({
             ref={kgRef}
             style={[styles.input, completedTextStyle]}
             value={localKg}
-            onChangeText={(v) => { setLocalKg(v); onUpdate(index, 'kg', v); }}
+            onChangeText={(text) => {
+              // Comma-decimal keyboards type '80,5', which parseFloat reads as 80
+              const v = text.replace(',', '.');
+              setLocalKg(v);
+              onUpdate(index, 'kg', v);
+            }}
             onFocus={() => handleFocus(kgRef, localKg)}
             onBlur={() => { if (localKg !== setKg) onUpdate(index, 'kg', localKg); }}
             placeholder={suggestedKg || '—'}

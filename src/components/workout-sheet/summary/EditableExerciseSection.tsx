@@ -80,7 +80,7 @@ function EditableExerciseSection({
               <TextInput
                 style={styles.editInput}
                 value={s.kg}
-                onChangeText={(v) => onUpdateSet(exIdx, i, 'kg', v)}
+                onChangeText={(v) => onUpdateSet(exIdx, i, 'kg', v.replace(',', '.'))}
                 keyboardType="decimal-pad"
                 maxLength={6}
                 selectTextOnFocus
