@@ -44,13 +44,15 @@ export async function searchProfiles(
  * Accepted friends: every friend's id (for the feed and leaderboard filters) and the profiles of up
  * to 500 of them (for lists). One friendships query serves both.
  */
-export async function getFriends(userId: string): Promise<{ friends: FriendProfile[]; friendIds: string[] }> {
-  const { data: friendships } = await supabase
+/** Returns null when the friendships query fails (e.g. offline), so callers can keep what they have. */
+export async function getFriends(userId: string): Promise<{ friends: FriendProfile[]; friendIds: string[] } | null> {
+  const { data: friendships, error } = await supabase
     .from('friendships')
     .select('user_id, friend_id')
     .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
     .eq('status', 'accepted');
 
+  if (error) return null;
   if (!friendships || friendships.length === 0) return { friends: [], friendIds: [] };
 
   const friendIds = friendships.map((f) =>

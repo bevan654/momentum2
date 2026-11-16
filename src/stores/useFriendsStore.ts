@@ -171,8 +171,10 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       return;
     }
 
-    const { friends, friendIds } = await getFriends(userId);
-    set({ friends, friendIds, friendsFetchedAt: Date.now() });
+    const result = await getFriends(userId);
+    // Offline / failed: keep the friends already loaded instead of emptying the list
+    if (!result) return;
+    set({ friends: result.friends, friendIds: result.friendIds, friendsFetchedAt: Date.now() });
   },
 
   fetchFeed: async (userId, reset = false, force = false) => {
@@ -361,13 +363,18 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   setNotificationResponded: async (notificationId, responded) => {
     // Optimistic local update so the row keeps its state across remounts even
     // if the network call lags or fails.
-    set((s) => ({
-      notifications: s.notifications.map((n) =>
-        n.id === notificationId
-          ? { ...n, read: true, data: { ...(n.data || {}), responded } }
-          : n,
-      ),
-    }));
+    set((s) => {
+      // Answering an unread request also reads it, so the badge goes down too
+      const wasUnread = s.notifications.some((n) => n.id === notificationId && !n.read);
+      return {
+        notifications: s.notifications.map((n) =>
+          n.id === notificationId
+            ? { ...n, read: true, data: { ...(n.data || {}), responded } }
+            : n,
+        ),
+        unreadCount: wasUnread ? Math.max(0, s.unreadCount - 1) : s.unreadCount,
+      };
+    });
     try {
       await dbSetNotificationResponded(notificationId, responded);
     } catch {}
