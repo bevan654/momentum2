@@ -73,6 +73,8 @@ interface ProgramState {
   programs: Program[];
   activeProgram: Program | null;
   progressData: ProgramProgressEntry[];
+  /** The program progressData belongs to. */
+  progressProgramId: string | null;
   loading: boolean;
 
   // CRUD
@@ -108,6 +110,7 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
   programs: [],
   activeProgram: null,
   progressData: [],
+  progressProgramId: null,
   loading: false,
 
   /* ─── Fetch all programs ───────────────────────────── */
@@ -300,6 +303,8 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
   /* ─── Fetch progress for a program ─────────────────── */
 
   fetchProgress: async (programId: string, userId: string) => {
+    // Another program's progress must not show while this one loads (or if its load fails)
+    if (get().progressProgramId !== programId) set({ progressData: [], progressProgramId: programId });
     const { data } = await supabase
       .from('workouts')
       .select('id, created_at, duration, total_sets, program_week, exercises(name, sets(kg, reps))')
@@ -307,6 +312,7 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
       .eq('user_id', userId)
       .order('created_at', { ascending: true });
 
+    if (get().progressProgramId !== programId) return; // another program was opened meanwhile
     if (!data) {
       set({ progressData: [] });
       return;
