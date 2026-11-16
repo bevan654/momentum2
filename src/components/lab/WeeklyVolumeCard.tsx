@@ -283,6 +283,8 @@ export default function WeeklyVolumeCard() {
   }, [slots]);
 
   const delta = useMemo(() => {
+    // No real workouts in this period: the chart shows sample bars, which mustn't feed a % change
+    if (!hasData) return null;
     const currentTotal = slots.reduce((sum, s) => sum + s.volume, 0);
     const days = periodDays(period);
     const now = new Date();
@@ -292,7 +294,7 @@ export default function WeeklyVolumeCard() {
     const prevTotal = sumVolume(workouts, prevStart, prevEnd);
     if (prevTotal <= 0) return null;
     return ((currentTotal - prevTotal) / prevTotal) * 100;
-  }, [slots, workouts, period, offset]);
+  }, [hasData, slots, workouts, period, offset]);
 
   // Date range label
   const dateRange = useMemo(() => {
