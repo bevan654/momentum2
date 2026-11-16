@@ -41,6 +41,7 @@ function GhostFinishContent({
   colors: ThemeColors;
   onDismiss: () => void;
 }) {
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const ghostUserName = summaryData.ghostUserName!;
   const ghostExercises = summaryData.ghostExercises!;
   const exercises = summaryData.exercises;
@@ -103,104 +104,71 @@ function GhostFinishContent({
   const tabBarHeight = sw(8) + ms(24) + ms(12) + insets.bottom + sw(8);
 
   return (
-    <View style={{
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: tabBarHeight,
-      backgroundColor: colors.background,
-    }}>
+    <View style={[styles.root, { bottom: tabBarHeight }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: sw(16), paddingBottom: sw(32) }}
+        contentContainerStyle={styles.scrollContent}
       >
         {/* Verdict */}
-        <View style={{ alignItems: 'center', paddingVertical: sw(24), gap: sw(6) }}>
-          <Text style={{
-            fontSize: ms(34),
-            fontFamily: Fonts.extraBold,
-            color: verdictColor,
-            letterSpacing: 2,
-          }}>
+        <View style={styles.verdict}>
+          <Text style={[styles.verdictText, { color: verdictColor }]}>
             {verdictText}
           </Text>
-          <Text style={{
-            fontSize: ms(12),
-            fontFamily: Fonts.medium,
-            color: colors.textTertiary,
-          }}>
+          <Text style={styles.verdictSub}>
             vs {ghostUserName}
           </Text>
         </View>
 
         {/* Stats row */}
-        <View style={{
-          flexDirection: 'row',
-          justifyContent: 'center',
-          gap: sw(16),
-          marginBottom: sw(16),
-        }}>
-          <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary }}>
+        <View style={styles.statsRow}>
+          <Text style={styles.statText}>
             {mins}:{secs.toString().padStart(2, '0')}
           </Text>
-          <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary }}>·</Text>
-          <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary }}>
+          <Text style={styles.statText}>·</Text>
+          <Text style={styles.statText}>
             {exercises.length} exercises
           </Text>
-          <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary }}>·</Text>
-          <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary }}>
+          <Text style={styles.statText}>·</Text>
+          <Text style={styles.statText}>
             {totalSets} sets
           </Text>
         </View>
 
         {/* Set Score Bar */}
-        <View style={{ marginBottom: sw(36) }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: sw(6) }}>
-            <Text style={{ fontSize: ms(12), fontFamily: Fonts.bold, color: colors.positive }}>You  {results.setWins}</Text>
+        <View style={styles.scoreBlock}>
+          <View style={styles.scoreLabels}>
+            <Text style={[styles.scoreSide, { color: colors.positive }]}>You  {results.setWins}</Text>
             {results.setTies > 0 && (
-              <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary }}>{results.setTies} tied</Text>
+              <Text style={styles.scoreTied}>{results.setTies} tied</Text>
             )}
-            <Text style={{ fontSize: ms(12), fontFamily: Fonts.bold, color: colors.accentRed }}>{results.setLosses}  {ghostUserName}</Text>
+            <Text style={[styles.scoreSide, { color: colors.accentRed }]}>{results.setLosses}  {ghostUserName}</Text>
           </View>
-          <View style={{ flexDirection: 'row', height: sw(6), borderRadius: sw(3), overflow: 'hidden' }}>
+          <View style={styles.scoreBar}>
             {results.setWins > 0 && (
-              <View style={{ flex: results.setWins, backgroundColor: colors.positive, borderTopLeftRadius: sw(3), borderBottomLeftRadius: sw(3) }} />
+              <View style={[styles.scoreWins, { flex: results.setWins }]} />
             )}
             {results.setTies > 0 && (
-              <View style={{ flex: results.setTies, backgroundColor: colors.textTertiary + '40' }} />
+              <View style={[styles.scoreTies, { flex: results.setTies }]} />
             )}
             {results.setLosses > 0 && (
-              <View style={{ flex: results.setLosses, backgroundColor: colors.accentRed, borderTopRightRadius: sw(3), borderBottomRightRadius: sw(3) }} />
+              <View style={[styles.scoreLosses, { flex: results.setLosses }]} />
             )}
           </View>
         </View>
 
         {/* Head-to-head split */}
         {results.perExercise.map((ex, i) => (
-          <View key={i} style={{ marginBottom: sw(16) }}>
+          <View key={i} style={styles.exerciseBlock}>
             {/* Exercise name centered */}
-            <Text style={{
-              fontSize: ms(12),
-              fontFamily: Fonts.bold,
-              color: colors.textPrimary,
-              textAlign: 'center',
-              marginBottom: sw(8),
-            }} numberOfLines={1}>
+            <Text style={styles.exerciseName} numberOfLines={1}>
               {ex.name}
             </Text>
 
             {/* Column headers */}
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              paddingBottom: sw(6),
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: colors.cardBorder,
-            }}>
-              <Text style={{ flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary }}>YOU</Text>
-              <Text style={{ width: sw(24), fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'center' }}>SET</Text>
-              <Text style={{ flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right' }}>{ghostUserName.toUpperCase()}</Text>
+            <View style={styles.columnHeaders}>
+              <Text style={styles.columnYou}>YOU</Text>
+              <Text style={styles.columnSet}>SET</Text>
+              <Text style={styles.columnGhost}>{ghostUserName.toUpperCase()}</Text>
             </View>
 
             {/* Set rows */}
@@ -209,21 +177,14 @@ function GhostFinishContent({
               const ghostSet = ex.ghostSets[si];
               const bgColor = r === 'win' ? colors.positive + '12' : r === 'loss' ? colors.accentRed + '12' : 'transparent';
               return (
-                <View key={si} style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingVertical: sw(8),
-                  backgroundColor: bgColor,
-                  borderBottomWidth: StyleSheet.hairlineWidth,
-                  borderBottomColor: colors.cardBorder,
-                }}>
-                  <Text style={{ flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textPrimary, paddingLeft: sw(4) }}>
+                <View key={si} style={[styles.setRow, { backgroundColor: bgColor }]}>
+                  <Text style={styles.setUser}>
                     {userSet.kg} × {userSet.reps}
                   </Text>
-                  <Text style={{ width: sw(24), fontSize: ms(10), fontFamily: Fonts.bold, color: colors.textTertiary, textAlign: 'center' }}>
+                  <Text style={styles.setNumber}>
                     {si + 1}
                   </Text>
-                  <Text style={{ flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right', paddingRight: sw(4) }}>
+                  <Text style={styles.setGhost}>
                     {ghostSet.kg} × {ghostSet.reps}
                   </Text>
                 </View>
@@ -234,29 +195,106 @@ function GhostFinishContent({
       </ScrollView>
 
       {/* Done button */}
-      <View style={{
-        paddingHorizontal: sw(16),
-        paddingVertical: sw(12),
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: colors.cardBorder,
-      }}>
+      <View style={styles.footer}>
         <TouchableOpacity
-          style={{
-            height: sw(44),
-            borderRadius: sw(10),
-            backgroundColor: colors.accent,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: sw(6),
-          }}
+          style={styles.doneBtn}
           onPress={onDismiss}
           activeOpacity={0.7}
         >
           <Ionicons name="checkmark" size={ms(18)} color={colors.textOnAccent} />
-          <Text style={{ fontSize: ms(14), fontFamily: Fonts.bold, color: colors.textOnAccent }}>Done</Text>
+          <Text style={styles.doneText}>Done</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
+
+/* ─── Styles ──────────────────────────────────────────────── */
+
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  // bottom (above the tab bar) is set inline
+  root: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.background,
+  },
+  scrollContent: { padding: sw(16), paddingBottom: sw(32) },
+
+  verdict: { alignItems: 'center', paddingVertical: sw(24), gap: sw(6) },
+  verdictText: {
+    fontSize: ms(34),
+    fontFamily: Fonts.extraBold,
+    letterSpacing: 2,
+  },
+  verdictSub: {
+    fontSize: ms(12),
+    fontFamily: Fonts.medium,
+    color: colors.textTertiary,
+  },
+
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: sw(16),
+    marginBottom: sw(16),
+  },
+  statText: { fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary },
+
+  scoreBlock: { marginBottom: sw(36) },
+  scoreLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: sw(6) },
+  scoreSide: { fontSize: ms(12), fontFamily: Fonts.bold },
+  scoreTied: { fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary },
+  scoreBar: { flexDirection: 'row', height: sw(6), borderRadius: sw(3), overflow: 'hidden' },
+  scoreWins: { backgroundColor: colors.positive, borderTopLeftRadius: sw(3), borderBottomLeftRadius: sw(3) },
+  scoreTies: { backgroundColor: colors.textTertiary + '40' },
+  scoreLosses: { backgroundColor: colors.accentRed, borderTopRightRadius: sw(3), borderBottomRightRadius: sw(3) },
+
+  exerciseBlock: { marginBottom: sw(16) },
+  exerciseName: {
+    fontSize: ms(12),
+    fontFamily: Fonts.bold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: sw(8),
+  },
+  columnHeaders: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: sw(6),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.cardBorder,
+  },
+  columnYou: { flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary },
+  columnSet: { width: sw(24), fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'center' },
+  columnGhost: { flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right' },
+  // backgroundColor follows the set result, set inline
+  setRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: sw(8),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.cardBorder,
+  },
+  setUser: { flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textPrimary, paddingLeft: sw(4) },
+  setNumber: { width: sw(24), fontSize: ms(10), fontFamily: Fonts.bold, color: colors.textTertiary, textAlign: 'center' },
+  setGhost: { flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right', paddingRight: sw(4) },
+
+  footer: {
+    paddingHorizontal: sw(16),
+    paddingVertical: sw(12),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.cardBorder,
+  },
+  doneBtn: {
+    height: sw(44),
+    borderRadius: sw(10),
+    backgroundColor: colors.accent,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sw(6),
+  },
+  doneText: { fontSize: ms(14), fontFamily: Fonts.bold, color: colors.textOnAccent },
+});
