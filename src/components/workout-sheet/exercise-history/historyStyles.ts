@@ -1,10 +1,14 @@
 import { StyleSheet } from 'react-native';
 import type { ThemeColors } from '../../../theme/useColors';
-import { sw, ms } from '../../../theme/responsive';
+import { sw, ms, SCREEN_WIDTH } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
 
 export const CHART_H = sw(140);
 export const Y_LABEL_W = sw(34);
+/** The chart canvas's width (the screen less the page and card padding). */
+export const CHART_W = SCREEN_WIDTH - sw(64);
+/** Space kept right of the newest point so its dot isn't cut off by the canvas edge. */
+export const CHART_RIGHT_INSET = sw(5);
 export const GRID_STEPS = 4;
 
 export type HistoryStyles = ReturnType<typeof createHistoryStyles>;

@@ -2,8 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useWorkoutStore } from '../../../stores/useWorkoutStore';
-import { sw, SCREEN_WIDTH } from '../../../theme/responsive';
-import { CHART_H, Y_LABEL_W } from './historyStyles';
+import { CHART_H, CHART_W, CHART_RIGHT_INSET, Y_LABEL_W } from './historyStyles';
 
 export interface HistoryEntry {
   workoutId: string;
@@ -162,7 +161,8 @@ export function useExerciseHistory(exerciseName: string | null, visible: boolean
 
   /* ─── Chart data ─────────────────────────────────────── */
 
-  const chartWidth = SCREEN_WIDTH - sw(32) - Y_LABEL_W;
+  // The plotted span, so the newest point lands inside the canvas (it used to sit sw(32) past its edge)
+  const chartWidth = CHART_W - Y_LABEL_W - CHART_RIGHT_INSET;
 
   const { chartPoints, yScale } = useMemo<{ chartPoints: ChartPoint[]; yScale: YScale }>(() => {
     if (history.length < 2) return { chartPoints: [], yScale: { yMin: 0, yMax: 100, yRange: 100 } };

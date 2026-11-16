@@ -2,9 +2,9 @@ import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Canvas, Path as SkiaPath, Skia, vec, LinearGradient, Line as SkiaLine } from '@shopify/react-native-skia';
 import { useColors } from '../../../theme/useColors';
-import { sw, SCREEN_WIDTH } from '../../../theme/responsive';
+import { sw } from '../../../theme/responsive';
 import { buildSmoothPath } from '../../../utils/smoothPath';
-import { CHART_H, Y_LABEL_W, GRID_STEPS, type HistoryStyles } from './historyStyles';
+import { CHART_H, CHART_W, Y_LABEL_W, GRID_STEPS, type HistoryStyles } from './historyStyles';
 import type { ChartMode, ChartPoint, YScale } from './useExerciseHistory';
 
 /** The PROGRESS section: weight/volume toggle and the Skia line chart with y labels. */
@@ -60,7 +60,7 @@ function HistoryChart({ styles, chartPoints, yScale, chartMode, setChartMode, is
         )}
       </View>
       <View style={styles.card}>
-        <Canvas style={{ width: SCREEN_WIDTH - sw(64), height: CHART_H }}>
+        <Canvas style={{ width: CHART_W, height: CHART_H }}>
           {/* Grid lines */}
           {Array.from({ length: GRID_STEPS + 1 }).map((_, i) => {
             const y = (CHART_H / GRID_STEPS) * i;
@@ -68,7 +68,7 @@ function HistoryChart({ styles, chartPoints, yScale, chartMode, setChartMode, is
               <SkiaLine
                 key={`grid-${i}`}
                 p1={vec(Y_LABEL_W, y)}
-                p2={vec(SCREEN_WIDTH - sw(64), y)}
+                p2={vec(CHART_W, y)}
                 color={colors.cardBorder}
                 strokeWidth={0.5}
               />
