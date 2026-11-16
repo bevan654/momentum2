@@ -147,16 +147,16 @@ export default function PlansScreen() {
             </View>
           ) : (
             programs.map((program) => (
-                <ProgramCard
-                  key={program.id}
-                  program={program}
-                  week={program.status === 'active' ? getCurrentWeek() : 0}
-                  onOpen={openProgram}
-                  onReview={reviewProgram}
-                  onDelete={deleteProgram}
-                  onAbandon={abandonProgram}
-                  onStart={handleStartProgram}
-                />
+              <ProgramCard
+                key={program.id}
+                program={program}
+                week={program.status === 'active' ? getCurrentWeek() : 0}
+                onOpen={openProgram}
+                onReview={reviewProgram}
+                onDelete={deleteProgram}
+                onAbandon={abandonProgram}
+                onStart={handleStartProgram}
+              />
             ))
           )}
 

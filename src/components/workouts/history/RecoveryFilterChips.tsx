@@ -5,12 +5,6 @@ import { Fonts } from '../../../theme/typography';
 import { sw, ms } from '../../../theme/responsive';
 import { getLastLabel } from './historyConstants';
 
-/**
- * Recovery tab body-part filter: Whole / Chest / Back / Core / Arms / Legs, with Arms and Legs
- * expanding to their sub-parts. Each chip shows when that part was last trained.
- * Not memoised on purpose: the "5h ago" labels are computed at render and should refresh
- * whenever the screen re-renders, as before.
- */
 /** Arms and Legs expand into these parts (selecting the section selects all of them). */
 const SECTIONS: Record<'Arms' | 'Legs', string[]> = {
   Arms: ['Shoulders', 'Biceps', 'Triceps'],
@@ -41,6 +35,12 @@ function latestOf(parts: string[], lastTrainedMap: Record<string, Date | null>):
   }, null);
 }
 
+/**
+ * Recovery tab body-part filter: Whole / Chest / Back / Core / Arms / Legs, with Arms and Legs
+ * expanding to their sub-parts. Each chip shows when that part was last trained.
+ * Not memoised on purpose: the "5h ago" labels are computed at render and should refresh
+ * whenever the screen re-renders, as before.
+ */
 export default function RecoveryFilterChips({
   bodyParts, setBodyParts, expandedSection, setExpandedSection, lastTrainedMap, latestWorkoutDate,
 }: {

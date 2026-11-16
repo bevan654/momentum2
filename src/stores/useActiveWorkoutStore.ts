@@ -14,7 +14,6 @@ import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity, clear
 import { REST_NOTIF_ID, EMPTY_SET } from './activeWorkout/constants';
 import { runWithRecovery } from './activeWorkout/supabaseRecovery';
 import { type ActiveSet, type ActiveExercise, type ActiveWorkoutState, type FinishResult, type UndoSnapshot } from './activeWorkout/types';
-import { _shiftAnchorForInsert } from './activeWorkout/setHelpers';
 import { createExerciseActions } from './activeWorkout/exerciseActions';
 import { _buildSnapshot } from './activeWorkout/liveActivitySnapshot';
 import { _scheduleRestNotification } from './activeWorkout/restNotification';
