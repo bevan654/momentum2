@@ -8,7 +8,7 @@ import ProgramSummaryScreen from '../screens/ProgramSummaryScreen';
 import ProgramDayEditorScreen from '../screens/ProgramDayEditorScreen';
 import ProgramProgressScreen from '../screens/ProgramProgressScreen';
 import WorkoutHistoryScreen from '../screens/WorkoutHistoryScreen';
-import StartWorkoutScreen from '../screens/StartWorkoutScreen';
+import PlansScreen from '../screens/PlansScreen';
 import SheetWrapper from '../components/SheetWrapper';
 import { useColors } from '../theme/useColors';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
@@ -119,7 +119,7 @@ export default function WorkoutsNavigator() {
           {/* ── Plans overlay (needs transparency for backdrop) ── */}
           <Stack.Screen
             name="Plans"
-            component={StartWorkoutScreen}
+            component={PlansScreen}
             options={{
               presentation: 'transparentModal',
               contentStyle: { backgroundColor: 'transparent' },

@@ -15,7 +15,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import type { WorkoutSummary, SummaryExercise } from '../../stores/useActiveWorkoutStore';
 import type { WorkoutWithDetails, CoachExerciseNote } from '../../stores/useWorkoutStore';
 import ShareModal from '../share/ShareModal';
-import WorkoutOverlay from '../dev/WorkoutOverlay';
+import WorkoutOverlay from '../share/WorkoutOverlay';
 import CoachTakeCard, { type CoachResult } from './CoachTakeCard';
 import { toSummaryExercises } from './summary/summaryFormat';
 import { useSummaryEdit } from './summary/useSummaryEdit';

@@ -66,14 +66,13 @@ This project is a continuation of an app built with an older model, so expect bu
     ├── components/
     │   ├── auth/              # Auth screen pieces: AuthLayout, AuthBrand, AuthInput, FieldStatusIcon, authStyles, SocialAuthButtons (Google / Apple OAuth)
     │   ├── body/              # Body map wrappers around momentum-muscle-map: map pair, workout mini maps, exercise thumb, level toggle, region chip, workout heatmap
-    │   ├── dev/               # Workout share card (WorkoutOverlay), story crop: production share UI despite the name
     │   ├── food/              # Nutrition tab: day summary (calorie ring, macro bars), water strip, meal cards, food popups; ui/ = shared kit for food popups (header, search, rows, fields, sub-screen, keyboard inset); macro-lens/ = AI photo scan pieces
     │   ├── friends/           # Leaderboard, notifications, reports, search, a friend's feed workout (feed-workout/)
     │   ├── home/              # Home dashboard cards and modals, global Header, Community feed (feed/), activity calendar (activity/)
     │   ├── lab/               # Recovery tab: body-metric cards (weight, body fat, measurements; shared chart/history/log pieces in trend/), weekly volume, muscle radar, quick stats, AI coach card
     │   ├── onboarding/        # Onboarding steps (DetailsStep, GoalsStep, UnitInput) + onboardingPlan (activity levels, calorie/macro recommendation)
     │   ├── profile/           # Settings sub-views (settings/), goal editors
-    │   ├── share/             # Share modal
+    │   ├── share/             # Workout sharing: share modal, share card (WorkoutOverlay), story crop
     │   ├── ui/                # Shared primitives: Sheet (animated bottom sheet), Portal/PortalHost
     │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, exercise picker (exercise-picker/), finish flow and summary (summary/), ghost mode
     │   ├── workouts/          # Workouts tab: recovery body map, routine cards, today's plan, exercise rows; history/, create-program/, program-day-editor/

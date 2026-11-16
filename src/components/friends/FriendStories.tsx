@@ -6,7 +6,7 @@ import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
 import { useFriendsStore } from '../../stores/useFriendsStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { colorForId, displayNameFor, initialFor } from './feed/feedHelpers';
+import { colorForId, displayNameFor, initialFor } from '../home/feed/feedHelpers';
 
 /* ─── Sizing ─────────────────────────────────────────── */
 
@@ -72,11 +72,11 @@ const FriendStory = React.memo(function FriendStory({
 
 /* ─── Stories row ────────────────────────────────────── */
 
-interface NutritionStoriesProps {
+interface FriendStoriesProps {
   onAddFriend: () => void;
 }
 
-export default function NutritionStories({ onAddFriend }: NutritionStoriesProps) {
+export default function FriendStories({ onAddFriend }: FriendStoriesProps) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 

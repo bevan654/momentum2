@@ -8,7 +8,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import StoryCropModal from '../dev/StoryCropModal';
+import StoryCropModal from './StoryCropModal';
 import Sheet from '../ui/Sheet';
 
 interface Props {

@@ -39,14 +39,13 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 |---|---|---|
 | `auth/` | Login, Sign Up and Forgot Password pieces: `AuthLayout` (keyboard container + entrance animation), `AuthBrand`, `AuthInput` (icon field with status icon, eye toggle, hint), `FieldStatusIcon`, shared `authStyles`, Google/Apple `SocialAuthButtons` | `FieldStatusIcon` is also used by onboarding |
 | `body/` | Body map wrappers around `momentum-muscle-map` | `useBodyMap.ts` exports `useBodies`, `useMuscleMapColors` and other helpers, but no `useBodyMap` |
-| `dev/` | **Production share UI**, not dev tools | `WorkoutOverlay` = share card, `StoryCropModal`; used by `share/` and the workout summary |
 | `food/` | Nutrition tab: day summary (`NutritionHero`: calorie ring, macro bars), water/supplement strip, meal cards, add-food, barcode, AI scan, food detail | Meal cards: `MealList` → `MealCard`; entries are grouped by `groupEntriesByMeal.ts`, which matches `meal_type` to the user's `meal_config` by slot, then by name (many accounts use `meal_1`… labelled Breakfast…). Popups are built from the shared kit in `food/ui/` (`FoodSheetHeader`, `FoodSearchBar`, `FoodRow`, `FoodSegmentChips`, `FoodEmptyState`, `FavouriteButton`, `useKeyboardInset`); reuse it for new food screens. `macro-lens/` holds the pieces of `MacroLensModal` (AI photo scan). |
-| `friends/` | Community tab: leaderboard, search, notifications, reports | `AvatarCircle`, `ReportSheet` are also used by other features. `feed-workout/` holds the pieces of `FeedWorkoutModal` |
-| `home/` | Home tab cards (activity, nutrition, water, supplements) | Also holds app-wide pieces: `Header` (global header), `ChangelogModal`, `BetaWelcomeModal`, the Community `Feed` (its rows and pieces live in `home/feed/`) and `NutritionStories`; `activity/` holds the year view and calendar helpers of `ActivityCard`. The Nutrition, Water and Supplements cards' detail popups share `CardDetailSheet` (chrome, hero row, bar, quick-add buttons, Undo/Done footer); the Nutrition and Supplements popup contents live in `NutritionDetailModal` / `SupplementDetailModal` |
+| `friends/` | Community tab: leaderboard, search, notifications, reports, the friend stories row (`FriendStories`) | `AvatarCircle`, `ReportSheet` are also used by other features. `feed-workout/` holds the pieces of `FeedWorkoutModal` |
+| `home/` | Home tab cards (activity, nutrition, water, supplements) | Also holds app-wide pieces: `Header` (global header), `ChangelogModal`, `BetaWelcomeModal`, the Community `Feed` (its rows and pieces live in `home/feed/`); `activity/` holds the year view and calendar helpers of `ActivityCard`. The Nutrition, Water and Supplements cards' detail popups share `CardDetailSheet` (chrome, hero row, bar, quick-add buttons, Undo/Done footer); the Nutrition and Supplements popup contents live in `NutritionDetailModal` / `SupplementDetailModal` |
 | `lab/` | **Recovery tab** (screen is `LaboratoryScreen`): body metrics, charts, AI card | The Weight, Body Fat and Measurements cards (paged by `BodyMetricsPager`) are thin wrappers over `lab/trend/`: `TrendCard` (header, range selector), `TrendChart` (bars + EMA line + legend), `useTrendRange` (range synced to `useLabTimeRangeStore`, fetch + fade), `useTrendLayout`, `EntryHistorySheet` (swipe-to-delete history) and `NumberLogModal` (log dialog). `AiHeroCard` is the AI coach preview; the chat itself is `AiCoachChatModal` with its state, history load and edge-function call in `useAiCoachChat` |
 | `onboarding/` | `OnboardingScreen` steps: `DetailsStep`, `GoalsStep`, `UnitInput` | `onboardingPlan.ts`: step copy, activity levels, calorie/macro recommendation |
 | `profile/` | Profile sheet sub-views and goal editors | `settings/` holds the sections of `ProfileSettingsView` |
-| `share/` | `ShareModal` | |
+| `share/` | Workout sharing: `ShareModal`, the share card `WorkoutOverlay`, `StoryCropModal` | `WorkoutOverlay` is also rendered by the workout summary |
 | `ui/` | Shared primitives: `Sheet`, `Overlay`, `Portal` | `SheetWrapper.tsx` sits at `components/` root |
 | `workout-sheet/` | Active workout sheet, sets, rest timer, finish flow | Also `WorkoutSummaryModal` (post-workout/history summary; its pieces live in `summary/`), `ExercisePicker` (used by routines too; pieces in `exercise-picker/`), `GhostFinishScreen` (a component, not a route); `SetRow` (swipe shell; inputs and styles in `workout-sheet/set-row/`), `ExerciseHistoryModal` (pieces in `workout-sheet/exercise-history/`) |
 | `workouts/` | Workouts tab: recovery body map, routines, today's plan | `ExerciseRow.tsx` exports a component named `ExerciseCard`. `history/` holds the pieces of `WorkoutHistoryScreen` (history sheet, routine preview, recovery chips, training calendar); `create-program/` and `program-day-editor/` hold pieces of those two screens. |
@@ -65,7 +64,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
   | Community | `screens/FriendsScreen.tsx` (+ `components/friends/`, `home/Feed.tsx`) |
 
   It also mounts the global `Header`, `ActiveWorkoutSheet`, `FloatingWorkoutBanner`, `WorkoutSummaryModal`, `GhostFinishScreen` and `ProfileScreen` inside a `Sheet`.
-- `src/navigation/WorkoutsNavigator.tsx`: the base layer is `WorkoutHistoryScreen` (recovery body map + today's plan), shown or hidden through `navigationBridge`. The route `StartWorkout` renders nothing but is load-bearing: on mount it registers the workouts nav ref, and on each focus it shows the recovery overlay. Don't delete it. The plans screen is the route **`Plans`** → `StartWorkoutScreen`. Other routes: `CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`.
+- `src/navigation/WorkoutsNavigator.tsx`: the base layer is `WorkoutHistoryScreen` (recovery body map + today's plan), shown or hidden through `navigationBridge`. The route `StartWorkout` renders nothing but is load-bearing: on mount it registers the workouts nav ref, and on each focus it shows the recovery overlay. Don't delete it. The plans screen is the route **`Plans`** → `PlansScreen`. Other routes: `CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`.
 
 ## How the pieces connect
 - **Usual flow:** screen → feature components → Zustand store (`src/stores/`) → `supabase` client (`src/lib/supabase.ts`) → Postgres (with RLS). Social data mostly goes store → `src/lib/friendsDatabase.ts` → Supabase; `friends/NotificationList` calls `friendsDatabase` directly, and the finished-workout feed post (`activity_feed`) is written by `useActiveWorkoutStore` and the workout-summary edit-save (`workout-sheet/summary/useSummaryEdit`).
@@ -95,7 +94,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 |---|---|
 | Add or change a screen | `src/screens/` + wire it into `src/navigation/` |
 | Change a tab or what a tab shows | `src/navigation/TabNavigator.tsx` |
-| Workouts tab plans, routines, programs | `navigation/WorkoutsNavigator.tsx`, `screens/StartWorkoutScreen.tsx` (route `Plans`), `screens/*Routine*`, `screens/*Program*` |
+| Workouts tab plans, routines, programs | `navigation/WorkoutsNavigator.tsx`, `screens/PlansScreen.tsx` (route `Plans`), `screens/*Routine*`, `screens/*Program*` |
 | Active workout UI / logic | `components/workout-sheet/`, `stores/useActiveWorkoutStore.ts` |
 | Post-workout summary / editing a past workout | `components/workout-sheet/WorkoutSummaryModal.tsx` (pieces in `components/workout-sheet/summary/`) |
 | Workout history | `stores/useWorkoutStore.ts`, `screens/WorkoutHistoryScreen.tsx` (+ `components/workouts/history/`); a past workout opens in `workout-sheet/WorkoutSummaryModal` |
@@ -109,7 +108,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | Feed, friends, leaderboard, reactions | `components/friends/`, `components/home/Feed.tsx`, `stores/useFriendsStore.ts`, `lib/friendsDatabase.ts` |
 | Global header | `components/home/Header.tsx` |
 | Profile, settings | `screens/ProfileScreen.tsx`, `components/profile/`, `stores/useProfileSettingsStore.ts` |
-| Share images | `components/share/ShareModal.tsx`, `components/dev/` |
+| Share images | `components/share/` |
 | Theme colours, sizing, fonts | `src/theme/` |
 | Changelog entry | `src/constants/changelog.ts` |
 | Env vars | `.env` (not in git; `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`), read in `src/lib/supabase.ts`, and also directly by `food/useAiFoodSearch` (Deep Search), `food/MacroLensModal` and `lab/useAiCoachChat` for raw `fetch` calls to edge functions |

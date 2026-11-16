@@ -21,7 +21,7 @@ import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
 const DISMISS_THRESHOLD = 120;
 const VELOCITY_THRESHOLD = 800;
 
-export default function StartWorkoutScreen() {
+export default function PlansScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<WorkoutsStackParamList>>();
   const userId = useAuthStore((s) => s.user?.id);
   const routines = useRoutineStore((s) => s.routines);

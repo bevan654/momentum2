@@ -8,7 +8,7 @@ import { Fonts } from '../theme/typography';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useFriendsStore } from '../stores/useFriendsStore';
 import { initNotifications, cleanupNotifications } from '../services/notificationService';
-import NutritionStories from '../components/home/NutritionStories';
+import FriendStories from '../components/friends/FriendStories';
 import Feed from '../components/home/Feed';
 import AddFriendSheet from '../components/friends/AddFriendSheet';
 import Leaderboard from '../components/friends/Leaderboard';
@@ -57,7 +57,7 @@ function FriendsScreen() {
   }, [userId]);
 
   const header = useMemo(
-    () => <NutritionStories onAddFriend={openAddFriend} />,
+    () => <FriendStories onAddFriend={openAddFriend} />,
     [openAddFriend],
   );
 
