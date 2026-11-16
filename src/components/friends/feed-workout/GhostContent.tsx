@@ -127,22 +127,22 @@ export function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDi
 
   return (
     <>
-      <View style={{ paddingTop: sw(4), paddingBottom: sw(8), alignItems: 'center' }}>
-        <Text style={{ fontSize: ms(15), fontFamily: Fonts.bold, color: colors.textPrimary }}>Challenge Summary</Text>
+      <View style={gs.header}>
+        <Text style={gs.title}>Challenge Summary</Text>
       </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: sw(16), paddingBottom: sw(32) }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={gs.scrollContent}>
         {/* Verdict */}
-        <View style={{ alignItems: 'center', paddingVertical: sw(24), gap: sw(6) }}>
-          <Text style={{ fontSize: ms(34), fontFamily: Fonts.extraBold, color: verdictColor, letterSpacing: 2 }}>
+        <View style={gs.verdict}>
+          <Text style={[gs.verdictText, { color: verdictColor }]}>
             {verdictText}
           </Text>
-          <Text style={{ fontSize: ms(12), fontFamily: Fonts.medium, color: colors.textTertiary }}>
+          <Text style={gs.verdictSub}>
             {displayName} vs {ghostUserName}
           </Text>
         </View>
 
         {/* Stats row */}
-        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: sw(16), marginBottom: sw(16) }}>
+        <View style={gs.statsRow}>
           <Text style={gs.statText}>{formatHoursMinutes(item.duration)}</Text>
           <Text style={gs.statText}>·</Text>
           <Text style={gs.statText}>{exercises.length} exercises</Text>
@@ -151,45 +151,39 @@ export function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDi
         </View>
 
         {/* Set Score Bar */}
-        <View style={{ marginBottom: sw(36) }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: sw(6) }}>
-            <Text style={{ fontSize: ms(12), fontFamily: Fonts.bold, color: colors.positive }}>{displayName}  {results.setWins}</Text>
+        <View style={gs.scoreBlock}>
+          <View style={gs.scoreLabels}>
+            <Text style={gs.scoreWinsLabel}>{displayName}  {results.setWins}</Text>
             {results.setTies > 0 && (
-              <Text style={{ fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary }}>{results.setTies} tied</Text>
+              <Text style={gs.scoreTiedLabel}>{results.setTies} tied</Text>
             )}
-            <Text style={{ fontSize: ms(12), fontFamily: Fonts.bold, color: colors.accentRed }}>{results.setLosses}  {ghostUserName}</Text>
+            <Text style={gs.scoreLossesLabel}>{results.setLosses}  {ghostUserName}</Text>
           </View>
-          <View style={{ flexDirection: 'row', height: sw(6), borderRadius: sw(3), overflow: 'hidden' }}>
+          <View style={gs.scoreBar}>
             {results.setWins > 0 && (
-              <View style={{ flex: results.setWins, backgroundColor: colors.positive, borderTopLeftRadius: sw(3), borderBottomLeftRadius: sw(3) }} />
+              <View style={[gs.scoreWins, { flex: results.setWins }]} />
             )}
             {results.setTies > 0 && (
-              <View style={{ flex: results.setTies, backgroundColor: colors.textTertiary + '40' }} />
+              <View style={[gs.scoreTies, { flex: results.setTies }]} />
             )}
             {results.setLosses > 0 && (
-              <View style={{ flex: results.setLosses, backgroundColor: colors.accentRed, borderTopRightRadius: sw(3), borderBottomRightRadius: sw(3) }} />
+              <View style={[gs.scoreLosses, { flex: results.setLosses }]} />
             )}
           </View>
         </View>
 
         {/* Head-to-head split */}
         {results.perExercise.map((ex, i) => (
-          <View key={i} style={{ marginBottom: sw(16) }}>
-            <Text style={{
-              fontSize: ms(12), fontFamily: Fonts.bold, color: colors.textPrimary,
-              textAlign: 'center', marginBottom: sw(8),
-            }} numberOfLines={1}>
+          <View key={i} style={gs.exerciseBlock}>
+            <Text style={gs.exerciseName} numberOfLines={1}>
               {ex.name}
             </Text>
 
             {/* Column headers */}
-            <View style={{
-              flexDirection: 'row', alignItems: 'center', paddingBottom: sw(6),
-              borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder,
-            }}>
-              <Text style={{ flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary }}>{displayName.toUpperCase()}</Text>
-              <Text style={{ width: sw(24), fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'center' }}>SET</Text>
-              <Text style={{ flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right' }}>{ghostUserName.toUpperCase()}</Text>
+            <View style={gs.columnHeaders}>
+              <Text style={gs.columnUser}>{displayName.toUpperCase()}</Text>
+              <Text style={gs.columnSet}>SET</Text>
+              <Text style={gs.columnGhost}>{ghostUserName.toUpperCase()}</Text>
             </View>
 
             {/* Set rows */}
@@ -198,18 +192,14 @@ export function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDi
               const ghostSet = ex.ghostSets[si];
               const bgColor = r === 'win' ? colors.positive + '12' : r === 'loss' ? colors.accentRed + '12' : 'transparent';
               return (
-                <View key={si} style={{
-                  flexDirection: 'row', alignItems: 'center', paddingVertical: sw(8),
-                  backgroundColor: bgColor,
-                  borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder,
-                }}>
-                  <Text style={{ flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textPrimary, paddingLeft: sw(4) }}>
+                <View key={si} style={[gs.setRow, { backgroundColor: bgColor }]}>
+                  <Text style={gs.setUser}>
                     {userSet.kg} × {userSet.reps}
                   </Text>
-                  <Text style={{ width: sw(24), fontSize: ms(10), fontFamily: Fonts.bold, color: colors.textTertiary, textAlign: 'center' }}>
+                  <Text style={gs.setNumber}>
                     {si + 1}
                   </Text>
-                  <Text style={{ flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right', paddingRight: sw(4) }}>
+                  <Text style={gs.setGhost}>
                     {ghostSet.kg} × {ghostSet.reps}
                   </Text>
                 </View>
@@ -249,6 +239,48 @@ export function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDi
 }
 
 const createGhostStyles = (colors: ThemeColors) => StyleSheet.create({
+  header: { paddingTop: sw(4), paddingBottom: sw(8), alignItems: 'center' },
+  title: { fontSize: ms(15), fontFamily: Fonts.bold, color: colors.textPrimary },
+  scrollContent: { padding: sw(16), paddingBottom: sw(32) },
+
+  // Verdict (its colour follows the result, set inline)
+  verdict: { alignItems: 'center', paddingVertical: sw(24), gap: sw(6) },
+  verdictText: { fontSize: ms(34), fontFamily: Fonts.extraBold, letterSpacing: 2 },
+  verdictSub: { fontSize: ms(12), fontFamily: Fonts.medium, color: colors.textTertiary },
+  statsRow: { flexDirection: 'row', justifyContent: 'center', gap: sw(16), marginBottom: sw(16) },
+
+  // Set score bar (segment flex follows the score, set inline)
+  scoreBlock: { marginBottom: sw(36) },
+  scoreLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: sw(6) },
+  scoreWinsLabel: { fontSize: ms(12), fontFamily: Fonts.bold, color: colors.positive },
+  scoreTiedLabel: { fontSize: ms(11), fontFamily: Fonts.medium, color: colors.textTertiary },
+  scoreLossesLabel: { fontSize: ms(12), fontFamily: Fonts.bold, color: colors.accentRed },
+  scoreBar: { flexDirection: 'row', height: sw(6), borderRadius: sw(3), overflow: 'hidden' },
+  scoreWins: { backgroundColor: colors.positive, borderTopLeftRadius: sw(3), borderBottomLeftRadius: sw(3) },
+  scoreTies: { backgroundColor: colors.textTertiary + '40' },
+  scoreLosses: { backgroundColor: colors.accentRed, borderTopRightRadius: sw(3), borderBottomRightRadius: sw(3) },
+
+  // Head-to-head per exercise (row background follows the result, set inline)
+  exerciseBlock: { marginBottom: sw(16) },
+  exerciseName: {
+    fontSize: ms(12), fontFamily: Fonts.bold, color: colors.textPrimary,
+    textAlign: 'center', marginBottom: sw(8),
+  },
+  columnHeaders: {
+    flexDirection: 'row', alignItems: 'center', paddingBottom: sw(6),
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder,
+  },
+  columnUser: { flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary },
+  columnSet: { width: sw(24), fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'center' },
+  columnGhost: { flex: 1, fontSize: ms(9), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right' },
+  setRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: sw(8),
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder,
+  },
+  setUser: { flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textPrimary, paddingLeft: sw(4) },
+  setNumber: { width: sw(24), fontSize: ms(10), fontFamily: Fonts.bold, color: colors.textTertiary, textAlign: 'center' },
+  setGhost: { flex: 1, fontSize: ms(12), fontFamily: Fonts.semiBold, color: colors.textTertiary, textAlign: 'right', paddingRight: sw(4) },
+
   statText: {
     fontSize: ms(11),
     fontFamily: Fonts.medium,
@@ -304,6 +336,8 @@ const createGhostStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: sw(8),
     marginBottom: sw(10),
   },
+  // White pill, black text in both themes. Left as hex: the only tokens with these values in both
+  // themes (textOnColor, backdrop) mean something else, so a change to them shouldn't move this.
   pickerPill: {
     flex: 1,
     alignItems: 'center',
