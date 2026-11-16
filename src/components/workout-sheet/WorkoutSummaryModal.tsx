@@ -220,6 +220,13 @@ export default function WorkoutSummaryModal(props: Props) {
         <ExerciseResultCard key={i} exercise={ex} colors={colors} prevSets={prevMap[ex.name]} coachNote={coachNotesByName.get(ex.name.toLowerCase())} />
       ))}
     </View>
+  ) : savedExercises ? (
+    // A saved workout after Save: show the edit, not the rows the page was opened with
+    <View style={styles.exerciseDetailList}>
+      {savedExercises.map((ex, i) => (
+        <ExerciseResultCard key={i} exercise={ex} colors={colors} prevSets={prevMap[ex.name]} coachNote={coachNotesByName.get(ex.name.toLowerCase())} />
+      ))}
+    </View>
   ) : (
     <View style={styles.exerciseDetailList}>
       {(data as WorkoutWithDetails).exercises.map((ex) => (
@@ -270,6 +277,7 @@ export default function WorkoutSummaryModal(props: Props) {
       <>
         <HistoricalPage
           data={data as WorkoutWithDetails}
+          heatmapExercises={savedExercises ?? (data as WorkoutWithDetails).exercises}
           colors={colors}
           editing={editing}
           onDismiss={onDismiss}

@@ -6,6 +6,7 @@ import { sw, ms } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
 import MuscleHeatmap from '../../body/MuscleHeatmap';
 import type { WorkoutWithDetails } from '../../../stores/useWorkoutStore';
+import type { VolumeExercise } from '../../../utils/muscleVolume';
 import { formatWorkoutDate } from '../../../utils/dateLabels';
 
 /* ═══════════════════════════════════════════════════════════
@@ -13,11 +14,13 @@ import { formatWorkoutDate } from '../../../utils/dateLabels';
    ═══════════════════════════════════════════════════════════ */
 
 function HistoricalPage({
-  data, colors, editing, onDismiss, onDelete, handleDelete, deleting,
+  data, heatmapExercises, colors, editing, onDismiss, onDelete, handleDelete, deleting,
   startEditing, workoutId, statsContent, exerciseContent,
   editFooter, setShowShare, inline,
 }: {
   data: WorkoutWithDetails;
+  /** The exercises the heatmap shows: the saved edit after Save, else the workout's own. */
+  heatmapExercises: readonly VolumeExercise[];
   colors: ThemeColors;
   editing: boolean;
   onDismiss: () => void;
@@ -68,8 +71,8 @@ function HistoricalPage({
       >
         {statsContent}
 
-        {!editing && data.exercises.length > 0 && (
-          <MuscleHeatmap exercises={data.exercises} />
+        {!editing && heatmapExercises.length > 0 && (
+          <MuscleHeatmap exercises={heatmapExercises} />
         )}
 
         {exerciseContent}
