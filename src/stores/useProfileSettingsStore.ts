@@ -108,7 +108,7 @@ function persist(state: ProfileSettingsState) {
     showProgressCharts: state.showProgressCharts,
     expandedNotes: state.expandedNotes,
     muscleMapLevel: state.muscleMapLevel,
-  }));
+  })).catch(() => {});
 }
 
 export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) => ({
@@ -179,22 +179,28 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
   },
 
   loadSettings: async () => {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const data = JSON.parse(raw);
-      set({
-        hasSeenLeaderboardInfo: data.hasSeenLeaderboardInfo ?? false,
-        labTrackers: migrateTrackers(data.labTrackers ?? DEFAULT_LAB_TRACKERS),
-        defaultWeightRange: data.defaultWeightRange ?? '1W',
-        defaultBodyFatMethod: data.defaultBodyFatMethod ?? 'tape',
-        defaultMeasurement: data.defaultMeasurement ?? { part: 'chest', side: 'left', pump: 'no_pump' },
-        showProgressCharts: data.showProgressCharts ?? true,
-        expandedNotes: data.expandedNotes ?? {},
-        muscleMapLevel: data.muscleMapLevel ?? 'muscles',
-        initialized: true,
-      });
-    } else {
-      set({ initialized: true });
+    // A storage error or a corrupt saved value falls back to the defaults; `initialized` is
+    // always set, so nothing waiting on it hangs
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const data = raw ? JSON.parse(raw) : null;
+      if (data && typeof data === 'object') {
+        set({
+          hasSeenLeaderboardInfo: data.hasSeenLeaderboardInfo ?? false,
+          labTrackers: migrateTrackers(Array.isArray(data.labTrackers) ? data.labTrackers : DEFAULT_LAB_TRACKERS),
+          defaultWeightRange: data.defaultWeightRange ?? '1W',
+          defaultBodyFatMethod: data.defaultBodyFatMethod ?? 'tape',
+          defaultMeasurement: data.defaultMeasurement ?? { part: 'chest', side: 'left', pump: 'no_pump' },
+          showProgressCharts: data.showProgressCharts ?? true,
+          expandedNotes: data.expandedNotes ?? {},
+          muscleMapLevel: data.muscleMapLevel ?? 'muscles',
+          initialized: true,
+        });
+        return;
+      }
+    } catch {
+      // fall through to the defaults
     }
+    set({ initialized: true });
   },
 }));
