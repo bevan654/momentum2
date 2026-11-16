@@ -17,18 +17,22 @@ function computeWindowStats(workouts: WorkoutWithDetails[], days: number) {
   const startMs = start.getTime();
 
   let sessions = 0;
+  let timedSessions = 0; // duration 0 means unknown (older saves), so those don't count towards the average
   let totalDuration = 0;
 
   for (const w of workouts) {
     const t = new Date(w.created_at).getTime();
     if (t < startMs) continue;
     sessions++;
-    totalDuration += w.duration || 0;
+    if (w.duration > 0) {
+      timedSessions++;
+      totalDuration += w.duration;
+    }
   }
 
   return {
     sessions,
-    avgDuration: sessions > 0 ? Math.round(totalDuration / sessions / 60) : 0,
+    avgDuration: timedSessions > 0 ? Math.round(totalDuration / timedSessions / 60) : 0,
   };
 }
 
