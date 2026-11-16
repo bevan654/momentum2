@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../../../lib/supabase';
@@ -11,6 +11,50 @@ import type { EditExercise } from './summaryFormat';
 function parentSetNumber(sets: EditExercise['sets'], set: EditExercise['sets'][number]): number | null {
   const parentPos = set.parentOrigId ? sets.findIndex((p) => p.origId === set.parentOrigId) : -1;
   return parentPos >= 0 ? parentPos + 1 : null;
+}
+
+type SavedRowExercise = {
+  id: string;
+  name: string;
+  exercise_type: string | null;
+  sets: {
+    id: string; set_number: number; kg: number; reps: number; completed: boolean;
+    set_type: string | null; parent_set_number: number | null;
+  }[];
+};
+
+/** Saved rows in edit shape. Each row's id goes in origId, so upsert_workout keeps the fields the editor doesn't show. */
+function toEditExercises(rows: SavedRowExercise[], categoryOf: (name: string) => string | null): EditExercise[] {
+  return rows.map((ex) => {
+    const sets = [...(ex.sets ?? [])].sort((a, b) => a.set_number - b.set_number);
+    return {
+      name: ex.name,
+      category: categoryOf(ex.name),
+      exercise_type: ex.exercise_type ?? undefined,
+      origId: ex.id,
+      sets: sets.map((s) => ({
+        kg: String(Number(s.kg) || 0),
+        reps: String(Number(s.reps) || 0),
+        completed: s.completed,
+        set_type: s.set_type || 'working',
+        origId: s.id,
+        parentOrigId: s.parent_set_number != null
+          ? sets.find((p) => p.set_number === s.parent_set_number)?.id ?? null
+          : null,
+      })),
+    };
+  });
+}
+
+/** The workout's exercises and sets as saved now (the columns the history list loads), or null if that fails. */
+async function loadSavedRows(workoutId: string): Promise<SavedRowExercise[] | null> {
+  const { data, error } = await supabase
+    .from('exercises')
+    .select('id, name, exercise_order, exercise_type, sets(id, set_number, kg, reps, completed, set_type, parent_set_number)')
+    .eq('workout_id', workoutId)
+    .order('exercise_order', { ascending: true });
+  if (error || !data || data.length === 0) return null;
+  return data as unknown as SavedRowExercise[];
 }
 
 /**
@@ -38,8 +82,25 @@ export function useSummaryEdit({
   const [saving, setSaving] = useState(false);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
+  // A saved workout after Save: `data` (and its row ids) is the version from before,
+  // because upsert_workout replaces the rows. Another edit has to start from the rows
+  // as saved now, or it shows the old sets and saving puts them back.
+  // `gen` drops a load that a newer save has overtaken.
+  const savedRowsRef = useRef<{ stale: boolean; rows: EditExercise[] | null; gen: number }>({
+    stale: false, rows: null, gen: 0,
+  });
 
-  const startEditing = useCallback(() => {
+  const loadEditRows = useCallback(async (): Promise<EditExercise[] | null> => {
+    if (!workoutId) return null;
+    const gen = savedRowsRef.current.gen;
+    const rows = await loadSavedRows(workoutId).catch(() => null);
+    if (!rows || savedRowsRef.current.gen !== gen) return null;
+    const edit = toEditExercises(rows, (name) => catalogMap[name]?.category || null);
+    savedRowsRef.current.rows = edit;
+    return edit;
+  }, [workoutId, catalogMap]);
+
+  const startEditing = useCallback(async () => {
     let exercises: EditExercise[];
     if (isJustCompleted) {
       const src = displayExercises ?? (data as WorkoutSummary).exercises;
@@ -54,6 +115,16 @@ export function useSummaryEdit({
           set_type: s.set_type,
         })),
       }));
+    } else if (savedRowsRef.current.stale) {
+      const fresh = savedRowsRef.current.rows ?? await loadEditRows();
+      if (!fresh) {
+        Alert.alert(
+          'Couldn\'t Load Workout',
+          'Your last edit is saved, but the workout couldn\'t be loaded again to edit. Check your connection and try again.',
+        );
+        return;
+      }
+      exercises = fresh;
     } else {
       exercises = (data as WorkoutWithDetails).exercises.map((ex) => ({
         name: ex.name,
@@ -75,7 +146,7 @@ export function useSummaryEdit({
     setEditExercises(exercises);
     setEditDuration(displayDuration);
     setEditing(true);
-  }, [data, isJustCompleted, displayDuration, displayExercises]);
+  }, [data, isJustCompleted, displayDuration, displayExercises, loadEditRows]);
 
   const cancelEditing = useCallback(() => {
     setEditing(false);
@@ -212,6 +283,12 @@ export function useSummaryEdit({
       setSavedDuration(editDuration);
       setSavedExercises(newSummaryExercises);
 
+      // The rows were replaced: load them, with their new ids, for the next edit.
+      if (!isJustCompleted) {
+        savedRowsRef.current = { stale: true, rows: null, gen: savedRowsRef.current.gen + 1 };
+        loadEditRows().catch(() => {});
+      }
+
       // 6. Refresh workout history cache
       fetchWorkoutHistory(userId).catch(() => {});
 
@@ -225,7 +302,7 @@ export function useSummaryEdit({
     } finally {
       setSaving(false);
     }
-  }, [workoutId, userId, editExercises, editDuration, catalogMap, fetchWorkoutHistory]);
+  }, [workoutId, userId, editExercises, editDuration, catalogMap, fetchWorkoutHistory, isJustCompleted, loadEditRows]);
 
   return {
     editing, editExercises, editDuration, setEditDuration, saving,
