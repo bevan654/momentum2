@@ -129,6 +129,8 @@ let latestDateRequest: string | null = null;
 let dateRequestId = 0;
 /** The user and day (`userId:date`) whose entries are in `dateEntries`. */
 let loadedDateKey: string | null = null;
+/** The user and day (`userId:date`) whose totals are in `water` / `supplementTotals`. */
+let loadedTodayKey: string | null = null;
 
 export const useSupplementStore = create<SupplementState>((set, get) => ({
   water: 0,
@@ -199,25 +201,48 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     const configs = [...get().supplementConfigs, config];
     set({ supplementConfigs: configs });
     await cacheConfigs(configs);
+    let failed = false;
     try {
-      await supabase.from('user_supplements').insert(configToRow(userId, config, configs.length - 1));
-    } catch {}
+      const { error } = await supabase.from('user_supplements').insert(configToRow(userId, config, configs.length - 1));
+      failed = !!error;
+    } catch { failed = true; }
+    if (failed) {
+      // Roll back only this config, keeping any other change made meanwhile
+      const rolledBack = get().supplementConfigs.filter((c) => c.key !== config.key);
+      set({ supplementConfigs: rolledBack });
+      await cacheConfigs(rolledBack);
+    }
   },
 
   removeSupplementConfig: async (userId: string, key: string) => {
-    const configs = get().supplementConfigs.filter((c) => c.key !== key);
+    const prevConfigs = get().supplementConfigs;
+    const index = prevConfigs.findIndex((c) => c.key === key);
+    const removed = index >= 0 ? prevConfigs[index] : null;
+    const configs = prevConfigs.filter((c) => c.key !== key);
     set({ supplementConfigs: configs });
     await cacheConfigs(configs);
+    let failed = false;
     try {
-      await supabase
+      const { error } = await supabase
         .from('user_supplements')
         .delete()
         .eq('user_id', userId)
         .eq('key', key);
-    } catch {}
+      failed = !!error;
+    } catch { failed = true; }
+    if (failed && removed) {
+      // Put it back where it was (unless it has been re-added meanwhile)
+      const current = get().supplementConfigs;
+      if (current.some((c) => c.key === key)) return;
+      const rolledBack = [...current];
+      rolledBack.splice(Math.min(index, rolledBack.length), 0, removed);
+      set({ supplementConfigs: rolledBack });
+      await cacheConfigs(rolledBack);
+    }
   },
 
   updateSupplementConfig: async (userId: string, key: string, updates: Partial<SupplementConfig>) => {
+    const previous = get().supplementConfigs.find((c) => c.key === key);
     const configs = get().supplementConfigs.map((c) => (c.key === key ? { ...c, ...updates } : c));
     set({ supplementConfigs: configs });
     await cacheConfigs(configs);
@@ -230,41 +255,61 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     if (updates.color != null) dbUpdates.color = updates.color;
     if (updates.increments != null) dbUpdates.increments = updates.increments;
 
+    let failed = false;
     try {
-      await supabase
+      const { error } = await supabase
         .from('user_supplements')
         .update(dbUpdates)
         .eq('user_id', userId)
         .eq('key', key);
-    } catch {}
+      failed = !!error;
+    } catch { failed = true; }
+    if (failed && previous) {
+      // Restore the fields this call changed
+      const restore: Partial<SupplementConfig> = {};
+      for (const field of Object.keys(updates) as (keyof SupplementConfig)[]) {
+        (restore as any)[field] = previous[field];
+      }
+      const rolledBack = get().supplementConfigs.map((c) => (c.key === key ? { ...c, ...restore } : c));
+      set({ supplementConfigs: rolledBack });
+      await cacheConfigs(rolledBack);
+    }
   },
 
   /* ─── Data fetching ─────────────────────────────────── */
 
   fetchTodaySupplements: async (userId: string) => {
     const date = toLocalDateString();
-    const { data } = await supabase
+    const key = `${userId}:${date}`;
+    const { data, error } = await supabase
       .from('supplement_entries')
       .select('type, amount')
       .eq('user_id', userId)
       .eq('date', date);
 
-    if (data) {
-      const water = data
-        .filter((e) => e.type === 'water')
-        .reduce((sum, e) => sum + Number(e.amount), 0);
-
-      const totals: Record<string, number> = {};
-      for (const entry of data) {
-        if (entry.type !== 'water') {
-          totals[entry.type] = (totals[entry.type] || 0) + Number(entry.amount);
-        }
+    if (error || !data) {
+      // Offline or failed: keep today's progress on screen. Only clear it when what is shown
+      // belongs to another day or account.
+      if (loadedTodayKey !== key) {
+        loadedTodayKey = key;
+        set({ water: 0, supplementTotals: {} });
       }
-
-      set({ water, supplementTotals: totals });
-    } else {
-      set({ water: 0, supplementTotals: {} });
+      return;
     }
+
+    const water = data
+      .filter((e) => e.type === 'water')
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+
+    const totals: Record<string, number> = {};
+    for (const entry of data) {
+      if (entry.type !== 'water') {
+        totals[entry.type] = (totals[entry.type] || 0) + Number(entry.amount);
+      }
+    }
+
+    loadedTodayKey = key;
+    set({ water, supplementTotals: totals });
   },
 
   fetchSupplementGoals: async (userId: string) => {
