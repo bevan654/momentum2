@@ -64,7 +64,7 @@ function CellInput({
       style={style}
       value={editing ? localValue : value}
       onFocus={() => setLocalValue(value)}
-      onChangeText={setLocalValue}
+      onChangeText={(v) => setLocalValue(v.replace(',', '.'))}
       onBlur={() => {
         const n = parseValue(localValue ?? value);
         onCommit(n);

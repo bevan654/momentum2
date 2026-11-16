@@ -171,7 +171,7 @@ function AddSupplementModal({ visible, onClose }: Props) {
                   placeholder="Daily goal"
                   placeholderTextColor={colors.textTertiary}
                   value={customGoal}
-                  onChangeText={setCustomGoal}
+                  onChangeText={(v) => setCustomGoal(v.replace(',', '.'))}
                   keyboardType="decimal-pad"
                 />
 

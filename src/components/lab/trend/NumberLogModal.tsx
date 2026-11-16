@@ -73,7 +73,7 @@ function NumberLogModal({ visible, onClose, onSave, title, subtitle, placeholder
               placeholder={placeholder}
               placeholderTextColor={colors.textTertiary}
               value={value}
-              onChangeText={setValue}
+              onChangeText={(v) => setValue(v.replace(',', '.'))}
               keyboardType="decimal-pad"
               autoFocus
             />

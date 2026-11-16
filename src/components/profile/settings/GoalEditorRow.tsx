@@ -47,7 +47,7 @@ function GoalEditorRow({ icon, color, label, unit, value, keyboardType, unitWidt
         <TextInput
           style={styles.input}
           value={text}
-          onChangeText={setText}
+          onChangeText={(v) => setText(v.replace(',', '.'))}
           onBlur={handleBlur}
           keyboardType={keyboardType}
           placeholderTextColor={colors.textTertiary}

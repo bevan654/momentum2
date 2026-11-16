@@ -27,7 +27,7 @@ function UnitInput({ value, onChangeText, unit, keyboardType, maxLength, placeho
         placeholder={placeholder}
         placeholderTextColor={placeholder != null ? colors.textTertiary : undefined}
         value={value}
-        onChangeText={onChangeText}
+        onChangeText={(v) => onChangeText(keyboardType === 'decimal-pad' ? v.replace(',', '.') : v)}
         keyboardType={keyboardType}
         maxLength={maxLength}
       />
