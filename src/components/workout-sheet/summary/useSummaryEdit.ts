@@ -173,7 +173,8 @@ export function useSummaryEdit({
       );
       const exerciseNames = cleanedExercises.map((ex) => ex.name);
 
-      await supabase
+      // The workout is already saved: a failure here is reported, but doesn't undo the save.
+      const { error: feedErr } = await supabase
         .from('activity_feed')
         .update({
           duration: editDuration,
@@ -216,6 +217,9 @@ export function useSummaryEdit({
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setEditing(false);
+      if (feedErr) {
+        Alert.alert('Feed Not Updated', 'Your workout was saved, but its post in the feed still shows the old numbers.');
+      }
     } catch (e: any) {
       Alert.alert('Save Failed', e?.message || 'Something went wrong.');
     } finally {
