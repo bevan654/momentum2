@@ -171,10 +171,50 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
     onToggleRef.current(indexRef.current);
   }, []);
 
-  const fireDelete = useCallback(() => {
+  const deleteHaptic = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    onDeleteRef.current?.(indexRef.current);
   }, []);
+
+  /* ── Delete collapse ─────────────────────────────── */
+
+  // Rows are keyed by position, so after a delete this row shows the next set. The set is removed
+  // only once the collapse has finished, and the collapse is undone as soon as the row holds a
+  // different set (or, if the store refused the delete, shortly after), so no row stays invisible.
+  const setRef = useRef(set);
+  setRef.current = set;
+  const deletedSetRef = useRef<ActiveSet | null>(null);
+  const restoreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetCollapse = useCallback(() => {
+    deletedSetRef.current = null;
+    cancelAnimation(translateX);
+    cancelAnimation(rowOpacity);
+    cancelAnimation(rowHeight);
+    cancelAnimation(rowMargin);
+    translateX.value = 0;
+    rowOpacity.value = 1;
+    rowHeight.value = ROW_HEIGHT;
+    rowMargin.value = sw(1);
+  }, []);
+
+  useEffect(() => {
+    if (deletedSetRef.current && deletedSetRef.current !== set) resetCollapse();
+  }, [set, resetCollapse]);
+
+  useEffect(() => () => {
+    if (restoreTimer.current) clearTimeout(restoreTimer.current);
+  }, []);
+
+  const fireDelete = useCallback(() => {
+    deletedSetRef.current = setRef.current;
+    onDeleteRef.current?.(indexRef.current);
+    // Still the same set: the delete didn't happen (e.g. the workout is being saved)
+    if (restoreTimer.current) clearTimeout(restoreTimer.current);
+    restoreTimer.current = setTimeout(() => {
+      restoreTimer.current = null;
+      if (deletedSetRef.current && deletedSetRef.current === setRef.current) resetCollapse();
+    }, 150);
+  }, [resetCollapse]);
 
   /* ── Gesture Handler pan ─────────────────────────── */
 
@@ -204,12 +244,14 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
           );
           runOnJS(fireComplete)();
         } else if (e.translationX < -SWIPE_THRESHOLD && canDelete) {
-          // Delete: slide out then collapse
+          // Delete: slide out, collapse, then remove the set
+          runOnJS(deleteHaptic)();
           translateX.value = withTiming(-400, { duration: 200 });
           rowOpacity.value = withDelay(100, withTiming(0, { duration: 150 }));
-          rowHeight.value = withDelay(150, withTiming(0, { duration: 200 }));
           rowMargin.value = withDelay(150, withTiming(0, { duration: 200 }));
-          runOnJS(fireDelete)();
+          rowHeight.value = withDelay(150, withTiming(0, { duration: 200 }, (finished) => {
+            if (finished) runOnJS(fireDelete)();
+          }));
         } else {
           translateX.value = withTiming(0, { duration: 180 });
         }
