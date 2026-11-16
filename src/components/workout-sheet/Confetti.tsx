@@ -113,7 +113,7 @@ function ConfettiPiece({ p }: { p: Particle }) {
   );
 }
 
-export default function Confetti() {
+function Confetti() {
   const particles = useMemo<Particle[]>(() => {
     return Array.from({ length: PARTICLE_COUNT }, () => {
       const angle = Math.random() * Math.PI * 2;
@@ -152,3 +152,5 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
 });
+
+export default React.memo(Confetti);

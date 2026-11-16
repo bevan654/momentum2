@@ -8,7 +8,7 @@ import {
   LAB_RANGE_OPTIONS,
 } from '../../stores/useLabTimeRangeStore';
 
-export default function LabTimeRangeBar() {
+function LabTimeRangeBar() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const rangeDays = useLabTimeRangeStore((s) => s.rangeDays);
@@ -76,3 +76,5 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.semiBold,
     },
   });
+
+export default React.memo(LabTimeRangeBar);

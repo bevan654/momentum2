@@ -30,7 +30,7 @@ const PLACEHOLDER_MESSAGES: ChatMessage[] = [
 const CARD_PAD = sw(12);
 
 /** Recovery-tab AI coach preview card; tapping it opens the full chat (AiCoachChatModal). */
-export default function AiHeroCard() {
+function AiHeroCard() {
   const colors = useColors();
   const username = useAuthStore((s) => s.profile?.username);
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -197,3 +197,5 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.semiBold,
     },
   });
+
+export default React.memo(AiHeroCard);

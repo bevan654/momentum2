@@ -18,7 +18,7 @@ import CardDetailSheet, {
   useCardDetailStyles,
 } from './CardDetailSheet';
 
-export default function WaterCard() {
+function WaterCard() {
   // Only these fields: a whole-store subscription re-rendered the card on any supplement change.
   const { water, waterGoal, addWater, undoLastWater } = useSupplementStore(
     useShallow((s) => ({ water: s.water, waterGoal: s.waterGoal, addWater: s.addWater, undoLastWater: s.undoLastWater })),
@@ -286,3 +286,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
   },
 });
+
+export default React.memo(WaterCard);

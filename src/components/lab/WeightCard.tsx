@@ -38,7 +38,7 @@ interface Props {
   pageIndicator?: React.ReactNode;
 }
 
-export default function WeightCard({ pageIndicator }: Props) {
+function WeightCard({ pageIndicator }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const userId = useAuthStore((s) => s.user?.id);
@@ -362,3 +362,5 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.medium,
     },
   });
+
+export default React.memo(WeightCard);

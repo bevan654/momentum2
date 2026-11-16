@@ -12,7 +12,7 @@ import { getFriendshipBetween } from '../../lib/friendsDatabase';
 import NotificationRow from './NotificationRow';
 import { setViewingNotifications } from '../../services/notificationService';
 
-export default function NotificationList() {
+function NotificationList() {
   const userId = useAuthStore((s) => s.user?.id);
   const notifications = useFriendsStore((s) => s.notifications);
   const notificationsLoading = useFriendsStore((s) => s.notificationsLoading);
@@ -211,3 +211,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(20),
   },
 });
+
+export default React.memo(NotificationList);

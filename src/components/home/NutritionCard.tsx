@@ -33,7 +33,7 @@ function makeRing(cx: number, cy: number, r: number) {
 
 /* ─── Main component ──────────────────────────────────── */
 
-export default function NutritionCard() {
+function NutritionCard() {
   // Only these fields: a whole-store subscription re-rendered the card on every loading flag and fetch.
   const totals = useNutritionStore(
     useShallow((s) => ({
@@ -278,3 +278,5 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.regular,
     },
   });
+
+export default React.memo(NutritionCard);

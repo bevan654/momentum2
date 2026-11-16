@@ -76,7 +76,7 @@ interface FriendStoriesProps {
   onAddFriend: () => void;
 }
 
-export default function FriendStories({ onAddFriend }: FriendStoriesProps) {
+function FriendStories({ onAddFriend }: FriendStoriesProps) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -189,3 +189,5 @@ const createStyles = (colors: ThemeColors) =>
       marginHorizontal: sw(0),
     },
   });
+
+export default React.memo(FriendStories);

@@ -20,7 +20,7 @@ interface FeedProps {
   onRefresh?: () => void;
 }
 
-export default function Feed({
+function Feed({
   headerComponent,
   titleComponent,
   refreshing = false,
@@ -232,3 +232,5 @@ const createStyles = (colors: ThemeColors) =>
       textAlign: 'center',
     },
   });
+
+export default React.memo(Feed);

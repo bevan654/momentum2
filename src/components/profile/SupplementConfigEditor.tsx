@@ -51,7 +51,7 @@ const SupplementGoalRow = React.memo(function SupplementGoalRow({ config, onGoal
 
 /* ─── Main Editor ────────────────────────────────────── */
 
-export default function SupplementConfigEditor() {
+function SupplementConfigEditor() {
   const configs = useSupplementStore((s) => s.supplementConfigs);
   const addConfig = useSupplementStore((s) => s.addSupplementConfig);
   const removeConfig = useSupplementStore((s) => s.removeSupplementConfig);
@@ -299,3 +299,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.bold,
   },
 });
+
+export default React.memo(SupplementConfigEditor);

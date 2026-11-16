@@ -27,7 +27,7 @@ interface Props {
 }
 
 /** A supplement cell's detail popup: total vs goal, progress and quick-add amounts. */
-export default function SupplementDetailModal({ visible, onClose, ...rest }: Props) {
+function SupplementDetailModal({ visible, onClose, ...rest }: Props) {
   return (
     <CardDetailSheet visible={visible} onClose={onClose}>
       <SupplementDetailContent onClose={onClose} {...rest} />
@@ -96,3 +96,5 @@ function SupplementDetailContent({ config, total, onAdd, onReset, onClose }: Omi
     </>
   );
 }
+
+export default React.memo(SupplementDetailModal);

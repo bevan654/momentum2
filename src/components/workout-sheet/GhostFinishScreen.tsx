@@ -12,7 +12,7 @@ import { compareGhostSet } from '../../utils/ghostCompare';
 
 /* ─── Component ────────────────────────────────────────── */
 
-export default function GhostFinishScreen() {
+function GhostFinishScreen() {
   const showSummary = useActiveWorkoutStore((s) => s.showSummary);
   const summaryData = useActiveWorkoutStore((s) => s.summaryData);
   const dismissSummary = useActiveWorkoutStore((s) => s.dismissSummary);
@@ -298,3 +298,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   doneText: { fontSize: ms(14), fontFamily: Fonts.bold, color: colors.textOnAccent },
 });
+
+export default React.memo(GhostFinishScreen);

@@ -9,7 +9,7 @@ import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import ElapsedClock from './ElapsedClock';
 
-export default function FloatingWorkoutBanner() {
+function FloatingWorkoutBanner() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
@@ -101,3 +101,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
 });
+
+export default React.memo(FloatingWorkoutBanner);

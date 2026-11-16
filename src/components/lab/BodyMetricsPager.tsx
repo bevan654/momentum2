@@ -65,7 +65,7 @@ const PageDots = React.memo(function PageDots({ store, onPress, styles, accent }
 
 /* ─── Component ──────────────────────────────────────────── */
 
-export default function BodyMetricsPager() {
+function BodyMetricsPager() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const pageStore = useRef<PageStore | null>(null);
@@ -133,3 +133,5 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.textTertiary + '40',
     },
   });
+
+export default React.memo(BodyMetricsPager);

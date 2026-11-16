@@ -16,7 +16,7 @@ interface Props {
   onClose?: () => void;
 }
 
-export default function ProfileMainView({ onOpenSettings, onOpenPatchNotes, onClose }: Props) {
+function ProfileMainView({ onOpenSettings, onOpenPatchNotes, onClose }: Props) {
   const profile = useAuthStore((s) => s.profile);
   const signOut = useAuthStore((s) => s.signOut);
   // Sign-out can take a few seconds (it clears this phone's push token first): show it, ignore repeat taps.
@@ -380,3 +380,5 @@ const createStyles = (colors: ThemeColors) =>
       marginTop: sw(24),
     },
   });
+
+export default React.memo(ProfileMainView);

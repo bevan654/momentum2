@@ -11,7 +11,7 @@ interface Props {
 
 /* ── Thin wrapper — always mounted, toggles Sheet visibility ── */
 
-export default function FeedWorkoutModal({ item, onDismiss }: Props) {
+function FeedWorkoutModal({ item, onDismiss }: Props) {
   const visible = !!item;
   // Keep showing the last item while the sheet animates closed.
   const lastItem = useRef(item);
@@ -29,3 +29,5 @@ export default function FeedWorkoutModal({ item, onDismiss }: Props) {
     </Sheet>
   );
 }
+
+export default React.memo(FeedWorkoutModal);

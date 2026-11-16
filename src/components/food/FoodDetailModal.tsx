@@ -50,7 +50,7 @@ interface Props {
  * Food detail: adjust serving, calories, macros and micros, then log it (now or planned),
  * update an existing entry, or (meal mode) return it to Make a meal.
  */
-export default function FoodDetailModal({
+function FoodDetailModal({
   visible, food, initialMealSlot, initialIsPlanned, initialQuantity,
   targetHour, onDismiss, onAdded, isBackActive, bottomInset, editEntryId, onDelete, onFoodSwap,
   onAddToMeal,
@@ -525,3 +525,5 @@ const createStyles = (c: ThemeColors) =>
       fontFamily: Fonts.semiBold,
     },
   });
+
+export default React.memo(FoodDetailModal);

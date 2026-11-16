@@ -40,7 +40,7 @@ interface Props {
 }
 
 /** Nutrition card's detail popup: calories, macro columns and micronutrient rows. */
-export default function NutritionDetailModal({ visible, onClose, totals }: Props) {
+function NutritionDetailModal({ visible, onClose, totals }: Props) {
   return (
     <CardDetailSheet visible={visible} onClose={onClose}>
       <NutritionDetailContent totals={totals} onClose={onClose} />
@@ -275,3 +275,5 @@ const createStyles = (colors: ThemeColors) =>
       width: sw(58),
     },
   });
+
+export default React.memo(NutritionDetailModal);

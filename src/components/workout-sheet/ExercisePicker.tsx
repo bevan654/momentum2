@@ -78,7 +78,7 @@ interface Props {
   mode?: 'add' | 'replace';
 }
 
-export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add' }: Props) {
+function ExercisePicker({ visible, onClose, onSelect, mode = 'add' }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createPickerStyles(colors), [colors]);
   const rowStyles = useMemo(() => createRowStyles(colors), [colors]);
@@ -528,3 +528,5 @@ export default function ExercisePicker({ visible, onClose, onSelect, mode = 'add
     </Overlay>
   );
 }
+
+export default React.memo(ExercisePicker);

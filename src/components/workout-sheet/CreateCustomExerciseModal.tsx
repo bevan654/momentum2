@@ -140,7 +140,7 @@ interface Props {
   }) => void;
 }
 
-export default function CreateCustomExerciseModal({
+function CreateCustomExerciseModal({
   visible,
   initialName,
   onClose,
@@ -596,3 +596,5 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textTertiary,
     },
   });
+
+export default React.memo(CreateCustomExerciseModal);

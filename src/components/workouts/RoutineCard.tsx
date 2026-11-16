@@ -16,7 +16,7 @@ interface Props {
   onDelete: () => void;
 }
 
-export default function RoutineCard({ routine, onPress, onPlay, onDelete }: Props) {
+function RoutineCard({ routine, onPress, onPlay, onDelete }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
@@ -181,3 +181,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.semiBold,
   },
 });
+
+export default React.memo(RoutineCard);

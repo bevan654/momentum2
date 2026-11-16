@@ -12,7 +12,7 @@ import { formatWorkoutDate } from '../../../utils/dateLabels';
    HistoricalPage — full-screen workout detail page
    ═══════════════════════════════════════════════════════════ */
 
-export default function HistoricalPage({
+function HistoricalPage({
   data, colors, editing, onDismiss, onDelete, handleDelete, deleting,
   startEditing, workoutId, statsContent, exerciseContent,
   editFooter, setShowShare, inline,
@@ -179,3 +179,5 @@ const pageStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.backdrop + 'B3',
   },
 });
+
+export default React.memo(HistoricalPage);

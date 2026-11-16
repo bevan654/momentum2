@@ -22,7 +22,7 @@ interface Props {
   onCancel: () => void;
 }
 
-export default function StoryCropModal({ visible, imageUri, onConfirm, onCancel }: Props) {
+function StoryCropModal({ visible, imageUri, onConfirm, onCancel }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const viewShotRef = useRef<ViewShot>(null);
@@ -216,3 +216,5 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: '#000',
     },
   });
+
+export default React.memo(StoryCropModal);

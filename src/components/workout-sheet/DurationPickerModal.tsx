@@ -11,7 +11,7 @@ interface Props {
   onCancel: () => void;
 }
 
-export default function DurationPickerModal({ visible, onConfirm, onCancel }: Props) {
+function DurationPickerModal({ visible, onConfirm, onCancel }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [hours, setHours] = useState('1');
@@ -175,3 +175,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(20),
   },
 });
+
+export default React.memo(DurationPickerModal);

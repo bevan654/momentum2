@@ -20,7 +20,7 @@ interface Props {
   onBack: () => void;
 }
 
-export default function ProfileSettingsView({ onBack }: Props) {
+function ProfileSettingsView({ onBack }: Props) {
   const profile = useAuthStore((s) => s.profile);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -187,3 +187,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginTop: sw(2),
   },
 });
+
+export default React.memo(ProfileSettingsView);

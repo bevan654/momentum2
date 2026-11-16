@@ -25,7 +25,7 @@ interface Props {
   onClose: () => void;
 }
 
-export default function AddSupplementModal({ visible, onClose }: Props) {
+function AddSupplementModal({ visible, onClose }: Props) {
   const configs = useSupplementStore((s) => s.supplementConfigs);
   const addConfig = useSupplementStore((s) => s.addSupplementConfig);
   const userId = useAuthStore((s) => s.user?.id);
@@ -352,3 +352,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.bold,
   },
 });
+
+export default React.memo(AddSupplementModal);

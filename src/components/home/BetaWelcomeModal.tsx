@@ -17,7 +17,7 @@ interface Props {
   onDismiss?: () => void;
 }
 
-export default function BetaWelcomeModal({ onDismiss }: Props) {
+function BetaWelcomeModal({ onDismiss }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const userId = useAuthStore((s) => s.user?.id);
@@ -224,3 +224,5 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.bold,
     },
   });
+
+export default React.memo(BetaWelcomeModal);

@@ -101,7 +101,7 @@ const SupplementCell = React.memo(function SupplementCell({
 
 /* ─── Supplements Card ────────────────────────────────── */
 
-export default function SupplementsCard() {
+function SupplementsCard() {
   const configs = useSupplementStore((s) => s.supplementConfigs);
   const totals = useSupplementStore((s) => s.supplementTotals);
   const addSupplement = useSupplementStore((s) => s.addSupplement);
@@ -350,3 +350,5 @@ const createCellStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.semiBold,
   },
 });
+
+export default React.memo(SupplementsCard);

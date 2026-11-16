@@ -67,7 +67,7 @@ const CLOSE_CFG = { duration: 250, easing: Easing.in(Easing.cubic) };
      pre-render to hardware texture during animation.
    ═══════════════════════════════════════════════════════════ */
 
-export default function ActiveWorkoutSheet() {
+function ActiveWorkoutSheet() {
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const sheetVisible = useActiveWorkoutStore((s) => s.sheetVisible);
   const showSummary = useActiveWorkoutStore((s) => s.showSummary);
@@ -543,3 +543,5 @@ const createStyles = (colors: ThemeColors) =>
       letterSpacing: 1,
     },
   });
+
+export default React.memo(ActiveWorkoutSheet);

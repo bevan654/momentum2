@@ -36,7 +36,7 @@ const DELETED_ITEMS = [
   'Streaks, ranks, and achievements',
 ];
 
-export default function DeleteAccountModal({ visible, onClose }: Props) {
+function DeleteAccountModal({ visible, onClose }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const deleteAccount = useAuthStore((s) => s.deleteAccount);
@@ -388,3 +388,5 @@ const createStyles = (colors: ThemeColors) =>
       marginTop: sw(6),
     },
   });
+
+export default React.memo(DeleteAccountModal);

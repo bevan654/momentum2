@@ -15,7 +15,7 @@ import changelog from '../../constants/changelog';
 import { useChangelogStore } from '../../stores/useChangelogStore';
 import { globalNavigate } from '../../navigation/navigationRef';
 
-export default function ChangelogModal() {
+function ChangelogModal() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -198,3 +198,5 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.semiBold,
     },
   });
+
+export default React.memo(ChangelogModal);

@@ -40,7 +40,7 @@ interface Props {
   pageIndicator?: React.ReactNode;
 }
 
-export default function BodyFatCard({ pageIndicator }: Props) {
+function BodyFatCard({ pageIndicator }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createTrendStyles(colors), [colors]);
   const ownStyles = useMemo(() => createStyles(colors), [colors]);
@@ -195,3 +195,5 @@ const createStyles = (colors: ThemeColors) =>
     pickerItemText: { color: colors.textPrimary, fontSize: ms(14), lineHeight: ms(19), fontFamily: Fonts.semiBold },
     pickerItemSub: { color: colors.textTertiary, fontSize: ms(10), lineHeight: ms(14), fontFamily: Fonts.medium, marginTop: sw(2) },
   });
+
+export default React.memo(BodyFatCard);

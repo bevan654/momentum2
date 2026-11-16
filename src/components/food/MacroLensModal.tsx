@@ -42,7 +42,7 @@ interface Props {
   onFoodFound: (food: FoodDetailData) => void;
 }
 
-export default function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
+function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -637,3 +637,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.bold,
   },
 });
+
+export default React.memo(MacroLensModal);

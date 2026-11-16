@@ -53,7 +53,7 @@ const MacroGoalRow = React.memo(function MacroGoalRow({
 
 /* ─── Main Editor ────────────────────────────────────── */
 
-export default function MacroGoalEditor() {
+function MacroGoalEditor() {
   const userId = useAuthStore((s) => s.user?.id);
   const goals = useFoodLogStore((s) => s.goals);
   const updateGoals = useFoodLogStore((s) => s.updateGoals);
@@ -149,3 +149,5 @@ export default function MacroGoalEditor() {
     </View>
   );
 }
+
+export default React.memo(MacroGoalEditor);

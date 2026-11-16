@@ -56,7 +56,7 @@ const MicroGoalRow = React.memo(function MicroGoalRow({
 
 /* ─── Main Editor ────────────────────────────────────── */
 
-export default function MicroGoalEditor() {
+function MicroGoalEditor() {
   const profile = useAuthStore((s) => s.profile);
   const microGoals = useNutrientGoalStore((s) => s.microGoals);
   const addMicroGoal = useNutrientGoalStore((s) => s.addMicroGoal);
@@ -169,3 +169,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingVertical: sw(12),
   },
 });
+
+export default React.memo(MicroGoalEditor);
