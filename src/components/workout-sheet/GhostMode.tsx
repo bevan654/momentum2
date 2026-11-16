@@ -96,7 +96,8 @@ const GhostSetChip = React.memo(function GhostSetChip({
   colors: ThemeColors;
   styles: GhostStyles;
 }) {
-  const prevResult = useRef<string | null>(null);
+  // Starts at the current result, so only a change buzzes (not the chips mounting when ghost focus moves)
+  const prevResult = useRef<string | null>(result);
 
   useEffect(() => {
     if (result && prevResult.current !== result) {
