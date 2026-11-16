@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
 import {
   View,
   ScrollView,
@@ -12,6 +12,7 @@ import { sw, SCREEN_WIDTH } from '../../theme/responsive';
 import WeightCard from './WeightCard';
 import MeasurementsCard from './MeasurementsCard';
 import BodyFatCard from './BodyFatCard';
+import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
 
 /* ─── Config ─────────────────────────────────────────────── */
 
@@ -20,6 +21,7 @@ const PAGES = [
   { key: 'measurements', label: 'Measurements', Component: MeasurementsCard },
   { key: 'body_fat', label: 'Body Fat', Component: BodyFatCard },
 ] as const;
+type Page = (typeof PAGES)[number];
 
 const PAGE_W = SCREEN_WIDTH - sw(16) * 2;
 
@@ -45,7 +47,8 @@ function createPageStore() {
 }
 type PageStore = ReturnType<typeof createPageStore>;
 
-const PageDots = React.memo(function PageDots({ store, onPress, styles, accent }: {
+const PageDots = React.memo(function PageDots({ pages, store, onPress, styles, accent }: {
+  pages: readonly Page[];
   store: PageStore;
   onPress: (index: number) => void;
   styles: ReturnType<typeof createStyles>;
@@ -54,7 +57,7 @@ const PageDots = React.memo(function PageDots({ store, onPress, styles, accent }
   const activePage = useSyncExternalStore(store.subscribe, store.get);
   return (
     <View style={styles.dotsRow}>
-      {PAGES.map((p, i) => (
+      {pages.map((p, i) => (
         <Pressable key={p.key} onPress={() => onPress(i)} hitSlop={6}>
           <View style={[styles.dot, i === activePage && { backgroundColor: accent }]} />
         </Pressable>
@@ -73,6 +76,25 @@ function BodyMetricsPager() {
   const store = pageStore.current;
   const scrollRef = useRef<ScrollView>(null);
 
+  // Settings > Lab Trackers: which cards show, in what order
+  const trackers = useProfileSettingsStore((s) => s.labTrackers);
+  const pages = useMemo(
+    () => [...trackers]
+      .filter((t) => t.enabled)
+      .sort((a, b) => a.order - b.order)
+      .map((t) => PAGES.find((p) => p.key === t.id))
+      .filter((p): p is Page => !!p),
+    [trackers],
+  );
+  const pageCount = useRef(pages.length);
+  pageCount.current = pages.length;
+  const pagesKey = pages.map((p) => p.key).join(',');
+  // A changed set or order of cards starts again at the first one
+  useEffect(() => {
+    store.set(0);
+    scrollRef.current?.scrollTo({ x: 0, animated: false });
+  }, [pagesKey, store]);
+
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const x = e.nativeEvent.contentOffset.x;
@@ -82,16 +104,20 @@ function BodyMetricsPager() {
   );
 
   const goToPage = useCallback((index: number) => {
-    const clamped = Math.max(0, Math.min(index, PAGES.length - 1));
+    const clamped = Math.max(0, Math.min(index, pageCount.current - 1));
     scrollRef.current?.scrollTo({ x: clamped * PAGE_W, animated: true });
     store.set(clamped);
   }, [store]);
 
   // Stable across page changes (only the theme changes it), so the cards don't re-render on swipe
   const pageIndicator = useMemo(
-    () => <PageDots store={store} onPress={goToPage} styles={styles} accent={colors.accent} />,
-    [store, goToPage, styles, colors.accent],
+    () => (pages.length > 1
+      ? <PageDots pages={pages} store={store} onPress={goToPage} styles={styles} accent={colors.accent} />
+      : null),
+    [pages, store, goToPage, styles, colors.accent],
   );
+
+  if (pages.length === 0) return null;
 
   return (
     <View style={styles.wrapper}>
@@ -104,7 +130,7 @@ function BodyMetricsPager() {
         scrollEventThrottle={16}
         decelerationRate="fast"
       >
-        {PAGES.map((p) => (
+        {pages.map((p) => (
           <View key={p.key} style={{ width: PAGE_W }}>
             <p.Component pageIndicator={pageIndicator} />
           </View>
