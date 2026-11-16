@@ -7,6 +7,12 @@ import type { WorkoutSummary, SummaryExercise } from '../../../stores/useActiveW
 import { buildFeedExerciseDetails } from '../../../utils/feedExerciseDetails';
 import type { EditExercise } from './summaryFormat';
 
+/** A drop set's parent as a 1-based position in the edited sets, or null (not a drop set, or its parent was removed). */
+function parentSetNumber(sets: EditExercise['sets'], set: EditExercise['sets'][number]): number | null {
+  const parentPos = set.parentOrigId ? sets.findIndex((p) => p.origId === set.parentOrigId) : -1;
+  return parentPos >= 0 ? parentPos + 1 : null;
+}
+
 /**
  * Edit mode of the workout summary: the editable copy of the exercises and duration,
  * the set/exercise edit handlers, and saving through upsert_workout (mode 'edit') plus
@@ -146,18 +152,15 @@ export function useSummaryEdit({
             orig_id: ex.origId ?? null,
             // The exercise's own type; the catalog's only for an exercise added in the editor
             exercise_type: ex.exercise_type || catalogMap[ex.name]?.exercise_type || 'weighted',
-            sets: ex.sets.map((s, j) => {
-              const parentPos = s.parentOrigId ? ex.sets.findIndex((p) => p.origId === s.parentOrigId) : -1;
-              return {
-                set_number: j + 1,
-                kg: parseFloat(s.kg) || 0,
-                reps: parseInt(s.reps, 10) || 0,
-                completed: s.completed,
-                set_type: s.set_type,
-                parent_set_number: parentPos >= 0 ? parentPos + 1 : null,
-                orig_id: s.origId ?? null,
-              };
-            }),
+            sets: ex.sets.map((s, j) => ({
+              set_number: j + 1,
+              kg: parseFloat(s.kg) || 0,
+              reps: parseInt(s.reps, 10) || 0,
+              completed: s.completed,
+              set_type: s.set_type,
+              parent_set_number: parentSetNumber(ex.sets, s),
+              orig_id: s.origId ?? null,
+            })),
           })),
         },
       });
@@ -200,7 +203,8 @@ export function useSummaryEdit({
           reps: parseInt(s.reps, 10) || 0,
           completed: s.completed,
           set_type: s.set_type,
-          parent_set_number: null,
+          // Same link as the save, so drop sets keep their D1/D2 labels
+          parent_set_number: parentSetNumber(ex.sets, s),
         })),
       }));
 
