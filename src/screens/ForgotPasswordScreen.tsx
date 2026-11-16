@@ -30,15 +30,17 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // One normalised address (as Login/SignUp send it) for the request, resend, confirm and the copy
+  const normalizedEmail = email.trim().toLowerCase();
+
   const handleSendCode = useCallback(async () => {
-    const trimmed = email.trim();
-    if (!trimmed) {
+    if (!normalizedEmail) {
       Alert.alert('Error', 'Please enter your email address.');
       return;
     }
     setSubmitting(true);
     try {
-      const { error } = await requestPasswordReset(trimmed);
+      const { error } = await requestPasswordReset(normalizedEmail);
       if (error) {
         Alert.alert('Error', error);
         return;
@@ -47,18 +49,18 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
     } finally {
       setSubmitting(false);
     }
-  }, [email, requestPasswordReset]);
+  }, [normalizedEmail, requestPasswordReset]);
 
   const handleResend = useCallback(async () => {
     setSubmitting(true);
     try {
-      const { error } = await requestPasswordReset(email);
+      const { error } = await requestPasswordReset(normalizedEmail);
       if (error) Alert.alert('Error', error);
       else Alert.alert('Sent', 'A new code is on the way.');
     } finally {
       setSubmitting(false);
     }
-  }, [email, requestPasswordReset]);
+  }, [normalizedEmail, requestPasswordReset]);
 
   const handleConfirm = useCallback(async () => {
     if (code.trim().length < 4) {
@@ -71,7 +73,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
     }
     setSubmitting(true);
     try {
-      const { error } = await confirmPasswordReset(email, code, newPassword);
+      const { error } = await confirmPasswordReset(normalizedEmail, code, newPassword);
       if (error) {
         Alert.alert('Error', error);
         return;
@@ -84,9 +86,9 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
     } finally {
       setSubmitting(false);
     }
-  }, [code, newPassword, email, confirmPasswordReset, navigation]);
+  }, [code, newPassword, normalizedEmail, confirmPasswordReset, navigation]);
 
-  const canSendCode = email.trim().length > 0 && !submitting;
+  const canSendCode = normalizedEmail.length > 0 && !submitting;
   const canConfirm = code.trim().length >= 4 && newPassword.length >= 6 && !submitting;
 
   return (
@@ -107,7 +109,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
         <Text style={styles.subtitle}>
           {step === 'email'
             ? "We'll email you a code to reset your password."
-            : `We sent a code to ${email}. Enter it below and set a new password.`}
+            : `We sent a code to ${normalizedEmail}. Enter it below and set a new password.`}
         </Text>
       </AuthBrand>
 
@@ -138,7 +140,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
         <View style={authStyles.form}>
           <AuthInput
             icon="key-outline"
-            placeholder="6-digit code"
+            placeholder="Code from the email"
             value={code}
             onChangeText={setCode}
             autoCapitalize="none"
