@@ -454,7 +454,7 @@ export default function CreateMealModal({
           fat: orig ? round(item.fat * qty, 10) : Math.round(item.fat * qty),
           meal_type: mealSlot,
           brand: item.brand || null,
-          food_catalog_id: orig?.food_catalog_id ?? null,
+          food_catalog_id: orig?.food_catalog_id ?? item.food_catalog_id ?? null,
           serving_size: Number(item.serving_size) || 1,
           serving_unit: item.serving_unit || 'serving',
           quantity: qty,
