@@ -118,7 +118,7 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     backdrop: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.65)',
+      backgroundColor: colors.backdrop + 'A6',
     },
     centered: {
       flex: 1,

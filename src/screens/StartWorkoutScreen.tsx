@@ -211,7 +211,7 @@ const createStyles = (colors: ThemeColors, sheetMarginTop: number) => StyleSheet
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.backdrop + '80',
   },
   sheet: {
     flex: 1,

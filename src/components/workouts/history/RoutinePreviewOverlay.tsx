@@ -113,7 +113,7 @@ const previewStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.backdrop + '80',
   },
   sheetContainer: {
     height: SCREEN_HEIGHT * 0.92,

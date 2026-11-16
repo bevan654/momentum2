@@ -242,7 +242,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   historyBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.backdrop + '80',
   },
   historySheet: {
     height: SCREEN_HEIGHT * 0.92,

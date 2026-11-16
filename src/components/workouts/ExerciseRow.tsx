@@ -480,7 +480,7 @@ const createStyles = (colors: ThemeColors) =>
     // Rest Picker Modal
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
+      backgroundColor: colors.backdrop + '80',
       justifyContent: 'center',
       alignItems: 'center',
     },
