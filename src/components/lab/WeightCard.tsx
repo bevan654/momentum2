@@ -235,7 +235,7 @@ function WeightCard({ pageIndicator }: Props) {
           }
         />
       ) : (
-        <WeightEmptyChart onPress={openLog} colors={colors} styles={styles} />
+        <WeightEmptyChart onPress={openLog} hasOlderWeighIn={current != null} colors={colors} styles={styles} />
       )}
 
       {/* Modals */}
@@ -265,9 +265,13 @@ function WeightCard({ pageIndicator }: Props) {
 /* ─── Empty state: ghosted placeholder chart ─────────────── */
 
 const WeightEmptyChart = React.memo(function WeightEmptyChart({
-  onPress, colors, styles,
+  onPress, hasOlderWeighIn, colors, styles,
 }: {
-  onPress: () => void; colors: ThemeColors; styles: ReturnType<typeof createStyles>;
+  onPress: () => void;
+  /** No weigh-ins in this range, but an older one exists (fetchWeightData then sets `current` from it). */
+  hasOlderWeighIn: boolean;
+  colors: ThemeColors;
+  styles: ReturnType<typeof createStyles>;
 }) {
   const ghostPath = useMemo(() => {
     const chartW = CARD_INNER_W - Y_LABEL_W;
@@ -308,9 +312,9 @@ const WeightEmptyChart = React.memo(function WeightEmptyChart({
       <View style={styles.emptyOverlay}>
         <View style={[styles.emptyBadge, { backgroundColor: colors.accent + '15' }]}>
           <Ionicons name="add-circle" size={ms(14)} color={colors.accent} />
-          <Text style={[styles.emptyBadgeText, { color: colors.accent }]}>Log your first weight</Text>
+          <Text style={[styles.emptyBadgeText, { color: colors.accent }]}>{hasOlderWeighIn ? 'No weigh-ins in this range' : 'Log your first weight'}</Text>
         </View>
-        <Text style={styles.emptyCaption}>Track trends, projections, and goal pace</Text>
+        <Text style={styles.emptyCaption}>{hasOlderWeighIn ? 'Log one now, or pick a longer range' : 'Track trends, projections, and goal pace'}</Text>
       </View>
     </Pressable>
   );
