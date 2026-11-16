@@ -118,7 +118,7 @@ function ProgramCard({ program, week, onOpen, onReview, onDelete, onAbandon, onS
               style={[styles.programCardStatus, { backgroundColor: colors.surface }]}
               activeOpacity={0.7}
               onPress={() => {
-                Alert.alert('Abandon Program', `Stop "${program.name}"? This cannot be undone.`, [
+                Alert.alert('Abandon Program', `Stop "${program.name}"? Your workout history is kept.`, [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Abandon', style: 'destructive', onPress: () => onAbandon(program.id) },
                 ]);
