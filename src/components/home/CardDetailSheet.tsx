@@ -20,7 +20,7 @@ import { sw, ms } from '../../theme/responsive';
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: colors.backdrop + '99',
     justifyContent: 'center',
     paddingHorizontal: sw(20),
   },

@@ -65,7 +65,7 @@ export default React.memo(SummaryConfirmExit);
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   confirmExitOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    backgroundColor: colors.backdrop + 'A6',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: sw(28),

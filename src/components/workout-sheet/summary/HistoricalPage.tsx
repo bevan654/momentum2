@@ -176,6 +176,6 @@ const pageStyles = (colors: ThemeColors) => StyleSheet.create({
     left: 0,
     right: 0,
     paddingBottom: sw(12),
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: colors.backdrop + 'B3',
   },
 });

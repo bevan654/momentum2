@@ -81,7 +81,7 @@ export default React.memo(ActionSheet);
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.backdrop + '80',
     justifyContent: 'flex-end',
   },
   sheet: {

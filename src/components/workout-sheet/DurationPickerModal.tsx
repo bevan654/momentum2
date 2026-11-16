@@ -81,7 +81,7 @@ export default function DurationPickerModal({ visible, onConfirm, onCancel }: Pr
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: colors.backdrop + '99',
     justifyContent: 'center',
     alignItems: 'center',
   },

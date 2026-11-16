@@ -68,7 +68,7 @@ export default function SheetWrapper({ children }: SheetWrapperProps) {
   return withHost(
     <View style={styles.container}>
       <Pressable style={StyleSheet.absoluteFill} onPress={dismiss}>
-        <Animated.View style={[styles.backdrop, backdropStyle]} />
+        <Animated.View style={[styles.backdrop, { backgroundColor: colors.backdrop + '80' }, backdropStyle]} />
       </Pressable>
       <Animated.View style={[styles.sheet, { marginTop: sheetMarginTop, backgroundColor: colors.background }, sheetStyle]}>
         <GestureDetector gesture={panGesture}>
@@ -96,10 +96,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
+  backdrop: StyleSheet.absoluteFillObject,
   sheet: {
     flex: 1,
     borderTopLeftRadius: sw(20),
