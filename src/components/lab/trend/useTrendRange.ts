@@ -5,8 +5,8 @@ import { formatMonthDay } from '../../../utils/dateLabels';
 import { TREND_RANGES, type TrendRangeLabel } from './trendConfig';
 
 /**
- * A trend card's own range selector (1W–1Y), synced to the global Lab range bar:
- * every global change (and the first mount) snaps it to the nearest option.
+ * A trend card's own range selector (1W–1Y). It starts on the card's default (for Weight, the
+ * Settings default range) and snaps to the nearest option whenever the global Lab range bar changes.
  */
 export function useTrendRange(initial: TrendRangeLabel) {
   const [selectedRange, setSelectedRange] = useState<TrendRangeLabel>(initial);
@@ -14,7 +14,10 @@ export function useTrendRange(initial: TrendRangeLabel) {
   // Sync to global Lab time range when user taps the global bar
   const globalRangeDays = useLabTimeRangeStore((s) => s.rangeDays);
   const globalVersion = useLabTimeRangeStore((s) => s.version);
+  const mounted = useRef(false);
   useEffect(() => {
+    // Not on mount: that overrode the card's default (and the Default Range setting) and loaded twice
+    if (!mounted.current) { mounted.current = true; return; }
     const nearest = nearestRangeOption(globalRangeDays, TREND_RANGES);
     setSelectedRange(nearest.label);
   }, [globalVersion]);
