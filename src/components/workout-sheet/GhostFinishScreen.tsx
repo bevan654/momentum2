@@ -9,6 +9,7 @@ import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import type { WorkoutSummary } from '../../stores/useActiveWorkoutStore';
 import { titleCase } from '../../utils/titleCase';
 import { compareGhostSet } from '../../utils/ghostCompare';
+import { formatHoursMinutes } from '../../utils/formatDuration';
 
 /* ─── Component ────────────────────────────────────────── */
 
@@ -102,8 +103,6 @@ function GhostFinishContent({
   const verdictColor = results.tied ? colors.textPrimary : results.victory ? colors.positive : colors.accentRed;
   const verdictText = results.tied ? 'DRAW' : results.victory ? 'VICTORY' : 'DEFEATED';
 
-  const mins = Math.floor(summaryData.duration / 60);
-  const secs = summaryData.duration % 60;
   const totalSets = exercises.reduce((sum, ex) => sum + ex.sets.filter((s) => s.completed).length, 0);
   const insets = useSafeAreaInsets();
   // Tab bar height: paddingTop sw(8) + icon ~24 + label ~12 + paddingBottom (insets.bottom)
@@ -128,7 +127,7 @@ function GhostFinishContent({
         {/* Stats row */}
         <View style={styles.statsRow}>
           <Text style={styles.statText}>
-            {mins}:{secs.toString().padStart(2, '0')}
+            {formatHoursMinutes(summaryData.duration)}
           </Text>
           <Text style={styles.statText}>·</Text>
           <Text style={styles.statText}>
