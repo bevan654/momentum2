@@ -9,13 +9,32 @@ interface Props {
   visible: boolean;
   onConfirm: (durationSeconds: number) => void;
   onCancel: () => void;
+  /** The value to show each time it opens (seconds); without it, 1 hour. */
+  initialSeconds?: number;
 }
 
-function DurationPickerModal({ visible, onConfirm, onCancel }: Props) {
+/** The hours and minutes fields for a duration in seconds. */
+function toFields(seconds: number | undefined): { hours: string; minutes: string } {
+  if (seconds == null || seconds <= 0) return { hours: '1', minutes: '0' };
+  return { hours: String(Math.min(99, Math.floor(seconds / 3600))), minutes: String(Math.floor((seconds % 3600) / 60)) };
+}
+
+function DurationPickerModal({ visible, onConfirm, onCancel, initialSeconds }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [hours, setHours] = useState('1');
-  const [minutes, setMinutes] = useState('0');
+  const [hours, setHours] = useState(() => toFields(initialSeconds).hours);
+  const [minutes, setMinutes] = useState(() => toFields(initialSeconds).minutes);
+
+  // Start from the current value every time it opens: it stays mounted, so a cancelled entry used to come back.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) {
+      const f = toFields(initialSeconds);
+      setHours(f.hours);
+      setMinutes(f.minutes);
+    }
+  }
 
   const handleConfirm = () => {
     const h = Math.max(0, parseInt(hours, 10) || 0);

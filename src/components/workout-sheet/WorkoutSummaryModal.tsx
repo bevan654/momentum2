@@ -250,6 +250,7 @@ export default function WorkoutSummaryModal(props: Props) {
       {durationPickerMounted && (
         <DurationPickerModal
           visible={durationPickerVisible}
+          initialSeconds={editDuration}
           onConfirm={handleDurationConfirm}
           onCancel={() => setDurationPickerVisible(false)}
         />
