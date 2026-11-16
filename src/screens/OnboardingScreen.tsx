@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -59,11 +60,13 @@ export default function OnboardingScreen() {
   const [activity, setActivity] = useState<ActivityKey | null>(null);
   const [username, setUsername] = useState(profile?.username ?? '');
   const needsUsername = profile?.username == null;
-  // Only checked for accounts without a username. An RPC error leaves the status 'idle' (blocks Continue).
+  // Only checked for accounts without a username. An RPC error (offline, flaky) fails open like
+  // SignUp, so nobody gets stuck: a name that is in fact taken fails the profile save (unique
+  // constraint), and handleFinish says so.
   const usernameStatus = useUsernameAvailability(username, {
     enabled: needsUsername,
     initialStatus: profile?.username ? 'ok' : 'idle',
-    errorStatus: 'idle',
+    errorStatus: 'ok',
   });
 
   // Tracks whether user has manually edited macros — if not, we auto-fill from TDEE
@@ -184,7 +187,7 @@ export default function OnboardingScreen() {
     if (!profile || saving) return;
     setSaving(true);
     try {
-      await updateProfile({
+      const { error: profileError } = await updateProfile({
         ...(needsUsername ? { username: username.trim() } : {}),
         gender: gender!,
         age: Number(age),
@@ -192,16 +195,36 @@ export default function OnboardingScreen() {
         starting_weight: Number(weight),
         goal_weight: Number(goalWeight),
       });
-      await updateGoals(profile.id, {
-        calorie_goal: Number(calories),
-        protein_goal: Number(protein),
-        carbs_goal: Number(carbs),
-        fat_goal: Number(fat),
-      });
-      await updateSupplementGoals(profile.id, {
-        water_goal: Number(water),
-        creatine_goal: Number(creatine),
-      });
+      if (profileError) {
+        // The store rolled the profile back, so App shows onboarding again (the alert is global)
+        const taken = /duplicate|unique|username/i.test(profileError);
+        Alert.alert(
+          taken ? 'Username taken' : "Couldn't save your profile",
+          taken
+            ? 'That username is already in use. Pick another one and try again.'
+            : 'Check your connection and try again.',
+        );
+        return;
+      }
+      const [{ error: goalsError }, { error: supplementError }] = await Promise.all([
+        updateGoals(profile.id, {
+          calorie_goal: Number(calories),
+          protein_goal: Number(protein),
+          carbs_goal: Number(carbs),
+          fat_goal: Number(fat),
+        }),
+        updateSupplementGoals(profile.id, {
+          water_goal: Number(water),
+          creatine_goal: Number(creatine),
+        }),
+      ]);
+      if (goalsError || supplementError) {
+        // The profile is saved, so the app has moved on: say where to fix the goals
+        Alert.alert(
+          "Couldn't save your goals",
+          'Your profile is set up, but your nutrition goals were not saved. You can set them in Profile > Settings.',
+        );
+      }
     } finally {
       setSaving(false);
     }

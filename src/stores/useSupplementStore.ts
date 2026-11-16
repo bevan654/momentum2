@@ -115,7 +115,8 @@ interface SupplementState {
   resetSupplement: (userId: string, key: string) => Promise<void>;
   deleteSupplementEntry: (userId: string, entry: SupplementEntry) => Promise<void>;
   undoLastWater: (userId: string) => Promise<void>;
-  updateSupplementGoals: (userId: string, goals: { water_goal?: number; creatine_goal?: number }) => Promise<void>;
+  /** Optimistic; rolls back and returns the error message if the save fails. */
+  updateSupplementGoals: (userId: string, goals: { water_goal?: number; creatine_goal?: number }) => Promise<{ error: string | null }>;
 }
 
 /** After a today-only write, reload the day list only if the Nutrition tab is showing today. */
@@ -495,6 +496,8 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
     if (error) {
       if (goals.water_goal != null) set({ waterGoal: prevWater });
+      return { error: error.message };
     }
+    return { error: null };
   },
 }));

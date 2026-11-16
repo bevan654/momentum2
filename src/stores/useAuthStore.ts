@@ -190,7 +190,8 @@ interface AuthState {
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
   confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<{ error: string | null }>;
   fetchProfile: (userId: string) => Promise<void>;
-  updateProfile: (updates: Partial<Omit<Profile, 'id' | 'email'>>) => Promise<void>;
+  /** Optimistic; rolls back and returns the error message if the save fails. */
+  updateProfile: (updates: Partial<Omit<Profile, 'id' | 'email'>>) => Promise<{ error: string | null }>;
   dismissWelcome: () => void;
 }
 
@@ -280,7 +281,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updateProfile: async (updates) => {
     const { profile } = get();
-    if (!profile) return;
+    if (!profile) return { error: 'Not signed in' };
 
     // Optimistic update
     set({ profile: { ...profile, ...updates } });
@@ -293,7 +294,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (error) {
       // Rollback
       set({ profile });
+      return { error: error.message };
     }
+    return { error: null };
   },
 
   signUp: async (email, password, username) => {

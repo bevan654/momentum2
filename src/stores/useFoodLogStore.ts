@@ -189,7 +189,8 @@ interface FoodLogState {
   updateEntry: (entryId: string, updates: Partial<Omit<FoodEntry, 'id' | 'user_id' | 'created_at'>>) => Promise<void>;
   deleteEntry: (entryId: string) => Promise<void>;
   togglePlanned: (entryId: string) => Promise<void>;
-  updateGoals: (userId: string, goals: Partial<NutritionGoals>) => Promise<void>;
+  /** Optimistic; rolls back and returns the error message if the save fails. */
+  updateGoals: (userId: string, goals: Partial<NutritionGoals>) => Promise<{ error: string | null }>;
   deleteMealGroup: (mealGroupId: string) => Promise<void>;
   searchCatalog: (query: string) => Promise<void>;
   clearSearch: () => void;
@@ -485,7 +486,9 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         carbsGoal: prev.carbs_goal,
         fatGoal: prev.fat_goal,
       });
+      return { error: error.message };
     }
+    return { error: null };
   },
 
   deleteMealGroup: async (mealGroupId: string) => {
