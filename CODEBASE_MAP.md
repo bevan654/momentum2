@@ -1,6 +1,6 @@
 # Codebase Map
 
-**Last verified:** 2026-11-15, against the code at commit `d0c4b93` (main) plus the cleanup branch merged on top.
+**Last verified:** 2026-11-16, against the code at commit `d0c4b93` (main) plus the cleanup branch merged on top.
 
 An index of where things live and how they connect. Rules and conventions are in `CLAUDE.md`; database tables are in `database-schema.md`. If `CLAUDE.md`'s Project Structure tree disagrees with this map, this map is current.
 
@@ -42,7 +42,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `dev/` | **Production share UI**, not dev tools | `WorkoutOverlay` = share card, `StoryCropModal`; used by `share/` and the workout summary |
 | `food/` | Nutrition tab: day summary (`NutritionHero`: calorie ring, macro bars), water/supplement strip, meal cards, add-food, barcode, AI scan, food detail | Meal cards: `MealList` → `MealCard`; entries are grouped by `groupEntriesByMeal.ts`, which matches `meal_type` to the user's `meal_config` by slot, then by name (many accounts use `meal_1`… labelled Breakfast…). Popups are built from the shared kit in `food/ui/` (`FoodSheetHeader`, `FoodSearchBar`, `FoodRow`, `FoodSegmentChips`, `FoodEmptyState`, `FavouriteButton`, `useKeyboardInset`); reuse it for new food screens. `macro-lens/` holds the pieces of `MacroLensModal` (AI photo scan). |
 | `friends/` | Community tab: leaderboard, search, notifications, reports | `AvatarCircle`, `ReportSheet` are also used by other features. `feed-workout/` holds the pieces of `FeedWorkoutModal` |
-| `home/` | Home tab cards (activity, nutrition, water, supplements) | Also holds app-wide pieces: `Header` (global header), `ChangelogModal`, `BetaWelcomeModal`, the Community `Feed` (its rows and pieces live in `home/feed/`) and `NutritionStories`; `activity/` holds the year view and calendar helpers of `ActivityCard` |
+| `home/` | Home tab cards (activity, nutrition, water, supplements) | Also holds app-wide pieces: `Header` (global header), `ChangelogModal`, `BetaWelcomeModal`, the Community `Feed` (its rows and pieces live in `home/feed/`) and `NutritionStories`; `activity/` holds the year view and calendar helpers of `ActivityCard`; and weight modals used by `lab/WeightCard`. The Nutrition, Water and Supplements cards' detail popups share `CardDetailSheet` (chrome, hero row, bar, quick-add buttons, Undo/Done footer); the Nutrition and Supplements popup contents live in `NutritionDetailModal` / `SupplementDetailModal` |
 | `lab/` | **Recovery tab** (screen is `LaboratoryScreen`): body metrics, charts, AI card | The Weight, Body Fat and Measurements cards (paged by `BodyMetricsPager`) are thin wrappers over `lab/trend/`: `TrendCard` (header, range selector), `TrendChart` (bars + EMA line + legend), `useTrendRange` (range synced to `useLabTimeRangeStore`, fetch + fade), `useTrendLayout`, `EntryHistorySheet` (swipe-to-delete history) and `NumberLogModal` (log dialog). `AiHeroCard` is the AI coach preview; the chat itself is `AiCoachChatModal` with its state, history load and edge-function call in `useAiCoachChat` |
 | `onboarding/` | `OnboardingScreen` steps: `DetailsStep`, `GoalsStep`, `UnitInput` | `onboardingPlan.ts`: step copy, activity levels, calorie/macro recommendation |
 | `profile/` | Profile sheet sub-views and goal editors | `settings/` holds the sections of `ProfileSettingsView` |
@@ -104,7 +104,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | Strength score, ranks | `utils/strengthScore.ts`, `stores/useRankStore.ts` |
 | Food logging, macros, AI food scan | `components/food/`, `stores/useFoodLogStore.ts`, `stores/useNutritionStore.ts`, `stores/useNutrientGoalStore.ts` |
 | Barcode lookup | `utils/barcodeApi.ts` |
-| Water, creatine, supplements | `stores/useSupplementStore.ts`, `components/home/SupplementsCard.tsx`, `components/home/WaterCard.tsx` |
+| Water, creatine, supplements | `stores/useSupplementStore.ts`, `components/home/SupplementsCard.tsx` (+ `components/home/SupplementDetailModal.tsx`), `components/home/WaterCard.tsx` |
 | Weight, body fat, measurements | `components/lab/` (shared chart, history and log pieces in `components/lab/trend/`), `stores/useWeightStore.ts`, `stores/useBodyFatStore.ts`, `stores/useMeasurementStore.ts` |
 | Feed, friends, leaderboard, reactions | `components/friends/`, `components/home/Feed.tsx`, `stores/useFriendsStore.ts`, `lib/friendsDatabase.ts` |
 | Global header | `components/home/Header.tsx` |
