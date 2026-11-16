@@ -13,6 +13,7 @@ import { postedExerciseType, targetKg } from './feedWorkoutHelpers';
 import { titleCase } from '../../../utils/titleCase';
 import { compareGhostSet } from '../../../utils/ghostCompare';
 import { useSaveFeedRoutine } from './useSaveFeedRoutine';
+import { formatHoursMinutes } from '../../../utils/formatDuration';
 
 /* ── Ghost content ─────────────────────────────────── */
 
@@ -120,8 +121,6 @@ export function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDi
   const verdictColor = results.tied ? colors.textPrimary : results.victory ? colors.positive : colors.accentRed;
   const verdictText = results.tied ? 'DRAW' : results.victory ? 'VICTORY' : 'DEFEATED';
 
-  const mins = Math.floor(item.duration / 60);
-  const secs = item.duration % 60;
   const totalSets = exercises.reduce((sum, ex) => sum + (ex.sets?.length || ex.sets_count), 0);
 
   const gs = useMemo(() => createGhostStyles(colors), [colors]);
@@ -144,7 +143,7 @@ export function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDi
 
         {/* Stats row */}
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: sw(16), marginBottom: sw(16) }}>
-          <Text style={gs.statText}>{mins}:{secs.toString().padStart(2, '0')}</Text>
+          <Text style={gs.statText}>{formatHoursMinutes(item.duration)}</Text>
           <Text style={gs.statText}>·</Text>
           <Text style={gs.statText}>{exercises.length} exercises</Text>
           <Text style={gs.statText}>·</Text>
