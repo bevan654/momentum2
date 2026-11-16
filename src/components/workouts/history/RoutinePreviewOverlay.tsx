@@ -8,7 +8,8 @@ import { sw, ms, SCREEN_HEIGHT } from '../../../theme/responsive';
 import type { Routine } from '../../../stores/useRoutineStore';
 import { useSwipeDismissSheet } from './useSwipeDismissSheet';
 import { formatRest } from '../../../utils/formatDuration';
-import { DAY_SHORT } from '../../../constants/dateNames';
+import { WEEKDAY_SHORT } from '../../../constants/dateNames';
+import { titleCase } from '../../../utils/titleCase';
 
 /* ─── Routine Preview Overlay ─────────────────────────── */
 
@@ -27,7 +28,7 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
   const { dismiss, panGesture, sheetStyle, backdropStyle } = useSwipeDismissSheet(PREVIEW_SHEET_HEIGHT, onDismiss);
 
   const daysLabel = routine.days.length > 0
-    ? routine.days.map((d) => DAY_SHORT[d]).join(', ')
+    ? routine.days.map((d) => WEEKDAY_SHORT[d]).join(', ')
     : null;
 
   return (
@@ -70,7 +71,7 @@ const RoutinePreviewOverlay = React.memo(function RoutinePreviewOverlay({
             return (
               <View key={i} style={os.card}>
                 <Text style={os.exName} numberOfLines={1}>
-                  {ex.name.replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                  {titleCase(ex.name)}
                 </Text>
                 <Text style={os.exSub}>
                   {reps.length} sets · {repRange} reps · {formatRest(ex.default_rest_seconds)}
