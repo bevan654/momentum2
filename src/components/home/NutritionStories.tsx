@@ -173,7 +173,7 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
     },
     friendInitial: {
-      color: '#FFFFFF',
+      color: colors.textOnColor,
       fontSize: ms(18),
       fontFamily: Fonts.bold,
     },

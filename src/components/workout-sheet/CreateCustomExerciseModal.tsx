@@ -36,7 +36,7 @@ const EQUIPMENT = [
   'Band', 'Kettlebell', 'Smith Machine', 'EZ Bar', 'Plate',
 ] as const;
 
-/* ── Category → suggested primary muscles (canonical) ��─── */
+/* ── Category → suggested primary muscles (canonical) ───── */
 
 const CATEGORY_SUGGESTED: Record<string, CanonicalMuscle[]> = {
   Chest: CATEGORY_MUSCLES.Chest,

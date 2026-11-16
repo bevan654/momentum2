@@ -8,7 +8,7 @@
  * components/body/muscleGroups.ts is structurally identical to BodyGraphGroup defined here.
  */
 
-// ─── Types ────────��───────────────────────────────────────────
+// ─── Types ─────────────────────────────────────────────────────
 
 /** The 17 canonical muscle identifiers stored in the exercise catalog. */
 export type CanonicalMuscle =
@@ -107,7 +107,7 @@ export const CANONICAL_LABELS: Record<CanonicalMuscle, string> = {
   calves: 'Calves',
 };
 
-// ─── Group Mappings ───────���───────────────────────────────────
+// ─── Group Mappings ─────────────────────────────────────────────
 
 export const CANONICAL_TO_BODY_GROUP: Record<CanonicalMuscle, BodyGraphGroup> = {
   chest: 'chest',
@@ -270,7 +270,7 @@ export function toCanonical(raw: string): CanonicalMuscle | null {
   return MUSCLE_ALIASES[key] ?? null;
 }
 
-// ─── Category → Muscles ────���─────────────────────────────────
+// ─── Category → Muscles ────────────────────────────────────────
 
 export const CATEGORY_MUSCLES: Record<UICategory | 'Custom', CanonicalMuscle[]> = {
   Chest: ['chest'],
