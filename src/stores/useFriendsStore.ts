@@ -317,12 +317,17 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
 
   markNotificationRead: async (notificationId) => {
     await dbMarkAsRead(notificationId);
-    set((s) => ({
-      notifications: s.notifications.map((n) =>
-        n.id === notificationId ? { ...n, read: true } : n,
-      ),
-      unreadCount: Math.max(0, s.unreadCount - 1),
-    }));
+    set((s) => {
+      // Only an unread one lowers the badge (a double tap, or an already-read row, must not)
+      const wasUnread = s.notifications.some((n) => n.id === notificationId && !n.read);
+      if (!wasUnread) return {};
+      return {
+        notifications: s.notifications.map((n) =>
+          n.id === notificationId ? { ...n, read: true } : n,
+        ),
+        unreadCount: Math.max(0, s.unreadCount - 1),
+      };
+    });
   },
 
   markAllNotificationsRead: async (userId) => {
