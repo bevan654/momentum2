@@ -11,7 +11,11 @@ interface Props {
   onCancel: () => void;
   /** The value to show each time it opens (seconds); without it, 1 hour. */
   initialSeconds?: number;
+  /** The line under the title. Without it, the finish flow's prompt for a workout left running over 4 hours. */
+  subtitle?: string;
 }
+
+const LONG_WORKOUT_SUBTITLE = 'Your workout has been running for over 4 hours. How long did you actually train?';
 
 /** The hours and minutes fields for a duration in seconds. */
 function toFields(seconds: number | undefined): { hours: string; minutes: string } {
@@ -19,7 +23,7 @@ function toFields(seconds: number | undefined): { hours: string; minutes: string
   return { hours: String(Math.min(99, Math.floor(seconds / 3600))), minutes: String(Math.floor((seconds % 3600) / 60)) };
 }
 
-function DurationPickerModal({ visible, onConfirm, onCancel, initialSeconds }: Props) {
+function DurationPickerModal({ visible, onConfirm, onCancel, initialSeconds, subtitle = LONG_WORKOUT_SUBTITLE }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [hours, setHours] = useState(() => toFields(initialSeconds).hours);
@@ -49,9 +53,7 @@ function DurationPickerModal({ visible, onConfirm, onCancel, initialSeconds }: P
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onCancel}>
         <TouchableOpacity style={styles.modal} activeOpacity={1}>
           <Text style={styles.title}>Adjust Workout Duration</Text>
-          <Text style={styles.subtitle}>
-            Your workout has been running for over 4 hours. How long did you actually train?
-          </Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
 
           <View style={styles.inputRow}>
             <View style={styles.inputGroup}>
