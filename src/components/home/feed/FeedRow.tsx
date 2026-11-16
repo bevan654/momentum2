@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../../theme/useColors';
 import { sw, ms } from '../../../theme/responsive';
@@ -87,7 +87,10 @@ const FeedRow = React.memo(function FeedRow({ item }: FeedRowProps) {
       setActionsOpen(false);
       return;
     }
-    blockUser(currentUserId, item.user_id);
+    // The store rolls the hidden posts back on failure; tell the user it didn't work
+    blockUser(currentUserId, item.user_id).catch(() => {
+      Alert.alert('Error', "Couldn't block this user. Check your connection and try again.");
+    });
     setActionsOpen(false);
   }, [currentUserId, isSelf, blockUser, item.user_id]);
 

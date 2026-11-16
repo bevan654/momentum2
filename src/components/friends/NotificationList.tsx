@@ -92,7 +92,12 @@ function NotificationList() {
       if (!userId) return;
       const friendshipId = await resolveFriendshipId(item);
       if (friendshipId) {
-        await acceptRequest(friendshipId, userId);
+        try {
+          await acceptRequest(friendshipId, userId);
+        } catch {
+          Alert.alert('Error', "Couldn't accept the friend request. Check your connection and try again.");
+          return;
+        }
         await setNotificationResponded(item.id, 'accepted');
       }
     },
@@ -103,7 +108,12 @@ function NotificationList() {
     async (item: NotificationItem) => {
       const friendshipId = await resolveFriendshipId(item);
       if (friendshipId) {
-        await declineRequest(friendshipId);
+        try {
+          await declineRequest(friendshipId);
+        } catch {
+          Alert.alert('Error', "Couldn't decline the friend request. Check your connection and try again.");
+          return;
+        }
         await setNotificationResponded(item.id, 'declined');
       }
     },

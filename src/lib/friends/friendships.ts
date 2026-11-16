@@ -104,59 +104,68 @@ export async function sendFriendRequest(
   return true;
 }
 
+/** Throws if the request couldn't be accepted (offline, or it no longer exists). */
 export async function acceptFriendRequest(
   friendshipId: string,
   acceptorId: string,
 ): Promise<void> {
-  const { data: friendship } = await supabase
+  const { data: friendship, error } = await supabase
     .from('friendships')
     .update({ status: 'accepted' })
     .eq('id', friendshipId)
     .select('user_id, friend_id')
     .single();
 
-  if (friendship) {
-    const senderId = friendship.user_id === acceptorId
-      ? friendship.friend_id
-      : friendship.user_id;
+  if (error || !friendship) throw error ?? new Error('Friend request not found');
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('username, email')
-      .eq('id', acceptorId)
-      .single();
+  const senderId = friendship.user_id === acceptorId
+    ? friendship.friend_id
+    : friendship.user_id;
 
-    await createNotification(
-      senderId,
-      'friend_accepted',
-      'Friend Request Accepted',
-      `${profile?.username || profile?.email || 'Someone'} accepted your request`,
-      { from_user_id: acceptorId },
-    );
-  }
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('username, email')
+    .eq('id', acceptorId)
+    .single();
+
+  await createNotification(
+    senderId,
+    'friend_accepted',
+    'Friend Request Accepted',
+    `${profile?.username || profile?.email || 'Someone'} accepted your request`,
+    { from_user_id: acceptorId },
+  );
 }
 
+/** Throws if the request couldn't be deleted. */
 export async function declineFriendRequest(friendshipId: string): Promise<void> {
-  await supabase.from('friendships').delete().eq('id', friendshipId);
+  const { error } = await supabase.from('friendships').delete().eq('id', friendshipId);
+  if (error) throw error;
 }
 
+/**
+ * Throws if either write fails. If the friendship was removed but the block row couldn't be
+ * saved, the user ends up unfriended but not blocked: the caller must not report a block.
+ */
 export async function blockUser(
   userId: string,
   blockedUserId: string,
 ): Promise<void> {
   // Remove existing friendship first
-  await supabase
+  const { error: deleteError } = await supabase
     .from('friendships')
     .delete()
     .or(
       `and(user_id.eq.${userId},friend_id.eq.${blockedUserId}),and(user_id.eq.${blockedUserId},friend_id.eq.${userId})`,
     );
+  if (deleteError) throw deleteError;
 
-  await supabase.from('friendships').insert({
+  const { error: insertError } = await supabase.from('friendships').insert({
     user_id: userId,
     friend_id: blockedUserId,
     status: 'blocked',
   });
+  if (insertError) throw insertError;
 }
 
 /** IDs of users this user has blocked. One-way: who I've chosen not to see. */
