@@ -59,10 +59,12 @@ export async function getFriends(userId: string): Promise<{ friends: FriendProfi
     f.user_id === userId ? f.friend_id : f.user_id,
   );
 
-  const { data: profiles } = await supabase
+  const { data: profiles, error: profilesError } = await supabase
     .from('public_profiles')
     .select('id, username')
     .in('id', friendIds.slice(0, 500));
+
+  if (profilesError) return null;
 
   const friends = (profiles ?? []).map((p) => ({
     id: p.id,

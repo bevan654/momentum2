@@ -470,15 +470,17 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       leaderboard: prev.leaderboard.filter((entry) => entry.user_id !== targetUserId),
       searchResults: prev.searchResults.filter((r) => r.id !== targetUserId),
     });
+    const feedGenAtBlock = feedGeneration;
     try {
       await dbBlockUser(userId, targetUserId);
     } catch (err) {
-      // Rollback on failure
+      // Rollback on failure. The feed only if it's still the same list (switching Global/Friends
+      // meanwhile loads a new one, which the old posts must not replace).
       set({
         blockedIds: prev.blockedIds,
         friends: prev.friends,
         friendIds: prev.friendIds,
-        feed: prev.feed,
+        ...(feedGeneration === feedGenAtBlock ? { feed: prev.feed } : {}),
         leaderboard: prev.leaderboard,
         searchResults: prev.searchResults,
       });

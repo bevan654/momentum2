@@ -197,7 +197,7 @@ function SupplementConfigEditor() {
                 placeholder="Daily goal"
                 placeholderTextColor={colors.textTertiary}
                 value={customGoal}
-                onChangeText={setCustomGoal}
+                onChangeText={(v) => setCustomGoal(v.replace(',', '.'))}
                 keyboardType="decimal-pad"
               />
               <View style={styles.unitRow}>

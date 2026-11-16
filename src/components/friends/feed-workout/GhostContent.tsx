@@ -113,10 +113,14 @@ export function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDi
       return { name, userSets, ghostSets, setResults, exWins, exLosses, exTies };
     });
 
-    const victory = setWins > setLosses;
-    const tied = setWins === setLosses;
+    // The post's own verdict is worked out at finish by each set's position in the workout (as the
+    // live tally and the finish screen do); the feed only has completed sets, so recounting here can
+    // disagree after a skipped set. Fall back to the recount for posts without one.
+    const saved = item.ghost_result;
+    const victory = saved ? saved === 'victory' : setWins > setLosses;
+    const tied = saved ? saved === 'draw' : setWins === setLosses;
     return { perExercise, userTotalVol, ghostTotalVol, setWins, setLosses, setTies, victory, tied };
-  }, [exercises, ghostMap]);
+  }, [exercises, ghostMap, item.ghost_result]);
 
   const verdictColor = results.tied ? colors.textPrimary : results.victory ? colors.positive : colors.accentRed;
   const verdictText = results.tied ? 'DRAW' : results.victory ? 'VICTORY' : 'DEFEATED';
