@@ -116,7 +116,10 @@ export default function ProgramProgressScreen() {
       sum + week.days.filter((d) => d.isMissed).length, 0);
     const totalVolume = progressData.reduce((sum, p) => sum + p.total_volume, 0);
     const totalDuration = progressData.reduce((sum, p) => sum + p.duration, 0);
-    const adherence = totalScheduled > 0 ? Math.round((totalTrained / totalScheduled) * 100) : 0;
+    // Scheduled days that were trained, out of scheduled days so far (extra workouts don't push it past 100%)
+    const scheduledTrained = calendarGrid.reduce((sum, week) =>
+      sum + week.days.filter((d) => d.isScheduled && d.isPast && d.isInProgram && d.isTrained).length, 0);
+    const adherence = totalScheduled > 0 ? Math.round((scheduledTrained / totalScheduled) * 100) : 0;
 
     // Volume trend
     let volTrend = 0;
