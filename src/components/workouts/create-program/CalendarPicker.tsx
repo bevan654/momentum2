@@ -7,6 +7,7 @@ import type { ThemeColors } from '../../../theme/useColors';
 import { Fonts } from '../../../theme/typography';
 import { sw, ms } from '../../../theme/responsive';
 import { MONTH_LONG } from '../../../constants/dateNames';
+import { parseLocalDate } from '../../../utils/localDate';
 
 const DOW_HEADERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -28,13 +29,13 @@ export function CalendarPicker({
   colors: ThemeColors;
 }) {
   const today = new Date();
-  const initial = value ? new Date(value) : today;
+  const initial = value ? parseLocalDate(value) : today;
   const [viewYear, setViewYear] = useState(initial.getFullYear());
   const [viewMonth, setViewMonth] = useState(initial.getMonth());
 
   useEffect(() => {
     if (visible) {
-      const d = value ? new Date(value) : new Date();
+      const d = value ? parseLocalDate(value) : new Date();
       setViewYear(d.getFullYear());
       setViewMonth(d.getMonth());
     }
@@ -64,7 +65,7 @@ export function CalendarPicker({
   const isDisabled = (day: number) => {
     if (!minDate) return false;
     const d = new Date(viewYear, viewMonth, day);
-    return d < new Date(minDate);
+    return d < parseLocalDate(minDate);
   };
 
   const isToday = (day: number) => {
@@ -73,7 +74,7 @@ export function CalendarPicker({
 
   const isSelected = (day: number) => {
     if (!value) return false;
-    const v = new Date(value);
+    const v = parseLocalDate(value);
     return v.getFullYear() === viewYear && v.getMonth() === viewMonth && v.getDate() === day;
   };
 

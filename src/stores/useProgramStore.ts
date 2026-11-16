@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { planExerciseColumns, type PlanExercise } from '../utils/planExercise';
+import { parseLocalDate } from '../utils/localDate';
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -359,7 +360,8 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
     const { activeProgram } = get();
     if (!activeProgram || !activeProgram.start_date) return 0;
 
-    const started = new Date(activeProgram.start_date).getTime();
+    // From local midnight of the start day, so the week turns over at midnight where the user is
+    const started = parseLocalDate(activeProgram.start_date).getTime();
     const now = Date.now();
     const weekMs = 7 * 24 * 60 * 60 * 1000;
     const week = Math.ceil((now - started) / weekMs);

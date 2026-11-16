@@ -13,6 +13,7 @@ import { useProgramStore } from '../stores/useProgramStore';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
 import { WEEKDAY_SHORT, MONTH_SHORT } from '../constants/dateNames';
+import { parseLocalDate } from '../utils/localDate';
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'ProgramSummary'>;
 
@@ -110,7 +111,7 @@ export default function ProgramSummaryScreen() {
 
   const formatDate = (date: string | null) => {
     if (!date) return '';
-    const d = new Date(date);
+    const d = parseLocalDate(date);
     return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
   };
 

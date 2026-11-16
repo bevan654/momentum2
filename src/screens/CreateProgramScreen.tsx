@@ -11,6 +11,7 @@ import { useProgramStore, startDayEdit, consumeDayEditResult, type ProgramDay, t
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { CalendarPicker } from '../components/workouts/create-program/CalendarPicker';
 import { WEEKDAY_SHORT, WEEKDAY_LONG, MONTH_SHORT } from '../constants/dateNames';
+import { parseLocalDate } from '../utils/localDate';
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'CreateProgram'>;
 
@@ -91,7 +92,7 @@ export default function CreateProgramScreen() {
 
   const formatDate = (date: string | null) => {
     if (!date) return 'Select';
-    const d = new Date(date);
+    const d = parseLocalDate(date);
     return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
   };
 

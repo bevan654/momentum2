@@ -11,6 +11,7 @@ import { useProgramStore } from '../stores/useProgramStore';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { formatHoursMinutes } from '../utils/formatDuration';
 import { WEEKDAY_SHORT, DAY_SHORT, MONTH_SHORT } from '../constants/dateNames';
+import { parseLocalDate } from '../utils/localDate';
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'ProgramProgress'>;
 
@@ -45,7 +46,7 @@ export default function ProgramProgressScreen() {
   const calendarGrid = useMemo(() => {
     if (!program || !program.start_date) return [];
 
-    const startDate = new Date(program.start_date);
+    const startDate = parseLocalDate(program.start_date);
     // Align to Monday
     const jsDay = startDate.getDay();
     const mondayOffset = jsDay === 0 ? -6 : 1 - jsDay;
@@ -77,9 +78,9 @@ export default function ProgramProgressScreen() {
       trainedDates.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
     }
 
-    const programStart = new Date(program.start_date);
+    const programStart = parseLocalDate(program.start_date);
     programStart.setHours(0, 0, 0, 0);
-    const programEnd = program.end_date ? new Date(program.end_date) : null;
+    const programEnd = program.end_date ? parseLocalDate(program.end_date) : null;
     if (programEnd) programEnd.setHours(23, 59, 59, 999);
 
     for (let w = 0; w < totalWeeks; w++) {

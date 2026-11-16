@@ -9,6 +9,7 @@ import { sw, ms } from '../../theme/responsive';
 import { useProgramStore, type Program } from '../../stores/useProgramStore';
 import { WEEKDAY_SHORT } from '../../constants/dateNames';
 import { formatMonthDay } from '../../utils/dateLabels';
+import { parseLocalDate } from '../../utils/localDate';
 
 const ACTION_W = sw(80);
 
@@ -76,7 +77,7 @@ function ProgramCard({ program, week, onOpen, onReview, onDelete, onAbandon, onS
               {isActive && (
                 <View style={styles.activeBadge}>
                   <Text style={styles.activeBadgeText}>
-                    ACTIVE{program.end_date ? ` · till ${formatMonthDay(new Date(program.end_date))}` : ''}
+                    ACTIVE{program.end_date ? ` · till ${formatMonthDay(parseLocalDate(program.end_date))}` : ''}
                   </Text>
                 </View>
               )}
