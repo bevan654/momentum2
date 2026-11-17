@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
 import {
   View,
+  Text,
   ScrollView,
   Pressable,
   StyleSheet,
@@ -8,7 +9,8 @@ import {
   type NativeScrollEvent,
 } from 'react-native';
 import { useColors, type ThemeColors } from '../../theme/useColors';
-import { sw, SCREEN_WIDTH } from '../../theme/responsive';
+import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
+import { Fonts } from '../../theme/typography';
 import WeightCard from './WeightCard';
 import MeasurementsCard from './MeasurementsCard';
 import BodyFatCard from './BodyFatCard';
@@ -117,7 +119,10 @@ function BodyMetricsPager() {
     [pages, store, goToPage, styles, colors.accent],
   );
 
-  if (pages.length === 0) return null;
+  // Every tracker switched off in Settings: say where they went instead of leaving a gap
+  if (pages.length === 0) {
+    return <Text style={styles.allHidden}>Body trackers are hidden. Turn them on in Settings › Lab Trackers.</Text>;
+  }
 
   return (
     <View style={styles.wrapper}>
@@ -146,6 +151,14 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     wrapper: {
       overflow: 'hidden',
+    },
+    allHidden: {
+      color: colors.textTertiary,
+      fontSize: ms(12),
+      lineHeight: ms(16),
+      fontFamily: Fonts.medium,
+      textAlign: 'center',
+      paddingVertical: sw(8),
     },
     dotsRow: {
       flexDirection: 'row',
