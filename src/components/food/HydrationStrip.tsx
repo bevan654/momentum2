@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -24,6 +24,11 @@ function formatWater(ml: number, inLitres: boolean): string {
 function formatAmount(v: number): string {
   return v % 1 === 0 ? String(v) : v.toFixed(1);
 }
+
+const COLUMNS = 2;
+
+/** What one chip shows; the handlers and styles are shared. */
+type ChipData = Omit<ChipProps, 'onAdd' | 'onOpenLog' | 'styles'>;
 
 interface ChipProps {
   /** Supplement key passed back to onAdd (water uses its own handlers). */
@@ -137,54 +142,59 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
     [logKey, dateEntries],
   );
 
+  // Water first, then each supplement, laid out two per row. An odd one out on the last row
+  // stretches to the full width, so the grid always looks filled.
+  const chips: ChipData[] = useMemo(() => {
+    const list: ChipData[] = [{
+      itemKey: WATER_KEY,
+      label: 'Water',
+      step: WATER_STEP_ML,
+      stepText: `${WATER_STEP_ML} ml`,
+      icon: 'water-outline',
+      color: colors.water,
+      value: formatWater(waterMl, waterInLitres),
+      goal: formatWater(waterGoal, waterInLitres),
+      unit: waterInLitres ? 'L' : 'ml',
+      progress: waterGoal > 0 ? waterMl / waterGoal : 0,
+      canAdd: isToday,
+    }];
+    for (const c of configs) {
+      const amount = totals[c.key] || 0;
+      const step = c.increments[0] ?? c.dailyGoal;
+      list.push({
+        itemKey: c.key,
+        label: c.name,
+        step,
+        stepText: `${formatAmount(step)} ${c.unit}`,
+        icon: c.icon,
+        color: c.color,
+        value: formatAmount(amount),
+        goal: formatAmount(c.dailyGoal),
+        unit: c.unit,
+        progress: c.dailyGoal > 0 ? amount / c.dailyGoal : 0,
+        canAdd: isToday && step > 0,
+      });
+    }
+    return list;
+  }, [colors.water, waterMl, waterGoal, waterInLitres, configs, totals, isToday]);
+
+  const rows = useMemo(() => {
+    const out: ChipData[][] = [];
+    for (let i = 0; i < chips.length; i += COLUMNS) out.push(chips.slice(i, i + COLUMNS));
+    return out;
+  }, [chips]);
+
   return (
     <>
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-      style={styles.scroll}
-    >
-      <Chip
-        itemKey={WATER_KEY}
-        label="Water"
-        step={WATER_STEP_ML}
-        stepText={`${WATER_STEP_ML} ml`}
-        icon="water-outline"
-        color={colors.water}
-        value={formatWater(waterMl, waterInLitres)}
-        goal={formatWater(waterGoal, waterInLitres)}
-        unit={waterInLitres ? 'L' : 'ml'}
-        progress={waterGoal > 0 ? waterMl / waterGoal : 0}
-        canAdd={isToday}
-        onAdd={handleAdd}
-        onOpenLog={handleOpenLog}
-        styles={styles}
-      />
-      {configs.map((c) => {
-        const amount = totals[c.key] || 0;
-        const step = c.increments[0] ?? c.dailyGoal;
-        return (
-          <Chip
-            key={c.key}
-            itemKey={c.key}
-            label={c.name}
-            step={step}
-            stepText={`${formatAmount(step)} ${c.unit}`}
-            icon={c.icon}
-            color={c.color}
-            value={formatAmount(amount)}
-            goal={formatAmount(c.dailyGoal)}
-            unit={c.unit}
-            progress={c.dailyGoal > 0 ? amount / c.dailyGoal : 0}
-            canAdd={isToday && step > 0}
-            onAdd={handleAdd}
-            onOpenLog={handleOpenLog}
-            styles={styles}
-          />
-        );
-      })}
-    </ScrollView>
+    <View style={styles.grid}>
+      {rows.map((row) => (
+        <View key={row[0].itemKey} style={styles.row}>
+          {row.map((chip) => (
+            <Chip key={chip.itemKey} {...chip} onAdd={handleAdd} onOpenLog={handleOpenLog} styles={styles} />
+          ))}
+        </View>
+      ))}
+    </View>
     <SupplementLogSheet
       visible={logOpen}
       label={logKey === WATER_KEY ? 'Water' : logConfig?.name || ''}
@@ -203,12 +213,13 @@ export default React.memo(HydrationStrip);
 
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    scroll: {
-      flexGrow: 0,
+    grid: {
       marginTop: sw(10),
+      paddingHorizontal: sw(16),
+      gap: sw(8),
     },
     row: {
-      paddingHorizontal: sw(16),
+      flexDirection: 'row',
       gap: sw(8),
     },
     chip: {
@@ -218,7 +229,9 @@ const createStyles = (colors: ThemeColors) =>
       paddingVertical: sw(8),
       paddingLeft: sw(8),
       paddingRight: sw(10),
-      minWidth: sw(150),
+      // Equal halves of the row; a chip alone on the last row takes the full width.
+      flex: 1,
+      minWidth: 0,
       borderRadius: sw(14),
       backgroundColor: colors.card,
       borderWidth: 1,
