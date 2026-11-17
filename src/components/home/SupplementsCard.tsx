@@ -6,14 +6,12 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { useSupplementStore, type SupplementConfig } from '../../stores/useSupplementStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
+import { sw, ms } from '../../theme/responsive';
 import AddSupplementModal from './AddSupplementModal';
 import SupplementDetailModal, { formatIncrement } from './SupplementDetailModal';
 
 const GRID_GAP = sw(10);
-const GRID_PADDING = sw(16);
-const CELL_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
-const FULL_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
+const COLUMNS = 2;
 
 /* ─── Supplement Cell (half-width card) ───────────────── */
 
@@ -165,17 +163,25 @@ function SupplementsCard() {
       </View>
     );
   } else {
-    // 2+ supplements → normal grid, no add button
+    // 2+ supplements → two per row, as many rows as needed. The rows share the card's real width
+    // (fixed widths from the screen size could add up to a hair too wide and wrap to one column),
+    // and an odd one out on the last row stretches to the full width.
+    const rows: SupplementConfig[][] = [];
+    for (let i = 0; i < configs.length; i += COLUMNS) rows.push(configs.slice(i, i + COLUMNS));
     body = (
       <View style={gridStyles.grid}>
-        {configs.map((config) => (
-          <View key={config.key} style={{ width: CELL_WIDTH }}>
-            <SupplementCell
-              config={config}
-              total={totals[config.key] || 0}
-              onAdd={handleAdd}
-              onReset={handleReset}
-            />
+        {rows.map((row) => (
+          <View key={row[0].key} style={gridStyles.row}>
+            {row.map((config) => (
+              <View key={config.key} style={gridStyles.item}>
+                <SupplementCell
+                  config={config}
+                  total={totals[config.key] || 0}
+                  onAdd={handleAdd}
+                  onReset={handleReset}
+                />
+              </View>
+            ))}
           </View>
         ))}
       </View>
@@ -198,9 +204,15 @@ function SupplementsCard() {
 
 const gridStyles = StyleSheet.create({
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: GRID_GAP,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: GRID_GAP,
+  },
+  item: {
+    flex: 1,
+    minWidth: 0,
   },
 });
 
@@ -209,7 +221,7 @@ const gridStyles = StyleSheet.create({
 const createCardStyles = (colors: ThemeColors) => StyleSheet.create({
   /* Empty state (0 supplements) */
   emptyCard: {
-    width: FULL_WIDTH,
+    alignSelf: 'stretch',
     backgroundColor: colors.card,
     borderRadius: 0,
     borderWidth: 1,
@@ -228,7 +240,7 @@ const createCardStyles = (colors: ThemeColors) => StyleSheet.create({
 
   /* Split card (full-width, 1 supplement + add) */
   splitCard: {
-    width: FULL_WIDTH,
+    alignSelf: 'stretch',
     flexDirection: 'row',
     backgroundColor: colors.card,
     borderRadius: 0,
