@@ -67,14 +67,14 @@ This project is a continuation of an app built with an older model, so expect bu
     │   ├── auth/              # Auth screen pieces: AuthLayout, AuthBrand, AuthInput, FieldStatusIcon, authStyles, SocialAuthButtons (Google / Apple OAuth)
     │   ├── body/              # Body map wrappers around momentum-muscle-map: map pair, workout mini maps, exercise thumb, level toggle, region chip, workout heatmap
     │   ├── food/              # Nutrition tab: day summary (calorie ring, macro bars), water strip, meal cards, food popups; ui/ = shared kit for food popups (header, search, rows, fields, sub-screen, keyboard inset); macro-lens/ = AI photo scan pieces
-    │   ├── friends/           # Leaderboard, notifications, reports, search, a friend's feed workout (feed-workout/)
+    │   ├── friends/           # Leaderboard, notifications, reports, search, friend stories row (FriendStories), a friend's feed workout (feed-workout/)
     │   ├── home/              # Home dashboard cards and modals, global Header, Community feed (feed/), activity calendar (activity/)
     │   ├── lab/               # Recovery tab: body-metric cards (weight, body fat, measurements; shared chart/history/log pieces in trend/), weekly volume, muscle radar, quick stats, AI coach card
     │   ├── onboarding/        # Onboarding steps (DetailsStep, GoalsStep, UnitInput) + onboardingPlan (activity levels, calorie/macro recommendation)
     │   ├── profile/           # Settings sub-views (settings/), goal editors
     │   ├── share/             # Workout sharing: share modal, share card (WorkoutOverlay), story crop
-    │   ├── ui/                # Shared primitives: Sheet (animated bottom sheet), Portal/PortalHost
-    │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, exercise picker (exercise-picker/), finish flow and summary (summary/), ghost mode
+    │   ├── ui/                # Shared primitives: Sheet (animated bottom sheet), Overlay, Portal/PortalHost
+    │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, exercise picker (exercise-picker/), finish flow and summary (summary/), set rows (set-row/), exercise history (exercise-history/), ghost mode
     │   ├── workouts/          # Workouts tab: recovery body map, routine cards, today's plan, exercise rows; history/, create-program/, program-day-editor/
     │   └── SheetWrapper.tsx   # Shared modal-sheet chrome
     ├── stores/                # 23 Zustand stores (see State Management)
@@ -82,7 +82,7 @@ This project is a continuation of an app built with an older model, so expect bu
     ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
     ├── lib/                   # supabase, friendsDatabase (re-exports the topic files in friends/), catalogDatabase, navigationBridge
     ├── theme/                 # useColors.ts, responsive.ts, typography.ts
-    ├── utils/                 # barcodeApi, confirmReplaceWorkout, dateLabels (workout date, "Nov 14"), displayName, ema (trend line), exerciseCatalog, exerciseProgress, feedExerciseDetails, formatDuration (clock, h/m and rest text), formatVolume, ghostCompare, localDate (local YYYY-MM-DD), muscleLoad (effective load for heat/recovery), muscleVolume, planExercise (routine/program exercise row), smoothPath, streakCalculator, strengthScore, titleCase, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutProgress, workoutStorage
+    ├── utils/                 # barcodeApi, confirmReplaceWorkout, dateLabels (workout date, "Nov 14"), displayName, ema (trend line), exerciseCatalog, exerciseProgress, feedExerciseDetails, formatDuration (clock, h/m and rest text), formatVolume, ghostCompare, localDate (local YYYY-MM-DD), muscleLoad (effective load for heat/recovery), muscleVolume, planExercise (routine/program exercise row), smoothPath, streakCalculator, strengthRanks (rank tiers and thresholds), strengthScore, titleCase, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutProgress, workoutStorage
     ├── hooks/                 # useAppUpdates (EAS OTA), useDebouncedValue, useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights), useUsernameAvailability (debounced username/email taken check), useToday (today's date, rolls over at midnight)
     └── constants/             # buildInfo, changelog, dateNames (day/month names), muscles, muscleMap (body-map config + heat/recovery reference values, bodyweight fractions), muscleMapLabels
 
@@ -102,7 +102,7 @@ supabase/
   - `OnboardingScreen` if profile is incomplete (height/age/gender/starting_weight)
   - `TabNavigator` once authenticated and onboarded
 - **`TabNavigator`** uses `MaterialTopTabNavigator` rendered with a **custom bottom tab bar** (animated indicator, central elevated Home button, Community badge). Tabs: **Recovery, Workouts, Home, Nutrition, Community**. Options: `lazy: true`, `lazyPreloadDistance: 1`. material-top-tabs has no `freezeOnBlur`; instead each tab is wrapped in `withFreezeWhenFar` (`navigation/freezeFarTabs.tsx`, `react-freeze`), so tabs more than one away from the current tab don't re-render.
-- **`WorkoutsNavigator`** (native stack) hosts: `StartWorkout`, plan editors (`CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`). Re-pressing the Workouts tab triggers `showRecoveryOverlay()` via `navigationBridge`.
+- **`WorkoutsNavigator`** (native stack) hosts: `StartWorkout` (renders nothing; registers the nav ref), `Plans` (`PlansScreen`) and the plan editors (`CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`). Re-pressing the Workouts tab triggers `showRecoveryOverlay()` via `navigationBridge`.
 - **Community tab** renders `FriendsScreen` directly (no nested navigator). Chat was removed.
 - **`navigationBridge`** exposes imperative entry points (open profile sheet, recovery overlay, workouts nav ref) to non-navigator components.
 - **`ProfileScreen`** is mounted as a 92%-height bottom sheet, opened by long-pressing the Home tab or tapping the avatar.
@@ -186,7 +186,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | Store | Persistence | Responsibility |
 |---|---|---|
 | `useAuthStore` | Supabase Auth + SecureStore | Session, profile CRUD, email verification, post-sign-up welcome flag |
-| `useActiveWorkoutStore` | AsyncStorage + Supabase | Active workout state, sets, rest timer, finish → one `upsert_workout` RPC keyed by the workout's client-generated id (payload built in `utils/workoutPayload.ts`), Undo reopens under the same id (largest store, ~1.3k LOC; types and pure helpers in `stores/activeWorkout/`) |
+| `useActiveWorkoutStore` | AsyncStorage + Supabase | Active workout state, sets, rest timer, finish → one `upsert_workout` RPC keyed by the workout's client-generated id (payload built in `utils/workoutPayload.ts`), Undo reopens under the same id (largest store, ~700 LOC; types, constants, exercise actions and finish helpers in `stores/activeWorkout/`) |
 | `useWorkoutStore` | Supabase + AsyncStorage (24h) | History, exercise catalog cache, previous-set lookups |
 | `useRegionTargetsStore` | Supabase + AsyncStorage (24h) | Body-map region weights per catalog exercise (`exercise_region_targets`); empty while the table isn't deployed |
 | `useRoutineStore` | Supabase | Saved routines + exercises |
@@ -421,7 +421,7 @@ Keep the codebase as clean and well-structured as possible. Every file should ha
 | Supabase or third-party I/O with side effects | `src/services/` (feature logic) or `src/lib/` (clients, low-level DB helpers) |
 | Pure helpers (no React, no I/O) | `src/utils/` |
 | Reusable hooks | `src/hooks/` |
-| Shared types | `src/types/`. Types used by only one file stay in that file. |
+| Shared types | Next to the module that owns them (e.g. `stores/activeWorkout/types.ts`). Types used by only one file stay in that file. Ask before adding a `src/types/` folder. |
 | Static data and config | `src/constants/` |
 | Edge functions / SQL | `supabase/functions/<name>/`, `supabase/migrations/` |
 | Docs, plans, audits | `docs/` |
