@@ -54,6 +54,8 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
   const [name, setName] = useState('');
   const [servingUnit, setServingUnit] = useState<ServingUnit>('serving');
   const [amount, setAmount] = useState(DEFAULT_AMOUNT.serving);
+  /** How many servings to log in one go (typed, so any number works). */
+  const [count, setCount] = useState('1');
   const [calories, setCalories] = useState('');
   const [kj, setKj] = useState('');
   const [protein, setProtein] = useState('');
@@ -83,6 +85,7 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
     setName('');
     setServingUnit('serving');
     setAmount(DEFAULT_AMOUNT.serving);
+    setCount('1');
     setCalories('');
     setKj('');
     setProtein('');
@@ -107,10 +110,15 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
   const f = Number(fat) || 0;
   const fromMacros = Math.round(p * 4 + c * 4 + f * 9);
   const entered = Number(calories) || 0;
-  // What the screen shows and what gets saved: typed calories, else worked out from macros.
-  const previewCal = entered > 0 ? entered : fromMacros;
+  // One serving: typed calories, else worked out from macros.
+  const perServingCal = entered > 0 ? entered : fromMacros;
   const autoCalc = entered <= 0 && fromMacros > 0;
-  const amountNum = Number(amount) > 0 ? Number(amount) : 1;
+  const multiplier = Number(count) > 0 ? Number(count) : 1;
+  // What the screen shows and what gets saved: one serving × how many.
+  const previewCal = Math.round(perServingCal * multiplier);
+  const round1 = (v: number) => Math.round(v * 10) / 10;
+  // A "serving" is one serving; other units have a size (250 ml, 100 g...).
+  const amountNum = servingUnit === 'serving' ? 1 : Number(amount) > 0 ? Number(amount) : 1;
   const canSubmit = entered > 0 || p > 0 || c > 0 || f > 0;
 
   const handleAdd = useCallback(() => {
@@ -120,28 +128,28 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
     const microFields: Record<string, number | null> = {};
     for (const g of microGoals) {
       const val = Number(microValues[g.key]);
-      microFields[g.key] = val > 0 ? val : null;
+      microFields[g.key] = val > 0 ? round1(val * multiplier) : null;
     }
 
     addEntry(userId, {
       name: name.trim() || 'Quick Add',
       brand: null,
+      // The values typed are for one serving; the entry holds the totals for all of them.
       calories: previewCal,
-      protein: p,
-      carbs: c,
-      fat: f,
+      protein: round1(p * multiplier),
+      carbs: round1(c * multiplier),
+      fat: round1(f * multiplier),
       meal_type: mealSlot,
-      // Servings are a count (2 servings = quantity 2); other units are one serving of that
-      // amount (250 ml = quantity 1 of 250 ml). The values typed are for the whole amount.
-      quantity: servingUnit === 'serving' ? amountNum : 1,
-      serving_size: servingUnit === 'serving' ? 1 : amountNum,
+      // e.g. 2 × 250 ml = quantity 2 of a 250 ml serving; 3 servings = quantity 3 of "1 serving".
+      quantity: multiplier,
+      serving_size: amountNum,
       serving_unit: servingUnit,
       is_planned: false,
       ...microFields,
     }, targetHour != null ? selectedDate : undefined, targetHour);
 
     onAdded();
-  }, [userId, canSubmit, name, previewCal, p, c, f, mealSlot, targetHour, selectedDate, addEntry, onAdded, microGoals, microValues, servingUnit, amountNum]);
+  }, [userId, canSubmit, name, previewCal, p, c, f, mealSlot, targetHour, selectedDate, addEntry, onAdded, microGoals, microValues, servingUnit, amountNum, multiplier]);
 
   return (
     <FoodSubScreen
@@ -165,9 +173,13 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
           {previewCal.toLocaleString()}
           <Text style={s.heroUnit}> kcal</Text>
         </Text>
-        <Text style={s.heroHint}>{autoCalc ? 'Worked out from your macros' : 'Enter calories, macros, or both'}</Text>
+        <Text style={s.heroHint}>
+          {multiplier > 1 && perServingCal > 0
+            ? `${multiplier} × ${perServingCal.toLocaleString()} kcal${autoCalc ? ', from your macros' : ''}`
+            : autoCalc ? 'Worked out from your macros' : 'Enter calories, macros, or both'}
+        </Text>
         <View style={s.heroBar}>
-          <MacroSplitBar protein={p} carbs={c} fat={f} showGrams={false} />
+          <MacroSplitBar protein={p * multiplier} carbs={c * multiplier} fat={f * multiplier} showGrams={false} />
         </View>
       </View>
 
@@ -210,14 +222,26 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
         </View>
         <View style={s.row}>
           <NumberField
-            label={servingUnit === 'serving' ? 'Servings' : 'Amount'}
-            unit={servingUnit === 'serving' ? undefined : servingUnit}
-            value={amount}
-            onChangeText={setAmount}
+            label={servingUnit === 'serving' ? 'Servings' : 'How many'}
+            unit={servingUnit === 'serving' ? undefined : '×'}
+            value={count}
+            onChangeText={setCount}
             onSubmitEditing={() => calRef.current?.focus()}
           />
+          {servingUnit !== 'serving' && (
+            <NumberField
+              label="One serving is"
+              unit={servingUnit}
+              value={amount}
+              onChangeText={setAmount}
+              onSubmitEditing={() => calRef.current?.focus()}
+            />
+          )}
         </View>
-        <Text style={s.hint}>Calories and macros below are for this amount.</Text>
+        <Text style={s.hint}>
+          Enter calories and macros for one {servingUnit === 'serving' ? 'serving' : `${amount || DEFAULT_AMOUNT[servingUnit]} ${servingUnit}`}
+          {multiplier > 1 ? `; they're multiplied by ${multiplier}.` : '.'}
+        </Text>
       </View>
 
       {/* Energy */}
