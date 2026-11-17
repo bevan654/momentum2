@@ -17,6 +17,7 @@ import CreateMealModal from '../components/food/CreateMealModal';
 import NutritionHero from '../components/food/NutritionHero';
 import HydrationStrip from '../components/food/HydrationStrip';
 import DateNavigator from '../components/food/DateNavigator';
+import RefreshBanner, { type RefreshResult } from '../components/food/RefreshBanner';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
 import { useToday } from '../hooks/useToday';
@@ -140,17 +141,22 @@ function FoodLoggerScreen() {
 
   // Only a pull shows the refresh spinner; switching days has its own loading row below.
   const [refreshing, setRefreshing] = useState(false);
+  // Shown in a small banner once the pull finishes, so it's clear the refresh did something.
+  const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
   const handleRefresh = useCallback(async () => {
     if (!userId) return;
     setRefreshing(true);
+    let ok = false;
     try {
       await Promise.all([
         fetchDayEntries(userId, selectedDate),
         fetchDateSupplements(userId, selectedDate),
         isToday ? useSupplementStore.getState().fetchTodaySupplements(userId) : null,
       ]);
+      ok = !useFoodLogStore.getState().loadError;
     } finally {
       setRefreshing(false);
+      setRefreshResult((prev) => ({ ok, id: (prev?.id ?? 0) + 1 }));
     }
   }, [userId, selectedDate, isToday]);
 
@@ -256,6 +262,7 @@ function FoodLoggerScreen() {
   return (
     <View style={styles.screen}>
       <DateNavigator selectedDate={selectedDate} today={todayStr} onDateSelect={setDate} />
+      <View style={styles.diaryPage}>
       <ScrollView
         style={styles.diaryPage}
         showsVerticalScrollIndicator={false}
@@ -291,6 +298,8 @@ function FoodLoggerScreen() {
           />
         </View>
       </ScrollView>
+      <RefreshBanner result={refreshResult} />
+      </View>
       <AddFoodModal
         visible={addModalVisible}
         mealSlot={addMealSlot}
