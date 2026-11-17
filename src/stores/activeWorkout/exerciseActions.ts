@@ -290,8 +290,9 @@ export function createExerciseActions(
 
         ex.sets = newSets.map((st) => {
           if (st.set_type === 'drop' && st.parent_set_number !== null) {
-            const newParent = posMap.get(st.parent_set_number);
-            return { ...st, parent_set_number: newParent ?? null };
+            const newParent = posMap.get(st.parent_set_number) ?? null;
+            // Unchanged sets keep their identity (SetRow's swipe-delete finds its set by identity)
+            return newParent === st.parent_set_number ? st : { ...st, parent_set_number: newParent };
           }
           return st;
         });

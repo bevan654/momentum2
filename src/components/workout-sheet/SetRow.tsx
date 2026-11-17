@@ -224,6 +224,12 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
 
   useEffect(() => () => {
     if (restoreTimer.current) clearTimeout(restoreTimer.current);
+    // Unmounted mid-collapse (an earlier quick delete shortened the list): the collapse won't finish,
+    // so delete the swiped set now. By identity, so it's a no-op if it's gone or the exercise was removed.
+    if (collapsingRef.current && deletedSetRef.current) {
+      collapsingRef.current = false;
+      onDeleteRef.current?.(indexRef.current, deletedSetRef.current);
+    }
   }, []);
 
   const fireDelete = useCallback(() => {

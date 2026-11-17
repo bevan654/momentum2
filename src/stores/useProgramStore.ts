@@ -214,7 +214,7 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
       // Don't leave a half-saved program behind (a retry would make a second copy)
       if (daysError) await supabase.from('programs').delete().eq('id', program.id);
       await get().fetchPrograms(userId);
-      return { error: daysError };
+      return { error: daysError ? "Couldn't save the program. Check your connection and try again." : null };
     } catch (e: any) {
       if (__DEV__) console.error('createProgram exception:', e);
       return { error: e?.message || 'Unexpected error' };
