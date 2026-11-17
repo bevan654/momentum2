@@ -20,9 +20,11 @@ import CardDetailSheet, {
 
 function WaterCard() {
   // Only these fields: a whole-store subscription re-rendered the card on any supplement change.
-  const { water, waterGoal, addWater, undoLastWater } = useSupplementStore(
-    useShallow((s) => ({ water: s.water, waterGoal: s.waterGoal, addWater: s.addWater, undoLastWater: s.undoLastWater })),
+  const { water, waterGoal, addWater, undoLastWater, waterIncrements } = useSupplementStore(
+    useShallow((s) => ({ water: s.water, waterGoal: s.waterGoal, addWater: s.addWater, undoLastWater: s.undoLastWater, waterIncrements: s.waterIncrements })),
   );
+  const waterA = waterIncrements[0] ?? 250;
+  const waterB = waterIncrements[1] ?? waterA * 2;
   const userId = useAuthStore((s) => s.user?.id);
   const progress = Math.min(water / waterGoal, 1);
   const colors = useColors();
@@ -87,11 +89,12 @@ function WaterCard() {
         </View>
 
         <View style={styles.buttons}>
-          <TouchableOpacity style={styles.addButton} onPress={() => handleAdd(250)} activeOpacity={0.7}>
-            <Text style={styles.addButtonText}>+250</Text>
+          {/* The user's own water amounts (set by long-pressing water in the Nutrition tab). */}
+          <TouchableOpacity style={styles.addButton} onPress={() => handleAdd(waterA)} activeOpacity={0.7}>
+            <Text style={styles.addButtonText}>+{waterA}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.addButton} onPress={() => handleAdd(500)} activeOpacity={0.7}>
-            <Text style={styles.addButtonText}>+500</Text>
+          <TouchableOpacity style={styles.addButton} onPress={() => handleAdd(waterB)} activeOpacity={0.7}>
+            <Text style={styles.addButtonText}>+{waterB}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>

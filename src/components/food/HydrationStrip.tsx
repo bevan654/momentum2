@@ -11,7 +11,6 @@ import SupplementLogSheet from './SupplementLogSheet';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
-const WATER_STEP_ML = 250;
 const WATER_KEY = 'water';
 
 /** Water in litres when the goal is a litre or more (e.g. 0.75 / 3 L), otherwise ml. */
@@ -45,7 +44,7 @@ interface ChipProps {
   progress: number;
   canAdd: boolean;
   onAdd: (key: string, step: number) => void;
-  /** Long-press: open the day's log for this item (view / delete entries). */
+  /** Long-press: open this item's sheet (quick amounts, and the day's entries to view / delete). */
   onOpenLog: (key: string) => void;
   styles: ReturnType<typeof createStyles>;
 }
@@ -61,7 +60,7 @@ const Chip = React.memo(function Chip({ itemKey, label, step, stepText, icon, co
       onLongPress={handleLongPress}
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${value} of ${goal} ${unit}`}
-      accessibilityHint={canAdd ? `Adds ${stepText}. Long press to see or delete entries` : 'Shows this day\'s entries'}
+      accessibilityHint={canAdd ? `Adds ${stepText}. Long press to change amounts or see entries` : 'Shows amounts and this day\'s entries'}
       accessibilityActions={[{ name: 'longpress', label: 'See entries' }]}
       onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === 'longpress') handleLongPress(); }}
     >
@@ -100,6 +99,10 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
   const addWater = useSupplementStore((s) => s.addWater);
   const addSupplement = useSupplementStore((s) => s.addSupplement);
   const deleteSupplementEntry = useSupplementStore((s) => s.deleteSupplementEntry);
+  const waterIncrements = useSupplementStore((s) => s.waterIncrements);
+  const setWaterIncrements = useSupplementStore((s) => s.setWaterIncrements);
+  const updateSupplementConfig = useSupplementStore((s) => s.updateSupplementConfig);
+  const waterStep = waterIncrements[0] ?? 250;
   // logKey picks what the sheet shows; it stays set while the sheet fades out.
   const [logKey, setLogKey] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
@@ -138,6 +141,17 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
   }, [userId, deleteSupplementEntry]);
 
   const logConfig = logKey && logKey !== WATER_KEY ? configs.find((c) => c.key === logKey) : undefined;
+  const logAmounts = logKey === WATER_KEY ? waterIncrements : logConfig?.increments ?? [];
+
+  // Saved to the account: supplements in their config (synced), water on this phone for now.
+  const handleAmountsChange = useCallback((amounts: number[]) => {
+    if (!userId || !logKey || amounts.length === 0) return;
+    if (logKey === WATER_KEY) setWaterIncrements(userId, amounts);
+    else updateSupplementConfig(userId, logKey, { increments: amounts });
+  }, [userId, logKey, setWaterIncrements, updateSupplementConfig]);
+  const handleLogAmount = useCallback((amount: number) => {
+    if (logKey) handleAdd(logKey, amount);
+  }, [logKey, handleAdd]);
   const logEntries = useMemo(
     () => (logKey ? dateEntries.filter((e) => e.type === logKey) : []),
     [logKey, dateEntries],
@@ -149,8 +163,8 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
     const list: ChipData[] = [{
       itemKey: WATER_KEY,
       label: 'Water',
-      step: WATER_STEP_ML,
-      stepText: `${WATER_STEP_ML} ml`,
+      step: waterStep,
+      stepText: `${formatAmount(waterStep)} ml`,
       icon: 'water-outline',
       color: colors.water,
       value: formatWater(waterMl, waterInLitres),
@@ -177,7 +191,7 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
       });
     }
     return list;
-  }, [colors.water, waterMl, waterGoal, waterInLitres, configs, totals, isToday]);
+  }, [colors.water, waterStep, waterMl, waterGoal, waterInLitres, configs, totals, isToday]);
 
   const rows = useMemo(() => {
     const out: ChipData[][] = [];
@@ -203,6 +217,9 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
       color={logKey === WATER_KEY ? colors.water : logConfig?.color || colors.creatine}
       entries={logEntries}
       onDelete={handleDeleteEntry}
+      amounts={logAmounts}
+      onAmountsChange={handleAmountsChange}
+      onLogAmount={isToday ? handleLogAmount : undefined}
       onClose={handleCloseLog}
       onClosed={handleLogClosed}
     />

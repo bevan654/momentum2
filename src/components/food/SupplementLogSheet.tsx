@@ -1,11 +1,12 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Overlay from '../ui/Overlay';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms, sh } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { SupplementEntry } from '../../stores/useSupplementStore';
+import QuickAmountsEditor from './QuickAmountsEditor';
 
 interface Props {
   visible: boolean;
@@ -14,6 +15,11 @@ interface Props {
   color: string;
   entries: SupplementEntry[];
   onDelete: (entry: SupplementEntry) => void;
+  /** Quick amounts (the first is the tile's one-tap amount), edited here. */
+  amounts: number[];
+  onAmountsChange: (amounts: number[]) => void;
+  /** Log an amount now; omitted on past days. */
+  onLogAmount?: (amount: number) => void;
   onClose: () => void;
   /** After the fade-out finishes (safe to clear the content then). */
   onClosed?: () => void;
@@ -24,8 +30,8 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-/** The day's log for one of water / a supplement, with delete for each entry. */
-function SupplementLogSheet({ visible, label, unit, color, entries, onDelete, onClose, onClosed }: Props) {
+/** Water or a supplement: its quick amounts (editable), and the day's log with delete for each entry. */
+function SupplementLogSheet({ visible, label, unit, color, entries, onDelete, amounts, onAmountsChange, onLogAmount, onClose, onClosed }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -40,12 +46,19 @@ function SupplementLogSheet({ visible, label, unit, color, entries, onDelete, on
 
   return (
     <Overlay visible={visible} animationType="fade" onRequestClose={onClose} onDismiss={onClosed}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.header}>
             <View style={[styles.dot, { backgroundColor: color }]} />
             <Text style={styles.title}>{label}</Text>
           </View>
+
+          {amounts.length > 0 && (
+            <QuickAmountsEditor amounts={amounts} unit={unit} color={color} onChange={onAmountsChange} onLog={onLogAmount} />
+          )}
+
+          <Text style={styles.sectionLabel}>This day</Text>
 
           {entries.length === 0 ? (
             <Text style={styles.empty}>Nothing logged this day.</Text>
@@ -75,6 +88,7 @@ function SupplementLogSheet({ visible, label, unit, color, entries, onDelete, on
           </TouchableOpacity>
         </Pressable>
       </Pressable>
+      </KeyboardAvoidingView>
     </Overlay>
   );
 }
@@ -83,6 +97,18 @@ export default React.memo(SupplementLogSheet);
 
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
+    flex: {
+      flex: 1,
+    },
+    sectionLabel: {
+      color: colors.textTertiary,
+      fontSize: ms(11),
+      lineHeight: ms(15),
+      fontFamily: Fonts.semiBold,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+      marginTop: sw(4),
+    },
     backdrop: {
       flex: 1,
       backgroundColor: colors.backdrop + '99',
@@ -121,7 +147,7 @@ const createStyles = (colors: ThemeColors) =>
       paddingVertical: sw(8),
     },
     list: {
-      maxHeight: sh(320),
+      maxHeight: sh(220),
     },
     row: {
       flexDirection: 'row',

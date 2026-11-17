@@ -4,6 +4,9 @@ import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
 import { toLocalDateString } from '../utils/localDate';
 
 const CONFIGS_KEY = '@momentum_supplement_configs';
+/** Water's quick amounts (ml). Stored on the phone per account until the database has a column for them. */
+const WATER_AMOUNTS_KEY = '@momentum_water_amounts';
+const DEFAULT_WATER_AMOUNTS = [250, 500];
 
 export interface SupplementEntry {
   id: string;
@@ -48,6 +51,7 @@ export const CUSTOM_COLORS = ['#F472B6', '#A78BFA', '#38BDF8', '#FB923C', '#4ADE
 const INITIAL_STATE = () => ({
   water: 0,
   waterGoal: 2500,
+  waterIncrements: DEFAULT_WATER_AMOUNTS,
   supplementConfigs: DEFAULT_CONFIGS,
   supplementTotals: {} as Record<string, number>,
   loading: false,
@@ -107,6 +111,8 @@ export function generateIncrements(goal: number): number[] {
 interface SupplementState {
   water: number;
   waterGoal: number;
+  /** Water's quick amounts in ml; the first is what one tap adds. */
+  waterIncrements: number[];
   supplementConfigs: SupplementConfig[];
   supplementTotals: Record<string, number>;
   loading: boolean;
@@ -120,6 +126,7 @@ interface SupplementState {
   updateSupplementConfig: (userId: string, key: string, updates: Partial<SupplementConfig>) => Promise<void>;
   fetchTodaySupplements: (userId: string) => Promise<void>;
   fetchSupplementGoals: (userId: string) => Promise<void>;
+  setWaterIncrements: (userId: string, amounts: number[]) => Promise<void>;
   fetchDateSupplements: (userId: string, date: string) => Promise<void>;
   addWater: (userId: string, ml: number) => Promise<void>;
   addSupplement: (userId: string, key: string, amount: number) => Promise<void>;
@@ -315,6 +322,12 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     }
   },
 
+  setWaterIncrements: async (userId: string, amounts: number[]) => {
+    if (amounts.length === 0) return;
+    set({ waterIncrements: amounts });
+    try { await writeUserScoped(WATER_AMOUNTS_KEY, userId, JSON.stringify(amounts)); } catch {}
+  },
+
   /* ─── Data fetching ─────────────────────────────────── */
 
   fetchTodaySupplements: async (userId: string) => {
@@ -371,6 +384,13 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
   fetchSupplementGoals: async (userId: string) => {
     await get().loadSupplementConfigs(userId);
+
+    const gen = _gen;
+    try {
+      const raw = await readUserScoped(WATER_AMOUNTS_KEY, userId);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (gen === _gen && Array.isArray(parsed) && parsed.length > 0) set({ waterIncrements: parsed });
+    } catch {}
 
     const { data } = await supabase
       .from('supplement_goals')
