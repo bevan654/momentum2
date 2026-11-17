@@ -29,8 +29,6 @@ const KJ_PER_KCAL = 4.184;
 const SERVING_UNITS = ['serving', 'g', 'ml', 'oz', 'cup'] as const;
 type ServingUnit = (typeof SERVING_UNITS)[number];
 const DEFAULT_AMOUNT: Record<ServingUnit, string> = { serving: '1', g: '100', ml: '250', oz: '1', cup: '1' };
-/** How many of that serving to log in one go. */
-const MULTIPLIERS = [1, 2, 3, 4, 5] as const;
 
 /**
  * Quick add: log calories and macros without picking a food. Calories left blank are
@@ -56,7 +54,8 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
   const [name, setName] = useState('');
   const [servingUnit, setServingUnit] = useState<ServingUnit>('serving');
   const [amount, setAmount] = useState(DEFAULT_AMOUNT.serving);
-  const [multiplier, setMultiplier] = useState(1);
+  /** How many servings to log in one go (typed, so any number works). */
+  const [count, setCount] = useState('1');
   const [calories, setCalories] = useState('');
   const [kj, setKj] = useState('');
   const [protein, setProtein] = useState('');
@@ -86,7 +85,7 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
     setName('');
     setServingUnit('serving');
     setAmount(DEFAULT_AMOUNT.serving);
-    setMultiplier(1);
+    setCount('1');
     setCalories('');
     setKj('');
     setProtein('');
@@ -102,11 +101,6 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
     setAmount(DEFAULT_AMOUNT[unit]);
   }, []);
 
-  const handleMultiplierChange = useCallback((m: number) => {
-    Haptics.selectionAsync();
-    setMultiplier(m);
-  }, []);
-
   const handleMicroChange = useCallback((key: string, value: string) => {
     setMicroValues((prev) => ({ ...prev, [key]: value }));
   }, []);
@@ -119,6 +113,7 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
   // One serving: typed calories, else worked out from macros.
   const perServingCal = entered > 0 ? entered : fromMacros;
   const autoCalc = entered <= 0 && fromMacros > 0;
+  const multiplier = Number(count) > 0 ? Number(count) : 1;
   // What the screen shows and what gets saved: one serving × how many.
   const previewCal = Math.round(perServingCal * multiplier);
   const round1 = (v: number) => Math.round(v * 10) / 10;
@@ -225,8 +220,15 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
             );
           })}
         </View>
-        {servingUnit !== 'serving' && (
-          <View style={s.row}>
+        <View style={s.row}>
+          <NumberField
+            label={servingUnit === 'serving' ? 'Servings' : 'How many'}
+            unit={servingUnit === 'serving' ? undefined : '×'}
+            value={count}
+            onChangeText={setCount}
+            onSubmitEditing={() => calRef.current?.focus()}
+          />
+          {servingUnit !== 'serving' && (
             <NumberField
               label="One serving is"
               unit={servingUnit}
@@ -234,25 +236,7 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
               onChangeText={setAmount}
               onSubmitEditing={() => calRef.current?.focus()}
             />
-          </View>
-        )}
-        <Text style={s.subLabel}>How many</Text>
-        <View style={s.unitRow} accessibilityRole="radiogroup">
-          {MULTIPLIERS.map((m) => {
-            const active = m === multiplier;
-            return (
-              <Pressable
-                key={m}
-                style={[s.unitChip, active && s.unitChipActive]}
-                onPress={() => handleMultiplierChange(m)}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={`${m} times`}
-              >
-                <Text style={[s.unitText, active && s.unitTextActive]}>{m}×</Text>
-              </Pressable>
-            );
-          })}
+          )}
         </View>
         <Text style={s.hint}>
           Enter calories and macros for one {servingUnit === 'serving' ? 'serving' : `${amount || DEFAULT_AMOUNT[servingUnit]} ${servingUnit}`}
@@ -380,13 +364,6 @@ const createStyles = (colors: ThemeColors) =>
     },
     unitTextActive: {
       color: colors.textOnAccent,
-    },
-    subLabel: {
-      color: colors.textTertiary,
-      fontSize: ms(11),
-      lineHeight: ms(15),
-      fontFamily: Fonts.semiBold,
-      marginTop: sw(4),
     },
     hint: {
       color: colors.textTertiary,
