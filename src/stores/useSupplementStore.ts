@@ -149,6 +149,28 @@ let loadedDateKey: string | null = null;
 /** The user and day (`userId:date`) whose totals are in `water` / `supplementTotals`. */
 let loadedTodayKey: string | null = null;
 
+/** Increments per today-totals load, so an older load can't overwrite a newer one. */
+let _todayRequestId = 0;
+/** Water/supplement taps still saving. A totals load that lands meanwhile may not include them. */
+let _todayPending = 0;
+/** Bumped when a tap starts, so a load that began before it knows its totals may be missing it. */
+let _todayWriteSeq = 0;
+/** A totals load that landed during a save; it runs again once the saves finish. */
+let _reloadTodayFor: string | null = null;
+
+function beginTodayWrite() {
+  _todayPending++;
+  _todayWriteSeq++;
+}
+
+function endTodayWrite(get: () => SupplementState) {
+  _todayPending = Math.max(0, _todayPending - 1);
+  if (_todayPending > 0 || !_reloadTodayFor) return;
+  const userId = _reloadTodayFor;
+  _reloadTodayFor = null;
+  get().fetchTodaySupplements(userId);
+}
+
 export const useSupplementStore = create<SupplementState>((set, get) => ({
   ...INITIAL_STATE(),
 
@@ -299,12 +321,28 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     const date = toLocalDateString();
     const key = `${userId}:${date}`;
     const gen = _gen;
+    const requestId = ++_todayRequestId;
+    const writeSeq = _todayWriteSeq;
     const { data, error } = await supabase
       .from('supplement_entries')
       .select('type, amount')
       .eq('user_id', userId)
       .eq('date', date);
     if (gen !== _gen) return; // signed out meanwhile
+    if (requestId !== _todayRequestId) return; // a newer load has started
+
+    // A tap (e.g. +250 ml) started while this loaded: these totals may not include it and would
+    // briefly undo it on screen. Keep the tapped totals and load again once the saves finish.
+    if (!error && data) {
+      if (_todayPending > 0) {
+        _reloadTodayFor = userId;
+        return;
+      }
+      if (writeSeq !== _todayWriteSeq) {
+        get().fetchTodaySupplements(userId);
+        return;
+      }
+    }
 
     if (error || !data) {
       // Offline or failed: keep today's progress on screen. Only clear it when what is shown
@@ -370,6 +408,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   addWater: async (userId: string, ml: number) => {
     set((s) => ({ water: s.water + ml }));
 
+    beginTodayWrite();
     const { error } = await supabase.from('supplement_entries').insert({
       user_id: userId,
       type: 'water',
@@ -382,6 +421,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     } else {
       refreshDateEntriesIfToday(get, userId);
     }
+    endTodayWrite(get);
   },
 
   undoLastWater: async (userId: string) => {
@@ -401,6 +441,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     const amount = Number(data.amount);
     set((s) => ({ water: Math.max(0, s.water - amount) }));
 
+    beginTodayWrite();
     const { error } = await supabase
       .from('supplement_entries')
       .delete()
@@ -411,6 +452,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     } else {
       refreshDateEntriesIfToday(get, userId);
     }
+    endTodayWrite(get);
   },
 
   /* ─── Supplement entry actions ──────────────────────── */
@@ -423,6 +465,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       },
     }));
 
+    beginTodayWrite();
     const { error } = await supabase.from('supplement_entries').insert({
       user_id: userId,
       type: key,
@@ -440,6 +483,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     } else {
       refreshDateEntriesIfToday(get, userId);
     }
+    endTodayWrite(get);
   },
 
   resetSupplement: async (userId: string, key: string) => {
@@ -448,6 +492,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       supplementTotals: { ...s.supplementTotals, [key]: 0 },
     }));
 
+    beginTodayWrite();
     const { error } = await supabase
       .from('supplement_entries')
       .delete()
@@ -462,10 +507,11 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     } else {
       refreshDateEntriesIfToday(get, userId);
     }
+    endTodayWrite(get);
   },
 
   deleteSupplementEntry: async (_userId: string, entry: SupplementEntry) => {
-    const prev = get().dateEntries;
+    const shownDate = get().dateEntriesDate;
     // `water` / `supplementTotals` are today's totals: only touch them for today's entries.
     const isToday = get().dateEntriesDate === toLocalDateString();
     set((s) => ({
@@ -480,14 +526,18 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
           }),
     }));
 
+    if (isToday) beginTodayWrite();
     const { error } = await supabase
       .from('supplement_entries')
       .delete()
       .eq('id', entry.id);
 
     if (error) {
+      // Put back only this entry, and only while the same day is showing.
       set((s) => ({
-        dateEntries: prev,
+        ...(s.dateEntriesDate === shownDate && !s.dateEntries.some((e) => e.id === entry.id)
+          ? { dateEntries: [...s.dateEntries, entry].sort((a, b) => a.created_at.localeCompare(b.created_at)) }
+          : {}),
         ...(!isToday ? {} : entry.type === 'water'
           ? { water: s.water + entry.amount }
           : {
@@ -498,6 +548,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
             }),
       }));
     }
+    if (isToday) endTodayWrite(get);
   },
 
   /* ─── Legacy goals (water) ──────────────────────────── */
@@ -522,6 +573,8 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   resetForSignOut: () => {
     _gen++;
     dateRequestId++;
+    _todayRequestId++;
+    _reloadTodayFor = null;
     latestDateRequest = null;
     loadedDateKey = null;
     loadedTodayKey = null;
