@@ -20,6 +20,8 @@ export interface RefreshResult {
 }
 
 const SHOW_MS = 1600;
+/** How far the pill slides in from. Worked out here: `sw()` can't run inside the animation (UI thread). */
+const SLIDE_DISTANCE = sw(16);
 
 /**
  * Small pill that drops in under the date bar after a pull-to-refresh, says whether it
@@ -41,7 +43,7 @@ function RefreshBanner({ result }: { result: RefreshResult | null }) {
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
-    transform: [{ translateY: (progress.value - 1) * sw(16) }],
+    transform: [{ translateY: (progress.value - 1) * SLIDE_DISTANCE }],
   }));
 
   const ok = result?.ok ?? true;
