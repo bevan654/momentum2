@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
+import { useAuthStore } from './useAuthStore';
 
 const MACRO_ENABLED_KEY = '@momentum_enabled_macros';
 const MICRO_GOALS_KEY = '@momentum_micro_goals';
@@ -84,57 +85,70 @@ interface NutrientGoalState {
   addMicroGoal: (config: MicroGoalConfig) => Promise<void>;
   removeMicroGoal: (key: string) => Promise<void>;
   updateMicroGoal: (key: string, dailyGoal: number) => Promise<void>;
+  /** Back to the defaults; this account's goals stay saved on the phone for when it signs in again. */
+  resetForSignOut: () => void;
+}
+
+const DEFAULT_MACROS = ['protein', 'carbs', 'fat'];
+
+/** Bumped on sign-out, so a load still running for the previous account is ignored. */
+let _gen = 0;
+
+async function save(key: string, value: unknown) {
+  const userId = useAuthStore.getState().user?.id;
+  if (!userId) return;
+  try {
+    await writeUserScoped(key, userId, JSON.stringify(value));
+  } catch {}
 }
 
 export const useNutrientGoalStore = create<NutrientGoalState>((set, get) => ({
-  enabledMacros: ['protein', 'carbs', 'fat'],
+  enabledMacros: DEFAULT_MACROS,
   microGoals: [],
   loaded: false,
 
   loadConfigs: async () => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+    const gen = _gen;
+    let enabledMacros = DEFAULT_MACROS;
+    let microGoals: MicroGoalConfig[] = [];
     try {
       const [macroJson, microJson] = await Promise.all([
-        AsyncStorage.getItem(MACRO_ENABLED_KEY),
-        AsyncStorage.getItem(MICRO_GOALS_KEY),
+        readUserScoped(MACRO_ENABLED_KEY, userId),
+        readUserScoped(MICRO_GOALS_KEY, userId),
       ]);
-      set({
-        enabledMacros: macroJson ? JSON.parse(macroJson) : ['protein', 'carbs', 'fat'],
-        microGoals: microJson ? JSON.parse(microJson) : [],
-        loaded: true,
-      });
-    } catch {
-      set({ loaded: true });
-    }
+      if (macroJson) enabledMacros = JSON.parse(macroJson);
+      if (microJson) microGoals = JSON.parse(microJson);
+    } catch {}
+    if (gen === _gen) set({ enabledMacros, microGoals, loaded: true });
   },
 
   setEnabledMacros: async (macros: string[]) => {
     set({ enabledMacros: macros });
-    try {
-      await AsyncStorage.setItem(MACRO_ENABLED_KEY, JSON.stringify(macros));
-    } catch {}
+    await save(MACRO_ENABLED_KEY, macros);
   },
 
   addMicroGoal: async (config: MicroGoalConfig) => {
     const goals = [...get().microGoals, config];
     set({ microGoals: goals });
-    try {
-      await AsyncStorage.setItem(MICRO_GOALS_KEY, JSON.stringify(goals));
-    } catch {}
+    await save(MICRO_GOALS_KEY, goals);
   },
 
   removeMicroGoal: async (key: string) => {
     const goals = get().microGoals.filter((g) => g.key !== key);
     set({ microGoals: goals });
-    try {
-      await AsyncStorage.setItem(MICRO_GOALS_KEY, JSON.stringify(goals));
-    } catch {}
+    await save(MICRO_GOALS_KEY, goals);
   },
 
   updateMicroGoal: async (key: string, dailyGoal: number) => {
     const goals = get().microGoals.map((g) => (g.key === key ? { ...g, dailyGoal } : g));
     set({ microGoals: goals });
-    try {
-      await AsyncStorage.setItem(MICRO_GOALS_KEY, JSON.stringify(goals));
-    } catch {}
+    await save(MICRO_GOALS_KEY, goals);
+  },
+
+  resetForSignOut: () => {
+    _gen++;
+    set({ enabledMacros: DEFAULT_MACROS, microGoals: [], loaded: false });
   },
 }));

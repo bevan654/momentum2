@@ -195,7 +195,11 @@ interface FoodLogState {
   searchCatalog: (query: string) => Promise<void>;
   clearSearch: () => void;
   fetchDefaultFoods: (userId: string) => Promise<void>;
+  /** Clears the previous account's diary, goals, meals and recent foods from memory. */
+  resetForSignOut: () => void;
 }
+
+const DEFAULT_GOALS: NutritionGoals = { calorie_goal: 2000, protein_goal: 150, carbs_goal: 250, fat_goal: 65 };
 
 /** Guards fetchDayEntries against out-of-order responses when days are switched quickly. */
 let dayRequestId = 0;
@@ -206,7 +210,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   selectedDate: toLocalDateString(),
   entries: [],
   mealConfigs: DEFAULT_MEALS,
-  goals: { calorie_goal: 2000, protein_goal: 150, carbs_goal: 250, fat_goal: 65 },
+  goals: DEFAULT_GOALS,
   loading: false,
   catalogResults: [],
   catalogLoading: false,
@@ -667,5 +671,22 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     }));
 
     set({ recentFoods, popularFoods });
+  },
+
+  resetForSignOut: () => {
+    dayRequestId++;
+    loadedEntriesKey = null;
+    _searchSeq++;
+    set({
+      selectedDate: toLocalDateString(),
+      entries: [],
+      mealConfigs: DEFAULT_MEALS,
+      goals: DEFAULT_GOALS,
+      loading: false,
+      catalogResults: [],
+      catalogLoading: false,
+      recentFoods: [],
+      popularFoods: [],
+    });
   },
 }));

@@ -12,7 +12,20 @@ interface NutritionState {
   fatGoal: number;
   fetchTodayNutrition: (userId: string) => Promise<void>;
   fetchNutritionGoals: (userId: string) => Promise<void>;
+  /** Clears the previous account's totals and goals. */
+  resetForSignOut: () => void;
 }
+
+const INITIAL = {
+  calories: 0,
+  calorieGoal: 2000,
+  protein: 0,
+  proteinGoal: 150,
+  carbs: 0,
+  carbsGoal: 250,
+  fat: 0,
+  fatGoal: 65,
+};
 
 function todayRange() {
   const now = new Date();
@@ -22,14 +35,7 @@ function todayRange() {
 }
 
 export const useNutritionStore = create<NutritionState>((set) => ({
-  calories: 0,
-  calorieGoal: 2000,
-  protein: 0,
-  proteinGoal: 150,
-  carbs: 0,
-  carbsGoal: 250,
-  fat: 0,
-  fatGoal: 65,
+  ...INITIAL,
 
   fetchTodayNutrition: async (userId: string) => {
     const { start, end } = todayRange();
@@ -76,5 +82,9 @@ export const useNutritionStore = create<NutritionState>((set) => ({
         fatGoal: Number(data.fat_goal),
       });
     }
+  },
+
+  resetForSignOut: () => {
+    set(INITIAL);
   },
 }));

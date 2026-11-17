@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
 import { toLocalDateString } from '../utils/localDate';
 
 const CONFIGS_KEY = '@momentum_supplement_configs';
@@ -45,6 +45,16 @@ export const SUPPLEMENT_PRESETS: SupplementPreset[] = [
 
 export const CUSTOM_COLORS = ['#F472B6', '#A78BFA', '#38BDF8', '#FB923C', '#4ADE80', '#F87171', '#FACC15', '#2DD4BF'];
 
+const INITIAL_STATE = () => ({
+  water: 0,
+  waterGoal: 2500,
+  supplementConfigs: DEFAULT_CONFIGS,
+  supplementTotals: {} as Record<string, number>,
+  loading: false,
+  dateEntries: [] as SupplementEntry[],
+  dateEntriesDate: null as string | null,
+});
+
 const DEFAULT_CONFIGS: SupplementConfig[] = [
   { key: 'creatine', name: 'Creatine', dailyGoal: 5, unit: 'g', icon: 'flash-outline', color: '#FBBF24', increments: [5, 1] },
 ];
@@ -77,8 +87,9 @@ function configToRow(userId: string, config: SupplementConfig, sortOrder: number
   };
 }
 
-async function cacheConfigs(configs: SupplementConfig[]) {
-  try { await AsyncStorage.setItem(CONFIGS_KEY, JSON.stringify(configs)); } catch {}
+/** Per-account copy of the configs, used when the database can't be reached. */
+async function cacheConfigs(userId: string, configs: SupplementConfig[]) {
+  try { await writeUserScoped(CONFIGS_KEY, userId, JSON.stringify(configs)); } catch {}
 }
 
 export function nameToKey(name: string): string {
@@ -117,6 +128,8 @@ interface SupplementState {
   undoLastWater: (userId: string) => Promise<void>;
   /** Optimistic; rolls back and returns the error message if the save fails. */
   updateSupplementGoals: (userId: string, goals: { water_goal?: number; creatine_goal?: number }) => Promise<{ error: string | null }>;
+  /** Clears the previous account's supplements and totals from memory. */
+  resetForSignOut: () => void;
 }
 
 /** After a today-only write, reload the day list only if the Nutrition tab is showing today. */
@@ -124,6 +137,9 @@ function refreshDateEntriesIfToday(get: () => SupplementState, userId: string) {
   const today = toLocalDateString();
   if (latestDateRequest === today) get().fetchDateSupplements(userId, today);
 }
+
+/** Bumped on sign-out, so a config load still running for the previous account is ignored. */
+let _gen = 0;
 
 /** Latest date asked for by fetchDateSupplements, and a counter so older responses are ignored. */
 let latestDateRequest: string | null = null;
@@ -134,17 +150,12 @@ let loadedDateKey: string | null = null;
 let loadedTodayKey: string | null = null;
 
 export const useSupplementStore = create<SupplementState>((set, get) => ({
-  water: 0,
-  waterGoal: 2500,
-  supplementConfigs: DEFAULT_CONFIGS,
-  supplementTotals: {},
-  loading: false,
-  dateEntries: [],
-  dateEntriesDate: null,
+  ...INITIAL_STATE(),
 
   /* ─── Config management (Supabase-synced) ───────────── */
 
   loadSupplementConfigs: async (userId: string) => {
+    const gen = _gen;
     try {
       // 1. Try Supabase user_supplements table
       const { data: supaData, error: supaError } = await supabase
@@ -153,17 +164,19 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
         .eq('user_id', userId)
         .order('sort_order');
 
+      if (gen !== _gen) return; // signed out meanwhile
       if (!supaError && supaData) {
         if (supaData.length > 0) {
           const configs = supaData.map(mapRowToConfig);
           set({ supplementConfigs: configs });
-          await cacheConfigs(configs);
+          await cacheConfigs(userId, configs);
           return;
         }
         // Table exists but empty — seed from AsyncStorage or legacy
-        const json = await AsyncStorage.getItem(CONFIGS_KEY);
+        const json = await readUserScoped(CONFIGS_KEY, userId);
         if (json) {
           const cached = JSON.parse(json) as SupplementConfig[];
+          if (gen !== _gen) return;
           if (cached.length > 0) {
             set({ supplementConfigs: cached });
             const rows = cached.map((c, i) => configToRow(userId, c, i));
@@ -177,16 +190,18 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
           .select('creatine_goal')
           .eq('user_id', userId)
           .single();
+        if (gen !== _gen) return;
         const goal = legacy ? Number(legacy.creatine_goal) : 5;
         const defaults = [{ ...DEFAULT_CONFIGS[0], dailyGoal: goal }];
         set({ supplementConfigs: defaults });
         await supabase.from('user_supplements').insert(defaults.map((c, i) => configToRow(userId, c, i)));
-        await cacheConfigs(defaults);
+        await cacheConfigs(userId, defaults);
         return;
       }
 
-      // 2. Supabase table doesn't exist or errored — fall back to AsyncStorage
-      const json = await AsyncStorage.getItem(CONFIGS_KEY);
+      // 2. Supabase table doesn't exist or errored — fall back to this account's cached copy
+      const json = await readUserScoped(CONFIGS_KEY, userId);
+      if (gen !== _gen) return;
       if (json) {
         set({ supplementConfigs: JSON.parse(json) });
         return;
@@ -194,14 +209,15 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     } catch {}
 
     // 3. Nothing found — use defaults
+    if (gen !== _gen) return;
     set({ supplementConfigs: DEFAULT_CONFIGS });
-    await cacheConfigs(DEFAULT_CONFIGS);
+    await cacheConfigs(userId, DEFAULT_CONFIGS);
   },
 
   addSupplementConfig: async (userId: string, config: SupplementConfig) => {
     const configs = [...get().supplementConfigs, config];
     set({ supplementConfigs: configs });
-    await cacheConfigs(configs);
+    await cacheConfigs(userId, configs);
     let failed = false;
     try {
       const { error } = await supabase.from('user_supplements').insert(configToRow(userId, config, configs.length - 1));
@@ -211,7 +227,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       // Roll back only this config, keeping any other change made meanwhile
       const rolledBack = get().supplementConfigs.filter((c) => c.key !== config.key);
       set({ supplementConfigs: rolledBack });
-      await cacheConfigs(rolledBack);
+      await cacheConfigs(userId, rolledBack);
     }
   },
 
@@ -221,7 +237,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     const removed = index >= 0 ? prevConfigs[index] : null;
     const configs = prevConfigs.filter((c) => c.key !== key);
     set({ supplementConfigs: configs });
-    await cacheConfigs(configs);
+    await cacheConfigs(userId, configs);
     let failed = false;
     try {
       const { error } = await supabase
@@ -238,7 +254,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       const rolledBack = [...current];
       rolledBack.splice(Math.min(index, rolledBack.length), 0, removed);
       set({ supplementConfigs: rolledBack });
-      await cacheConfigs(rolledBack);
+      await cacheConfigs(userId, rolledBack);
     }
   },
 
@@ -246,7 +262,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     const previous = get().supplementConfigs.find((c) => c.key === key);
     const configs = get().supplementConfigs.map((c) => (c.key === key ? { ...c, ...updates } : c));
     set({ supplementConfigs: configs });
-    await cacheConfigs(configs);
+    await cacheConfigs(userId, configs);
 
     const dbUpdates: Record<string, any> = {};
     if (updates.dailyGoal != null) dbUpdates.daily_goal = updates.dailyGoal;
@@ -273,7 +289,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       }
       const rolledBack = get().supplementConfigs.map((c) => (c.key === key ? { ...c, ...restore } : c));
       set({ supplementConfigs: rolledBack });
-      await cacheConfigs(rolledBack);
+      await cacheConfigs(userId, rolledBack);
     }
   },
 
@@ -282,11 +298,13 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   fetchTodaySupplements: async (userId: string) => {
     const date = toLocalDateString();
     const key = `${userId}:${date}`;
+    const gen = _gen;
     const { data, error } = await supabase
       .from('supplement_entries')
       .select('type, amount')
       .eq('user_id', userId)
       .eq('date', date);
+    if (gen !== _gen) return; // signed out meanwhile
 
     if (error || !data) {
       // Offline or failed: keep today's progress on screen. Only clear it when what is shown
@@ -499,5 +517,14 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       return { error: error.message };
     }
     return { error: null };
+  },
+
+  resetForSignOut: () => {
+    _gen++;
+    dateRequestId++;
+    latestDateRequest = null;
+    loadedDateKey = null;
+    loadedTodayKey = null;
+    set(INITIAL_STATE());
   },
 }));
