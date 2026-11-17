@@ -48,6 +48,8 @@ export interface MealItemData {
   fat: number;
   fiber?: number | null;
   sugar?: number | null;
+  /** Vitamins, minerals, sodium and caffeine per serving (like the macros). */
+  micros?: Record<string, number | null>;
   serving_size: number;
   serving_unit: string;
   quantity: number;

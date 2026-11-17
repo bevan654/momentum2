@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import { useFoodLogStore } from '../../stores/useFoodLogStore';
+import { useFoodLogStore, MICRO_KEYS } from '../../stores/useFoodLogStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { lookupBarcode, lookupBarcodeUSDA } from '../../utils/barcodeApi';
 import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
@@ -296,16 +296,18 @@ function FoodDetailModal({
     // Meal mode — return per-serving data instead of logging
     if (onAddToMeal) {
       // A typed fiber/sugar value is the total for this amount (like the log path); per serving = / qty
-      const perServing = (key: 'fiber' | 'sugar'): number | null => {
+      const perServing = (key: string): number | null => {
         const typed = customMicros[key];
         if (typed === '') return null; // cleared by the user
         if (typed != null) {
           const n = Number(typed);
           return Number.isFinite(n) ? Math.round((n / qty) * 10) / 10 : null;
         }
-        const base = food[key];
-        return base != null ? Math.round(base * (ss / food.serving_size) * 10) / 10 : null;
+        const base = (food as any)[key];
+        return base != null ? Math.round(Number(base) * (ss / food.serving_size) * 100) / 100 : null;
       };
+      const micros: Record<string, number | null> = {};
+      for (const key of MICRO_KEYS) micros[key] = perServing(key);
       onAddToMeal({
         name: customName.trim() || food.name,
         brand: customBrand.trim() || food.brand,
@@ -316,6 +318,7 @@ function FoodDetailModal({
         fat: Math.round(scaled.fat / qty * 10) / 10,
         fiber: perServing('fiber'),
         sugar: perServing('sugar'),
+        micros,
         serving_size: ss,
         serving_unit: food.serving_unit,
         quantity: qty,

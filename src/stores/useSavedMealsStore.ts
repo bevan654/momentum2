@@ -18,6 +18,8 @@ export interface MealItem {
   fat: number;
   fiber?: number | null;
   sugar?: number | null;
+  /** Vitamins, minerals, sodium and caffeine per serving, like the macros (missing on meals saved before they were kept). */
+  micros?: Record<string, number | null>;
   /** User-editable serving size */
   serving_size: number;
   /** Original catalog serving size (defaults to serving_size for backward compat) */

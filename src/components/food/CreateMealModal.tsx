@@ -40,6 +40,16 @@ function generateGroupId(): string {
 
 const round = (v: number, factor: number) => Math.round(v * factor) / factor;
 
+/** An entry's micronutrients per unit of quantity (the basis meal items use). */
+function microsPerUnit(e: FoodEntry, qty: number): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  for (const key of MICRO_KEYS) {
+    const v = e[key];
+    out[key] = v != null ? Number(v) / qty : null;
+  }
+  return out;
+}
+
 interface Props {
   visible: boolean;
   mealSlot: string;
@@ -205,6 +215,7 @@ export default function CreateMealModal({
           fat: e.fat / qty,
           fiber: e.fiber != null ? e.fiber / qty : null,
           sugar: e.sugar != null ? e.sugar / qty : null,
+          micros: microsPerUnit(e, qty),
           serving_size: e.serving_size || 1,
           serving_unit: e.serving_unit || 'serving',
           quantity: qty,
@@ -277,6 +288,7 @@ export default function CreateMealModal({
       calcium: item.calcium, iron: item.iron,
       magnesium: item.magnesium, potassium: item.potassium,
       zinc: item.zinc, sodium: item.sodium,
+      caffeine: item.caffeine,
     });
     setDetailVisible(true);
   }, []);
@@ -295,6 +307,7 @@ export default function CreateMealModal({
       fat: item.fat,
       fiber: item.fiber,
       sugar: item.sugar,
+      ...item.micros,
       serving_size: item.serving_size,
       serving_unit: item.serving_unit,
     });
@@ -314,6 +327,7 @@ export default function CreateMealModal({
         fat: data.fat,
         fiber: data.fiber,
         sugar: data.sugar,
+        micros: data.micros,
         serving_size: data.serving_size,
         serving_unit: data.serving_unit,
         quantity: data.quantity,
@@ -331,6 +345,7 @@ export default function CreateMealModal({
         fat: data.fat,
         fiber: data.fiber,
         sugar: data.sugar,
+        micros: data.micros,
         serving_size: data.serving_size,
         serving_unit: data.serving_unit,
         quantity: data.quantity,
@@ -384,7 +399,10 @@ export default function CreateMealModal({
   }, [items]);
 
   /* ── Save meal ──────────────────────────────────────── */
-  const handleSave = useCallback(() => {
+  // Ignores a second tap while the first save runs, so a meal can't be saved twice.
+  const savingRef = useRef(false);
+  const handleSave = useCallback(async () => {
+    if (savingRef.current) return;
     const name = mealName.trim();
     if (!name) {
       Alert.alert('Meal Name', 'Please enter a name for your meal.');
@@ -395,10 +413,15 @@ export default function CreateMealModal({
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (editingMealId) {
-      updateMeal(editingMealId, name, items);
-    } else {
-      saveMeal(name, items).then((id) => setEditingMealId(id));
+    savingRef.current = true;
+    try {
+      if (editingMealId) {
+        await updateMeal(editingMealId, name, items);
+      } else {
+        setEditingMealId(await saveMeal(name, items));
+      }
+    } finally {
+      savingRef.current = false;
     }
     Alert.alert('Saved', `"${name}" has been saved.`);
   }, [mealName, items, editingMealId, saveMeal, updateMeal]);
@@ -447,11 +470,11 @@ export default function CreateMealModal({
         const row: Record<string, unknown> = {
           user_id: userId,
           name: item.name,
-          // Kept items keep their stored precision; newly added items are rounded as before.
-          calories: orig ? round(item.calories * qty, 10) : Math.round(item.calories * qty),
-          protein: orig ? round(item.protein * qty, 10) : Math.round(item.protein * qty),
-          carbs: orig ? round(item.carbs * qty, 10) : Math.round(item.carbs * qty),
-          fat: orig ? round(item.fat * qty, 10) : Math.round(item.fat * qty),
+          // One decimal, like single foods: whole grams per item undercounted meals of small items.
+          calories: round(item.calories * qty, 10),
+          protein: round(item.protein * qty, 10),
+          carbs: round(item.carbs * qty, 10),
+          fat: round(item.fat * qty, 10),
           meal_type: mealSlot,
           brand: item.brand || null,
           food_catalog_id: orig?.food_catalog_id ?? item.food_catalog_id ?? null,
@@ -465,19 +488,11 @@ export default function CreateMealModal({
           meal_group_id: groupId,
           meal_group_name: groupName,
         };
-        if (orig) {
-          const origQty = orig.quantity || 1;
-          // If the serving was changed in the editor, scale micros the way the macros were scaled.
-          const origCalPerUnit = orig.calories / origQty;
-          const origServing = Number(orig.serving_size) || 0;
-          const servingRatio = origServing > 0 && item.serving_size > 0
-            ? item.serving_size / origServing
-            : origCalPerUnit > 0 ? item.calories / origCalPerUnit : 1;
-          // Micronutrients the meal editor doesn't show: kept from the original entries
-          for (const key of MICRO_KEYS) {
-            const v = orig[key];
-            row[key] = v != null ? round((Number(v) / origQty) * servingRatio * qty, 100) : null;
-          }
+        // Micronutrients travel with each item per serving (kept items start from their entry,
+        // and the detail screen rescales them when the serving changes).
+        for (const key of MICRO_KEYS) {
+          const v = item.micros?.[key];
+          row[key] = v != null ? round(Number(v) * qty, 100) : null;
         }
         return row;
       });
