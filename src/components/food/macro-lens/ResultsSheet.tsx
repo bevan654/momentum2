@@ -110,12 +110,13 @@ function ResultsSheet({ items, totals, onRetake, onPickItem }: {
 export default React.memo(ResultsSheet);
 
 function MacroPill({ label, value, color }: { label: string; value: number; color: string }) {
+  const labelColor = useColors().textTertiary;
   return (
     <View style={[macroPillStyles.wrap, { backgroundColor: color + '14', borderColor: color + '33' }]}>
       <View style={[macroPillStyles.dot, { backgroundColor: color }]} />
       <View>
         <Text style={[macroPillStyles.value, { color }]}>{Math.round(value)}g</Text>
-        <Text style={macroPillStyles.label}>{label}</Text>
+        <Text style={[macroPillStyles.label, { color: labelColor }]}>{label}</Text>
       </View>
     </View>
   );
@@ -143,7 +144,6 @@ const macroPillStyles = StyleSheet.create({
     fontFamily: Fonts.extraBold,
   },
   label: {
-    color: '#888',
     fontSize: ms(9),
     lineHeight: ms(12),
     fontFamily: Fonts.semiBold,
