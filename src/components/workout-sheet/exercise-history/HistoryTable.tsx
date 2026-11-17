@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { MONTH_SHORT, DAY_SHORT } from '../../../constants/dateNames';
 import type { HistoryStyles } from './historyStyles';
+import { SET_TYPE_LABEL } from '../setTypeStyle';
 import type { HistoryEntry } from './useExerciseHistory';
 
 function fmtDate(d: Date): string {
@@ -56,7 +57,7 @@ function HistoryTable({ styles, entry }: { styles: HistoryStyles; entry: History
             {s.set_type && s.set_type !== 'working' ? (
               <View style={styles.setTypeBadge}>
                 <Text style={styles.setTypeBadgeText}>
-                  {s.set_type === 'warmup' ? 'W' : s.set_type === 'drop' ? 'D' : s.set_type === 'failure' ? 'F' : s.set_type.charAt(0).toUpperCase()}
+                  {SET_TYPE_LABEL[s.set_type] ?? s.set_type.charAt(0).toUpperCase()}
                 </Text>
               </View>
             ) : !s.completed ? (

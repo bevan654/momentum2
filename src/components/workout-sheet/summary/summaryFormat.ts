@@ -23,13 +23,6 @@ export function formatVolume(kg: number): string {
   return `${kg.toLocaleString()} kg`;
 }
 
-export function formatTimeSecs(secs: number): string {
-  if (secs <= 0) return '0:00';
-  const m = Math.floor(secs / 60);
-  const s = secs % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
 export const isTimedType = (t?: string) => t === 'duration';
 export const showsKg = (t?: string) => t === 'weighted' || t === 'weighted+bodyweight' || !t;
 

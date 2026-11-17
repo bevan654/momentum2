@@ -6,7 +6,8 @@ import { Fonts } from '../../../theme/typography';
 import { getUICategoryColor } from '../../../constants/muscles';
 import type { SummaryExercise } from '../../../stores/useActiveWorkoutStore';
 import type { ExerciseWithSets, CoachExerciseNote } from '../../../stores/useWorkoutStore';
-import { formatTimeSecs, isTimedType, showsKg } from './summaryFormat';
+import { isTimedType, showsKg } from './summaryFormat';
+import { formatCountdown } from '../../../utils/formatDuration';
 
 /**
  * Read-only card for one exercise of a workout: progression vs last time, the coach's note and the
@@ -20,7 +21,7 @@ function ExerciseResultCardImpl({ exercise, colors, prevSets, coachNote }: { exe
   const hasKg = showsKg(exercise.exercise_type);
 
   const summaryLine = timed
-    ? `${completedSets.length} sets · ${formatTimeSecs(completedSets.reduce((sum, s) => sum + s.reps, 0))} total`
+    ? `${completedSets.length} sets · ${formatCountdown(completedSets.reduce((sum, s) => sum + s.reps, 0))} total`
     : `${completedSets.length} sets · ${completedSets.reduce((sum, s) => sum + s.reps, 0)} reps`;
 
   // Volume progression (skip for duration/bodyweight-only)
@@ -73,7 +74,7 @@ function ExerciseResultCardImpl({ exercise, colors, prevSets, coachNote }: { exe
         ) : timed ? (
           <View style={styles.progressionItem}>
             <Text style={styles.progressionLabel}>Total</Text>
-            <Text style={styles.progressionValue}>{formatTimeSecs(totalTime)}</Text>
+            <Text style={styles.progressionValue}>{formatCountdown(totalTime)}</Text>
             {timeDiff !== null && (
               <Text style={[styles.progressionDelta, timeDiff >= 0 ? styles.deltaUp : styles.deltaDown]}>
                 {timeDiff >= 0 ? '+' : ''}{timeDiff}%
@@ -124,13 +125,13 @@ function ExerciseResultCardImpl({ exercise, colors, prevSets, coachNote }: { exe
             )}
             <Text style={[styles.summaryPrevText, styles.colPrev]}>
               {prev
-                ? timed ? formatTimeSecs(prev.reps)
+                ? timed ? formatCountdown(prev.reps)
                 : hasKg ? `${prev.kg}×${prev.reps}`
                 : `${prev.reps}`
                 : '—'}
             </Text>
             {hasKg && <Text style={[styles.summaryCellVal, styles.colVal]}>{s.kg}</Text>}
-            <Text style={[styles.summaryCellVal, styles.colVal]}>{timed ? formatTimeSecs(s.reps) : s.reps}</Text>
+            <Text style={[styles.summaryCellVal, styles.colVal]}>{timed ? formatCountdown(s.reps) : s.reps}</Text>
           </View>
         );
       })}

@@ -25,6 +25,7 @@ import { sw, ms } from '../../theme/responsive';
 import type { ActiveSet } from '../../stores/useActiveWorkoutStore';
 import { type ExerciseType } from '../../utils/exerciseProgress';
 import { showsKg } from './summary/summaryFormat';
+import { setTypeStyle } from './setTypeStyle';
 import { createSetRowStyles, SWIPE_THRESHOLD, ROW_HEIGHT } from './set-row/setRowStyles';
 import SetRowInputs, { formatTimeDisplay } from './set-row/SetRowInputs';
 
@@ -283,14 +284,10 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
 
   /* ── Set type config ───────────────────────────────── */
 
-  const setTypeConfig = useMemo<Record<string, { bg: string; color: string; label: string | null }>>(() => ({
-    working: { bg: colors.surface, color: colors.textSecondary, label: null },
-    warmup: { bg: colors.accentOrange + '18', color: colors.accentOrange, label: 'W' },
-    drop: { bg: colors.accentBabyBlue + '18', color: colors.accentBabyBlue, label: 'D' },
-    failure: { bg: colors.accentRed + '18', color: colors.accentRed, label: 'F' },
-  }), [colors]);
-
-  const typeConfig = setTypeConfig[set.set_type] || setTypeConfig.working;
+  const typeColor = setTypeStyle(colors, set.set_type)?.color;
+  const typeConfig = typeColor
+    ? { bg: typeColor + '18', color: typeColor }
+    : { bg: colors.surface, color: colors.textSecondary };
 
   /* ── Render ────────────────────────────────────────── */
 

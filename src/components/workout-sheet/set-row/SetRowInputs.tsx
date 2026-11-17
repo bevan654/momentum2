@@ -4,11 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../../theme/useColors';
 import { sw, ms } from '../../../theme/responsive';
 import { type ExerciseType } from '../../../utils/exerciseProgress';
-import { formatTimeSecs, showsKg, isTimedType } from '../summary/summaryFormat';
+import { showsKg, isTimedType } from '../summary/summaryFormat';
+import { formatCountdown } from '../../../utils/formatDuration';
 import type { SetRowStyles } from './setRowStyles';
 
 /** A seconds string (as typed) as m:ss; empty or invalid shows 0:00. */
-export const formatTimeDisplay = (secs: string) => formatTimeSecs(parseInt(secs, 10) || 0);
+export const formatTimeDisplay = (secs: string) => formatCountdown(parseInt(secs, 10) || 0);
 
 interface Props {
   styles: SetRowStyles;

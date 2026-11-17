@@ -6,6 +6,7 @@ import { sw, ms } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
 import { getUICategoryColor } from '../../../constants/muscles';
 import { isTimedType, showsKg, type EditExercise } from './summaryFormat';
+import { setTypeStyle } from '../setTypeStyle';
 
 function EditableExerciseSection({
   exercise,
@@ -28,12 +29,6 @@ function EditableExerciseSection({
 }) {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const catColor = exercise.category ? getUICategoryColor(exercise.category) : colors.textTertiary;
-
-  const SET_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
-    warmup: { label: 'W', color: colors.accentOrange },
-    drop: { label: 'D', color: colors.accentBabyBlue },
-    failure: { label: 'F', color: colors.accentRed },
-  };
 
   return (
     <View style={styles.exerciseDetail}>
@@ -66,7 +61,7 @@ function EditableExerciseSection({
       </View>
 
       {exercise.sets.map((s, i) => {
-        const typeConfig = SET_TYPE_CONFIG[s.set_type || ''];
+        const typeConfig = setTypeStyle(colors, s.set_type);
         return (
           <View key={i} style={styles.setRow}>
             <View style={styles.setNumCol}>
