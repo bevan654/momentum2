@@ -704,47 +704,13 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     if (__DEV__ && userRes.error) console.warn('user_created_foods search error:', userRes.error.message);
     if (__DEV__ && entryRes.error) console.warn('food_entries search error:', entryRes.error.message);
 
-    const catalogItems: FoodCatalogItem[] = (catalogRes.data || []).map((d) => ({
-      ...d,
-      calories: Number(d.calories || 0),
-      protein: Number(d.protein || 0),
-      carbs: Number(d.carbs || 0),
-      fat: Number(d.fat || 0),
-      serving_size: Number(d.serving_size || 100),
-    }));
-
-    // Deduplicate user-created foods by name (case-insensitive)
-    const allNames = new Set(catalogItems.map((c) => c.name.toLowerCase()));
+    // The user's own logged foods first (one per name, most recent): the search screen shows
+    // them as "Your foods", above everything else.
     const seen = new Set<string>();
-    const userItems: FoodCatalogItem[] = [];
-    for (const d of userRes.data || []) {
-      const key = d.name?.toLowerCase();
-      if (!key || allNames.has(key) || seen.has(key)) continue;
-      seen.add(key);
-      allNames.add(key);
-      userItems.push({
-        id: d.id,
-        name: d.name,
-        brand: d.brand || null,
-        calories: Number(d.calories || 0),
-        protein: Number(d.protein || 0),
-        carbs: Number(d.carbs || 0),
-        fat: Number(d.fat || 0),
-        fiber: d.fiber != null ? Number(d.fiber) : null,
-        sugar: d.sugar != null ? Number(d.sugar) : null,
-        serving_size: Number(d.serving_size) || 1,
-        serving_unit: d.serving_unit || 'serving',
-        confidence: 'user_submitted',
-        category: null,
-        ...microsFrom(d),
-      });
-    }
-
-    // Also include user's own logged entries as searchable items
     const entryItems: FoodCatalogItem[] = [];
     for (const d of entryRes.data || []) {
       const key = d.name?.toLowerCase();
-      if (!key || allNames.has(key) || seen.has(key)) continue;
+      if (!key || seen.has(key)) continue;
       seen.add(key);
       const qty = Number(d.quantity) || 1;
       entryItems.push({
@@ -766,7 +732,45 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       });
     }
 
-    set({ catalogResults: [...catalogItems, ...userItems, ...entryItems], catalogLoading: false });
+    // Then the shared catalog, minus foods already listed as the user's own.
+    const catalogItems: FoodCatalogItem[] = (catalogRes.data || [])
+      .filter((d) => d.name && !seen.has(d.name.toLowerCase()))
+      .map((d) => ({
+      ...d,
+      calories: Number(d.calories || 0),
+      protein: Number(d.protein || 0),
+      carbs: Number(d.carbs || 0),
+      fat: Number(d.fat || 0),
+      serving_size: Number(d.serving_size || 100),
+      }));
+    for (const c of catalogItems) seen.add(c.name.toLowerCase());
+
+    // Then foods other users created, minus names already listed (case-insensitive).
+    const userItems: FoodCatalogItem[] = [];
+    for (const d of userRes.data || []) {
+      const key = d.name?.toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      userItems.push({
+        id: d.id,
+        name: d.name,
+        brand: d.brand || null,
+        calories: Number(d.calories || 0),
+        protein: Number(d.protein || 0),
+        carbs: Number(d.carbs || 0),
+        fat: Number(d.fat || 0),
+        fiber: d.fiber != null ? Number(d.fiber) : null,
+        sugar: d.sugar != null ? Number(d.sugar) : null,
+        serving_size: Number(d.serving_size) || 1,
+        serving_unit: d.serving_unit || 'serving',
+        confidence: 'user_submitted',
+        category: null,
+        ...microsFrom(d),
+      });
+    }
+
+    // Own foods carry confidence 'user', which the search screen uses to split the sections.
+    set({ catalogResults: [...entryItems, ...catalogItems, ...userItems], catalogLoading: false });
   },
 
   clearSearch: () => {

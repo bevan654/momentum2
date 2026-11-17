@@ -152,13 +152,33 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
     clearCache();
   }, [clearSearch, clearCache]);
 
-  // Catalog first, then earlier AI estimates not already in the catalog (by name).
-  const results = useMemo(() => {
-    if (ai.showAiResults) return ai.aiResults;
-    if (ai.cachedResults.length === 0) return catalogResults;
-    const seen = new Set(catalogResults.map((r) => r.name.toLowerCase()));
-    return [...catalogResults, ...ai.cachedResults.filter((r) => !seen.has(r.name.toLowerCase()))];
-  }, [ai.showAiResults, ai.aiResults, ai.cachedResults, catalogResults]);
+  // Search results in two groups: the user's own foods (favourites and foods they've logged
+  // that match), then everything else (catalog, other users' foods, earlier AI estimates).
+  // A Deep Search answer is shown on its own.
+  const { myResults, results } = useMemo(() => {
+    if (ai.showAiResults) return { myResults: [] as FoodCatalogItem[], results: ai.aiResults };
+    const q = query.trim().toLowerCase();
+    const seen = new Set<string>();
+    const mine: FoodCatalogItem[] = [];
+    for (const f of favourites) {
+      const key = f.name.toLowerCase();
+      if (q.length >= 2 && key.includes(q) && !seen.has(key)) { seen.add(key); mine.push(f); }
+    }
+    const others: FoodCatalogItem[] = [];
+    for (const r of catalogResults) {
+      const key = r.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      (r.confidence === 'user' ? mine : others).push(r);
+    }
+    for (const r of ai.cachedResults) {
+      const key = r.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      others.push(r);
+    }
+    return { myResults: mine, results: others };
+  }, [ai.showAiResults, ai.aiResults, ai.cachedResults, catalogResults, favourites, query]);
 
   /* ── Child screens ────────────────────────────────── */
   const openDetail = useCallback((food: FoodDetailData) => { setDetailFood(food); setDetailVisible(true); }, []);
@@ -285,6 +305,7 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
             searching={searching}
             tab={tab}
             loading={catalogLoading || ai.aiSearching || searchPending}
+            myResults={myResults}
             results={results}
             aiMode={ai.showAiResults}
             recentFoods={recentFoods}
