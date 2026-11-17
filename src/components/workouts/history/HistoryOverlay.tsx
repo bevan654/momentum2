@@ -14,6 +14,7 @@ import {
   type TimeFilter, type PlanFilter,
 } from './historyConstants';
 import { useSwipeDismissSheet } from './useSwipeDismissSheet';
+import { formatWeekdayMonthDay } from '../../../utils/dateLabels';
 
 function formatVolume(vol: number): string {
   if (vol >= 1000) return `${(vol / 1000).toFixed(1)}k`;
@@ -52,8 +53,6 @@ const HistoryRow = React.memo(({ workout, dateStr, durationMin, styles, colors, 
   );
 });
 
-const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const LIST_WRAP = { flex: 1 } as const;
 const historyKey = (w: WorkoutWithDetails) => w.id;
 
@@ -108,7 +107,7 @@ const HistoryOverlay = React.memo(function HistoryOverlay({
 
   const renderHistoryRow = useCallback(({ item: w }: { item: WorkoutWithDetails }) => {
     const d = new Date(w.created_at);
-    const dateStr = `${DAY_SHORT[d.getDay()]}, ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+    const dateStr = formatWeekdayMonthDay(d);
     const durationMin = Math.round(w.duration / 60);
     return (
       <HistoryRow

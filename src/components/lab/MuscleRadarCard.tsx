@@ -26,6 +26,7 @@ import { hasPrimaryWork, partsOf, regionVolume, relativeValues, type RegionWeigh
 import type { MuscleLoad } from '../../utils/muscleLoad';
 import { regionLabel } from '../../constants/muscleMapLabels';
 import { formatVolumeKg } from '../../utils/formatVolume';
+import { formatMonthDay } from '../../utils/dateLabels';
 
 /* ─── Config ─────────────────────────────────────────────── */
 
@@ -181,9 +182,7 @@ export default function MuscleRadarCard() {
   const dateRangeLabel = useMemo(() => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - effectiveDays);
-    const fmt = (d: Date) =>
-      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `${fmt(start)} – ${fmt(now)}`;
+    return `${formatMonthDay(start)} – ${formatMonthDay(now)}`;
   }, [effectiveDays]);
 
   const maxSets = useMemo(() => {

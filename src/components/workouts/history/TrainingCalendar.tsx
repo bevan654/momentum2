@@ -5,6 +5,7 @@ import { Fonts } from '../../../theme/typography';
 import { sw, ms, SCREEN_WIDTH } from '../../../theme/responsive';
 import type { WorkoutWithDetails } from '../../../stores/useWorkoutStore';
 import { toLocalDateString } from '../../../utils/localDate';
+import { formatWeekdayMonthDay } from '../../../utils/dateLabels';
 import { toDateKey, groupsForParts, workoutHitsGroups } from './historyConstants';
 
 /** Last 56 days as a 4 × 14 dot grid. Tap a trained day to open that workout, a rest day to see its date. */
@@ -76,9 +77,7 @@ function TrainingCalendar({ workouts, catalogMap, bodyParts, onSelectWorkout }: 
             ? (() => {
                 const [y, m, d] = selectedCalDate.split('-').map(Number);
                 const date = new Date(y, m - 1, d);
-                const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-                return `${days[date.getDay()]}, ${months[date.getMonth()]} ${d}${trainedDaysMap.has(selectedCalDate) ? ' — trained' : ' — rest day'}`;
+                return `${formatWeekdayMonthDay(date)}${trainedDaysMap.has(selectedCalDate) ? ' — trained' : ' — rest day'}`;
               })()
             : `${bodyParts.length > 0 ? `${bodyParts.join(', ')} training` : 'All training'} — 8 weeks`}
         </Text>

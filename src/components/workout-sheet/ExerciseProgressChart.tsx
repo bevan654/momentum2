@@ -8,6 +8,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import type { ActiveSet } from '../../stores/useActiveWorkoutStore';
+import { formatMonthDayOf } from '../../utils/dateLabels';
 import {
   beatsTarget,
   completedSetsToday,
@@ -138,7 +139,7 @@ function ExerciseProgressChart({ exerciseName, exerciseType, sets, onOpenHistory
 
   // Today's bar: muted while working toward the target, solid once beaten.
   const fillColor = achieved ? colors.accent : colors.accent + '99';
-  const firstDate = ordered.length > 0 ? formatShortDate(ordered[0].date) : '';
+  const firstDate = ordered.length > 0 ? formatMonthDayOf(ordered[0].date) : '';
 
   return (
     <View style={styles.wrap}>
@@ -243,11 +244,6 @@ function formatAxis(v: number, type: ExerciseType): string {
   return String(Math.round(v));
 }
 
-function formatShortDate(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
 
 export default React.memo(ExerciseProgressChart);
 

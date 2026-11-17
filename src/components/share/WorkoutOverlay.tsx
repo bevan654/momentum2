@@ -7,13 +7,10 @@ import { Fonts } from '../../theme/typography';
 import WorkoutMiniMaps from '../body/WorkoutMiniMaps';
 import type { SummaryExercise } from '../../stores/useActiveWorkoutStore';
 import { formatHoursMinutes } from '../../utils/formatDuration';
-import { DAY_LONG, MONTH_SHORT, DAY_SHORT } from '../../constants/dateNames';
+import { DAY_LONG } from '../../constants/dateNames';
+import { formatWeekdayMonthDay } from '../../utils/dateLabels';
 
 /* ─── Helpers ──────────────────────────────────────────── */
-
-function formatDate(date: Date): string {
-  return `${DAY_SHORT[date.getDay()]}, ${MONTH_SHORT[date.getMonth()]} ${date.getDate()}`;
-}
 
 function bestSet(ex: SummaryExercise) {
   return ex.sets.reduce((best, s) => (s.completed && s.kg > best.kg ? s : best), ex.sets[0]);
@@ -86,7 +83,7 @@ export default function WorkoutOverlay({ backgroundUri, data: d }: Props) {
 
       <View style={styles.header}>
         <View>
-          <Text style={styles.dateText}>{formatDate(date)}</Text>
+          <Text style={styles.dateText}>{formatWeekdayMonthDay(date)}</Text>
           <Text style={styles.workoutLabel}>{label}</Text>
         </View>
         <Image source={require('../../../assets/logo.png')} style={styles.logoImage} />

@@ -5,6 +5,7 @@ import { Fonts } from '../../theme/typography';
 import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
 import { sw, ms } from '../../theme/responsive';
+import { formatMicroValue } from '../food/dayTotals';
 import CardDetailSheet, { CardDetailHero, CardDetailSectionLabel, CardDetailFooter } from './CardDetailSheet';
 
 /* ─── Micro keys that exist on FoodEntry ─────────────── */
@@ -14,13 +15,6 @@ const ENTRY_MICRO_KEYS = new Set([
   'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k',
   'vitamin_b6', 'vitamin_b12', 'folate',
 ]);
-
-function formatMicroValue(value: number, unit: string): string {
-  if (unit === 'mcg' || unit === 'mg') {
-    return value % 1 === 0 ? String(value) : value.toFixed(1);
-  }
-  return String(Math.round(value));
-}
 
 interface NutritionTotals {
   calories: number;

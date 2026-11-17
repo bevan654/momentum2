@@ -16,6 +16,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore, type ActiveExercise } from '../../stores/useActiveWorkoutStore';
 import { titleCase } from '../../utils/titleCase';
+import { formatMonthDayOf } from '../../utils/dateLabels';
 
 // Notes shown inline (via expand) before switching to a scrollable modal.
 const PREV_NOTES_INLINE_CAP = 4;
@@ -26,12 +27,6 @@ const NOTE_COLOR_OPTIONS: { key: string; token: 'accentGreen' | 'accentOrange' |
   { key: 'orange', token: 'accentOrange' },
   { key: 'red', token: 'accentRed' },
 ];
-
-function formatNoteDate(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
 
 /** Number of notes shown on the header badge: previous notes + today's (if written). */
 export function noteCount(exercise: ActiveExercise): number {
@@ -92,7 +87,7 @@ function ExerciseNotes({ exercise, exerciseIndex, onExerciseFocus }: Props) {
                   c && { borderLeftWidth: sw(3), borderLeftColor: c },
                 ]}
               >
-                <Text style={[styles.notesPrevDate, c && { color: c }]}>{formatNoteDate(n.date)}</Text>
+                <Text style={[styles.notesPrevDate, c && { color: c }]}>{formatMonthDayOf(n.date)}</Text>
                 <Text style={styles.notesPrevText}>{n.note}</Text>
               </View>
             );
@@ -233,7 +228,7 @@ function ExerciseNotes({ exercise, exerciseIndex, onExerciseFocus }: Props) {
                         c && { borderLeftWidth: sw(3), borderLeftColor: c, paddingLeft: sw(10) },
                       ]}
                     >
-                      <Text style={[styles.notesPrevDate, c && { color: c }]}>{formatNoteDate(n.date)}</Text>
+                      <Text style={[styles.notesPrevDate, c && { color: c }]}>{formatMonthDayOf(n.date)}</Text>
                       <Text style={styles.notesModalText}>{n.note}</Text>
                     </View>
                   );

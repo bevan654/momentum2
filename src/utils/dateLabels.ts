@@ -1,4 +1,5 @@
 import { DAY_SHORT, MONTH_SHORT } from '../constants/dateNames';
+import { parseLocalDate } from './localDate';
 
 /** "Sun, Nov 14 · 3:05 PM" (local time). */
 export function formatWorkoutDate(isoString: string): string {
@@ -12,4 +13,15 @@ export function formatWorkoutDate(isoString: string): string {
 /** "Nov 14". */
 export function formatMonthDay(d: Date): string {
   return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+}
+
+/** "Sun, Nov 14". */
+export function formatWeekdayMonthDay(d: Date): string {
+  return `${DAY_SHORT[d.getDay()]}, ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+}
+
+/** "Nov 14" from a stored date or timestamp ("2026-11-14" is read as a local date); '' if it can't be read. */
+export function formatMonthDayOf(s: string): string {
+  const d = parseLocalDate(s);
+  return isNaN(d.getTime()) ? '' : formatMonthDay(d);
 }

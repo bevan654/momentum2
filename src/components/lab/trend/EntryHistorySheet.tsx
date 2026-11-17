@@ -7,6 +7,7 @@ import { useColors, type ThemeColors } from '../../../theme/useColors';
 import { Fonts } from '../../../theme/typography';
 import { sw, ms } from '../../../theme/responsive';
 import Sheet from '../../ui/Sheet';
+import { formatMonthDayOf } from '../../../utils/dateLabels';
 import { createTrendStyles } from './trendStyles';
 
 const DELETE_THRESHOLD = -80;
@@ -30,7 +31,7 @@ const SwipeableRow = React.memo(function SwipeableRow({
     }), [handleDelete, translateX]);
   const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
   const delStyle = useAnimatedStyle(() => ({ opacity: translateX.value < -20 ? 1 : 0 }));
-  const dateStr = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const dateStr = formatMonthDayOf(date);
 
   return (
     <View style={styles.swipeContainer}>
