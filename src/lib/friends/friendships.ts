@@ -1,6 +1,7 @@
 import { supabase } from '../supabase';
 import type { FriendshipStatus, FriendProfile, FriendshipRow, SearchResult } from './types';
 import { createNotification } from './notifications';
+import { safeDisplayName } from '../../utils/displayName';
 
 // Profile search, friend list, requests, removing, blocking.
 
@@ -102,7 +103,7 @@ export async function sendFriendRequest(
     friendId,
     'friend_request',
     'New Friend Request',
-    `${profile?.username || profile?.email || 'Someone'} wants to be friends`,
+    `${profile ? safeDisplayName(profile.username, profile.email) : 'Someone'} wants to be friends`,
     { from_user_id: userId, friendship_id: friendship.id },
   );
   return true;
@@ -136,7 +137,7 @@ export async function acceptFriendRequest(
     senderId,
     'friend_accepted',
     'Friend Request Accepted',
-    `${profile?.username || profile?.email || 'Someone'} accepted your request`,
+    `${profile ? safeDisplayName(profile.username, profile.email) : 'Someone'} accepted your request`,
     { from_user_id: acceptorId },
   );
 }

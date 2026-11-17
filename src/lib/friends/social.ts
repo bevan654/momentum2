@@ -1,6 +1,7 @@
 import { supabase } from '../supabase';
 import type { ReportTargetType, ReportReason } from './types';
 import { createNotification } from './notifications';
+import { safeDisplayName } from '../../utils/displayName';
 
 // Interactions on feed posts: reactions and reports.
 
@@ -36,7 +37,8 @@ export async function addReaction(
         .eq('id', userId)
         .single();
 
-      const name = profile?.username || profile?.email || 'Someone';
+      // Shown to another user, so never the raw email
+      const name = profile ? safeDisplayName(profile.username, profile.email) : 'Someone';
       const isHeart = emoji === '\u{2764}\u{FE0F}' || emoji === '❤️';
 
       await createNotification(
