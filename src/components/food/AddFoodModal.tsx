@@ -163,9 +163,11 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const handleOpenScanner = useCallback(() => { setScanNotFound(null); setScannerVisible(true); }, []);
   const handleScanDismiss = useCallback(() => setScannerVisible(false), []);
   const handleScanFound = useCallback((food: FoodDetailData) => { setScannerVisible(false); openDetail(food); }, [openDetail]);
-  const handleScanNotFound = useCallback(() => {
+  const handleScanNotFound = useCallback((_barcode: string, failed?: boolean) => {
     setScannerVisible(false);
-    setScanNotFound('Product not found. Try searching for it instead.');
+    setScanNotFound(failed
+      ? "Couldn't look up that barcode. Check your connection and try again."
+      : 'Product not found. Try searching for it instead.');
   }, []);
 
   const handleOpenLens = useCallback(() => { setScanNotFound(null); setMacroLensVisible(true); }, []);

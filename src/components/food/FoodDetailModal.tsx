@@ -7,7 +7,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useFoodLogStore } from '../../stores/useFoodLogStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { lookupBarcodeUSDA } from '../../utils/barcodeApi';
+import { lookupBarcode, lookupBarcodeUSDA } from '../../utils/barcodeApi';
 import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 import FoodSubScreen from './ui/FoodSubScreen';
@@ -175,7 +175,6 @@ function FoodDetailModal({
         const { found, food: f } = await lookupBarcodeUSDA(food.barcode);
         if (found && f) { setAltSource('usda'); onFoodSwap(f); }
       } else {
-        const { lookupBarcode } = await import('../../utils/barcodeApi');
         const { found, food: f } = await lookupBarcode(food.barcode);
         if (found && f) { setAltSource('off'); onFoodSwap(f); }
       }
@@ -414,7 +413,13 @@ function FoodDetailModal({
       {/* Serving */}
       <View style={s.group}>
         <Text style={s.label}>Serving</Text>
-        {food.serving_size_estimated && (
+        {food.nutrition_missing && (
+          <View style={s.warn}>
+            <Ionicons name="alert-circle-outline" size={ms(15)} color={colors.accentOrange} />
+            <Text style={s.warnText}>No nutrition info for this product. Enter it from the label.</Text>
+          </View>
+        )}
+        {food.serving_size_estimated && !food.nutrition_missing && (
           <View style={s.warn}>
             <Ionicons name="alert-circle-outline" size={ms(15)} color={colors.accentOrange} />
             <Text style={s.warnText}>Serving size is a guess. Enter the one on the label.</Text>

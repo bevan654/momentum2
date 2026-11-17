@@ -18,6 +18,8 @@ export interface FoodDetailData {
   confidence?: string;
   barcode?: string;
   serving_size_estimated?: boolean;
+  /** The source had no nutrition values at all (everything shows 0 until the user types them). */
+  nutrition_missing?: boolean;
   vitamin_a?: number | null;
   vitamin_c?: number | null;
   vitamin_d?: number | null;

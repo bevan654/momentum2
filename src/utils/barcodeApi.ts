@@ -5,7 +5,51 @@ interface BarcodeResult {
   found: boolean;
   food: FoodDetailData | null;
   barcode?: string;
+  /** The lookup itself failed (offline, timeout, server error), so "not found" isn't known. */
+  error?: boolean;
 }
+
+const LOOKUP_TIMEOUT_MS = 10000;
+
+/** fetch with a timeout, so a hung request can't leave the scanner spinning forever. */
+async function fetchWithTimeout(url: string): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Open Food Facts nutrient name → our field, and the factor from OFF's unit to ours. OFF stores
+ * every nutrient value in grams (per 100 g and per serving), so mg fields need × 1000 and mcg
+ * fields × 1,000,000.
+ */
+const OFF_MICROS: [MicroField, string, number][] = [
+  ['vitamin_a', 'vitamin-a', 1e6],     // mcg
+  ['vitamin_c', 'vitamin-c', 1e3],     // mg
+  ['vitamin_d', 'vitamin-d', 1e6],     // mcg
+  ['vitamin_e', 'vitamin-e', 1e3],     // mg
+  ['vitamin_k', 'vitamin-k', 1e6],     // mcg
+  ['vitamin_b6', 'vitamin-b6', 1e3],   // mg
+  ['vitamin_b12', 'vitamin-b12', 1e6], // mcg
+  ['folate', 'vitamin-b9', 1e6],       // mcg
+  ['calcium', 'calcium', 1e3],         // mg
+  ['iron', 'iron', 1e3],               // mg
+  ['magnesium', 'magnesium', 1e3],     // mg
+  ['potassium', 'potassium', 1e3],     // mg
+  ['zinc', 'zinc', 1e3],               // mg
+  ['sodium', 'sodium', 1e3],           // mg
+  ['caffeine', 'caffeine', 1e3],       // mg
+];
+
+type MicroField =
+  | 'vitamin_a' | 'vitamin_c' | 'vitamin_d' | 'vitamin_e' | 'vitamin_k' | 'vitamin_b6' | 'vitamin_b12'
+  | 'folate' | 'calcium' | 'iron' | 'magnesium' | 'potassium' | 'zinc' | 'sodium' | 'caffeine';
+
+const KJ_PER_KCAL = 4.184;
 
 /**
  * Look up a barcode via the Open Food Facts API and map the result
@@ -14,80 +58,95 @@ interface BarcodeResult {
 export async function lookupBarcode(barcode: string): Promise<BarcodeResult> {
   const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`;
 
-  const res = await fetch(url);
-  if (!res.ok) return { found: false, food: null };
+  let json: any;
+  try {
+    const res = await fetchWithTimeout(url);
+    // OFF answers an unknown barcode with 404; anything else that isn't OK is a failed lookup.
+    if (res.status === 404) return { found: false, food: null };
+    if (!res.ok) return { found: false, food: null, error: true };
+    json = await res.json();
+  } catch {
+    return { found: false, food: null, error: true };
+  }
 
-  const json = await res.json();
-
-  if (json.status !== 1 || !json.product) {
+  if (json?.status !== 1 || !json.product) {
     return { found: false, food: null };
   }
 
   const p = json.product;
   const n = p.nutriments ?? {};
+  const val = (key: string): number | null => {
+    if (n[key] == null) return null;
+    const v = Number(n[key]);
+    return Number.isFinite(v) ? v : null;
+  };
+  // Energy in kcal for a basis ('100g' or 'serving'): the kcal field, else kJ converted.
+  const kcal = (basis: string): number | null => {
+    const k = val(`energy-kcal_${basis}`);
+    if (k != null) return k;
+    const kj = val(`energy-kj_${basis}`) ?? val(`energy_${basis}`); // OFF's plain "energy" is kJ
+    return kj != null ? kj / KJ_PER_KCAL : null;
+  };
 
-  // Prefer per-serving values; fall back to per-100 g
-  const hasServing = n['energy-kcal_serving'] != null;
-
-  // Resolve actual serving size: use serving_quantity from the product when available,
-  // even if per-serving nutrient values aren't pre-computed by OFF.
+  // Resolve actual serving size: use serving_quantity from the product when available.
   // Fall back to parsing the serving_size text field (e.g. "72 g", "1 can (72g)").
   const rawServingQty = Number(p.serving_quantity);
   const hasServingQty = Number.isFinite(rawServingQty) && rawServingQty > 0;
   const parsedText = parseServingSizeText(p.serving_size);
-  const servingSizeEstimated = !hasServingQty && parsedText == null;
-  const servingSize = hasServingQty
-    ? rawServingQty
-    : parsedText?.size ?? 100;
-  const servingUnit = p.serving_quantity_unit || (!hasServingQty && parsedText ? parsedText.unit : 'g');
-  // A real serving size is known if OFF gives a quantity or the serving text parses.
   const hasServingSize = hasServingQty || parsedText != null;
 
-  // Scale factor: per-serving values need no scaling;
-  // per-100g values get scaled to the actual serving size.
-  const scale = hasServing ? 1 : (hasServingSize ? servingSize / 100 : 1);
+  const has100g = kcal('100g') != null || ['proteins', 'carbohydrates', 'fat'].some((k) => val(`${k}_100g`) != null);
+  const hasServingData = kcal('serving') != null || ['proteins', 'carbohydrates', 'fat'].some((k) => val(`${k}_serving`) != null);
 
-  const cal = num((hasServing ? n['energy-kcal_serving'] : n['energy-kcal_100g']) * scale);
-  const protein = num((hasServing ? n.proteins_serving : n.proteins_100g) * scale);
-  const carbs = num((hasServing ? n.carbohydrates_serving : n.carbohydrates_100g) * scale);
-  const fat = num((hasServing ? n.fat_serving : n.fat_100g) * scale);
-  const fiber = optNum(hasServing ? n.fiber_serving : n.fiber_100g, scale);
-  const sugar = optNum(hasServing ? n.sugars_serving : n.sugars_100g, scale);
-  const sodium = optNum(hasServing ? n.sodium_serving : n.sodium_100g, scale * 1000); // g → mg
+  // Every value must be for the same serving, so pick one basis:
+  // - known serving size: per-100 g values scaled to it (per-serving values fill any gaps);
+  // - no serving size but per-100 g data: a 100 g serving the user can correct from the label;
+  // - only per-serving data: "1 serving".
+  let servingSize: number;
+  let servingUnit: string;
+  let servingSizeEstimated = false;
+  let get: (key: string) => number | null;
+  if (hasServingSize) {
+    servingSize = hasServingQty ? rawServingQty : parsedText!.size;
+    servingUnit = p.serving_quantity_unit || (!hasServingQty && parsedText ? parsedText.unit : 'g');
+    const factor = servingSize / 100;
+    get = (key) => {
+      const per100 = key === 'energy' ? kcal('100g') : val(`${key}_100g`);
+      if (per100 != null) return per100 * factor;
+      return key === 'energy' ? kcal('serving') : val(`${key}_serving`);
+    };
+  } else if (has100g || !hasServingData) {
+    servingSize = 100;
+    servingUnit = 'g';
+    servingSizeEstimated = true;
+    get = (key) => (key === 'energy' ? kcal('100g') : val(`${key}_100g`));
+  } else {
+    servingSize = 1;
+    servingUnit = 'serving';
+    get = (key) => (key === 'energy' ? kcal('serving') : val(`${key}_serving`));
+  }
 
-  // Micronutrients (always per-100 g in OFF; scale to serving)
-  const microScale = hasServingSize ? servingSize / 100 : 1;
+  const nutritionMissing = !has100g && !hasServingData;
 
   const food: FoodDetailData = {
     name: p.product_name || p.product_name_en || 'Unknown Product',
     brand: p.brands || null,
     food_catalog_id: null,
-    calories: cal,
-    protein,
-    carbs,
-    fat,
-    fiber,
-    sugar,
+    calories: num(get('energy')),
+    protein: num(get('proteins')),
+    carbs: num(get('carbohydrates')),
+    fat: num(get('fat')),
+    fiber: optNum(get('fiber')),
+    sugar: optNum(get('sugars')),
     serving_size: servingSize,
     serving_unit: servingUnit,
-    sodium,
-    vitamin_a: optNum(n['vitamin-a_100g'], microScale),        // mcg
-    vitamin_c: optNum(n['vitamin-c_100g'], microScale),        // mg
-    vitamin_d: optNum(n['vitamin-d_100g'], microScale),        // mcg
-    vitamin_e: optNum(n['vitamin-e_100g'], microScale),        // mg
-    vitamin_k: optNum(n['vitamin-k_100g'], microScale),        // mcg
-    vitamin_b6: optNum(n['vitamin-b6_100g'], microScale),      // mg
-    vitamin_b12: optNum(n['vitamin-b12_100g'], microScale),    // mcg
-    folate: optNum(n['vitamin-b9_100g'], microScale),          // mcg
-    calcium: optNum(n['calcium_100g'], microScale),            // mg
-    iron: optNum(n['iron_100g'], microScale),                  // mg
-    magnesium: optNum(n['magnesium_100g'], microScale),        // mg
-    potassium: optNum(n['potassium_100g'], microScale),        // mg
-    zinc: optNum(n['zinc_100g'], microScale),                  // mg
-    caffeine: optNum(n['caffeine_100g'], microScale),            // mg
     barcode,
     serving_size_estimated: servingSizeEstimated,
+    nutrition_missing: nutritionMissing || undefined,
   };
+  for (const [field, offKey, factor] of OFF_MICROS) {
+    food[field] = optNum(get(offKey), factor);
+  }
 
   return { found: true, food, barcode };
 }
@@ -101,6 +160,8 @@ export async function saveBarcodeFoodToDb(
   food: FoodDetailData,
   userId: string,
 ): Promise<void> {
+  // A product with no nutrition data would only add an all-zero row for everyone.
+  if (food.nutrition_missing) return;
   try {
     // Try insert first; on conflict bump scan_count
     const { error: insertError } = await supabase
@@ -163,17 +224,20 @@ export async function saveBarcodeFoodToDb(
  * Uses the free DEMO_KEY — rate-limited but functional.
  */
 export async function lookupBarcodeUSDA(barcode: string): Promise<BarcodeResult> {
-  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(barcode)}&dataType=Branded&pageSize=1&api_key=DEMO_KEY`;
+  // A text search, so ask for a few hits and keep only one whose UPC really is this barcode.
+  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(barcode)}&dataType=Branded&pageSize=5&api_key=DEMO_KEY`;
 
   try {
-    const res = await fetch(url);
-    if (!res.ok) return { found: false, food: null };
+    const res = await fetchWithTimeout(url);
+    // DEMO_KEY is shared and rate-limited (429): that's a failed lookup, not "not found".
+    if (!res.ok) return { found: false, food: null, error: true };
 
     const json = await res.json();
-    const foods = json.foods;
-    if (!foods || foods.length === 0) return { found: false, food: null };
+    const foods: any[] = json.foods || [];
+    const target = stripLeadingZeros(barcode);
+    const item = foods.find((f) => f.gtinUpc && stripLeadingZeros(String(f.gtinUpc)) === target);
+    if (!item) return { found: false, food: null };
 
-    const item = foods[0];
     const nutrients: Record<string, number> = {};
     for (const n of item.foodNutrients || []) {
       nutrients[n.nutrientId] = n.value ?? 0;
@@ -242,11 +306,16 @@ export async function lookupBarcodeUSDA(barcode: string): Promise<BarcodeResult>
 
     return { found: true, food, barcode };
   } catch {
-    return { found: false, food: null };
+    return { found: false, food: null, error: true };
   }
 }
 
 /* ── helpers ────────────────────────────────────────────── */
+
+/** EAN-13 / UPC-A / GTIN-14 forms of one code differ only by leading zeros. */
+function stripLeadingZeros(code: string): string {
+  return code.replace(/^0+/, '');
+}
 
 function num(v: unknown): number {
   const n = Number(v);
