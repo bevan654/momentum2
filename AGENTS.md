@@ -39,7 +39,7 @@ This project is a continuation of an app built with an older model, so expect bu
 | Realtime | Supabase Realtime (`postgres_changes` only — presence is not used) |
 | Push | expo-notifications + push token stored on `profiles` |
 | Analytics | None wired up |
-| Barcode | Open Food Facts (primary) → USDA FoodData Central (fallback, DEMO_KEY) |
+| Barcode | Open Food Facts; USDA FoodData Central (DEMO_KEY) as a manual "Try USDA data" swap on a found product |
 | Fonts | Inter (400/500/600/700/800) via @expo-google-fonts |
 | Updates | expo-updates (EAS OTA). `runtimeVersion` uses the `appVersion` policy: any native change (new native dependency, config plugin, `modules/`, `targets/`, Info.plist/manifest) needs a `version` bump in `app.config.ts` and a new store build, so older binaries never receive JS that expects it. Guard new native modules with `requireOptionalNativeModule` anyway. |
 | Native extensions | Local Expo modules in `modules/` (autolinked); iOS extension targets in `targets/` via `@bacons/apple-targets` 4.0.7 (pinned: 5.x raises the iOS minimum to 16.4) |
@@ -152,9 +152,9 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | `useProgramStore` | Supabase | Multi-week training programs and progress |
 | `useFoodLogStore` | Supabase | Food entries CRUD, meal configs, goals, catalog search |
 | `useNutritionStore` | Supabase | Daily nutrition aggregation (synced with food store) |
-| `useNutrientGoalStore` | Supabase | Macro + micronutrient targets |
-| `useSavedMealsStore` | Supabase | User-saved meal templates |
-| `useFavouritesStore` | Supabase | Favourited foods |
+| `useNutrientGoalStore` | AsyncStorage (per account) | Which macros show + micronutrient targets (macro goal values live in `nutrition_goals`) |
+| `useSavedMealsStore` | AsyncStorage (per account) | User-saved meal templates (on this phone only) |
+| `useFavouritesStore` | AsyncStorage (per account) | Favourited foods (on this phone only) |
 | `useSupplementStore` | Supabase | Water + creatine entries/goals (optimistic) |
 | `useWeightStore` | Supabase | Weight entries + EMA trend |
 | `useBodyFatStore` | Supabase | Body-fat % entries |
@@ -246,7 +246,7 @@ Never query `from('profiles')` to read another user's row — RLS will return em
 # Barcode (primary)
 GET https://world.openfoodfacts.org/api/v2/product/{barcode}
 
-# USDA fallback (rate-limited DEMO_KEY)
+# USDA, manual swap from a found product (rate-limited DEMO_KEY)
 GET https://api.nal.usda.gov/fdc/v1/foods/search
 ```
 

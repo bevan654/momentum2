@@ -1,6 +1,6 @@
 # Codebase Map
 
-**Last verified:** 2026-11-17, against the code at commit `ac25c32` (main).
+**Last verified:** 2026-11-18, against the code at commit `ac25c32` (main).
 
 An index of where things live and how they connect. Rules and conventions are in `CLAUDE.md`; database tables are in `database-schema.md`. This map is the only description of the project structure; `CLAUDE.md` points here instead of keeping its own tree.
 
@@ -18,7 +18,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `src/navigation/` | `AuthNavigator`, `TabNavigator` (the 5 tabs), `WorkoutsNavigator` (Workouts tab stack), `navigationRef`, `freezeFarTabs` (stops tabs more than one away from the current tab re-rendering) |
 | `src/components/<feature>/` | UI per feature (table below) |
 | `src/stores/` | 23 Zustand stores, `use[Domain]Store.ts`: app state and most Supabase reads/writes |
-| `src/lib/` | Supabase client (`supabase.ts`), social DB calls (`friendsDatabase.ts`, which re-exports the topic files in `lib/friends/`), catalog DB (`catalogDatabase.ts`), `navigationBridge.ts` |
+| `src/lib/` | Supabase client (`supabase.ts`), social DB calls (`friendsDatabase.ts`, which re-exports the topic files in `lib/friends/`), catalog DB (`catalogDatabase.ts`), `navigationBridge.ts`, `userScopedStorage.ts` (AsyncStorage keys per account) |
 | `src/services/` | Side-effect services: `notificationService` (Realtime), `liveActivityManager` (Lock Screen), `workoutFinishFeedback` |
 | `src/utils/` | Helpers, mostly pure (dates, volume, strength score, payloads). Exceptions with side effects: `barcodeApi`, `uploadWorkoutPhoto`, `workoutStorage` (I/O), `confirmReplaceWorkout` (alerts + store writes) |
 | `src/hooks/` | Shared hooks (OTA updates, force-update gate, muscle load, region weights, today's date, linger-mount for exit animations, debounced value, username/email availability check for sign-up and onboarding) |
@@ -95,7 +95,7 @@ Connections through strings, `getState()`, SQL or the database itself. Changing 
 | Link | Both ends | Breaks if only one side changes |
 |---|---|---|
 | Food goals → nutrition store | `stores/useFoodLogStore.ts` writes goal fields into `useNutritionStore` via `setState` | Renamed field is ignored (no type error); Home goals go stale |
-| Cross-store calls and sign-out reset | `stores/useActiveWorkoutStore.ts`, `stores/activeWorkout/finishHelpers.ts`, `stores/activeWorkout/exerciseActions.ts`, `stores/useRankStore.ts`, `stores/useFoodLogStore.ts` call other stores' `getState()`; `stores/useAuthStore.ts` calls `useWorkoutStore.clearCaches` and `useActiveWorkoutStore.resetForSignOut` on sign-out (no other store has a reset) | A new store with per-user data needs its own reset called there, or it leaks into the next account |
+| Cross-store calls and sign-out reset | `stores/useActiveWorkoutStore.ts`, `stores/activeWorkout/finishHelpers.ts`, `stores/activeWorkout/exerciseActions.ts`, `stores/useRankStore.ts`, `stores/useFoodLogStore.ts` call other stores' `getState()`; `stores/useAuthStore.ts` calls `useWorkoutStore.clearCaches`, `useActiveWorkoutStore.resetForSignOut` and (through `resetFoodStores`) the `resetForSignOut` of the food, nutrition, saved-meal, favourite, nutrient-goal and supplement stores on sign-out, account switch and account deletion; per-account local data uses `lib/userScopedStorage.ts` | A new store with per-user data needs its own reset called there, or it leaks into the next account |
 | Workout save payload ↔ `upsert_workout` | `utils/workoutPayload.ts` (keys), callers in `stores/useActiveWorkoutStore.ts` and `components/workout-sheet/summary/useSummaryEdit.ts`; SQL `supabase/migrations/20261119_upsert_workout_rpc.sql` reads `p->>'key'` | Renamed key is saved as null with no error; a new mode or cast must change on both sides |
 | Old vs new workout shapes | Old builds insert `workouts` → `exercises` → `sets` directly; readers in `stores/useWorkoutStore.ts` and `lib/friends/feed.ts` | A reader that assumes new nullable columns (`started_at`, `completed_at`, …) are set breaks on old-build workouts; see Compatibility rule in `CLAUDE.md` |
 | `exercises_link_identity` trigger | `supabase/migrations/20261114_workout_tracking_fields.sql` (wrapped in `exception when others`) | Removing the guard can make old builds' workout inserts fail; renames need an `exercise_aliases` row |
