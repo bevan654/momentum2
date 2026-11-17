@@ -28,7 +28,7 @@ const KJ_PER_KCAL = 4.184;
  * Quick add: log calories and macros without picking a food. Calories left blank are
  * worked out from the macros (P and C 4 kcal/g, F 9 kcal/g). Only tracked micros are shown.
  */
-export default function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Props) {
+function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Props) {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
   const isDark = useThemeStore((st) => st.mode) === 'dark';
@@ -317,3 +317,5 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.medium,
     },
   });
+
+export default React.memo(QuickAddModal);

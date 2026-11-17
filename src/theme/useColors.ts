@@ -38,6 +38,10 @@ export interface ThemeColors {
   tabActive: string;
 
   textOnAccent: string;
+  /** White text and icons on a saturated fill that isn't the accent (red delete swipe, red buttons, avatars). */
+  textOnColor: string;
+  /** Win / positive-trend green (ghost challenges, adherence, volume up). */
+  positive: string;
 
   /** Scrim behind sheets and dialogs (opacity applied by the component). */
   backdrop: string;
@@ -117,6 +121,9 @@ const shared = {
   streak: '#F59E0B',
 
   backdrop: '#000000',
+
+  textOnColor: '#FFFFFF',
+  positive: '#34C759',
 };
 
 /* ─── Base palette values (before accent tinting) ──────── */

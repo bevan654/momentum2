@@ -28,7 +28,7 @@ const SCAN_AREA = sw(260);
 const CORNER_LEN = sw(24);
 const CORNER_THICK = sw(3);
 
-export default function BarcodeScannerModal({
+function BarcodeScannerModal({
   visible,
   onDismiss,
   onFoodFound,
@@ -325,3 +325,5 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.card,
     },
   });
+
+export default React.memo(BarcodeScannerModal);

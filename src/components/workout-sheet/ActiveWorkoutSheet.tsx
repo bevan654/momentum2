@@ -67,7 +67,7 @@ const CLOSE_CFG = { duration: 250, easing: Easing.in(Easing.cubic) };
      pre-render to hardware texture during animation.
    ═══════════════════════════════════════════════════════════ */
 
-export default function ActiveWorkoutSheet() {
+function ActiveWorkoutSheet() {
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const sheetVisible = useActiveWorkoutStore((s) => s.sheetVisible);
   const showSummary = useActiveWorkoutStore((s) => s.showSummary);
@@ -99,6 +99,10 @@ export default function ActiveWorkoutSheet() {
     setPickerMode('add');
     setPickerVisible(true);
   }, []);
+
+  // Stable: ExercisePicker's row callbacks depend on onClose, so an inline arrow re-rendered its whole list.
+  const handlePickerClose = useCallback(() => setPickerVisible(false), []);
+  const handleHistoryClose = useCallback(() => setHistoryExerciseName(null), []);
 
   const handlePickerSelect = useCallback(
     (name: string, exerciseType: string, category: string | null) => {
@@ -133,7 +137,7 @@ export default function ActiveWorkoutSheet() {
 
         <ExercisePicker
           visible={pickerVisible}
-          onClose={() => setPickerVisible(false)}
+          onClose={handlePickerClose}
           onSelect={handlePickerSelect}
           mode={pickerMode}
         />
@@ -141,7 +145,7 @@ export default function ActiveWorkoutSheet() {
         <ExerciseHistoryModal
           exerciseName={historyExerciseName}
           visible={historyExerciseName !== null}
-          onClose={() => setHistoryExerciseName(null)}
+          onClose={handleHistoryClose}
         />
         </PortalHost>
       </GestureHandlerRootView>
@@ -321,6 +325,10 @@ const SheetOverlay = React.memo(function SheetOverlay({
 
   const kbHeight = Platform.OS === 'ios' ? iosKb : androidKb;
   const kbOpen = Platform.OS === 'ios' ? iosKb > 0 : androidKb > 100;
+  // Read by handleInputFocus through a ref, so the callback (passed to every exercise card) stays stable
+  // when the keyboard opens or closes.
+  const kbHeightRef = useRef(kbHeight);
+  kbHeightRef.current = kbHeight;
 
   /* Auto-scroll to focused input */
   useEffect(() => () => {
@@ -338,7 +346,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
       inputTimerRef.current = setTimeout(() => {
         const screenH = Dimensions.get('window').height;
         const visibleBottom =
-          Platform.OS === 'ios' ? screenH - (kbHeight || 300) : screenH;
+          Platform.OS === 'ios' ? screenH - (kbHeightRef.current || 300) : screenH;
         const inputBottom = pageY + 50;
         if (inputBottom > visibleBottom - 40) {
           scrollRef.current?.scrollTo({
@@ -348,7 +356,7 @@ const SheetOverlay = React.memo(function SheetOverlay({
         }
       }, delay);
     },
-    [kbHeight],
+    [],
   );
 
   /* ─── Render ────────────────────────────────────────── */
@@ -405,7 +413,6 @@ const SheetOverlay = React.memo(function SheetOverlay({
                 exercise={ex}
                 exerciseIndex={i}
                 isLast={i === exercises.length - 1}
-                totalExercises={exercises.length}
                 isCurrent={i === activeIndex}
                 showGhostSets={i === activeIndex}
                 onReplace={onOpenReplace}
@@ -461,7 +468,7 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     backdrop: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: '#000000',
+      backgroundColor: colors.backdrop,
     },
     sheet: {
       position: 'absolute',
@@ -536,3 +543,5 @@ const createStyles = (colors: ThemeColors) =>
       letterSpacing: 1,
     },
   });
+
+export default React.memo(ActiveWorkoutSheet);

@@ -1,11 +1,7 @@
-import type { FoodEntry } from '../../stores/useFoodLogStore';
+import { MICRO_KEYS, type FoodEntry } from '../../stores/useFoodLogStore';
 
 /** Micronutrient keys that exist as columns on FoodEntry. */
-const ENTRY_MICRO_KEYS = new Set([
-  'caffeine', 'sodium', 'fiber', 'sugar', 'calcium', 'iron', 'potassium', 'magnesium', 'zinc',
-  'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k',
-  'vitamin_b6', 'vitamin_b12', 'folate',
-]);
+const ENTRY_MICRO_KEYS = new Set<string>([...MICRO_KEYS, 'fiber', 'sugar']);
 
 export interface MacroTotals {
   calories: number;

@@ -26,20 +26,9 @@ import MuscleMapPair from '../components/body/MuscleMapPair';
 import { useMuscleMapColors } from '../components/body/useBodyMap';
 import { useRegionWeightLookup } from '../hooks/useRegionWeightLookup';
 import { regionEmphasis, relativeValues } from '../utils/muscleVolume';
-
-interface LocalSet {
-  goal_reps: number;
-  goal_weight: number;
-}
-
-interface LocalExercise {
-  name: string;
-  sets: LocalSet[];
-  rest_seconds: number;
-  category: string | null;
-  exercise_type: string;
-  prevSets: { kg: number; reps: number }[];
-}
+import { makeUuid } from '../utils/uuid';
+import { WEEKDAY_SHORT } from '../constants/dateNames';
+import { useExerciseListEditor, newLocalExercise, toPlanExercises, type LocalExercise } from '../components/workouts/useExerciseListEditor';
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'CreateRoutine'>;
 
@@ -66,13 +55,18 @@ export default function CreateRoutineScreen() {
   const [selectedDays, setSelectedDays] = useState<number[]>(() =>
     editingRoutine?.days ?? []
   );
-  const [exercises, setExercises] = useState<LocalExercise[]>(() => {
+  const {
+    exercises, setExercises,
+    handleAddSet, handleRemoveSet, handleSetRepsChange, handleSetWeightChange,
+    handleRestChange, handleRemove, handleMoveUp, handleMoveDown,
+  } = useExerciseListEditor((): LocalExercise[] => {
     if (!editingRoutine) return [];
     return editingRoutine.exercises.map((ex) => {
       const reps = ex.set_reps || Array(ex.default_sets).fill(ex.default_reps);
       const weights = ex.set_weights || Array(ex.default_sets).fill(0);
       const entry = catalogMap[ex.name];
       return {
+        uid: makeUuid(),
         name: ex.name,
         sets: reps.map((r: number, i: number) => ({
           goal_reps: r,
@@ -94,8 +88,6 @@ export default function CreateRoutineScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
   const toggleDay = useCallback((index: number) => {
     setSelectedDays((prev) =>
       prev.includes(index) ? prev.filter((d) => d !== index) : [...prev, index].sort()
@@ -114,88 +106,11 @@ export default function CreateRoutineScreen() {
   );
   const summaryMapColors = useMuscleMapColors();
 
+  // Stable: ExercisePicker's row callbacks depend on onClose (an inline arrow re-rendered its whole list).
+  const closeAddModal = useCallback(() => setShowAddModal(false), []);
+
   const handleAddExercise = useCallback((name: string, exerciseType: string, category: string | null) => {
-    const prevMap = useWorkoutStore.getState().prevMap;
-    const prevSets = prevMap[name] || [];
-    const defaultReps = 10;
-    const defaultSets: LocalSet[] = Array.from({ length: 3 }, (_, i) => ({
-      goal_reps: defaultReps,
-      goal_weight: prevSets[i]?.kg ?? 0,
-    }));
-
-    setExercises((prev) => [...prev, { name, sets: defaultSets, rest_seconds: 90, category, exercise_type: exerciseType, prevSets }]);
-  }, []);
-
-  const handleAddSet = useCallback((exerciseIndex: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      const last = ex.sets[ex.sets.length - 1];
-      ex.sets = [...ex.sets, { goal_reps: last?.goal_reps ?? 10, goal_weight: last?.goal_weight ?? 0 }];
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleRemoveSet = useCallback((exerciseIndex: number, setIndex: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      if (ex.sets.length <= 1) return prev;
-      ex.sets = ex.sets.filter((_, i) => i !== setIndex);
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleSetRepsChange = useCallback((exerciseIndex: number, setIndex: number, reps: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      ex.sets = ex.sets.map((s, i) => (i === setIndex ? { ...s, goal_reps: reps } : s));
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleSetWeightChange = useCallback((exerciseIndex: number, setIndex: number, weight: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      ex.sets = ex.sets.map((s, i) => (i === setIndex ? { ...s, goal_weight: weight } : s));
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleRestChange = useCallback((exerciseIndex: number, seconds: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      next[exerciseIndex] = { ...next[exerciseIndex], rest_seconds: seconds };
-      return next;
-    });
-  }, []);
-
-  const handleRemove = useCallback((index: number) => {
-    setExercises((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const handleMoveUp = useCallback((index: number) => {
-    if (index === 0) return;
-    setExercises((prev) => {
-      const next = [...prev];
-      [next[index - 1], next[index]] = [next[index], next[index - 1]];
-      return next;
-    });
-  }, []);
-
-  const handleMoveDown = useCallback((index: number) => {
-    setExercises((prev) => {
-      if (index >= prev.length - 1) return prev;
-      const next = [...prev];
-      [next[index], next[index + 1]] = [next[index + 1], next[index]];
-      return next;
-    });
+    setExercises((prev) => [...prev, newLocalExercise(name, exerciseType, category)]);
   }, []);
 
   const handleSave = async () => {
@@ -206,16 +121,7 @@ export default function CreateRoutineScreen() {
     if (!userId) return;
 
     setSaving(true);
-    const routineExercises = exercises.map((e, i) => ({
-      name: e.name,
-      exercise_order: i + 1,
-      default_sets: e.sets.length,
-      default_reps: e.sets[0]?.goal_reps ?? 10,
-      default_rest_seconds: e.rest_seconds,
-      set_reps: e.sets.map((s) => s.goal_reps),
-      set_weights: e.sets.map((s) => s.goal_weight),
-      exercise_type: e.exercise_type || 'weighted',
-    }));
+    const routineExercises = toPlanExercises(exercises);
 
     const { error } = isEditing
       ? await updateRoutine(userId, editRoutineId!, routineName.trim(), routineExercises, selectedDays)
@@ -263,7 +169,7 @@ export default function CreateRoutineScreen() {
           {/* Days */}
           <Text style={styles.label}>Days</Text>
           <View style={styles.daysRow}>
-            {DAYS.map((day, i) => (
+            {WEEKDAY_SHORT.map((day, i) => (
               <TouchableOpacity
                 key={day}
                 style={[styles.dayChip, selectedDays.includes(i) && styles.dayChipActive]}
@@ -308,7 +214,7 @@ export default function CreateRoutineScreen() {
 
               <Text style={styles.label}>Exercises</Text>
               {exercises.map((ex, i) => (
-                <View key={`${ex.name}-${i}`} style={styles.exerciseItem}>
+                <View key={ex.uid} style={styles.exerciseItem}>
                   <View style={styles.exerciseNumber}>
                     <Text style={styles.exerciseNumberText}>{i + 1}</Text>
                   </View>
@@ -319,14 +225,15 @@ export default function CreateRoutineScreen() {
                       restSeconds={ex.rest_seconds}
                       category={ex.category}
                       prevSets={ex.prevSets}
-                      onAddSet={() => handleAddSet(i)}
-                      onRemoveSet={(setIndex) => handleRemoveSet(i, setIndex)}
-                      onSetRepsChange={(setIndex, reps) => handleSetRepsChange(i, setIndex, reps)}
-                      onSetWeightChange={(setIndex, weight) => handleSetWeightChange(i, setIndex, weight)}
-                      onRestChange={(seconds) => handleRestChange(i, seconds)}
-                      onRemove={() => handleRemove(i)}
-                      onMoveUp={() => handleMoveUp(i)}
-                      onMoveDown={() => handleMoveDown(i)}
+                      index={i}
+                      onAddSet={handleAddSet}
+                      onRemoveSet={handleRemoveSet}
+                      onSetRepsChange={handleSetRepsChange}
+                      onSetWeightChange={handleSetWeightChange}
+                      onRestChange={handleRestChange}
+                      onRemove={handleRemove}
+                      onMoveUp={handleMoveUp}
+                      onMoveDown={handleMoveDown}
                       isFirst={i === 0}
                       isLast={i === exercises.length - 1}
                     />
@@ -365,7 +272,7 @@ export default function CreateRoutineScreen() {
 
       <ExercisePicker
         visible={showAddModal}
-        onClose={() => setShowAddModal(false)}
+        onClose={closeAddModal}
         onSelect={handleAddExercise}
       />
     </View>

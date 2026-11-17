@@ -32,7 +32,6 @@ let currentUserId: string | null = null;
 let appState: AppStateStatus = AppState.currentState;
 let fallbackTimer: ReturnType<typeof setInterval> | null = null;
 let badgeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-let tokenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
 let unsubscribeClientSwap: (() => void) | null = null;
 
@@ -45,7 +44,6 @@ let viewingNotifications = false;
 
 const FALLBACK_POLL_MS = 5 * 60 * 1000; // 5 minutes
 const BADGE_DEBOUNCE_MS = 2000;
-const TOKEN_DEBOUNCE_MS = 30_000; // 30s debounce for token re-registration
 
 // ── Internal helpers ──────────────────────────────────
 
@@ -119,14 +117,6 @@ function handleAppStateChange(nextState: AppStateStatus) {
   if (nextState === 'active' && prev !== 'active' && currentUserId) {
     // Returning to foreground — sync unread count (one query)
     useFriendsStore.getState().fetchUnreadCount(currentUserId);
-
-    // Re-register push token (FCM tokens can rotate, especially on Android)
-    // Debounced to avoid redundant writes on rapid foreground/background switches
-    if (tokenDebounceTimer) clearTimeout(tokenDebounceTimer);
-    tokenDebounceTimer = setTimeout(() => {
-      tokenDebounceTimer = null;
-      registerPushToken();
-    }, TOKEN_DEBOUNCE_MS);
   }
 }
 
@@ -149,16 +139,45 @@ function stopFallbackPoller() {
 }
 
 // ── Push token registration ───────────────────────────
+// Runs for the whole signed-in session (initPushToken / stopPushToken), separate
+// from the Realtime channel above, which only lives while Community is focused.
 
-async function registerPushToken(): Promise<void> {
-  if (!Device.isDevice || !currentUserId) return;
+const TOKEN_DEBOUNCE_MS = 30_000; // 30s debounce for token re-registration
+
+let pushUserId: string | null = null;
+let pushAppState: AppStateStatus = AppState.currentState;
+let pushAppStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
+let tokenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+/** This device's Expo push token, once fetched this session (used to clear it on sign-out). */
+let deviceToken: string | null = null;
+const EAS_PROJECT_ID = '157d9970-0ab2-46aa-8b0a-e12bc42c009d';
+
+function handlePushAppStateChange(nextState: AppStateStatus) {
+  const prev = pushAppState;
+  pushAppState = nextState;
+  if (nextState !== 'active' || prev === 'active' || !pushUserId) return;
+
+  // Re-register push token (FCM tokens can rotate, especially on Android)
+  // Debounced to avoid redundant writes on rapid foreground/background switches
+  if (tokenDebounceTimer) clearTimeout(tokenDebounceTimer);
+  tokenDebounceTimer = setTimeout(() => {
+    tokenDebounceTimer = null;
+    registerPushToken(false);
+  }, TOKEN_DEBOUNCE_MS);
+}
+
+/** allowPrompt: ask for permission if not granted. Only on the first call per session, so a user who
+ * declined isn't asked again on every foreground (Android 13+ would show the prompt again). */
+async function registerPushToken(allowPrompt: boolean): Promise<void> {
+  const userId = pushUserId;
+  if (!Device.isDevice || !userId) return;
 
   try {
     // Request permissions first (required on iOS + Android 13+)
     const { status: existing } = await Notifications.getPermissionsAsync();
     let finalStatus = existing;
 
-    if (existing !== 'granted') {
+    if (existing !== 'granted' && allowPrompt) {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
@@ -166,36 +185,84 @@ async function registerPushToken(): Promise<void> {
     if (finalStatus !== 'granted') return;
 
     // Get push token — projectId required for EAS builds
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: '157d9970-0ab2-46aa-8b0a-e12bc42c009d',
-    });
-    const token = tokenData.data;
+    const token = (await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID })).data;
+    deviceToken = token;
 
     // Only write if token changed
     const { data: profile, error: fetchError } = await supabase
       .from('profiles')
       .select('push_token')
-      .eq('id', currentUserId)
+      .eq('id', userId)
       .single();
 
-    if (fetchError) return;
+    // Signed out (or switched account) while waiting on the permission prompt
+    if (fetchError || pushUserId !== userId) return;
 
     if (profile?.push_token !== token) {
       await supabase
         .from('profiles')
         .update({ push_token: token })
-        .eq('id', currentUserId);
+        .eq('id', userId);
+      // Signed out while that save was in flight: undo it, so the old account stops getting this
+      // phone's notifications. (Needs the session; best-effort if it's already gone.)
+      if (pushUserId !== userId) {
+        await supabase.from('profiles').update({ push_token: null }).eq('id', userId).eq('push_token', token);
+      }
     }
   } catch {
     // Expected in Expo Go — push tokens require a development build.
   }
 }
 
+/**
+ * Register this device's push token for the signed-in user and keep it fresh
+ * on foreground. Call once after authentication (in TabNavigator).
+ */
+export function initPushToken(userId: string): void {
+  if (pushUserId === userId) return;
+  stopPushToken();
+  pushUserId = userId;
+  pushAppState = AppState.currentState;
+  pushAppStateSubscription = AppState.addEventListener('change', handlePushAppStateChange);
+  registerPushToken(true);
+}
+
+/** Stop push-token refreshes. Call on sign-out. */
+export function stopPushToken(): void {
+  pushAppStateSubscription?.remove();
+  pushAppStateSubscription = null;
+  if (tokenDebounceTimer) {
+    clearTimeout(tokenDebounceTimer);
+    tokenDebounceTimer = null;
+  }
+  pushUserId = null;
+}
+
+/**
+ * On sign-out: remove this device's push token from the profile, so the next person to use this
+ * phone doesn't get the previous account's notifications. Only clears it if the profile still holds
+ * this device's token (another phone may have registered since). Best-effort, gives up after 3 s.
+ * Call while still signed in (RLS: own row).
+ */
+export async function clearPushTokenForSignOut(userId: string): Promise<void> {
+  if (!Device.isDevice) return;
+  const work = (async () => {
+    let token = deviceToken;
+    if (!token) {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') return;
+      token = (await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID })).data;
+    }
+    await supabase.from('profiles').update({ push_token: null }).eq('id', userId).eq('push_token', token);
+  })().catch(() => {});
+  await Promise.race([work, new Promise<void>((resolve) => setTimeout(resolve, 3000))]);
+}
+
 // ── Public API ────────────────────────────────────────
 
 /**
- * Initialize the notification system.
- * Call once after authentication (in TabNavigator).
+ * Open the Realtime channel for in-app notifications. Called by FriendsScreen while the Community
+ * tab is focused (and closed by cleanupNotifications when it loses focus).
  * Safe to call multiple times — cleans up previous channel.
  */
 export function initNotifications(userId: string): void {
@@ -242,9 +309,6 @@ export function initNotifications(userId: string): void {
 
   // Initial unread count sync
   useFriendsStore.getState().fetchUnreadCount(userId);
-
-  // Register push token (fire-and-forget)
-  registerPushToken();
 }
 
 /**
@@ -272,10 +336,6 @@ export function cleanupNotifications(): void {
   if (badgeDebounceTimer) {
     clearTimeout(badgeDebounceTimer);
     badgeDebounceTimer = null;
-  }
-  if (tokenDebounceTimer) {
-    clearTimeout(tokenDebounceTimer);
-    tokenDebounceTimer = null;
   }
 
   currentUserId = null;

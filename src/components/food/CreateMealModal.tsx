@@ -20,7 +20,7 @@ import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import { useFoodLogStore } from '../../stores/useFoodLogStore';
+import { useFoodLogStore, MICRO_KEYS } from '../../stores/useFoodLogStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useNutritionStore } from '../../stores/useNutritionStore';
 import { useSavedMealsStore, type MealItem, type SavedMeal } from '../../stores/useSavedMealsStore';
@@ -38,12 +38,6 @@ function generateGroupId(): string {
   return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-${hex()}-${hex()}${hex()}${hex()}`;
 }
 
-/** Micronutrients the meal editor doesn't show; kept from the original entries when editing. */
-const KEPT_MICRO_KEYS = [
-  'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k', 'vitamin_b6', 'vitamin_b12',
-  'folate', 'calcium', 'iron', 'magnesium', 'potassium', 'zinc', 'sodium', 'caffeine',
-] as const;
-
 const round = (v: number, factor: number) => Math.round(v * factor) / factor;
 
 interface Props {
@@ -60,7 +54,6 @@ interface Props {
   /** When editing a logged meal group, pass the group's entries */
   editMealGroupEntries?: FoodEntry[] | null;
 }
-
 
 /* ─── Meal item row (memoized) ─────────────────────────── */
 
@@ -161,7 +154,6 @@ export default function CreateMealModal({
 
   // Android back closes only this screen, not the whole Add Food sheet underneath.
   useLayerBackHandler(visible, onDismiss, isBackActive);
-
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
@@ -462,7 +454,7 @@ export default function CreateMealModal({
           fat: orig ? round(item.fat * qty, 10) : Math.round(item.fat * qty),
           meal_type: mealSlot,
           brand: item.brand || null,
-          food_catalog_id: orig?.food_catalog_id ?? null,
+          food_catalog_id: orig?.food_catalog_id ?? item.food_catalog_id ?? null,
           serving_size: Number(item.serving_size) || 1,
           serving_unit: item.serving_unit || 'serving',
           quantity: qty,
@@ -481,7 +473,8 @@ export default function CreateMealModal({
           const servingRatio = origServing > 0 && item.serving_size > 0
             ? item.serving_size / origServing
             : origCalPerUnit > 0 ? item.calories / origCalPerUnit : 1;
-          for (const key of KEPT_MICRO_KEYS) {
+          // Micronutrients the meal editor doesn't show: kept from the original entries
+          for (const key of MICRO_KEYS) {
             const v = orig[key];
             row[key] = v != null ? round((Number(v) / origQty) * servingRatio * qty, 100) : null;
           }
@@ -493,7 +486,7 @@ export default function CreateMealModal({
       const { data: inserted, error } = await supabase.from('food_entries').insert(rows).select('id');
 
       if (error) {
-        console.error('[CreateMeal] Supabase insert error:', error);
+        if (__DEV__) console.error('[CreateMeal] Supabase insert error:', error);
         Alert.alert('Log Failed', error.message);
         return;
       }
@@ -505,7 +498,7 @@ export default function CreateMealModal({
           // Undo the insert so the meal isn't duplicated.
           const newIds = (inserted || []).map((r: { id: string }) => r.id);
           if (newIds.length) await supabase.from('food_entries').delete().in('id', newIds);
-          console.error('[CreateMeal] Delete old group error:', delErr);
+          if (__DEV__) console.error('[CreateMeal] Delete old group error:', delErr);
           Alert.alert('Update Failed', delErr.message);
           return;
         }
@@ -951,12 +944,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(14),
     fontFamily: Fonts.medium,
   },
-  itemCal: {
-    color: colors.accent,
-    fontSize: ms(12),
-    lineHeight: ms(16),
-    fontFamily: Fonts.bold,
-  },
   removeBtn: {
     width: sw(24),
     height: sw(24),
@@ -1132,17 +1119,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(9),
     lineHeight: ms(12),
     fontFamily: Fonts.semiBold,
-  },
-  /* Results section labels */
-  resultsSectionLabel: {
-    color: colors.textSecondary,
-    fontSize: ms(11),
-    lineHeight: ms(15),
-    fontFamily: Fonts.bold,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginTop: sw(8),
-    marginBottom: sw(6),
   },
   /* Saved meal card */
   savedMealCard: {

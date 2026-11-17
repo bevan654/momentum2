@@ -15,9 +15,9 @@ export interface ExerciseSession {
 }
 
 /** Volume growth per session the target-pace line assumes (compounding). */
-export const OVERLOAD_PACE_PER_SESSION = 0.015;
+const OVERLOAD_PACE_PER_SESSION = 0.015;
 
-export function isSimpleType(type: ExerciseType): boolean {
+function isSimpleType(type: ExerciseType): boolean {
   return type === 'bodyweight' || type === 'duration';
 }
 

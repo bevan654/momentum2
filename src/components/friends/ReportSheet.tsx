@@ -46,7 +46,7 @@ const REASONS: { key: ReportReason; label: string; description: string }[] = [
 
 type Step = 'reason' | 'submitting' | 'done';
 
-export default function ReportSheet({
+function ReportSheet({
   visible,
   onClose,
   targetType,
@@ -399,9 +399,11 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
     },
     submitButtonText: {
-      color: '#FFFFFF',
+      color: colors.textOnColor,
       fontSize: ms(15),
       lineHeight: ms(21),
       fontFamily: Fonts.bold,
     },
   });
+
+export default React.memo(ReportSheet);

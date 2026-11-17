@@ -12,7 +12,7 @@ import { getFriendshipBetween } from '../../lib/friendsDatabase';
 import NotificationRow from './NotificationRow';
 import { setViewingNotifications } from '../../services/notificationService';
 
-export default function NotificationList() {
+function NotificationList() {
   const userId = useAuthStore((s) => s.user?.id);
   const notifications = useFriendsStore((s) => s.notifications);
   const notificationsLoading = useFriendsStore((s) => s.notificationsLoading);
@@ -92,7 +92,12 @@ export default function NotificationList() {
       if (!userId) return;
       const friendshipId = await resolveFriendshipId(item);
       if (friendshipId) {
-        await acceptRequest(friendshipId, userId);
+        try {
+          await acceptRequest(friendshipId, userId);
+        } catch {
+          Alert.alert('Error', "Couldn't accept the friend request. Check your connection and try again.");
+          return;
+        }
         await setNotificationResponded(item.id, 'accepted');
       }
     },
@@ -103,11 +108,23 @@ export default function NotificationList() {
     async (item: NotificationItem) => {
       const friendshipId = await resolveFriendshipId(item);
       if (friendshipId) {
-        await declineRequest(friendshipId);
+        try {
+          await declineRequest(friendshipId);
+        } catch {
+          Alert.alert('Error', "Couldn't decline the friend request. Check your connection and try again.");
+          return;
+        }
         await setNotificationResponded(item.id, 'declined');
       }
     },
     [declineRequest, resolveFriendshipId, setNotificationResponded],
+  );
+
+  const handlePress = useCallback(
+    (item: NotificationItem) => {
+      if (!item.read) markNotificationRead(item.id);
+    },
+    [markNotificationRead],
   );
 
   const renderItem = useCallback(
@@ -118,20 +135,14 @@ export default function NotificationList() {
       return (
         <NotificationRow
           notification={item}
-          onPress={() => {
-            if (!item.read) markNotificationRead(item.id);
-          }}
-          onAccept={
-            isActionable && userId && !responded ? () => handleAccept(item) : undefined
-          }
-          onDecline={
-            isActionable && !responded ? () => handleDecline(item) : undefined
-          }
+          onPress={handlePress}
+          onAccept={isActionable && userId && !responded ? handleAccept : undefined}
+          onDecline={isActionable && !responded ? handleDecline : undefined}
           responded={responded}
         />
       );
     },
-    [userId, markNotificationRead, handleAccept, handleDecline],
+    [userId, handlePress, handleAccept, handleDecline],
   );
 
   return (
@@ -158,7 +169,6 @@ export default function NotificationList() {
             data={notifications}
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
-            estimatedItemSize={sw(80)}
             showsVerticalScrollIndicator={false}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}
@@ -211,3 +221,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(20),
   },
 });
+
+export default React.memo(NotificationList);

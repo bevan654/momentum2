@@ -7,13 +7,13 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Swipeable } from 'react-native-gesture-handler';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
-import type { ActiveExercise } from '../../stores/useActiveWorkoutStore';
+import type { ActiveExercise, ActiveSet } from '../../stores/useActiveWorkoutStore';
 import { toSlug, SLUG_LABELS } from '../../utils/muscleVolume';
 import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
 import { suggestSets } from '../../utils/exerciseProgress';
@@ -23,25 +23,8 @@ import ExerciseNotes, { noteCount } from './ExerciseNotes';
 import ExerciseProgressChart from './ExerciseProgressChart';
 import ActionSheet, { type ActionSheetItem } from './ActionSheet';
 import { GhostSetsCard } from './GhostMode';
-
-/* ─── Ghost set comparison ─────────────────────────────── */
-
-function compareGhostSet(
-  userKg: number, userReps: number,
-  ghostKg: number, ghostReps: number,
-): 'win' | 'loss' | 'tie' {
-  if (userKg < ghostKg) return 'loss';
-  if (userKg === ghostKg) {
-    if (userReps > ghostReps) return 'win';
-    if (userReps < ghostReps) return 'loss';
-    return 'tie';
-  }
-  const userVol = userKg * userReps;
-  const ghostVol = ghostKg * ghostReps;
-  if (userVol > ghostVol) return 'win';
-  if (userVol < ghostVol) return 'loss';
-  return 'tie';
-}
+import { titleCase } from '../../utils/titleCase';
+import { compareGhostSet } from '../../utils/ghostCompare';
 
 /* ─── Body-part label helpers ─────────────────────────── */
 
@@ -60,7 +43,6 @@ interface Props {
   exercise: ActiveExercise;
   exerciseIndex: number;
   isLast: boolean;
-  totalExercises: number;
   isCurrent?: boolean;
   /** Ghost mode: show the friend's sets under this card (current exercise only). */
   showGhostSets?: boolean;
@@ -70,7 +52,7 @@ interface Props {
   onTitlePress?: (exerciseName: string) => void;
 }
 
-function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurrent, showGhostSets, onReplace, onExerciseFocus, onInputFocus, onTitlePress }: Props) {
+function ExerciseCard({ exercise, exerciseIndex, isLast, isCurrent, showGhostSets, onReplace, onExerciseFocus, onInputFocus, onTitlePress }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const addSet = useActiveWorkoutStore((s) => s.addSet);
@@ -83,6 +65,28 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
   const removeSet = useActiveWorkoutStore((s) => s.removeSet);
   const updateSet = useActiveWorkoutStore((s) => s.updateSet);
   const toggleSetComplete = useActiveWorkoutStore((s) => s.toggleSetComplete);
+
+  // Same functions for every set row (each gets its index back), so typing in one set
+  // doesn't re-render the other rows of this exercise.
+  const handleSetUpdate = useCallback((setIdx: number, field: 'kg' | 'reps', value: string) => {
+    onExerciseFocus?.(exerciseIndex);
+    updateSet(exerciseIndex, setIdx, field, value);
+  }, [exerciseIndex, onExerciseFocus, updateSet]);
+  const handleSetToggle = useCallback((setIdx: number) => {
+    onExerciseFocus?.(exerciseIndex);
+    toggleSetComplete(exerciseIndex, setIdx);
+  }, [exerciseIndex, onExerciseFocus, toggleSetComplete]);
+  // Delete the swiped set wherever it is now (an earlier quick delete can have moved it); skip if it's gone
+  const handleSetDelete = useCallback((setIdx: number, target: ActiveSet) => {
+    const sets = useActiveWorkoutStore.getState().exercises[exerciseIndex]?.sets;
+    if (!sets) return;
+    const i = sets[setIdx] === target ? setIdx : sets.indexOf(target);
+    if (i >= 0) removeSet(exerciseIndex, i);
+  }, [exerciseIndex, removeSet]);
+  const handleSetInputFocus = useCallback((y: number) => {
+    onExerciseFocus?.(exerciseIndex);
+    onInputFocus?.(y);
+  }, [exerciseIndex, onExerciseFocus, onInputFocus]);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
   const isGhost = !!useActiveWorkoutStore((s) => s.ghostUserName);
   // Index of this card's set that started the current rest (-1 = none). A
@@ -120,9 +124,9 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
     [exercise.sets, exercise.prevSets, exercise.exercise_type],
   );
 
-  const swipeableRef = React.useRef<Swipeable>(null);
+  const swipeableRef = React.useRef<SwipeableMethods>(null);
 
-  const displayName = exercise.name.replace(/\b\w/g, (c) => c.toUpperCase());
+  const displayName = titleCase(exercise.name);
   const menuActions = useMemo<ActionSheetItem[]>(() => {
     const actions: ActionSheetItem[] = [
       { key: 'up', label: 'Move up', icon: 'arrow-up', onPress: () => moveExercise(exerciseIndex, 'up'), disabled: exerciseIndex === 0 },
@@ -144,7 +148,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
       }}
       activeOpacity={0.7}
     >
-      <Ionicons name="trash" size={ms(22)} color="#fff" />
+      <Ionicons name="trash" size={ms(22)} color={colors.textOnColor} />
       <Text style={styles.deleteText}>Delete</Text>
     </TouchableOpacity>
   ), [removeExercise, exerciseIndex, styles]);
@@ -154,7 +158,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
       style={[styles.swipeContainer, isCurrent && styles.currentBorder]}
       onPress={() => onExerciseFocus?.(exerciseIndex)}
     >
-    <Swipeable
+    <ReanimatedSwipeable
       ref={swipeableRef}
       renderRightActions={isGhost ? undefined : renderRightActions}
       enabled={!isGhost}
@@ -279,10 +283,10 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
                   exerciseType={exercise.exercise_type}
                   suggestedKg={ghostPrev ? String(ghostPrev.kg) : (suggestedSets[setIdx]?.kg ? String(suggestedSets[setIdx]!.kg) : undefined)}
                   suggestedReps={ghostPrev ? String(ghostPrev.reps) : (suggestedSets[setIdx]?.reps ? String(suggestedSets[setIdx]!.reps) : undefined)}
-                  onUpdate={(field, value) => { onExerciseFocus?.(exerciseIndex); updateSet(exerciseIndex, setIdx, field, value); }}
-                  onToggle={() => { onExerciseFocus?.(exerciseIndex); toggleSetComplete(exerciseIndex, setIdx); }}
-                  onDelete={exercise.sets.length > 1 && !isGhost ? () => removeSet(exerciseIndex, setIdx) : null}
-                  onInputFocus={(y) => { onExerciseFocus?.(exerciseIndex); onInputFocus?.(y); }}
+                  onUpdate={handleSetUpdate}
+                  onToggle={handleSetToggle}
+                  onDelete={exercise.sets.length > 1 && !isGhost ? handleSetDelete : null}
+                  onInputFocus={handleSetInputFocus}
                   isGhost={isGhost}
                   ghostResult={ghostResult}
                   isDropSet={isDropSetRow}
@@ -359,7 +363,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, totalExercises, isCurre
               </View>
             )}
       </View>
-    </Swipeable>
+    </ReanimatedSwipeable>
 
       <ActionSheet
         visible={menuOpen}
@@ -397,7 +401,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: sw(4),
   },
   deleteText: {
-    color: '#fff',
+    color: colors.textOnColor,
     fontSize: ms(12),
     fontFamily: Fonts.semiBold,
   },

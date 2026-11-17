@@ -15,11 +15,7 @@ import Sheet from '../ui/Sheet';
 
 /* ─── Header ────────────────────────────────────────────── */
 
-interface HeaderProps {
-  activeTab?: string;
-}
-
-export default function Header({ activeTab }: HeaderProps) {
+export default function Header() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const username = useAuthStore((s) => s.profile?.username ?? null);
@@ -27,8 +23,6 @@ export default function Header({ activeTab }: HeaderProps) {
   const currentStreak = useStreakStore((s) => s.currentStreak);
   const unreadCount = useFriendsStore((s) => s.unreadCount);
   const styles = useMemo(() => createStyles(colors), [colors]);
-
-  const showStreak = true;
 
   const greeting = useMemo(() => {
     const h = new Date().getHours();
@@ -57,12 +51,10 @@ export default function Header({ activeTab }: HeaderProps) {
         <View style={styles.spacer} />
 
         {/* Streak + Avatar — right */}
-        {showStreak && (
-          <View style={styles.streakBadge}>
-            <Ionicons name="flame" size={ms(13)} color={colors.streak} />
-            <Text style={styles.streakText}>{currentStreak}</Text>
-          </View>
-        )}
+        <View style={styles.streakBadge}>
+          <Ionicons name="flame" size={ms(13)} color={colors.streak} />
+          <Text style={styles.streakText}>{currentStreak}</Text>
+        </View>
         <TouchableOpacity onPress={openNotif} activeOpacity={0.7} style={styles.bellWrap}>
           <Ionicons name="notifications-outline" size={ms(18)} color={colors.textPrimary} />
           {unreadCount > 0 && (

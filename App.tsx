@@ -88,12 +88,28 @@ if (Platform.OS === 'android') {
 }
 
 function App() {
-  const { session, profile, initialized, initialize, showWelcome } = useAuthStore();
+  // Narrow selectors: App sits above the whole tree, so it should only re-render when what it shows changes
+  // (not on every profile edit or loading flag in the auth store).
+  const hasSession = useAuthStore((s) => !!s.session);
+  const initialized = useAuthStore((s) => s.initialized);
+  const initialize = useAuthStore((s) => s.initialize);
+  const showWelcome = useAuthStore((s) => s.showWelcome);
+  const profileState = useAuthStore((s) => {
+    const p = s.profile;
+    if (!p) return 'none';
+    return p.username != null && p.height != null && p.age != null && p.gender != null && p.starting_weight != null
+      ? 'complete'
+      : 'incomplete';
+  });
   const mode = useThemeStore((s) => s.mode);
   const accentColor = useThemeStore((s) => s.accent);
   const hasUnseenChangelog = useChangelogStore((s) => s.hasUnseen);
   const themeReady = useThemeStore((s) => s.initialized);
-  const [betaDismissed, setBetaDismissed] = useState(false);
+  // Which account has dismissed (now or on an earlier launch) the beta welcome, so a different
+  // account signing in gets its own welcome before the changelog / finish-feedback prompts
+  const userId = useAuthStore((s) => s.user?.id ?? null);
+  const [betaDismissedFor, setBetaDismissedFor] = useState<string | null>(null);
+  const betaDismissed = userId != null && betaDismissedFor === userId;
 
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -162,22 +178,18 @@ function App() {
         >
           <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
           <PortalHost>
-          {session
+          {hasSession
             ? showWelcome
               ? <WelcomeSplashScreen />
-              : !profile
+              : profileState === 'none'
                 ? <View style={[styles.loading, { backgroundColor: colors.background }]}>
                     <ActivityIndicator size="large" color={colors.accent} />
                   </View>
-                : (profile.username != null
-                    && profile.height != null
-                    && profile.age != null
-                    && profile.gender != null
-                    && profile.starting_weight != null
+                : (profileState === 'complete'
                   ? <>
                       <TabNavigator />
                       <WorkoutFinishFeedbackPrompt enabled={betaDismissed && !hasUnseenChangelog} />
-                      <BetaWelcomeModal onDismiss={() => setBetaDismissed(true)} />
+                      <BetaWelcomeModal onDismiss={() => setBetaDismissedFor(userId)} />
                       {betaDismissed && <ChangelogModal />}
                     </>
                   : <OnboardingScreen />)

@@ -1,5 +1,7 @@
 # Header Audit
 
+> **Done (historical audit).** The branded header shipped as `src/components/home/Header.tsx`, mounted by `src/navigation/TabNavigator.tsx`.
+
 ## 1. Is the React Navigation native header enabled on HomeScreen?
 No. HomeScreen is rendered via `createMaterialTopTabNavigator()` in `TabNavigator.tsx` which does not use native headers. There is a shared `<Header />` component rendered above the Tab.Navigator (line 219) — it's a minimal safe-area spacer (`paddingTop: insets.top`, background color only). No native header to disable.
 

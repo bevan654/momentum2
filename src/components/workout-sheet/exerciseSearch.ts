@@ -118,38 +118,74 @@ export interface ExerciseData {
   secondary_muscles: string[];
 }
 
-function scoreExercise(ex: ExerciseData, query: string): number {
+/**
+ * A query split into words, each with every token it can match (itself, its shorthand expansions and
+ * longer shorthand keys it starts). Built once per query and reused for every exercise: the picker
+ * scores the whole catalog (10K+ rows) on each search.
+ */
+interface PreparedQuery {
+  words: string[];
+  tokens: string[][];
+  /** wordScore per (query token, target word) pair. Catalog names reuse a small vocabulary, so most pairs repeat. */
+  wordScores: Map<string, number>;
+}
+let _prepared: { query: string; value: PreparedQuery } | null = null;
+function prepareQuery(query: string): PreparedQuery {
+  if (_prepared && _prepared.query === query) return _prepared.value;
+  const words = query.split(/[\s\-]+/).filter(Boolean);
+  const tokens = words.map((qw) => expandToken(qw).flatMap((eq) => eq.split(/[\s\-]+/)));
+  _prepared = { query, value: { words, tokens, wordScores: new Map() } };
+  return _prepared.value;
+}
+
+/** An exercise's words to match against, split once per catalog entry instead of on every search. */
+interface Targets {
+  name: string;
+  lower: string;
+  nameWordSet: Set<string>;
+  allTargetWords: string[];
+}
+const _targets = new WeakMap<ExerciseData, Targets>();
+function targetsOf(ex: ExerciseData): Targets {
+  const cached = _targets.get(ex);
+  if (cached && cached.name === ex.name) return cached;
   const lower = ex.name.toLowerCase();
-
-  if (lower === query) return 200;
-  if (lower.startsWith(query)) return 150;
-  if (lower.includes(query)) return 120;
-
-  const queryWords = query.split(/[\s\-]+/).filter(Boolean);
   const nameWords = lower.split(/[\s\-]+/);
   const muscleWords = [
     ...(ex.primary_muscles || []).flatMap((m) => m.toLowerCase().split(/[\s\-]+/)),
     ...(ex.secondary_muscles || []).flatMap((m) => m.toLowerCase().split(/[\s\-]+/)),
   ];
   const catWords = ex.category ? ex.category.toLowerCase().split(/[\s\-]+/) : [];
-  const allTargetWords = [...nameWords, ...muscleWords, ...catWords];
+  const t = { name: ex.name, lower, nameWordSet: new Set(nameWords), allTargetWords: [...nameWords, ...muscleWords, ...catWords] };
+  _targets.set(ex, t);
+  return t;
+}
+
+function scoreExercise(ex: ExerciseData, query: string): number {
+  const { lower, nameWordSet, allTargetWords } = targetsOf(ex);
+
+  if (lower === query) return 200;
+  if (lower.startsWith(query)) return 150;
+  if (lower.includes(query)) return 120;
+
+  const { words: queryWords, tokens: queryTokens, wordScores } = prepareQuery(query);
 
   let totalScore = 0;
   let matchedQueryWords = 0;
 
-  for (const qw of queryWords) {
-    const expanded = expandToken(qw);
+  for (const eqTokens of queryTokens) {
     let bestWordScore = 0;
 
-    for (const eq of expanded) {
-      const eqTokens = eq.split(/[\s\-]+/);
-      for (const et of eqTokens) {
-        for (const nw of allTargetWords) {
-          const s = wordScore(et, nw);
-          const isName = nameWords.includes(nw);
-          const adjusted = isName ? s : Math.ceil(s * 0.7);
-          if (adjusted > bestWordScore) bestWordScore = adjusted;
+    for (const et of eqTokens) {
+      for (const nw of allTargetWords) {
+        const key = et.length + ':' + et + nw; // length prefix keeps (a, bc) and (ab, c) apart
+        let s = wordScores.get(key);
+        if (s === undefined) {
+          s = wordScore(et, nw);
+          wordScores.set(key, s);
         }
+        const adjusted = nameWordSet.has(nw) ? s : Math.ceil(s * 0.7);
+        if (adjusted > bestWordScore) bestWordScore = adjusted;
       }
     }
 

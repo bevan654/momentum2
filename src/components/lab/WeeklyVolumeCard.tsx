@@ -6,17 +6,18 @@ import {
   RoundedRect,
   Path,
   Line as SkiaLine,
-  Skia,
   vec,
   LinearGradient,
   DashPathEffect,
 } from '@shopify/react-native-skia';
+import { buildSmoothPath } from '../../utils/smoothPath';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import type { WorkoutWithDetails } from '../../stores/useWorkoutStore';
 import { useLabTimeRangeStore, nearestRangeOption } from '../../stores/useLabTimeRangeStore';
+import { DAY_SHORT, MONTH_SHORT } from '../../constants/dateNames';
 
 /* ─── Config ─────────────────────────────────────────────── */
 
@@ -34,9 +35,6 @@ const PERIOD_DAYS: { label: Period; days: number }[] = [
   { label: '1M', days: 30 },
   { label: '3M', days: 90 },
 ];
-
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /* ─── Types ──────────────────────────────────────────────── */
 
@@ -77,12 +75,25 @@ function endOfDay(d: Date): Date {
   return r;
 }
 
+/** Workouts with volume, as (time, volume), parsed once per history array (the chart scans them per slot). */
+const _timed = new WeakMap<WorkoutWithDetails[], { t: number; vol: number }[]>();
+function timedVolumes(workouts: WorkoutWithDetails[]): { t: number; vol: number }[] {
+  let list = _timed.get(workouts);
+  if (!list) {
+    list = [];
+    for (const w of workouts) {
+      if (w.totalVolume <= 0) continue;
+      list.push({ t: new Date(w.created_at).getTime(), vol: w.totalVolume });
+    }
+    _timed.set(workouts, list);
+  }
+  return list;
+}
+
 function sumVolume(workouts: WorkoutWithDetails[], from: number, to: number): number {
   let sum = 0;
-  for (const w of workouts) {
-    if (w.totalVolume <= 0) continue;
-    const t = new Date(w.created_at).getTime();
-    if (t >= from && t <= to) sum += w.totalVolume;
+  for (const { t, vol } of timedVolumes(workouts)) {
+    if (t >= from && t <= to) sum += vol;
   }
   return sum;
 }
@@ -103,11 +114,9 @@ function computeRollingAvg(
     const windowStart = slot.endTime - windowMs;
     let sum = 0;
     let count = 0;
-    for (const w of workouts) {
-      if (w.totalVolume <= 0) continue;
-      const t = new Date(w.created_at).getTime();
+    for (const { t, vol } of timedVolumes(workouts)) {
       if (t >= windowStart && t <= slot.endTime) {
-        sum += w.totalVolume;
+        sum += vol;
         count++;
       }
     }
@@ -127,39 +136,6 @@ function computePrevRollingAvg(
   return computeRollingAvg(workouts, shiftedSlots, days);
 }
 
-/** Build a smooth cubic-bezier path through non-zero points */
-function buildSmoothPath(
-  points: { x: number; y: number }[],
-): ReturnType<typeof Skia.Path.Make> | null {
-  const valid = points.filter((p) => p.y > 0);
-  if (valid.length < 2) return null;
-
-  const path = Skia.Path.Make();
-  path.moveTo(valid[0].x, valid[0].y);
-
-  if (valid.length === 2) {
-    path.lineTo(valid[1].x, valid[1].y);
-    return path;
-  }
-
-  // Catmull-Rom → cubic bezier
-  for (let i = 1; i < valid.length; i++) {
-    const p0 = valid[Math.max(0, i - 2)];
-    const p1 = valid[i - 1];
-    const p2 = valid[i];
-    const p3 = valid[Math.min(valid.length - 1, i + 1)];
-
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-
-    path.cubicTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
-  }
-
-  return path;
-}
-
 /* ─── Slot builders ──────────────────────────────────────── */
 
 function buildSlots(workouts: WorkoutWithDetails[], period: Period, offset: number): Slot[] {
@@ -175,7 +151,7 @@ function buildSlots(workouts: WorkoutWithDetails[], period: Period, offset: numb
       const bucketStart = startOfDay(new Date(bucketEnd.getFullYear(), bucketEnd.getMonth(), bucketEnd.getDate() - 6));
       const vol = sumVolume(workouts, bucketStart.getTime(), bucketEnd.getTime());
       slots.push({
-        label: `${bucketStart.getDate()} ${MONTH_NAMES[bucketStart.getMonth()]}`,
+        label: `${bucketStart.getDate()} ${MONTH_SHORT[bucketStart.getMonth()]}`,
         volume: vol,
         hasData: vol > 0,
         endTime: bucketEnd.getTime(),
@@ -191,7 +167,7 @@ function buildSlots(workouts: WorkoutWithDetails[], period: Period, offset: numb
     const end = endOfDay(date);
     const vol = sumVolume(workouts, start.getTime(), end.getTime());
     slots.push({
-      label: period === '7D' ? DAY_NAMES[start.getDay()] : String(start.getDate()),
+      label: period === '7D' ? DAY_SHORT[start.getDay()] : String(start.getDate()),
       volume: vol,
       hasData: vol > 0,
       endTime: end.getTime(),
@@ -271,7 +247,7 @@ export default function WeeklyVolumeCard() {
   const rollingPath = useMemo(() => {
     const points = rollingAvg.map((v, i) => ({
       x: Y_LABEL_W + i * slotW + slotW / 2,
-      y: v > 0 ? CHART_H * (1 - v / yMax) : 0,
+      y: v > 0 ? CHART_H * (1 - v / yMax) : NaN, // no volume: left out of the line
     }));
     return buildSmoothPath(points);
   }, [rollingAvg, yMax, slotW]);
@@ -280,7 +256,7 @@ export default function WeeklyVolumeCard() {
   const prevPath = useMemo(() => {
     const points = prevRollingAvg.map((v, i) => ({
       x: Y_LABEL_W + i * slotW + slotW / 2,
-      y: v > 0 ? CHART_H * (1 - v / yMax) : 0,
+      y: v > 0 ? CHART_H * (1 - v / yMax) : NaN, // no volume: left out of the line
     }));
     return buildSmoothPath(points);
   }, [prevRollingAvg, yMax, slotW]);
@@ -307,6 +283,8 @@ export default function WeeklyVolumeCard() {
   }, [slots]);
 
   const delta = useMemo(() => {
+    // No real workouts in this period: the chart shows sample bars, which mustn't feed a % change
+    if (!hasData) return null;
     const currentTotal = slots.reduce((sum, s) => sum + s.volume, 0);
     const days = periodDays(period);
     const now = new Date();
@@ -316,7 +294,7 @@ export default function WeeklyVolumeCard() {
     const prevTotal = sumVolume(workouts, prevStart, prevEnd);
     if (prevTotal <= 0) return null;
     return ((currentTotal - prevTotal) / prevTotal) * 100;
-  }, [slots, workouts, period, offset]);
+  }, [hasData, slots, workouts, period, offset]);
 
   // Date range label
   const dateRange = useMemo(() => {
@@ -326,7 +304,7 @@ export default function WeeklyVolumeCard() {
     const shiftDays = offset * days;
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - shiftDays);
     const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - days + 1);
-    const fmt = (d: Date) => `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
+    const fmt = (d: Date) => `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
     return `${fmt(start)} – ${fmt(end)}`;
   }, [slots, period, offset]);
 

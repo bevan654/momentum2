@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { toLocalDateString } from '../utils/localDate';
+import { computeEma, type EmaPoint } from '../utils/ema';
 
 export type BodyFatMethod = 'tape' | 'calipers' | 'bia' | 'bod_pod' | 'dexa';
 
@@ -9,11 +10,6 @@ export interface BodyFatEntry {
   date: string;
   value: number;
   method: BodyFatMethod;
-}
-
-interface EmaPoint {
-  date: string;
-  value: number;
 }
 
 interface BodyFatState {
@@ -25,23 +21,6 @@ interface BodyFatState {
   fetchBodyFatData: (userId: string, method: BodyFatMethod, days?: number) => Promise<void>;
   logBodyFat: (userId: string, value: number, method: BodyFatMethod, days?: number) => Promise<{ error: string | null }>;
   deleteBodyFat: (userId: string, entryId: string, method: BodyFatMethod, days?: number) => Promise<void>;
-}
-
-function computeEma(entries: BodyFatEntry[], alpha = 0.2): EmaPoint[] {
-  if (entries.length === 0) return [];
-
-  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
-  const emaPoints: EmaPoint[] = [];
-
-  let ema = sorted[0].value;
-  emaPoints.push({ date: sorted[0].date, value: Math.round(ema * 10) / 10 });
-
-  for (let i = 1; i < sorted.length; i++) {
-    ema = alpha * sorted[i].value + (1 - alpha) * ema;
-    emaPoints.push({ date: sorted[i].date, value: Math.round(ema * 10) / 10 });
-  }
-
-  return emaPoints;
 }
 
 export const useBodyFatStore = create<BodyFatState>((set, get) => ({
@@ -74,7 +53,7 @@ export const useBodyFatStore = create<BodyFatState>((set, get) => ({
           method: e.method as BodyFatMethod,
         }));
 
-        const emaPoints = computeEma(entries);
+        const emaPoints = computeEma(entries, (e) => e.value);
         const current = entries[entries.length - 1].value;
         const firstValue = entries[0].value;
         const change = Math.round((current - firstValue) * 10) / 10;

@@ -1,17 +1,5 @@
-import React, { useState, useCallback, useMemo, useEffect, memo } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  FlatList,
-  StyleSheet,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-} from 'react-native';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, FlatList, StyleSheet, Keyboard, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -19,182 +7,18 @@ import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
-import { aliasesByCanonical } from '../utils/exerciseCatalog';
 import { getDayEditInput, saveDayEdit, type ProgramDayExercise } from '../stores/useProgramStore';
 import { useRoutineStore, type Routine } from '../stores/useRoutineStore';
 import { useAuthStore } from '../stores/useAuthStore';
-
 import ExerciseCard from '../components/workouts/ExerciseRow';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
-
-/* ─── Types ──────────────────────────────────────────── */
-
-interface LocalSet {
-  goal_reps: number;
-  goal_weight: number;
-}
-
-interface LocalExercise {
-  name: string;
-  sets: LocalSet[];
-  rest_seconds: number;
-  category: string | null;
-  exercise_type: string;
-  prevSets: { kg: number; reps: number }[];
-}
-
-interface CatalogEntry {
-  name: string;
-  category: string;
-  exercise_type: string;
-  primary_muscles: string[];
-  /** Lowercased other names (old catalog names) that also find this exercise. */
-  aliases: string[];
-}
-
-const MUSCLE_FILTERS = [
-  'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms',
-  'quadriceps', 'hamstrings', 'glutes', 'calves', 'abs', 'traps',
-];
-
-/* ─── Helpers ────────────────────────────────────────── */
-
-function titleCase(str: string): string {
-  return str.replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
+import { type CatalogEntry, MUSCLE_FILTERS, getSortedCatalog } from '../components/workouts/program-day-editor/dayEditorData';
+import { InlineExerciseRow } from '../components/workouts/program-day-editor/InlineExerciseRow';
+import { RoutinePickerRow } from '../components/workouts/program-day-editor/RoutinePickerRow';
+import { makeUuid } from '../utils/uuid';
+import { titleCase } from '../utils/titleCase';
 import { getMuscleColor } from '../constants/muscles';
-
-function muscleColor(muscle: string): string {
-  return getMuscleColor(muscle);
-}
-
-/* ─── Memoised exercise row for inline list ──────────── */
-
-const InlineExerciseRow = memo(function InlineExerciseRow({
-  item,
-  onSelect,
-  colors,
-}: {
-  item: CatalogEntry;
-  onSelect: (name: string, exerciseType: string, category: string) => void;
-  colors: ThemeColors;
-}) {
-  return (
-    <TouchableOpacity
-      style={inlineRowStyles.row}
-      onPress={() => onSelect(item.name, item.exercise_type, item.category)}
-      activeOpacity={0.6}
-    >
-      <View style={[inlineRowStyles.dot, { backgroundColor: muscleColor(item.primary_muscles[0] || '') }]} />
-      <View style={inlineRowStyles.info}>
-        <Text style={[inlineRowStyles.name, { color: colors.textPrimary }]} numberOfLines={1}>
-          {titleCase(item.name)}
-        </Text>
-        <Text style={[inlineRowStyles.cat, { color: colors.textTertiary }]}>
-          {item.primary_muscles.map(titleCase).join(', ') || titleCase(item.category || '')}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-});
-
-const inlineRowStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: sw(10),
-    paddingHorizontal: sw(4),
-    gap: sw(10),
-  },
-  dot: {
-    width: sw(8),
-    height: sw(8),
-    borderRadius: 0,
-  },
-  info: {
-    flex: 1,
-    gap: sw(1),
-  },
-  name: {
-    fontSize: ms(14),
-    fontFamily: Fonts.medium,
-    lineHeight: ms(19),
-  },
-  cat: {
-    fontSize: ms(11),
-    fontFamily: Fonts.medium,
-    lineHeight: ms(14),
-  },
-});
-
-/* ─── Routine picker row ──────────────────────────────── */
-
-const RoutinePickerRow = memo(function RoutinePickerRow({
-  routine,
-  onSelect,
-  colors,
-}: {
-  routine: Routine;
-  onSelect: (routine: Routine) => void;
-  colors: ThemeColors;
-}) {
-  const exNames = routine.exercises.slice(0, 4).map((e) => titleCase(e.name)).join(', ');
-  const extra = routine.exercises.length > 4 ? ` +${routine.exercises.length - 4}` : '';
-
-  return (
-    <TouchableOpacity
-      style={{
-        backgroundColor: colors.card,
-        padding: sw(12),
-        marginBottom: sw(4),
-        borderRadius: 0,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: sw(10),
-      }}
-      onPress={() => onSelect(routine)}
-      activeOpacity={0.6}
-    >
-      <View style={{ flex: 1, gap: sw(2) }}>
-        <Text style={{ color: colors.textPrimary, fontSize: ms(14), fontFamily: Fonts.semiBold }} numberOfLines={1}>
-          {routine.name}
-        </Text>
-        <Text style={{ color: colors.textTertiary, fontSize: ms(11), fontFamily: Fonts.medium }} numberOfLines={1}>
-          {routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''} · {exNames}{extra}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={ms(16)} color={colors.textTertiary} />
-    </TouchableOpacity>
-  );
-});
-
-/* ─── Module-level sorted catalog cache ──────────────── */
-
-let _sortedCache: CatalogEntry[] | null = null;
-let _sortedRef: any = null;
-let _sortedAliasRef: any = null;
-
-function getSortedCatalog(
-  catalogMap: Record<string, any>,
-  aliasMap: Record<string, any>,
-): CatalogEntry[] {
-  if (catalogMap === _sortedRef && aliasMap === _sortedAliasRef && _sortedCache) return _sortedCache;
-  _sortedRef = catalogMap;
-  _sortedAliasRef = aliasMap;
-  const aliases = aliasesByCanonical(aliasMap);
-  _sortedCache = Object.entries(catalogMap)
-    .filter(([name, entry]) => !aliasMap[name] && !entry.is_hidden)
-    .map(([name, entry]: [string, any]) => ({
-      name,
-      category: entry.category || '',
-      exercise_type: entry.exercise_type || 'weighted',
-      primary_muscles: Array.isArray(entry.primary_muscles) ? entry.primary_muscles.map((m: string) => m.toLowerCase()) : [],
-      aliases: (aliases[name] || []).map((a) => a.toLowerCase()),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  return _sortedCache;
-}
+import { useExerciseListEditor, newLocalExercise, toPlanExercises, type LocalExercise } from '../components/workouts/useExerciseListEditor';
 
 /* ─── Main screen ────────────────────────────────────── */
 
@@ -218,13 +42,18 @@ export default function ProgramDayEditorScreen() {
   const dayName = input?.dayName ?? 'Day';
 
   const [label, setLabel] = useState(() => input?.label ?? '');
-  const [exercises, setExercises] = useState<LocalExercise[]>(() => {
+  const {
+    exercises, setExercises,
+    handleAddSet, handleRemoveSet, handleSetRepsChange, handleSetWeightChange,
+    handleRestChange, handleRemove, handleMoveUp, handleMoveDown,
+  } = useExerciseListEditor((): LocalExercise[] => {
     if (!input?.exercises.length) return [];
     return input.exercises.map((ex) => {
       const reps = ex.set_reps.length > 0 ? ex.set_reps : Array(ex.default_sets).fill(ex.default_reps);
       const weights = ex.set_weights.length > 0 ? ex.set_weights : Array(ex.default_sets).fill(0);
       const entry = catalogMap[ex.name];
       return {
+        uid: makeUuid(),
         name: ex.name,
         sets: reps.map((r: number, i: number) => ({
           goal_reps: r,
@@ -260,89 +89,10 @@ export default function ProgramDayEditorScreen() {
   /* ─── Exercise handlers ───────────────────────────── */
 
   const handleAddExercise = useCallback((name: string, exerciseType: string, category: string | null) => {
-    const prev = useWorkoutStore.getState().prevMap;
-    const prevSets = prev[name] || [];
-    const defaultSets: LocalSet[] = Array.from({ length: 3 }, (_, i) => ({
-      goal_reps: 10,
-      goal_weight: prevSets[i]?.kg ?? 0,
-    }));
-
     setSearch('');
     setSelectedCategory(null);
-    setExercises((prev) => [...prev, { name, sets: defaultSets, rest_seconds: 90, category, exercise_type: exerciseType, prevSets }]);
+    setExercises((prev) => [...prev, newLocalExercise(name, exerciseType, category)]);
     setShowCatalog(false);
-  }, []);
-
-  const handleAddSet = useCallback((exerciseIndex: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      const last = ex.sets[ex.sets.length - 1];
-      ex.sets = [...ex.sets, { goal_reps: last?.goal_reps ?? 10, goal_weight: last?.goal_weight ?? 0 }];
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleRemoveSet = useCallback((exerciseIndex: number, setIndex: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      if (ex.sets.length <= 1) return prev;
-      ex.sets = ex.sets.filter((_, i) => i !== setIndex);
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleSetRepsChange = useCallback((exerciseIndex: number, setIndex: number, reps: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      ex.sets = ex.sets.map((s, i) => (i === setIndex ? { ...s, goal_reps: reps } : s));
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleSetWeightChange = useCallback((exerciseIndex: number, setIndex: number, weight: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const ex = { ...next[exerciseIndex] };
-      ex.sets = ex.sets.map((s, i) => (i === setIndex ? { ...s, goal_weight: weight } : s));
-      next[exerciseIndex] = ex;
-      return next;
-    });
-  }, []);
-
-  const handleRestChange = useCallback((exerciseIndex: number, seconds: number) => {
-    setExercises((prev) => {
-      const next = [...prev];
-      next[exerciseIndex] = { ...next[exerciseIndex], rest_seconds: seconds };
-      return next;
-    });
-  }, []);
-
-  const handleRemove = useCallback((index: number) => {
-    setExercises((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const handleMoveUp = useCallback((index: number) => {
-    if (index === 0) return;
-    setExercises((prev) => {
-      const next = [...prev];
-      [next[index - 1], next[index]] = [next[index], next[index - 1]];
-      return next;
-    });
-  }, []);
-
-  const handleMoveDown = useCallback((index: number) => {
-    setExercises((prev) => {
-      if (index >= prev.length - 1) return prev;
-      const next = [...prev];
-      [next[index], next[index + 1]] = [next[index + 1], next[index]];
-      return next;
-    });
   }, []);
 
   const handleImportRoutine = useCallback((routine: Routine) => {
@@ -353,6 +103,7 @@ export default function ProgramDayEditorScreen() {
       const entry = catalogMap[re.name];
       const prevSets = prev[re.name] || [];
       return {
+        uid: makeUuid(),
         name: re.name,
         sets: reps.map((r: number, i: number) => ({
           goal_reps: r,
@@ -370,16 +121,7 @@ export default function ProgramDayEditorScreen() {
   }, [catalogMap]);
 
   const handleSave = useCallback(() => {
-    const programExercises: ProgramDayExercise[] = exercises.map((e, i) => ({
-      name: e.name,
-      exercise_order: i + 1,
-      default_sets: e.sets.length,
-      default_reps: e.sets[0]?.goal_reps ?? 10,
-      default_rest_seconds: e.rest_seconds,
-      set_reps: e.sets.map((s) => s.goal_reps),
-      set_weights: e.sets.map((s) => s.goal_weight),
-      exercise_type: e.exercise_type || 'weighted',
-    }));
+    const programExercises: ProgramDayExercise[] = toPlanExercises(exercises);
     saveDayEdit(label.trim() || 'Workout', programExercises);
     navigation.goBack();
   }, [exercises, label, navigation]);
@@ -472,7 +214,7 @@ export default function ProgramDayEditorScreen() {
               {MUSCLE_FILTERS.map((muscle) => {
                 const active = selectedCategory === muscle;
                 const displayName = titleCase(muscle);
-                const mColor = muscleColor(muscle);
+                const mColor = getMuscleColor(muscle);
                 return (
                   <TouchableOpacity
                     key={muscle}
@@ -528,21 +270,22 @@ export default function ProgramDayEditorScreen() {
             )}
 
             {exercises.map((ex, i) => (
-              <View key={`${ex.name}-${i}`} style={styles.exerciseCardWrapper}>
+              <View key={ex.uid} style={styles.exerciseCardWrapper}>
                 <ExerciseCard
                   name={ex.name}
                   sets={ex.sets}
                   restSeconds={ex.rest_seconds}
                   category={ex.category}
                   prevSets={ex.prevSets}
-                  onAddSet={() => handleAddSet(i)}
-                  onRemoveSet={(setIndex) => handleRemoveSet(i, setIndex)}
-                  onSetRepsChange={(setIndex, reps) => handleSetRepsChange(i, setIndex, reps)}
-                  onSetWeightChange={(setIndex, weight) => handleSetWeightChange(i, setIndex, weight)}
-                  onRestChange={(seconds) => handleRestChange(i, seconds)}
-                  onRemove={() => handleRemove(i)}
-                  onMoveUp={() => handleMoveUp(i)}
-                  onMoveDown={() => handleMoveDown(i)}
+                  index={i}
+                  onAddSet={handleAddSet}
+                  onRemoveSet={handleRemoveSet}
+                  onSetRepsChange={handleSetRepsChange}
+                  onSetWeightChange={handleSetWeightChange}
+                  onRestChange={handleRestChange}
+                  onRemove={handleRemove}
+                  onMoveUp={handleMoveUp}
+                  onMoveDown={handleMoveDown}
                   isFirst={i === 0}
                   isLast={i === exercises.length - 1}
                 />

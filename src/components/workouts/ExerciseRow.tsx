@@ -8,11 +8,13 @@ import {
   } from 'react-native';
 import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
-import { Swipeable } from 'react-native-gesture-handler';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import ExerciseMuscleThumb from '../body/ExerciseMuscleThumb';
+import { formatRest } from '../../utils/formatDuration';
+import { titleCase } from '../../utils/titleCase';
 
 interface LocalSet {
   goal_reps: number;
@@ -25,14 +27,16 @@ interface ExerciseCardProps {
   restSeconds: number;
   category: string | null;
   prevSets: { kg: number; reps: number }[];
-  onAddSet: () => void;
-  onRemoveSet: (setIndex: number) => void;
-  onSetRepsChange: (setIndex: number, reps: number) => void;
-  onSetWeightChange: (setIndex: number, weight: number) => void;
-  onRestChange: (seconds: number) => void;
-  onRemove: () => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
+  /** This card's position. The callbacks get it back, so the parent can pass the same stable functions to every card. */
+  index: number;
+  onAddSet: (index: number) => void;
+  onRemoveSet: (index: number, setIndex: number) => void;
+  onSetRepsChange: (index: number, setIndex: number, reps: number) => void;
+  onSetWeightChange: (index: number, setIndex: number, weight: number) => void;
+  onRestChange: (index: number, seconds: number) => void;
+  onRemove: (index: number) => void;
+  onMoveUp?: (index: number) => void;
+  onMoveDown?: (index: number) => void;
   isFirst: boolean;
   isLast: boolean;
 }
@@ -60,7 +64,7 @@ function CellInput({
       style={style}
       value={editing ? localValue : value}
       onFocus={() => setLocalValue(value)}
-      onChangeText={setLocalValue}
+      onChangeText={(v) => setLocalValue(v.replace(',', '.'))}
       onBlur={() => {
         const n = parseValue(localValue ?? value);
         onCommit(n);
@@ -78,6 +82,7 @@ function ExerciseCard({
   restSeconds,
   category,
   prevSets,
+  index,
   onAddSet,
   onRemoveSet,
   onSetRepsChange,
@@ -102,35 +107,26 @@ function ExerciseCard({
     return min === max ? `${min}` : `${min}-${max}`;
   }, [sets]);
 
-  const formatRest = useCallback((s: number) => {
-    if (s >= 60) {
-      const m = Math.floor(s / 60);
-      const rem = s % 60;
-      return rem > 0 ? `${m}m${rem}s` : `${m}m`;
-    }
-    return `${s}s`;
-  }, []);
-
   const summary = `${sets.length} sets · ${repRange} reps`;
 
-  const swipeableRef = useRef<Swipeable>(null);
+  const swipeableRef = useRef<SwipeableMethods>(null);
 
   const renderRightActions = useCallback(() => (
     <TouchableOpacity
       style={styles.deleteAction}
       onPress={() => {
         swipeableRef.current?.close();
-        onRemove();
+        onRemove(index);
       }}
       activeOpacity={0.7}
     >
-      <Ionicons name="trash" size={ms(22)} color="#fff" />
+      <Ionicons name="trash" size={ms(22)} color={colors.textOnColor} />
       <Text style={styles.deleteText}>Delete</Text>
     </TouchableOpacity>
-  ), [onRemove, styles]);
+  ), [onRemove, index, styles]);
 
   return (
-    <Swipeable
+    <ReanimatedSwipeable
       ref={swipeableRef}
       renderRightActions={renderRightActions}
       overshootRight={false}
@@ -139,9 +135,34 @@ function ExerciseCard({
     <View style={styles.card}>
       {/* Header section */}
       <View style={styles.header}>
+        {/* Reorder: move this exercise up or down one place */}
+        {(onMoveUp || onMoveDown) && (
+          <View style={styles.reorderCol}>
+            <TouchableOpacity
+              onPress={onMoveUp ? () => onMoveUp(index) : undefined}
+              disabled={isFirst || !onMoveUp}
+              style={styles.reorderBtn}
+              hitSlop={{ top: 4, bottom: 2, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={`Move ${name} up`}
+            >
+              <Ionicons name="chevron-up" size={ms(18)} color={isFirst ? colors.cardBorder : colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onMoveDown ? () => onMoveDown(index) : undefined}
+              disabled={isLast || !onMoveDown}
+              style={styles.reorderBtn}
+              hitSlop={{ top: 2, bottom: 4, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={`Move ${name} down`}
+            >
+              <Ionicons name="chevron-down" size={ms(18)} color={isLast ? colors.cardBorder : colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.headerLeft}>
           <Text style={styles.name} numberOfLines={1}>
-            {name.replace(/\b\w/g, (c) => c.toUpperCase())}
+            {titleCase(name)}
           </Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summary}>{summary}</Text>
@@ -187,7 +208,7 @@ function ExerciseCard({
               <View style={[styles.colWeight, styles.inputContainer]}>
                 <CellInput
                   value={setItem.goal_weight > 0 ? String(setItem.goal_weight) : ''}
-                  onCommit={(n) => onSetWeightChange(setIndex, n)}
+                  onCommit={(n) => onSetWeightChange(index, setIndex, n)}
                   placeholder="—"
                   placeholderTextColor={colors.textTertiary}
                   keyboardType="decimal-pad"
@@ -199,7 +220,7 @@ function ExerciseCard({
               <View style={[styles.colReps, styles.inputContainer]}>
                 <CellInput
                   value={String(setItem.goal_reps)}
-                  onCommit={(n) => onSetRepsChange(setIndex, n)}
+                  onCommit={(n) => onSetRepsChange(index, setIndex, n)}
                   keyboardType="number-pad"
                   style={styles.cellInput}
                   maxLength={3}
@@ -208,7 +229,7 @@ function ExerciseCard({
               </View>
               <View style={styles.colAction}>
                 {sets.length > 1 && (
-                  <TouchableOpacity onPress={() => onRemoveSet(setIndex)} style={styles.removeSetBtn}>
+                  <TouchableOpacity onPress={() => onRemoveSet(index, setIndex)} style={styles.removeSetBtn}>
                     <Ionicons name="close" size={ms(14)} color={colors.accentRed + '80'} />
                   </TouchableOpacity>
                 )}
@@ -218,7 +239,7 @@ function ExerciseCard({
         })}
 
         {/* Add Set button */}
-        <TouchableOpacity onPress={onAddSet} style={styles.addSetBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => onAddSet(index)} style={styles.addSetBtn} activeOpacity={0.7}>
           <Ionicons name="add" size={ms(14)} color={colors.accent} />
           <Text style={styles.addSetText}>Add Set</Text>
         </TouchableOpacity>
@@ -246,7 +267,7 @@ function ExerciseCard({
                     sec === restSeconds && { backgroundColor: colors.accent },
                   ]}
                   onPress={() => {
-                    onRestChange(sec);
+                    onRestChange(index, sec);
                     setShowRestPicker(false);
                   }}
                 >
@@ -265,7 +286,7 @@ function ExerciseCard({
         </TouchableOpacity>
       </Overlay>
     </View>
-    </Swipeable>
+    </ReanimatedSwipeable>
   );
 }
 
@@ -289,7 +310,7 @@ const createStyles = (colors: ThemeColors) =>
       gap: sw(4),
     },
     deleteText: {
-      color: '#fff',
+      color: colors.textOnColor,
       fontSize: ms(12),
       fontFamily: Fonts.semiBold,
     },
@@ -304,11 +325,6 @@ const createStyles = (colors: ThemeColors) =>
       flex: 1,
       gap: sw(4),
       marginRight: sw(10),
-    },
-    nameRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: sw(8),
     },
     name: {
       color: colors.textPrimary,
@@ -343,13 +359,10 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.semiBold,
       lineHeight: ms(14),
     },
-    headerRight: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: sw(4),
-    },
     reorderCol: {
       gap: sw(0),
+      marginRight: sw(8),
+      alignSelf: 'center',
     },
     reorderBtn: {
       padding: sw(2),
@@ -358,9 +371,6 @@ const createStyles = (colors: ThemeColors) =>
       overflow: 'hidden',
       borderRadius: sw(8),
       opacity: 0.85,
-    },
-    removeBtn: {
-      padding: sw(4),
     },
 
     // Divider
@@ -470,7 +480,7 @@ const createStyles = (colors: ThemeColors) =>
     // Rest Picker Modal
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
+      backgroundColor: colors.backdrop + '80',
       justifyContent: 'center',
       alignItems: 'center',
     },

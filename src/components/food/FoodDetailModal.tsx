@@ -50,7 +50,7 @@ interface Props {
  * Food detail: adjust serving, calories, macros and micros, then log it (now or planned),
  * update an existing entry, or (meal mode) return it to Make a meal.
  */
-export default function FoodDetailModal({
+function FoodDetailModal({
   visible, food, initialMealSlot, initialIsPlanned, initialQuantity,
   targetHour, onDismiss, onAdded, isBackActive, bottomInset, editEntryId, onDelete, onFoodSwap,
   onAddToMeal,
@@ -266,6 +266,16 @@ export default function FoodDetailModal({
 
     // Meal mode — return per-serving data instead of logging
     if (onAddToMeal) {
+      // A typed fiber/sugar value is the total for this amount (like the log path); per serving = / qty
+      const perServing = (key: 'fiber' | 'sugar'): number | null => {
+        const typed = customMicros[key];
+        if (typed != null && typed !== '') {
+          const n = Number(typed);
+          return Number.isFinite(n) ? Math.round((n / qty) * 10) / 10 : null;
+        }
+        const base = food[key];
+        return base != null ? Math.round(base * (ss / food.serving_size) * 10) / 10 : null;
+      };
       onAddToMeal({
         name: customName.trim() || food.name,
         brand: customBrand.trim() || food.brand,
@@ -274,8 +284,8 @@ export default function FoodDetailModal({
         protein: Math.round(scaled.pro / qty * 10) / 10,
         carbs: Math.round(scaled.carb / qty * 10) / 10,
         fat: Math.round(scaled.fat / qty * 10) / 10,
-        fiber: food.fiber != null ? Math.round(food.fiber * (ss / food.serving_size) * 10) / 10 : null,
-        sugar: food.sugar != null ? Math.round(food.sugar * (ss / food.serving_size) * 10) / 10 : null,
+        fiber: perServing('fiber'),
+        sugar: perServing('sugar'),
         serving_size: ss,
         serving_unit: food.serving_unit,
         quantity: qty,
@@ -525,3 +535,5 @@ const createStyles = (c: ThemeColors) =>
       fontFamily: Fonts.semiBold,
     },
   });
+
+export default React.memo(FoodDetailModal);

@@ -17,7 +17,7 @@ export interface CoachExerciseNote {
   hasKg: boolean;
 }
 
-export interface SetData {
+interface SetData {
   id: string;
   set_number: number;
   kg: number;
@@ -96,42 +96,16 @@ interface WorkoutState {
   fetchWorkoutHistory: (userId: string) => Promise<void>;
   fetchExerciseCatalog: (userId: string, forceRefresh?: boolean) => Promise<void>;
   fetchPrevData: (userId: string) => Promise<void>;
-  fetchWorkoutById: (workoutId: string, userId: string) => Promise<WorkoutWithDetails | null>;
   createUserExercise: (params: CreateUserExerciseParams) => Promise<boolean>;
   deleteWorkout: (workoutId: string) => Promise<boolean>;
   /** Release heavy caches (call on signOut to free memory) */
   clearCaches: () => void;
 }
 
-// TODO(sample): temporary 30-entry note history for the dumbbell row so the
-// "View all N notes" modal is demonstrable. Remove once real data exists.
-const SAMPLE_PREV_NOTES: { note: string; date: string; color?: string }[] = (() => {
-  const entries = [
-    { note: 'Felt strong — go up to 32.5kg next time. Keep elbow tucked, no shrugging.', color: 'green' },
-    { note: '30kg x8/8/7 — last set was a grind. Form held up well.', color: 'orange' },
-    { note: 'Right side lagging, focus on the squeeze at the top.', color: 'orange' },
-    { note: 'First time back after the layoff. 27.5kg felt easy, ramp up.', color: 'green' },
-    { note: 'Slowed the eccentric — much better lat connection.', color: 'green' },
-    { note: 'Grip gave out before the back did. Try straps next week.', color: 'orange' },
-    { note: 'Felt a tweak in the lower back, kept it light and strict.', color: 'red' },
-    { note: 'New PR for reps at 30kg. Stoked.', color: 'green' },
-  ];
-  const base = new Date('2026-05-24T00:00:00Z').getTime();
-  const DAY = 86_400_000;
-  return Array.from({ length: 30 }, (_, i) => ({
-    note: entries[i % entries.length].note,
-    color: entries[i % entries.length].color,
-    date: new Date(base - i * 7 * DAY).toISOString().slice(0, 10),
-  }));
-})();
-
-// TODO(sample): temporary demo notes for cable face pull. Remove with the rest
-// of the sample data once real notes exist.
-const SAMPLE_FACE_PULL_NOTES: { note: string; date: string; color?: string }[] = [
-  { note: 'Light and controlled — really felt the rear delts. Pause at the face each rep.', date: '2026-05-28', color: 'green' },
-  { note: 'Went too heavy and it turned into a row. Drop the weight next time.', date: '2026-05-21', color: 'red' },
-  { note: 'Good pump. The external-rotation cue at the end helped a lot.', date: '2026-05-14', color: 'green' },
-];
+/** Which user's catalog is in memory and when it was fetched (cache or network). Cleared on sign-out. */
+let _catalogLoaded: { userId: string; ts: number } | null = null;
+/** Bumped when the in-memory catalog is invalidated, so a fetch that started earlier doesn't mark it fresh. */
+let _catalogGen = 0;
 
 export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   workouts: [],
@@ -140,15 +114,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   aliasMap: {},
   prevMap: {},
   sessionHistoryMap: {},
-  // TODO(sample): temporary demo note history (see SAMPLE_PREV_NOTES above) so
-  // the previous-notes UI is visible before the `notes` column / real data
-  // exists. Remove once real data is seeded.
-  prevNoteMap: {
-    'bent over dumbbell row': SAMPLE_PREV_NOTES,
-    'dumbbell row': SAMPLE_PREV_NOTES,
-    'cable face pull': SAMPLE_FACE_PULL_NOTES,
-    'face pull': SAMPLE_FACE_PULL_NOTES,
-  },
+  prevNoteMap: {},
 
   fetchExerciseCatalog: async (userId: string, forceRefresh = false) => {
     const parseArr = (v: any): string[] => {
@@ -198,14 +164,31 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       return map;
     };
 
+    // 0. Already loaded for this user and still fresh: nothing to do. Without this every tab focus
+    //    re-parsed the cache and swapped in a new catalogMap, re-rendering everything that reads it.
+    if (
+      !forceRefresh &&
+      _catalogLoaded?.userId === userId &&
+      Date.now() - _catalogLoaded.ts < CATALOG_TTL &&
+      Object.keys(get().catalogMap).length > 0
+    ) {
+      return;
+    }
+
+    // A custom exercise created (or a sign-out) while this call is waiting makes its result stale:
+    // then it stops without touching the store, and the next call starts over.
+    const gen = _catalogGen;
+
     // 1. Load from cache immediately so the picker is usable right away (skip if force refresh)
     if (!forceRefresh) {
       try {
         const raw = await AsyncStorage.getItem(CATALOG_CACHE_KEY);
+        if (gen !== _catalogGen) return;
         if (raw) {
           const cached = JSON.parse(raw);
           if (cached.userId === userId && cached.map && Object.keys(cached.map).length > 0) {
             set({ catalogMap: cached.map, aliasMap: cached.aliasMap || {} });
+            _catalogLoaded = { userId, ts: cached.ts || 0 };
             // If cache is fresh, skip network fetch
             if (Date.now() - (cached.ts || 0) < CATALOG_TTL) return;
           }
@@ -221,6 +204,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         supabase.from('exercise_aliases').select('alias, canonical_name'),
       ]);
 
+      if (gen !== _catalogGen) return;
       if (!catalogRows) return; // keep what we have rather than caching a catalog without its rows
       const map = buildMap(catalogRows, userRes.data);
       const customNames = new Set<string>((userRes.data || []).map((e: any) => e.name));
@@ -241,6 +225,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
 
       if (Object.keys(map).length > 0) {
         set({ catalogMap: map, aliasMap: aMap });
+        _catalogLoaded = { userId, ts: Date.now() };
         // 3. Persist to cache
         AsyncStorage.setItem(
           CATALOG_CACHE_KEY,
@@ -248,7 +233,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         ).catch(() => {});
       }
     } catch (err) {
-      console.error('[catalog] fetch failed:', err);
+      if (__DEV__) console.error('[catalog] fetch failed:', err);
     }
   },
 
@@ -482,169 +467,6 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     }
   },
 
-  fetchWorkoutById: async (workoutId: string, userId: string) => {
-    try {
-      // Fetch the workout
-      const { data: workoutData } = await supabase
-        .from('workouts')
-        .select('id, created_at, duration, total_exercises, total_sets, ghost_username, coach_headline, coach_notes, programs(name)')
-        .eq('id', workoutId)
-        .single();
-
-      if (!workoutData) {
-        return null;
-      }
-
-      // Fetch exercises for this workout
-      const { data: exercisesData } = await supabase
-        .from('exercises')
-        .select('id, workout_id, name, exercise_order, exercise_type, sets(id, set_number, kg, reps, completed, set_type, parent_set_number)')
-        .eq('workout_id', workoutId)
-        .order('exercise_order', { ascending: true });
-
-      if (!exercisesData) return null;
-
-      // Build historical max for PR detection (need all workouts before this one from the same user)
-      // First get the workout's owner
-      const { data: workoutOwnerData } = await supabase
-        .from('workouts')
-        .select('user_id')
-        .eq('id', workoutId)
-        .single();
-
-      const workoutOwnerId = workoutOwnerData?.user_id || userId;
-
-      const { data: allWorkoutsData } = await supabase
-        .from('workouts')
-        .select('id, created_at')
-        .eq('user_id', workoutOwnerId)
-        .lt('created_at', workoutData.created_at)
-        .order('created_at', { ascending: false })
-        .limit(200);
-
-      const olderWorkoutIds = (allWorkoutsData || []).map((w) => w.id);
-
-      let historicalMax: Record<string, number> = {};
-      if (olderWorkoutIds.length > 0) {
-        const { data: olderExercises } = await supabase
-          .from('exercises')
-          .select('name, sets(kg, completed)')
-          .in('workout_id', olderWorkoutIds);
-
-        if (olderExercises) {
-          for (const ex of olderExercises) {
-            const sets = ex.sets || [];
-            for (const s of sets) {
-              if (!s.completed) continue;
-              const kg = Number(s.kg) || 0;
-              const prevMax = historicalMax[ex.name] ?? 0;
-              if (kg > prevMax) {
-                historicalMax[ex.name] = kg;
-              }
-            }
-          }
-        }
-      }
-
-      // Detect PRs for this workout
-      const prMap: Record<string, boolean> = {};
-      for (const ex of exercisesData) {
-        const sets = ex.sets || [];
-        const prevMax = historicalMax[ex.name] ?? 0;
-
-        let bestSetId: string | null = null;
-        let bestKg = 0;
-        for (const s of sets) {
-          if (!s.completed) continue;
-          const kg = Number(s.kg) || 0;
-          if (kg > bestKg) {
-            bestKg = kg;
-            bestSetId = s.id;
-          }
-        }
-
-        if (bestSetId && bestKg > 0 && bestKg > prevMax) {
-          prMap[bestSetId] = true;
-        }
-      }
-
-      const { catalogMap } = get();
-
-      // Build workout details
-      let totalReps = 0;
-      let totalVolume = 0;
-      let prCount = 0;
-      let completedSets = 0;
-      const muscleGroupSet = new Set<string>();
-
-      const exercises: ExerciseWithSets[] = exercisesData.map((ex) => {
-        const catEntry = catalogMap[ex.name];
-        const category = catEntry?.category || null;
-        const primary_muscles = catEntry?.primary_muscles || [];
-        const secondary_muscles = catEntry?.secondary_muscles || [];
-        if (category) muscleGroupSet.add(category);
-
-        let exerciseHasPR = false;
-        const sets: SetData[] = (ex.sets || []).map((s: any) => {
-          const kg = Number(s.kg) || 0;
-          const reps = Number(s.reps) || 0;
-          if (s.completed) {
-            totalReps += reps;
-            totalVolume += kg * reps;
-            completedSets++;
-          }
-          const isPR = !!prMap[s.id];
-          if (isPR) {
-            prCount++;
-            exerciseHasPR = true;
-          }
-          return {
-            id: s.id,
-            set_number: s.set_number,
-            kg,
-            reps,
-            completed: s.completed,
-            set_type: s.set_type,
-            parent_set_number: s.parent_set_number ?? null,
-            isPR,
-          };
-        });
-
-        return {
-          id: ex.id,
-          name: ex.name,
-          exercise_order: ex.exercise_order,
-          exercise_type: ex.exercise_type,
-          sets,
-          hasPR: exerciseHasPR,
-          category,
-          primary_muscles,
-          secondary_muscles,
-        };
-      });
-
-      return {
-        id: workoutData.id,
-        created_at: workoutData.created_at,
-        duration: workoutData.duration || 0,
-        total_exercises: workoutData.total_exercises || exercises.length,
-        total_sets: workoutData.total_sets || exercises.reduce((n, e) => n + e.sets.length, 0),
-        completedSets,
-        exercises,
-        totalReps,
-        totalVolume: Math.round(totalVolume),
-        prCount,
-        muscleGroups: Array.from(muscleGroupSet).slice(0, 4),
-        ghostUsername: (workoutData as any).ghost_username || null,
-        programName: (workoutData as any).programs?.name || null,
-        coachHeadline: (workoutData as any).coach_headline || null,
-        coachNotes: (workoutData as any).coach_notes || null,
-      };
-    } catch {
-      return null;
-    }
-  },
-
   createUserExercise: async (params: CreateUserExerciseParams) => {
     const { userId, name, category, exerciseType, primaryMuscles, secondaryMuscles, equipment } = params;
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -664,10 +486,13 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     });
 
     if (error) {
-      console.error('[createUserExercise] insert failed:', error.message, error.code);
+      if (__DEV__) console.error('[createUserExercise] insert failed:', error.message, error.code);
       throw new Error(error.message);
     }
 
+    // Next non-forced fetchExerciseCatalog goes to the network again (as before the in-memory early return)
+    _catalogLoaded = null;
+    _catalogGen++;
     // Update catalogMap in memory
     const { catalogMap } = get();
     set({
@@ -693,6 +518,8 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   },
 
   clearCaches: () => {
+    _catalogLoaded = null;
+    _catalogGen++;
     set({ catalogMap: {}, aliasMap: {}, prevMap: {}, prevNoteMap: {}, sessionHistoryMap: {}, workouts: [] });
     AsyncStorage.removeItem(CATALOG_CACHE_KEY).catch(() => {});
   },

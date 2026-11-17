@@ -9,13 +9,36 @@ interface Props {
   visible: boolean;
   onConfirm: (durationSeconds: number) => void;
   onCancel: () => void;
+  /** The value to show each time it opens (seconds); without it, 1 hour. */
+  initialSeconds?: number;
+  /** The line under the title. Without it, the finish flow's prompt for a workout left running over 4 hours. */
+  subtitle?: string;
 }
 
-export default function DurationPickerModal({ visible, onConfirm, onCancel }: Props) {
+const LONG_WORKOUT_SUBTITLE = 'Your workout has been running for over 4 hours. How long did you actually train?';
+
+/** The hours and minutes fields for a duration in seconds. */
+function toFields(seconds: number | undefined): { hours: string; minutes: string } {
+  if (seconds == null || seconds <= 0) return { hours: '1', minutes: '0' };
+  return { hours: String(Math.min(99, Math.floor(seconds / 3600))), minutes: String(Math.floor((seconds % 3600) / 60)) };
+}
+
+function DurationPickerModal({ visible, onConfirm, onCancel, initialSeconds, subtitle = LONG_WORKOUT_SUBTITLE }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [hours, setHours] = useState('1');
-  const [minutes, setMinutes] = useState('0');
+  const [hours, setHours] = useState(() => toFields(initialSeconds).hours);
+  const [minutes, setMinutes] = useState(() => toFields(initialSeconds).minutes);
+
+  // Start from the current value every time it opens: it stays mounted, so a cancelled entry used to come back.
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) {
+      const f = toFields(initialSeconds);
+      setHours(f.hours);
+      setMinutes(f.minutes);
+    }
+  }
 
   const handleConfirm = () => {
     const h = Math.max(0, parseInt(hours, 10) || 0);
@@ -30,9 +53,7 @@ export default function DurationPickerModal({ visible, onConfirm, onCancel }: Pr
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onCancel}>
         <TouchableOpacity style={styles.modal} activeOpacity={1}>
           <Text style={styles.title}>Adjust Workout Duration</Text>
-          <Text style={styles.subtitle}>
-            Your workout has been running for over 4 hours. How long did you actually train?
-          </Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
 
           <View style={styles.inputRow}>
             <View style={styles.inputGroup}>
@@ -81,7 +102,7 @@ export default function DurationPickerModal({ visible, onConfirm, onCancel }: Pr
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: colors.backdrop + '99',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -175,3 +196,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(20),
   },
 });
+
+export default React.memo(DurationPickerModal);

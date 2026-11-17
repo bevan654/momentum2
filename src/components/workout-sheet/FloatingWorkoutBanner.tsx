@@ -7,14 +7,13 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
-import { formatClock } from '../../utils/formatDuration';
+import ElapsedClock from './ElapsedClock';
 
-export default function FloatingWorkoutBanner() {
+function FloatingWorkoutBanner() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const sheetVisible = useActiveWorkoutStore((s) => s.sheetVisible);
-  const elapsedSeconds = useActiveWorkoutStore((s) => s.elapsedSeconds);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
 
   const shouldShow = isActive && !sheetVisible;
@@ -55,7 +54,7 @@ export default function FloatingWorkoutBanner() {
         <View style={styles.pulse} />
         <Ionicons name="barbell-outline" size={ms(16)} color={colors.textOnAccent} />
         <Text style={styles.text}>Workout in Progress</Text>
-        <Text style={styles.timer}>{formatClock(elapsedSeconds)}</Text>
+        <Text style={styles.timer}><ElapsedClock /></Text>
         <Ionicons name="chevron-up" size={ms(16)} color={colors.textOnAccent} />
       </TouchableOpacity>
     </Animated.View>
@@ -102,3 +101,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
 });
+
+export default React.memo(FloatingWorkoutBanner);

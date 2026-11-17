@@ -1,0 +1,103 @@
+# Codebase cleanup (branch `tv/chore/codebase-cleanup`)
+
+Goal: remove unused code, fix known bugs, split oversized files and fix measured performance problems, without changing what users see (except the bug fixes).
+Delete this file once the branch is merged.
+
+## Phases
+| # | Phase | Status |
+|---|---|---|
+| 0 | Baseline + phone smoke checklist | done |
+| 2 | Fix known bugs | done (needs phone test) |
+| 1 | Remove unused code (Knip + ignored props) | done (needs phone test) |
+| 3 | Split oversized files (no behaviour change) | done except the Nutrition files (wait for bevan's PRs) |
+| 4 | Performance audit, fix top findings (judge on a release build) | done (needs phone test) |
+| 5 | Turn on `noUnusedLocals` / `noUnusedParameters` | done (`noUnusedLocals` was already on) |
+
+## Baseline (main @ `5b879bc`, 2026-11-14)
+- `npx tsc --noEmit`: **24 errors in 11 files** (same list as `CODEBASE_MAP.md`).
+- `npm run knip`: 1 unused file, 2 unused dependencies, 2 unused devDependencies, 10 unused exports, 14 unused exported types.
+- iOS dev bundle: builds (index.ts, ~16.4 MB unminified).
+- Source: 179 files / ~60k lines under `src/`. Largest: `WorkoutSummaryModal.tsx` 2661, `WorkoutHistoryScreen.tsx` 1791, `useActiveWorkoutStore.ts` 1612, `MacroLensModal.tsx` 1488, `Feed.tsx` 1238.
+
+## Phase 2: bugs fixed
+1. **Push notifications never registered for users with no friends.** The token was only registered from the Community tab's live-updates setup, which is skipped with 0 friends and torn down on blur. Now `initPushToken` runs once per session from `TabNavigator` (and refreshes on foreground); `stopPushToken` on sign-out / delete. The Realtime channel stays lazy (Community focus only). Side effect: the iOS "Allow notifications?" prompt now appears shortly after login instead of on first Community visit.
+2. **Meal-group cards in Nutrition were unstyled** (5 missing style keys in `MealSection.tsx`: emoji, kcal pill, spacer, edit button). Added them.
+3. **AiHeroCard "tap" text used `Fonts.semibold`** (undefined → system font). Fixed to `semiBold`.
+4. **Fake demo notes** for dumbbell row / face pull shipped as the default note history in `useWorkoutStore`, shown until the real fetch finished (or forever offline). Removed.
+5. **`freezeOnBlur` on the tab navigator was invalid** (material-top-tabs doesn't support it, so it was silently ignored). Removed the dead option, no behaviour change. Real fix is in Phase 4 below.
+
+Type errors: 24 → 17.
+
+Not bugs after checking: `WorkoutSummaryModal` `saving` prop (the edit footer already disables while saving) → Phase 1 dead prop.
+
+## Phase 1: removed
+- `WorkoutsTab.mockup.jsx`, `ramda`, `@types/ramda`.
+- `export` dropped from 10 helpers + 14 types used only in their own file.
+- Dead props: `HistoricalPage.saving`, `EntryCard.onEdit` (+ `onEditEntry` chain to `FoodLoggerScreen`), `Header.activeTab` (+ the `activeTab` state and `BottomTabBar.onTabChange` effect in `TabNavigator`), workout-sheet `ExerciseCard.totalExercises`, `RoutinePreviewOverlay.catalogMap`, `WeightHistoryModal` `SwipeableRow.colors`.
+- Kept: `react-native-svg` (removal needs a store build: do it with the next native release), `@expo/prebuild-config` (installed by expo anyway; no gain).
+- Knip after: only those two remain.
+- `ExerciseRow` move up/down: tv chose to restore the arrows (done, see the decisions below).
+- Noticed: `WeightHistoryModal.tsx` and `ExerciseRow.tsx` hardcode `#fff` on the swipe-delete icon/text (theme rule).
+
+## Open questions / for bevan
+- ~~Restore reorder or delete the move up/down props?~~ tv: restore. Done.
+- `CLAUDE.md` says `initNotifications` runs in `TabNavigator`; it actually runs from `FriendsScreen` on focus. bevan's file: tell him.
+
+## Phase 3 notes
+- Split order (largest/lowest risk first, `useActiveWorkoutStore` last): `WorkoutSummaryModal` ✅, `WorkoutHistoryScreen` ✅ (1789 → 387 + 5 files in `workouts/history/`, 61 dead styles dropped), `MacroLensModal` ✅ (1488 → 618 + 7 files in `food/macro-lens/`), `Feed` ✅ (1238 → 236 + 7 files in `home/feed/`; `FeedRow` is 563 incl. styles: could move its actions menu out later), `friendsDatabase` ✅ (1155 → 66-line re-export file + 7 topic files in `lib/friends/`), `CreateMealModal`, `FoodDetailModal`, `ExercisePicker` ✅ (1130 → 783 + 5 files in `workout-sheet/exercise-picker/`; the rest is the sheet animation + handlers), `AddFoodModal`, `ProfileSettingsView`, then the 650–950 line files, `useActiveWorkoutStore` last.
+- Found in `ExercisePicker` (left as is): the catalog list (10K+ rows) is a `FlatList` not `FlashList`; `onClose` is an inline arrow in both callers, so the whole list re-renders on every parent render; wger fetches have no abort; hardcoded `#6B7280` / `#000000`.
+- Found in `friendsDatabase` (left as is, some for bevan): `bookmarks` table and `get_global_feed` RPC aren't in `database-schema.md` or migrations; `fetchWorkoutDates` and `getFriendStats` fetch every row with no limit (Supabase caps at 1000, so streaks/volume can be wrong for heavy users); many writes ignore errors (`sendFriendRequest` still notifies if the insert fails, `sendNudge` returns success on failure); `getGlobalFeed` returns `[]` on RPC error.
+- Found in `Feed` (left as is): `FeedRow` selects the whole `friendIds` array, so every row re-renders when it changes (Phase 4).
+- Found in `MacroLensModal` (left as is): the 30 s scan timeout isn't cleared if fetch throws; no abort on unmount; 4 `console.log` not wrapped in `__DEV__`; hardcoded `#FFF`/`#888` (mostly deliberate over the camera feed); `blurOnSubmit` on a multiline input.
+- Found in `WorkoutHistoryScreen` (left as is): history list is a plain ScrollView + map (not virtualised, unbounded); `calDotSelected` hardcodes `#3B82F6`; the muscle-matching loop is copy-pasted 3 times; both sheets duplicate the swipe-dismiss code.
+- Found in `WorkoutSummaryModal` (left as is): the historical "crossfade" animates two shared values nothing reads, so closing just waits ~350 ms; `workoutName` state never set; `totalVolume` ternary returns the same value both ways.
+
+## Overlap with bevan's open Nutrition PRs (#74–#83, 2026-11-14)
+- Skipping `CreateMealModal`, `FoodDetailModal` and `AddFoodModal` until those PRs merge (#76, #80, #83 edit the first two; the whole area is being redesigned).
+- When merging `origin/main` into this branch later:
+  - #79 deletes `MealSection.tsx`: take the deletion (our missing-styles fix and `onEdit` removal there become moot); re-check `FoodLoggerScreen.tsx` (#77–#80, #83 all touch it; ours only removed `onEditEntry`).
+  - #83 adds `onRequestClose={handleClose}` to the three `Overlay`s in `MacroLensModal`: after our split, put it on the main `Overlay` and the empty permission `Overlay` in `MacroLensModal.tsx`, and on the `Overlay` in `macro-lens/PermissionGate.tsx` (`onRequestClose={onClose}`).
+
+## Phase 3: also split (rule: only files whose code, excluding styles, is over ~450 lines or that hold several components)
+- `ProfileSettingsView` (1059 → 196 + 6 files in `profile/settings/`), `FeedWorkoutModal` (795 → 32 + 3 in `friends/feed-workout/`), `ActivityCard` (702 → 361 + 2 in `home/activity/`), `CreateProgramScreen` (688 → 452 + `workouts/create-program/CalendarPicker`), `ProgramDayEditorScreen` (770 → 591 + 3 in `workouts/program-day-editor/`), `useActiveWorkoutStore` (1612 → ~1300; types, constants and pure helpers in `stores/activeWorkout/`; module state, finish/restore and the store stay).
+- Left on purpose: `OnboardingScreen` (only testable with a new account), `ExerciseHistoryModal` (only small helpers were movable), single-component files of 500–700 lines where ~200 lines are styles, the medium stores, and the Nutrition files.
+
+## Phase 4: performance changes
+1. **Tabs more than one away from the current tab are frozen** (`navigation/freezeFarTabs.tsx`, `react-freeze`). Neighbours stay live for swiping. Tapping straight across several tabs can show the in-between tabs blank for a moment as they slide past (unvisited lazy tabs already did).
+2. **Exercise catalog isn't re-parsed and replaced on every Home/Recovery focus** (`useWorkoutStore.fetchExerciseCatalog` returns early when fresh in memory).
+3. **Set rows don't re-render when another set of the same exercise is typed in** (stable index-based callbacks `ExerciseCard` → `SetRow`).
+4. **Workout header doesn't re-render every second** (clock is its own component).
+5. **Feed rows** select a boolean, not the whole `friendIds` array.
+6. **ExercisePicker callers** pass a stable `onClose` (it fed the row callbacks).
+7. **History sheet list** is a FlashList.
+8. **NutritionCard / WaterCard** select only the fields they show.
+9. **Feed likes** update on tap, then write.
+- Not done (logged): a TTL for `fetchWorkoutHistory` (reloaded on every Home mount / Recovery focus; risk of stale history after edits), the ExercisePicker catalog `FlatList` → `FlashList`, sharing one muscle-load lookup across feed rows, `FloatingWorkoutBanner` ticking while hidden. `TabNavigator` keeps RN `Animated`: material-top-tabs' `position` prop is an RN Animated value.
+
+## Phase 5
+- `noUnusedParameters` on (`noUnusedLocals` already was). Type-error baseline: **17 in 10 files** (`CODEBASE_MAP.md` updated).
+
+## Existing bugs fixed (after the cleanup)
+- Type errors 17 → 4: Supabase `.then().catch()` chains (types only; the builder returns a real Promise), `SetRow` / `ProgramProgressScreen` style and ref types, `estimatedItemSize` on two FlashLists. Left: `app.config.ts` (native build, for bevan) and the three Nutrition files with open PRs.
+- Streaks and friend stats read the whole history (paged), not the first 1000 rows.
+- A friend request or nudge that failed to save no longer notifies or reports success. The feed's Add button goes back to 'Add' if the request failed. (Nothing in the app calls `sendNudge` today, so its new error message isn't shown anywhere yet.)
+- Streaks: if the workout history can't be read (offline), the streak is left alone instead of saving 0 / 0 to `user_streaks`.
+- MacroLens: scan aborted when the screen closes, stale replies ignored, timeout always cleared, logs dev-only.
+- Closing a past workout no longer waits 350 ms for an animation nothing showed.
+- Not changed: `getGlobalFeed` still returns `[]` on an RPC error (needs a feed error state to show it); `bookmarks` table / `get_global_feed` RPC undocumented (bevan).
+
+## Pre-PR review (independent reviewer, 3 rounds)
+- Round 1: no lost code in any split (all 12 compared line by line, 613 style references checked). Fixed: notification permission re-asked on every foreground (Android 13+), like/unlike write ordering, catalog re-fetch after creating a custom exercise, an in-code open-question comment.
+- Round 2: no bugs. Fixed: a catalog fetch in flight during createUserExercise could mark a stale catalog fresh.
+- Round 3: one low-severity gap in the same code. Fixed after the 3-round cap (not re-reviewed): stale catalog results are now dropped instead of applied.
+- Left for the PR / bevan: every signed-in user now registers a push token (AI workout and social pushes reach users who never got them; more profiles webhooks once after release); sign-out now clears this device's `profiles.push_token` (fixed, `clearPushTokenForSignOut`); `SetRow` swipe-to-complete stale `onUpdate` (fixed, refs).
+
+## Phone smoke checklist (iPhone 14, dev build)
+Run after every phase. Android, iPad and other screen sizes can't be tested here: ask bevan to check them before merging.
+1. Cold start: app opens, Home loads, no red screen.
+2. Tabs: swipe/tap through Recovery, Workouts, Home, Nutrition, Community.
+3. Workout: start an empty workout, add an exercise, log 2 sets, run the rest timer, finish, check it in history, open its detail.
+4. Nutrition: add a food (search), edit its quantity, delete it; add water.
+5. Community: feed scrolls, open a friend's workout, notifications list opens.
+6. Profile: long-press Home, open settings, change accent, close.
+7. Recovery: body map shows heat, tap a muscle.

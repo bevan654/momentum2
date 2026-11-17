@@ -8,8 +8,7 @@ import ProgramSummaryScreen from '../screens/ProgramSummaryScreen';
 import ProgramDayEditorScreen from '../screens/ProgramDayEditorScreen';
 import ProgramProgressScreen from '../screens/ProgramProgressScreen';
 import WorkoutHistoryScreen from '../screens/WorkoutHistoryScreen';
-import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
-import StartWorkoutScreen from '../screens/StartWorkoutScreen';
+import PlansScreen from '../screens/PlansScreen';
 import SheetWrapper from '../components/SheetWrapper';
 import { useColors } from '../theme/useColors';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
@@ -23,7 +22,6 @@ export type WorkoutsStackParamList = {
   ProgramSummary: { programId: string };
   ProgramProgress: { programId: string };
   ProgramDayEditor: undefined;
-  WorkoutDetail: { workoutId: string };
 };
 
 const Stack = createNativeStackNavigator<WorkoutsStackParamList>();
@@ -59,13 +57,13 @@ function ProgramDayEditorModal() {
 
 /* ─── Backdrop wrappers for screens with own sheet chrome ── */
 function RoutineSummaryModal() {
-  return <SheetWrapper hasOwnSheet><RoutineSummaryScreen /></SheetWrapper>;
+  return <SheetWrapper><RoutineSummaryScreen /></SheetWrapper>;
 }
 function ProgramSummaryModal() {
-  return <SheetWrapper hasOwnSheet><ProgramSummaryScreen /></SheetWrapper>;
+  return <SheetWrapper><ProgramSummaryScreen /></SheetWrapper>;
 }
 function ProgramProgressModal() {
-  return <SheetWrapper hasOwnSheet><ProgramProgressScreen /></SheetWrapper>;
+  return <SheetWrapper><ProgramProgressScreen /></SheetWrapper>;
 }
 
 export default function WorkoutsNavigator() {
@@ -121,7 +119,7 @@ export default function WorkoutsNavigator() {
           {/* ── Plans overlay (needs transparency for backdrop) ── */}
           <Stack.Screen
             name="Plans"
-            component={StartWorkoutScreen}
+            component={PlansScreen}
             options={{
               presentation: 'transparentModal',
               contentStyle: { backgroundColor: 'transparent' },
@@ -159,13 +157,6 @@ export default function WorkoutsNavigator() {
             name="ProgramProgress"
             component={ProgramProgressModal}
             options={{ presentation: 'transparentModal', animation: 'slide_from_right', contentStyle: { backgroundColor: 'transparent' } }}
-          />
-
-          {/* WorkoutDetail keeps its own presentation */}
-          <Stack.Screen
-            name="WorkoutDetail"
-            component={WorkoutDetailScreen}
-            options={{ gestureEnabled: false }}
           />
         </Stack.Navigator>
       </View>

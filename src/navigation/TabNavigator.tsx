@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, StyleSheet, InteractionManager } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import type { MaterialTopTabBarProps } from '@react-navigation/material-top-tabs';
@@ -19,7 +19,6 @@ import WorkoutsNavigator from './WorkoutsNavigator';
 import ActiveWorkoutSheet from '../components/workout-sheet/ActiveWorkoutSheet';
 import GhostFinishScreen from '../components/workout-sheet/GhostFinishScreen';
 import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
-import FriendProfileModal from '../components/friends/FriendProfileModal';
 import FloatingWorkoutBanner from '../components/workout-sheet/FloatingWorkoutBanner';
 import Sheet from '../components/ui/Sheet';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -33,6 +32,15 @@ import { useRoutineStore } from '../stores/useRoutineStore';
 const Tab = createMaterialTopTabNavigator();
 
 import { setOpenProfileSheet, showRecoveryOverlay } from '../lib/navigationBridge';
+import { initPushToken } from '../services/notificationService';
+import { withFreezeWhenFar } from './freezeFarTabs';
+
+// Tabs more than one away from the current tab don't re-render (see freezeFarTabs).
+const RecoveryTab = withFreezeWhenFar(LaboratoryScreen);
+const WorkoutsTab = withFreezeWhenFar(WorkoutsNavigator);
+const HomeTab = withFreezeWhenFar(HomeScreen);
+const NutritionTab = withFreezeWhenFar(FoodLoggerScreen);
+const CommunityTab = withFreezeWhenFar(FriendsScreen);
 
 /* ─── Tab config ────────────────────────────────────────── */
 
@@ -54,6 +62,8 @@ const INDICATOR_W = sw(28);
 const INDICATOR_H = sw(3);
 
 /* ─── Animated tab icon ─────────────────────────────────── */
+// Uses React Native's Animated on purpose (the one exception to "Reanimated only"): material-top-tabs
+// hands the tab bar its swipe position as an RN Animated value, so the icon scale/opacity interpolate it.
 
 const AnimatedTabIcon = memo(function AnimatedTabIcon({
   index,
@@ -157,17 +167,12 @@ function BottomTabBar({
   navigation,
   position,
   onOpenProfile,
-  onTabChange,
   onTabRepress,
-}: MaterialTopTabBarProps & { onOpenProfile: () => void; onTabChange: (name: string) => void; onTabRepress: (name: string) => void }) {
+}: MaterialTopTabBarProps & { onOpenProfile: () => void; onTabRepress: (name: string) => void }) {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const unreadCount = useFriendsStore((s) => s.unreadCount);
   const styles = useMemo(() => createStyles(colors), [colors]);
-
-  useEffect(() => {
-    onTabChange(state.routes[state.index].name);
-  }, [state.index]);
 
   const translateX = position.interpolate({
     inputRange: state.routes.map((_, i) => i),
@@ -238,14 +243,20 @@ function BottomTabBar({
 export default function TabNavigator() {
   const userId = useAuthStore((s) => s.user?.id);
   const [profileVisible, setProfileVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState('Home');
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
-    if (userId) {
-      useActiveWorkoutStore.getState().restoreWorkout();
-      useWorkoutStore.getState().fetchExerciseCatalog(userId);
+    if (!userId) return;
+    // What the first screen needs (and the block list, so the feed never shows a blocked user)
+    useActiveWorkoutStore.getState().restoreWorkout();
+    useWorkoutStore.getState().fetchExerciseCatalog(userId);
+    useFriendsStore.getState().fetchBlockedIds(userId);
+    useFriendsStore.getState().fetchUnreadCount(userId);
+    initPushToken(userId);
+    // For the Workouts and Lab tabs and starting a workout: once the first screen has settled,
+    // so their responses don't compete with its first render.
+    const task = InteractionManager.runAfterInteractions(() => {
       useWorkoutStore.getState().fetchPrevData(userId);
       useRankStore.getState().loadRank(userId);
       // Ranks score with the latest weigh-in, so compute them once the weight has loaded.
@@ -254,9 +265,8 @@ export default function TabNavigator() {
         .then(() => useRankStore.getState().computeRank(userId));
       useProgramStore.getState().fetchPrograms(userId);
       useRoutineStore.getState().fetchRoutines(userId);
-      useFriendsStore.getState().fetchBlockedIds(userId);
-      useFriendsStore.getState().fetchUnreadCount(userId);
-    }
+    });
+    return () => task.cancel();
   }, [userId]);
 
   const showSummary = useActiveWorkoutStore((s) => s.showSummary);
@@ -284,13 +294,13 @@ export default function TabNavigator() {
     }
   }, []);
   const renderTabBar = useCallback(
-    (props: MaterialTopTabBarProps) => <BottomTabBar {...props} onOpenProfile={openProfile} onTabChange={setActiveTab} onTabRepress={handleTabRepress} />,
+    (props: MaterialTopTabBarProps) => <BottomTabBar {...props} onOpenProfile={openProfile} onTabRepress={handleTabRepress} />,
     [openProfile, handleTabRepress]
   );
 
   return (
     <View style={styles.root}>
-      <Header activeTab={activeTab} />
+      <Header />
       <View style={{ flex: 1, overflow: 'hidden', backgroundColor: colors.background }}>
         <Tab.Navigator
           tabBar={renderTabBar}
@@ -302,14 +312,13 @@ export default function TabNavigator() {
             animationEnabled: true,
             lazy: true,
             lazyPreloadDistance: 1,
-            freezeOnBlur: true,
           }}
         >
-          <Tab.Screen name="Recovery" component={LaboratoryScreen} />
-          <Tab.Screen name="Workouts" component={WorkoutsNavigator} />
-          <Tab.Screen name="Home" component={HomeScreen} />
-          <Tab.Screen name="Nutrition" component={FoodLoggerScreen} />
-          <Tab.Screen name="Community" component={FriendsScreen} />
+          <Tab.Screen name="Recovery" component={RecoveryTab} />
+          <Tab.Screen name="Workouts" component={WorkoutsTab} />
+          <Tab.Screen name="Home" component={HomeTab} />
+          <Tab.Screen name="Nutrition" component={NutritionTab} />
+          <Tab.Screen name="Community" component={CommunityTab} />
         </Tab.Navigator>
         <GhostFinishScreen />
       </View>
@@ -317,7 +326,6 @@ export default function TabNavigator() {
         <ProfileScreen onClose={closeProfile} />
       </Sheet>
       <ActiveWorkoutSheet />
-      <FriendProfileModal />
       <Sheet visible={showSummary && !isGhostSummary} onClose={dismissSummary} height="92%">
         {shownSummary && !isGhostSummary && (
           <WorkoutSummaryModal
@@ -366,16 +374,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: INDICATOR_H,
     borderRadius: INDICATOR_H / 2,
     backgroundColor: colors.textPrimary,
-  },
-
-  /* Home button */
-  homeButton: {
-    width: HOME_BTN,
-    height: HOME_BTN,
-    borderRadius: HOME_BTN / 2,
-    backgroundColor: colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: sw(2),
   },
 });

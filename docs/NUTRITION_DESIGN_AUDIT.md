@@ -1,5 +1,7 @@
 # Nutrition Section — Design Audit
 
+> **Historical.** Superseded by the Nutrition tab redesign (PRs #75–#89): `src/screens/FoodLoggerScreen.tsx` and `src/components/food/` (see `CODEBASE_MAP.md`).
+
 ## Current Layout (HomeScreen.tsx)
 
 The home screen renders nutrition components in this order:

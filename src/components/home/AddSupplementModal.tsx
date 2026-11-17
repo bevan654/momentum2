@@ -25,7 +25,7 @@ interface Props {
   onClose: () => void;
 }
 
-export default function AddSupplementModal({ visible, onClose }: Props) {
+function AddSupplementModal({ visible, onClose }: Props) {
   const configs = useSupplementStore((s) => s.supplementConfigs);
   const addConfig = useSupplementStore((s) => s.addSupplementConfig);
   const userId = useAuthStore((s) => s.user?.id);
@@ -171,7 +171,7 @@ export default function AddSupplementModal({ visible, onClose }: Props) {
                   placeholder="Daily goal"
                   placeholderTextColor={colors.textTertiary}
                   value={customGoal}
-                  onChangeText={setCustomGoal}
+                  onChangeText={(v) => setCustomGoal(v.replace(',', '.'))}
                   keyboardType="decimal-pad"
                 />
 
@@ -221,7 +221,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   backdropPress: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.backdrop + '80',
   },
   sheet: {
     backgroundColor: colors.card,
@@ -352,3 +352,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.bold,
   },
 });
+
+export default React.memo(AddSupplementModal);

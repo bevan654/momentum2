@@ -1,18 +1,11 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { planExerciseColumns, type PlanExercise } from '../utils/planExercise';
+import { parseLocalDate } from '../utils/localDate';
 
 /* ─── Types ──────────────────────────────────────────── */
 
-export interface ProgramDayExercise {
-  name: string;
-  exercise_order: number;
-  default_sets: number;
-  default_reps: number;
-  default_rest_seconds: number;
-  set_reps: number[];
-  set_weights: number[];
-  exercise_type: string;
-}
+export type ProgramDayExercise = PlanExercise;
 
 export interface ProgramDay {
   id?: string;
@@ -21,7 +14,7 @@ export interface ProgramDay {
   exercises: ProgramDayExercise[];
 }
 
-interface Program {
+export interface Program {
   id: string;
   name: string;
   start_date: string | null;
@@ -80,6 +73,8 @@ interface ProgramState {
   programs: Program[];
   activeProgram: Program | null;
   progressData: ProgramProgressEntry[];
+  /** The program progressData belongs to. */
+  progressProgramId: string | null;
   loading: boolean;
 
   // CRUD
@@ -102,7 +97,6 @@ interface ProgramState {
 
   // Lifecycle
   startProgram: (programId: string) => Promise<{ error: string | null }>;
-  completeProgram: (programId: string) => Promise<{ error: string | null }>;
   abandonProgram: (programId: string) => Promise<{ error: string | null }>;
 
   // Progress
@@ -112,10 +106,42 @@ interface ProgramState {
   getDurationWeeks: (program?: Program | null) => number;
 }
 
+/**
+ * Insert a program's days and their exercises. Returns a user-facing error if any insert failed
+ * (the rest are still attempted), or null.
+ */
+async function insertProgramDays(programId: string, days: ProgramDay[]): Promise<string | null> {
+  let failed = false;
+  for (const day of days) {
+    const { data: dayRow, error: dayErr } = await supabase
+      .from('program_days')
+      .insert({ program_id: programId, day_of_week: day.day_of_week, label: day.label })
+      .select('id')
+      .single();
+
+    if (dayErr || !dayRow) {
+      if (__DEV__) console.error('Insert program_day error:', dayErr);
+      failed = true;
+      continue;
+    }
+
+    if (day.exercises.length > 0) {
+      const rows = day.exercises.map((e) => ({ program_day_id: dayRow.id, ...planExerciseColumns(e) }));
+      const { error: exErr } = await supabase.from('program_day_exercises').insert(rows);
+      if (exErr) {
+        if (__DEV__) console.error('Insert program_day_exercises error:', exErr);
+        failed = true;
+      }
+    }
+  }
+  return failed ? "Some of the program's days didn't save. Check the program and try saving again." : null;
+}
+
 export const useProgramStore = create<ProgramState>((set, get) => ({
   programs: [],
   activeProgram: null,
   progressData: [],
+  progressProgramId: null,
   loading: false,
 
   /* ─── Fetch all programs ───────────────────────────── */
@@ -180,47 +206,17 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
         .single();
 
       if (error || !program) {
-        console.error('Create program error:', error);
+        if (__DEV__) console.error('Create program error:', error);
         return { error: error?.message || 'Failed to create program' };
       }
 
-      for (const day of days) {
-        const { data: dayRow, error: dayErr } = await supabase
-          .from('program_days')
-          .insert({
-            program_id: program.id,
-            day_of_week: day.day_of_week,
-            label: day.label,
-          })
-          .select('id')
-          .single();
-
-        if (dayErr || !dayRow) {
-          console.error('Insert program_day error:', dayErr);
-          continue;
-        }
-
-        if (day.exercises.length > 0) {
-          const rows = day.exercises.map((e) => ({
-            program_day_id: dayRow.id,
-            name: e.name,
-            exercise_order: e.exercise_order,
-            default_sets: e.default_sets,
-            default_reps: e.default_reps,
-            default_rest_seconds: e.default_rest_seconds,
-            set_reps: e.set_reps,
-            set_weights: e.set_weights,
-            exercise_type: e.exercise_type,
-          }));
-          const { error: exErr } = await supabase.from('program_day_exercises').insert(rows);
-          if (exErr) console.error('Insert program_day_exercises error:', exErr);
-        }
-      }
-
+      const daysError = await insertProgramDays(program.id, days);
+      // Don't leave a half-saved program behind (a retry would make a second copy)
+      if (daysError) await supabase.from('programs').delete().eq('id', program.id);
       await get().fetchPrograms(userId);
-      return { error: null };
+      return { error: daysError ? "Couldn't save the program. Check your connection and try again." : null };
     } catch (e: any) {
-      console.error('createProgram exception:', e);
+      if (__DEV__) console.error('createProgram exception:', e);
       return { error: e?.message || 'Unexpected error' };
     }
   },
@@ -235,39 +231,12 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
 
     if (error) return { error: error.message };
 
-    // Delete all days (cascade deletes exercises)
-    await supabase.from('program_days').delete().eq('program_id', programId);
+    // Delete all days (cascade deletes exercises), then insert the new ones. Not one transaction:
+    // a failure part-way leaves the program missing days, so it's reported and the caller refetches.
+    const { error: deleteError } = await supabase.from('program_days').delete().eq('program_id', programId);
+    if (deleteError) return { error: deleteError.message };
 
-    for (const day of days) {
-      const { data: dayRow, error: dayErr } = await supabase
-        .from('program_days')
-        .insert({
-          program_id: programId,
-          day_of_week: day.day_of_week,
-          label: day.label,
-        })
-        .select('id')
-        .single();
-
-      if (dayErr || !dayRow) continue;
-
-      if (day.exercises.length > 0) {
-        const rows = day.exercises.map((e) => ({
-          program_day_id: dayRow.id,
-          name: e.name,
-          exercise_order: e.exercise_order,
-          default_sets: e.default_sets,
-          default_reps: e.default_reps,
-          default_rest_seconds: e.default_rest_seconds,
-          set_reps: e.set_reps,
-          set_weights: e.set_weights,
-          exercise_type: e.exercise_type,
-        }));
-        await supabase.from('program_day_exercises').insert(rows);
-      }
-    }
-
-    return { error: null };
+    return { error: await insertProgramDays(programId, days) };
   },
 
   /* ─── Delete program ───────────────────────────────── */
@@ -308,23 +277,6 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
     return { error: null };
   },
 
-  /* ─── Complete program ─────────────────────────────── */
-
-  completeProgram: async (programId: string) => {
-    const { error } = await supabase
-      .from('programs')
-      .update({ status: 'completed', completed_at: new Date().toISOString() })
-      .eq('id', programId);
-
-    if (error) return { error: error.message };
-
-    const programs = get().programs.map((p) =>
-      p.id === programId ? { ...p, status: 'completed' as const, completed_at: new Date().toISOString() } : p,
-    );
-    set({ programs, activeProgram: null });
-    return { error: null };
-  },
-
   /* ─── Abandon program ──────────────────────────────── */
 
   abandonProgram: async (programId: string) => {
@@ -345,6 +297,8 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
   /* ─── Fetch progress for a program ─────────────────── */
 
   fetchProgress: async (programId: string, userId: string) => {
+    // Another program's progress must not show while this one loads (or if its load fails)
+    if (get().progressProgramId !== programId) set({ progressData: [], progressProgramId: programId });
     const { data } = await supabase
       .from('workouts')
       .select('id, created_at, duration, total_sets, program_week, exercises(name, sets(kg, reps))')
@@ -352,6 +306,7 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
       .eq('user_id', userId)
       .order('created_at', { ascending: true });
 
+    if (get().progressProgramId !== programId) return; // another program was opened meanwhile
     if (!data) {
       set({ progressData: [] });
       return;
@@ -405,7 +360,8 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
     const { activeProgram } = get();
     if (!activeProgram || !activeProgram.start_date) return 0;
 
-    const started = new Date(activeProgram.start_date).getTime();
+    // From local midnight of the start day, so the week turns over at midnight where the user is
+    const started = parseLocalDate(activeProgram.start_date).getTime();
     const now = Date.now();
     const weekMs = 7 * 24 * 60 * 60 * 1000;
     const week = Math.ceil((now - started) / weekMs);

@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView } from 'react-native';
-import Overlay from '../ui/Overlay';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -9,15 +8,12 @@ import { useSupplementStore, type SupplementConfig } from '../../stores/useSuppl
 import { useAuthStore } from '../../stores/useAuthStore';
 import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
 import AddSupplementModal from './AddSupplementModal';
+import SupplementDetailModal, { formatIncrement } from './SupplementDetailModal';
 
 const GRID_GAP = sw(10);
 const GRID_PADDING = sw(16);
 const CELL_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
 const FULL_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
-function formatIncrement(value: number): string {
-  if (value >= 1000 && value % 1000 === 0) return `${value / 1000}k`;
-  return String(value);
-}
 
 /* ─── Supplement Cell (half-width card) ───────────────── */
 
@@ -34,30 +30,11 @@ const SupplementCell = React.memo(function SupplementCell({
   config, total, onAdd, onReset, embedded,
 }: CellProps) {
   const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createCellStyles(colors), [colors]);
   const progress = config.dailyGoal > 0 ? Math.min(total / config.dailyGoal, 1) : 0;
   const complete = total >= config.dailyGoal;
   const [expanded, setExpanded] = useState(false);
-
-  const isOver = total > config.dailyGoal && config.dailyGoal > 0;
-  const remaining = Math.max(0, config.dailyGoal - total);
-  const overAmount = Math.max(0, total - config.dailyGoal);
-  const pct = config.dailyGoal > 0 ? Math.round((total / config.dailyGoal) * 100) : 0;
-
-  // Build quick-add amounts from increments + some common fractions
-  const quickAmounts = useMemo(() => {
-    const amounts = new Set<number>();
-    for (const inc of config.increments) {
-      amounts.add(inc);
-      if (inc > 1) {
-        const half = Math.round(inc / 2);
-        if (half > 0 && half !== inc) amounts.add(half);
-        const double = inc * 2;
-        amounts.add(double);
-      }
-    }
-    return Array.from(amounts).sort((a, b) => a - b);
-  }, [config.increments]);
+  const handleClose = useCallback(() => setExpanded(false), []);
 
   return (
       <TouchableOpacity
@@ -109,86 +86,29 @@ const SupplementCell = React.memo(function SupplementCell({
             ))}
           </View>
         )}
-        {/* Detail modal */}
-        <Overlay visible={expanded} animationType="fade" onRequestClose={() => setExpanded(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setExpanded(false)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Hero */}
-              <View style={styles.modalHeroRow}>
-                <View>
-                  <Text style={[styles.modalHeroNumber, isOver && { color: config.color }]}>
-                    {total}
-                    <Text style={styles.modalHeroUnit}> {config.unit}</Text>
-                  </Text>
-                  <Text style={styles.modalHeroLabel}>
-                    {isOver ? `${overAmount}${config.unit} over goal` : `${remaining}${config.unit} remaining`}
-                  </Text>
-                </View>
-                <View style={styles.modalHeroRight}>
-                  <View style={styles.modalStatItem}>
-                    <Text style={styles.modalStatValue}>{config.dailyGoal}</Text>
-                    <Text style={styles.modalStatLabel}>Goal</Text>
-                  </View>
-                  <View style={styles.modalStatDivider} />
-                  <View style={styles.modalStatItem}>
-                    <Text style={styles.modalStatValue}>{pct}%</Text>
-                    <Text style={styles.modalStatLabel}>Done</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Progress bar */}
-              <Text style={styles.modalSectionLabel}>{config.name}</Text>
-              <View style={styles.modalBarTrack}>
-                <View style={[styles.modalBarFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: config.color }]} />
-              </View>
-
-              {/* Quick add buttons */}
-              <Text style={[styles.modalSectionLabel, { marginTop: sw(16) }]}>Quick Add</Text>
-              <View style={styles.modalButtons}>
-                {quickAmounts.map((amount) => (
-                  <TouchableOpacity
-                    key={amount}
-                    style={styles.modalAddBtn}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onAdd(config.key, amount); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.modalAddBtnText, { color: config.color }]}>+{formatIncrement(amount)}{config.unit}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Undo + Close */}
-              <View style={styles.modalFooter}>
-                {total > 0 && (
-                  <TouchableOpacity style={styles.modalUndoBtn} onPress={() => onReset(config.key)} activeOpacity={0.7}>
-                    <Ionicons name="arrow-undo" size={ms(14)} color={colors.textSecondary} />
-                    <Text style={styles.modalUndoBtnText}>Undo</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={[styles.modalCloseBtn, { flex: 1 }]} onPress={() => setExpanded(false)} activeOpacity={0.7}>
-                  <Text style={styles.modalCloseBtnText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-        </Overlay>
+        {/* Detail modal (portalled; builds nothing while closed) */}
+        <SupplementDetailModal
+          visible={expanded}
+          onClose={handleClose}
+          config={config}
+          total={total}
+          onAdd={onAdd}
+          onReset={onReset}
+        />
       </TouchableOpacity>
     );
 });
 
 /* ─── Supplements Card ────────────────────────────────── */
 
-export default function SupplementsCard() {
+function SupplementsCard() {
   const configs = useSupplementStore((s) => s.supplementConfigs);
   const totals = useSupplementStore((s) => s.supplementTotals);
   const addSupplement = useSupplementStore((s) => s.addSupplement);
   const resetSupplement = useSupplementStore((s) => s.resetSupplement);
   const userId = useAuthStore((s) => s.user?.id);
   const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createCardStyles(colors), [colors]);
   const [modalVisible, setModalVisible] = useState(false);
 
   const handleAdd = useCallback((key: string, amount: number) => {
@@ -201,68 +121,52 @@ export default function SupplementsCard() {
     if (userId) resetSupplement(userId, key);
   }, [userId, resetSupplement]);
 
-  // 0 supplements → full-width empty state with add button
+  let body: React.ReactNode;
+
   if (configs.length === 0) {
-    return (
-      <>
+    // 0 supplements → full-width empty state with add button
+    body = (
+      <TouchableOpacity
+        style={styles.emptyCard}
+        onPress={() => setModalVisible(true)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.addIconWrap}>
+          <Ionicons name="add" size={ms(20)} color={colors.textTertiary} />
+        </View>
+        <Text style={styles.emptyLabel}>Add Supplement</Text>
+      </TouchableOpacity>
+    );
+  } else if (configs.length === 1) {
+    // 1 supplement → full-width card split in half (supplement | add button)
+    const config = configs[0];
+    body = (
+      <View style={styles.splitCard}>
+        <View style={styles.splitLeft}>
+          <SupplementCell
+            config={config}
+            total={totals[config.key] || 0}
+            onAdd={handleAdd}
+            onReset={handleReset}
+            embedded
+          />
+        </View>
+        <View style={styles.splitDivider} />
         <TouchableOpacity
-          style={styles.emptyCard}
+          style={styles.splitRight}
           onPress={() => setModalVisible(true)}
           activeOpacity={0.7}
         >
           <View style={styles.addIconWrap}>
             <Ionicons name="add" size={ms(20)} color={colors.textTertiary} />
           </View>
-          <Text style={styles.emptyLabel}>Add Supplement</Text>
+          <Text style={styles.addLabel}>Add</Text>
         </TouchableOpacity>
-
-        <AddSupplementModal
-          visible={modalVisible}
-          onClose={() => setModalVisible(false)}
-        />
-      </>
+      </View>
     );
-  }
-
-  // 1 supplement → full-width card split in half (supplement | add button)
-  if (configs.length === 1) {
-    const config = configs[0];
-    return (
-      <>
-        <View style={styles.splitCard}>
-          <View style={styles.splitLeft}>
-            <SupplementCell
-              config={config}
-              total={totals[config.key] || 0}
-              onAdd={handleAdd}
-              onReset={handleReset}
-              embedded
-            />
-          </View>
-          <View style={styles.splitDivider} />
-          <TouchableOpacity
-            style={styles.splitRight}
-            onPress={() => setModalVisible(true)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.addIconWrap}>
-              <Ionicons name="add" size={ms(20)} color={colors.textTertiary} />
-            </View>
-            <Text style={styles.addLabel}>Add</Text>
-          </TouchableOpacity>
-        </View>
-
-        <AddSupplementModal
-          visible={modalVisible}
-          onClose={() => setModalVisible(false)}
-        />
-      </>
-    );
-  }
-
-  // 2+ supplements → normal grid, no add button
-  return (
-    <>
+  } else {
+    // 2+ supplements → normal grid, no add button
+    body = (
       <View style={gridStyles.grid}>
         {configs.map((config) => (
           <View key={config.key} style={{ width: CELL_WIDTH }}>
@@ -275,7 +179,13 @@ export default function SupplementsCard() {
           </View>
         ))}
       </View>
+    );
+  }
 
+  // Same position in every layout, so the modal keeps its state (and exit animation) when the count changes.
+  return (
+    <>
+      {body}
       <AddSupplementModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
@@ -294,9 +204,9 @@ const gridStyles = StyleSheet.create({
   },
 });
 
-/* ─── Theme-dependent styles ──────────────────────────── */
+/* ─── Card styles (empty state, split card) ───────────── */
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
+const createCardStyles = (colors: ThemeColors) => StyleSheet.create({
   /* Empty state (0 supplements) */
   emptyCard: {
     width: FULL_WIDTH,
@@ -354,7 +264,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(16),
     fontFamily: Fonts.semiBold,
   },
+});
 
+/* ─── Cell styles ─────────────────────────────────────── */
+
+const createCellStyles = (colors: ThemeColors) => StyleSheet.create({
   /* Cell (standalone half-width card) */
   cell: {
     flex: 1,
@@ -435,144 +349,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(16),
     fontFamily: Fonts.semiBold,
   },
-
-  /* ─── Modal ──────────────────────────────────────────── */
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    paddingHorizontal: sw(20),
-  },
-  modalSheet: {
-    backgroundColor: colors.card,
-    borderRadius: sw(16),
-    padding: sw(20),
-    gap: sw(16),
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    maxHeight: '80%',
-  },
-  modalHeroRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginBottom: sw(16),
-  },
-  modalHeroNumber: {
-    color: colors.textPrimary,
-    fontSize: ms(42),
-    lineHeight: ms(46),
-    fontFamily: Fonts.extraBold,
-    letterSpacing: -1.5,
-  },
-  modalHeroUnit: {
-    fontSize: ms(18),
-    fontFamily: Fonts.medium,
-    color: colors.textTertiary,
-  },
-  modalHeroLabel: {
-    color: colors.textTertiary,
-    fontSize: ms(12),
-    lineHeight: ms(16),
-    fontFamily: Fonts.medium,
-    marginTop: sw(-2),
-  },
-  modalHeroRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(12),
-    marginBottom: sw(4),
-  },
-  modalStatItem: {
-    alignItems: 'flex-end',
-  },
-  modalStatValue: {
-    color: colors.textPrimary,
-    fontSize: ms(16),
-    lineHeight: ms(22),
-    fontFamily: Fonts.bold,
-    letterSpacing: -0.3,
-  },
-  modalStatLabel: {
-    color: colors.textTertiary,
-    fontSize: ms(10),
-    lineHeight: ms(14),
-    fontFamily: Fonts.medium,
-  },
-  modalStatDivider: {
-    width: sw(1),
-    height: sw(26),
-    backgroundColor: colors.surface,
-  },
-  modalSectionLabel: {
-    color: colors.textTertiary,
-    fontSize: ms(10),
-    lineHeight: ms(14),
-    fontFamily: Fonts.semiBold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: sw(8),
-  },
-  modalBarTrack: {
-    height: sw(6),
-    borderRadius: sw(3),
-    backgroundColor: colors.surface,
-    overflow: 'hidden',
-  },
-  modalBarFill: {
-    height: '100%',
-    borderRadius: sw(3),
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: sw(8),
-    justifyContent: 'center',
-  },
-  modalAddBtn: {
-    flex: 1,
-    minWidth: '28%',
-    backgroundColor: colors.surface,
-    borderRadius: sw(10),
-    paddingVertical: sw(12),
-    alignItems: 'center',
-  },
-  modalAddBtnText: {
-    fontSize: ms(14),
-    lineHeight: ms(18),
-    fontFamily: Fonts.bold,
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    gap: sw(8),
-    marginTop: sw(4),
-  },
-  modalUndoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: sw(6),
-    backgroundColor: colors.surface,
-    borderRadius: sw(10),
-    paddingVertical: sw(12),
-    paddingHorizontal: sw(16),
-  },
-  modalUndoBtnText: {
-    color: colors.textSecondary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
-    fontFamily: Fonts.semiBold,
-  },
-  modalCloseBtn: {
-    backgroundColor: colors.surface,
-    borderRadius: sw(10),
-    paddingVertical: sw(12),
-    alignItems: 'center',
-  },
-  modalCloseBtnText: {
-    color: colors.textPrimary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
-    fontFamily: Fonts.semiBold,
-  },
 });
+
+export default React.memo(SupplementsCard);

@@ -1,21 +1,35 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView, TextInput } from 'react-native';
-import Overlay from '../ui/Overlay';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { useSupplementStore } from '../../stores/useSupplementStore';
+import { useShallow } from 'zustand/shallow';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { sw, ms } from '../../theme/responsive';
+import CardDetailSheet, {
+  CardDetailHero,
+  CardDetailSectionLabel,
+  CardDetailBar,
+  CardDetailFooter,
+  QuickAddGrid,
+  QuickAddButton,
+  useCardDetailStyles,
+} from './CardDetailSheet';
 
-export default function WaterCard() {
-  const { water, waterGoal, addWater, undoLastWater } = useSupplementStore();
+function WaterCard() {
+  // Only these fields: a whole-store subscription re-rendered the card on any supplement change.
+  const { water, waterGoal, addWater, undoLastWater } = useSupplementStore(
+    useShallow((s) => ({ water: s.water, waterGoal: s.waterGoal, addWater: s.addWater, undoLastWater: s.undoLastWater })),
+  );
   const userId = useAuthStore((s) => s.user?.id);
   const progress = Math.min(water / waterGoal, 1);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const detailStyles = useCardDetailStyles();
   const [expanded, setExpanded] = useState(false);
+  const handleClose = useCallback(() => setExpanded(false), []);
   const [showCustom, setShowCustom] = useState(false);
   const [customAmount, setCustomAmount] = useState('');
   const customInputRef = useRef<TextInput>(null);
@@ -83,110 +97,77 @@ export default function WaterCard() {
       </TouchableOpacity>
 
       {/* Detail modal */}
-      <Overlay
+      <CardDetailSheet
         visible={expanded}
-        animationType="fade"
-        onRequestClose={() => setExpanded(false)}
+        onClose={handleClose}
         onDismiss={() => { setShowCustom(false); setCustomAmount(''); }}
       >
-        <Pressable style={styles.backdrop} onPress={() => setExpanded(false)}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Water hero */}
-              <View style={styles.sheetHeroRow}>
-                <View>
-                  <Text style={[styles.sheetHeroNumber, isOver && { color: colors.water }]}>
-                    {water.toLocaleString()}
-                    <Text style={styles.sheetHeroUnit}> ml</Text>
-                  </Text>
-                  <Text style={styles.sheetHeroLabel}>
-                    {isOver ? `${overAmount}ml over goal` : `${remaining}ml remaining`}
-                  </Text>
-                </View>
-                <View style={styles.sheetHeroRight}>
-                  <View style={styles.sheetStatItem}>
-                    <Text style={styles.sheetStatValue}>{waterGoal.toLocaleString()}</Text>
-                    <Text style={styles.sheetStatLabel}>Goal</Text>
-                  </View>
-                  <View style={styles.sheetStatDivider} />
-                  <View style={styles.sheetStatItem}>
-                    <Text style={styles.sheetStatValue}>{pct}%</Text>
-                    <Text style={styles.sheetStatLabel}>Done</Text>
-                  </View>
-                </View>
-              </View>
+        {/* Water hero */}
+        <CardDetailHero
+          value={water.toLocaleString()}
+          valueColor={isOver ? colors.water : undefined}
+          unit="ml"
+          label={isOver ? `${overAmount}ml over goal` : `${remaining}ml remaining`}
+          stats={[
+            { value: waterGoal.toLocaleString(), label: 'Goal' },
+            { value: `${pct}%`, label: 'Done' },
+          ]}
+          dividerColor={colors.ring.track}
+        />
 
-              {/* Water progress bar */}
-              <Text style={styles.sheetSectionLabel}>Water</Text>
-              <View style={styles.sheetBarTrack}>
-                <View style={[styles.sheetBarFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: colors.water }]} />
-              </View>
+        {/* Water progress bar */}
+        <CardDetailSectionLabel>Water</CardDetailSectionLabel>
+        <CardDetailBar pct={pct} color={colors.water} trackColor={colors.ring.track} />
 
-              {/* Quick add buttons */}
-              <Text style={[styles.sheetSectionLabel, { marginTop: sw(16) }]}>Quick Add</Text>
-              <View style={styles.sheetButtons}>
-                {[100, 250, 330, 500, 750, 1000].map((ml) => (
-                  <TouchableOpacity
-                    key={ml}
-                    style={styles.sheetAddBtn}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); if (userId) addWater(userId, ml); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.sheetAddBtnText}>+{ml}ml</Text>
-                  </TouchableOpacity>
-                ))}
-                {!showCustom ? (
-                  <TouchableOpacity
-                    style={[styles.sheetAddBtn, styles.sheetCustomBtn]}
-                    onPress={() => {
-                      setShowCustom(true);
-                      setTimeout(() => customInputRef.current?.focus(), 100);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="pencil-outline" size={ms(13)} color={colors.water} style={{ marginRight: sw(4) }} />
-                    <Text style={styles.sheetAddBtnText}>Custom</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={[styles.sheetAddBtn, styles.sheetCustomInputRow]}>
-                    <TextInput
-                      ref={customInputRef}
-                      style={styles.customInput}
-                      value={customAmount}
-                      onChangeText={setCustomAmount}
-                      keyboardType="number-pad"
-                      placeholder="ml"
-                      placeholderTextColor={colors.textTertiary}
-                      onSubmitEditing={handleCustomAdd}
-                      returnKeyType="done"
-                    />
-                    <TouchableOpacity
-                      style={[styles.customAddBtn, (!customAmount || parseInt(customAmount, 10) <= 0) && { opacity: 0.4 }]}
-                      onPress={handleCustomAdd}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="add" size={ms(16)} color={colors.textOnAccent} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
+        {/* Quick add buttons */}
+        <CardDetailSectionLabel spaced>Quick Add</CardDetailSectionLabel>
+        <QuickAddGrid>
+          {[100, 250, 330, 500, 750, 1000].map((ml) => (
+            <QuickAddButton
+              key={ml}
+              label={`+${ml}ml`}
+              color={colors.water}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); if (userId) addWater(userId, ml); }}
+            />
+          ))}
+          {!showCustom ? (
+            <QuickAddButton
+              label="Custom"
+              color={colors.water}
+              style={styles.sheetCustomBtn}
+              icon="pencil-outline"
+              onPress={() => {
+                setShowCustom(true);
+                setTimeout(() => customInputRef.current?.focus(), 100);
+              }}
+            />
+          ) : (
+            <View style={[detailStyles.quickBtn, styles.sheetCustomInputRow]}>
+              <TextInput
+                ref={customInputRef}
+                style={styles.customInput}
+                value={customAmount}
+                onChangeText={setCustomAmount}
+                keyboardType="number-pad"
+                placeholder="ml"
+                placeholderTextColor={colors.textTertiary}
+                onSubmitEditing={handleCustomAdd}
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                style={[styles.customAddBtn, (!customAmount || parseInt(customAmount, 10) <= 0) && { opacity: 0.4 }]}
+                onPress={handleCustomAdd}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={ms(16)} color={colors.textOnAccent} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </QuickAddGrid>
 
-              {/* Undo + Close */}
-              <View style={styles.sheetFooter}>
-                {water > 0 && (
-                  <TouchableOpacity style={styles.undoBtn} onPress={handleUndo} activeOpacity={0.7}>
-                    <Ionicons name="arrow-undo" size={ms(14)} color={colors.textSecondary} />
-                    <Text style={styles.undoBtnText}>Undo</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={[styles.closeBtn, { flex: 1 }]} onPress={() => setExpanded(false)} activeOpacity={0.7}>
-                  <Text style={styles.closeBtnText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Overlay>
+        {/* Undo + Close */}
+        <CardDetailFooter onClose={handleClose} onUndo={handleUndo} showUndo={water > 0} />
+      </CardDetailSheet>
     </>
   );
 }
@@ -274,117 +255,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: Fonts.semiBold,
   },
 
-  /* ─── Modal ──────────────────────────────────────────── */
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    paddingHorizontal: sw(20),
-  },
-  sheet: {
-    backgroundColor: colors.card,
-    borderRadius: sw(16),
-    padding: sw(20),
-    gap: sw(16),
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    maxHeight: '80%',
-  },
-  sheetHeroRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginBottom: sw(16),
-  },
-  sheetHeroNumber: {
-    color: colors.textPrimary,
-    fontSize: ms(42),
-    lineHeight: ms(46),
-    fontFamily: Fonts.extraBold,
-    letterSpacing: -1.5,
-  },
-  sheetHeroUnit: {
-    fontSize: ms(18),
-    fontFamily: Fonts.medium,
-    color: colors.textTertiary,
-  },
-  sheetHeroLabel: {
-    color: colors.textTertiary,
-    fontSize: ms(12),
-    lineHeight: ms(16),
-    fontFamily: Fonts.medium,
-    marginTop: sw(-2),
-  },
-  sheetHeroRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(12),
-    marginBottom: sw(4),
-  },
-  sheetStatItem: {
-    alignItems: 'flex-end',
-  },
-  sheetStatValue: {
-    color: colors.textPrimary,
-    fontSize: ms(16),
-    lineHeight: ms(22),
-    fontFamily: Fonts.bold,
-    letterSpacing: -0.3,
-  },
-  sheetStatLabel: {
-    color: colors.textTertiary,
-    fontSize: ms(10),
-    lineHeight: ms(14),
-    fontFamily: Fonts.medium,
-  },
-  sheetStatDivider: {
-    width: sw(1),
-    height: sw(26),
-    backgroundColor: colors.ring?.track ?? colors.surface,
-  },
-  sheetSectionLabel: {
-    color: colors.textTertiary,
-    fontSize: ms(10),
-    lineHeight: ms(14),
-    fontFamily: Fonts.semiBold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: sw(8),
-  },
-  sheetBarTrack: {
-    height: sw(6),
-    borderRadius: sw(3),
-    backgroundColor: colors.ring?.track ?? colors.surface,
-    overflow: 'hidden',
-  },
-  sheetBarFill: {
-    height: '100%',
-    borderRadius: sw(3),
-  },
-
-  /* Quick add buttons */
-  sheetButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: sw(8),
-    justifyContent: 'center',
-  },
-  sheetAddBtn: {
-    flex: 1,
-    minWidth: '28%',
-    backgroundColor: colors.surface,
-    borderRadius: sw(10),
-    paddingVertical: sw(12),
-    alignItems: 'center',
-  },
-  sheetAddBtnText: {
-    color: colors.water,
-    fontSize: ms(14),
-    lineHeight: ms(18),
-    fontFamily: Fonts.bold,
-  },
-
-  /* Custom add */
+  /* Detail popup: custom add (the rest of the popup is CardDetailSheet) */
   sheetCustomBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -414,39 +285,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  /* Footer */
-  sheetFooter: {
-    flexDirection: 'row',
-    gap: sw(8),
-    marginTop: sw(4),
-  },
-  undoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: sw(6),
-    backgroundColor: colors.surface,
-    borderRadius: sw(10),
-    paddingVertical: sw(12),
-    paddingHorizontal: sw(16),
-  },
-  undoBtnText: {
-    color: colors.textSecondary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
-    fontFamily: Fonts.semiBold,
-  },
-  closeBtn: {
-    backgroundColor: colors.surface,
-    borderRadius: sw(10),
-    paddingVertical: sw(12),
-    alignItems: 'center',
-  },
-  closeBtnText: {
-    color: colors.textPrimary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
-    fontFamily: Fonts.semiBold,
-  },
 });
+
+export default React.memo(WaterCard);

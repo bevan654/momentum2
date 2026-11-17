@@ -9,7 +9,7 @@ import { isPlausibleBodyweight } from './muscleLoad';
 /** Longer gaps between two ticked sets aren't counted as rest (the app was left open). */
 const MAX_REST_SECONDS = 60 * 60;
 
-export type WorkoutSource = 'empty' | 'routine' | 'program' | 'ghost';
+type WorkoutSource = 'empty' | 'routine' | 'program' | 'ghost';
 
 export interface WorkoutPayloadContext {
   workoutId: string;
@@ -30,7 +30,7 @@ export interface WorkoutPayloadContext {
   bodyweightKg: number | null;
 }
 
-export interface SetRow {
+interface SetRow {
   set_number: number;
   kg: number;
   reps: number;
@@ -44,7 +44,7 @@ export interface SetRow {
   target_source: 'previous' | 'progression' | null;
 }
 
-export interface ExerciseRow {
+interface ExerciseRow {
   name: string;
   exercise_type: string;
   notes: string | null;
@@ -53,7 +53,7 @@ export interface ExerciseRow {
   sets: SetRow[];
 }
 
-export interface WorkoutPayload {
+interface WorkoutPayload {
   id: string;
   mode: 'create' | 'replace';
   duration: number;

@@ -10,7 +10,7 @@ interface Props {
   onBack: () => void;
 }
 
-export default function PatchNotesView({ onBack }: Props) {
+function PatchNotesView({ onBack }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -160,3 +160,5 @@ const createStyles = (colors: ThemeColors) =>
       marginBottom: sw(4),
     },
   });
+
+export default React.memo(PatchNotesView);

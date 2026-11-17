@@ -1,5 +1,7 @@
 # Workout Timeout Bug — Audit Findings
 
+> **Fixed (historical audit).** The fix lives in `src/stores/activeWorkout/supabaseRecovery.ts` (`runWithRecovery`), used by the finish flow in `useActiveWorkoutStore`.
+
 ## Bug Description
 
 Finishing a workout fails with "request timed out" if the app has been backgrounded or the phone locked for an extended period. The finish button shows a loading spinner that appears to hang indefinitely.

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Level } from 'momentum-muscle-map/core';
+import { type BodyFatMethod } from './useBodyFatStore';
 
 const STORAGE_KEY = 'profile_settings';
 
@@ -36,7 +37,7 @@ export const TIME_RANGES: { key: TimeRange; label: string }[] = [
   { key: '1Y', label: '1 Year' },
 ];
 
-export type BodyFatMethod = 'tape' | 'calipers' | 'bia' | 'bod_pod' | 'dexa';
+export type { BodyFatMethod };
 
 export const BODY_FAT_METHODS: { key: BodyFatMethod; label: string; short: string }[] = [
   { key: 'tape', label: 'Tape Method', short: 'Tape' },
@@ -60,10 +61,6 @@ const DEFAULT_LAB_TRACKERS: LabTracker[] = [
 ];
 
 interface ProfileSettingsState {
-  showStreakOnProfile: boolean;
-  showStreakOnLeaderboard: boolean;
-  showRecoveryPercent: boolean;
-  showRankLabels: boolean;
   hasSeenLeaderboardInfo: boolean;
   labTrackers: LabTracker[];
   defaultWeightRange: TimeRange;
@@ -76,10 +73,6 @@ interface ProfileSettingsState {
   /** Detail level of the interactive body maps (groups / muscles / parts) */
   muscleMapLevel: Level;
   initialized: boolean;
-  setShowStreakOnProfile: (value: boolean) => void;
-  setShowStreakOnLeaderboard: (value: boolean) => void;
-  setShowRecoveryPercent: (value: boolean) => void;
-  setShowRankLabels: (value: boolean) => void;
   setHasSeenLeaderboardInfo: (value: boolean) => void;
   setLabTrackerEnabled: (id: string, enabled: boolean) => void;
   reorderLabTrackers: (trackers: LabTracker[]) => void;
@@ -107,10 +100,6 @@ function migrateTrackers(saved: LabTracker[]): LabTracker[] {
 
 function persist(state: ProfileSettingsState) {
   AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({
-    showStreakOnProfile: state.showStreakOnProfile,
-    showStreakOnLeaderboard: state.showStreakOnLeaderboard,
-    showRecoveryPercent: state.showRecoveryPercent,
-    showRankLabels: state.showRankLabels,
     hasSeenLeaderboardInfo: state.hasSeenLeaderboardInfo,
     labTrackers: state.labTrackers,
     defaultWeightRange: state.defaultWeightRange,
@@ -119,14 +108,10 @@ function persist(state: ProfileSettingsState) {
     showProgressCharts: state.showProgressCharts,
     expandedNotes: state.expandedNotes,
     muscleMapLevel: state.muscleMapLevel,
-  }));
+  })).catch(() => {});
 }
 
 export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) => ({
-  showStreakOnProfile: true,
-  showStreakOnLeaderboard: true,
-  showRecoveryPercent: false,
-  showRankLabels: true,
   hasSeenLeaderboardInfo: false,
   labTrackers: DEFAULT_LAB_TRACKERS,
   defaultWeightRange: '1W' as TimeRange,
@@ -136,26 +121,6 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
   expandedNotes: {},
   muscleMapLevel: 'muscles' as Level,
   initialized: false,
-
-  setShowStreakOnProfile: (value: boolean) => {
-    set({ showStreakOnProfile: value });
-    persist(get());
-  },
-
-  setShowStreakOnLeaderboard: (value: boolean) => {
-    set({ showStreakOnLeaderboard: value });
-    persist(get());
-  },
-
-  setShowRecoveryPercent: (value: boolean) => {
-    set({ showRecoveryPercent: value });
-    persist(get());
-  },
-
-  setShowRankLabels: (value: boolean) => {
-    set({ showRankLabels: value });
-    persist(get());
-  },
 
   setHasSeenLeaderboardInfo: (value: boolean) => {
     set({ hasSeenLeaderboardInfo: value });
@@ -214,26 +179,28 @@ export const useProfileSettingsStore = create<ProfileSettingsState>((set, get) =
   },
 
   loadSettings: async () => {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const data = JSON.parse(raw);
-      set({
-        showStreakOnProfile: data.showStreakOnProfile ?? true,
-        showStreakOnLeaderboard: data.showStreakOnLeaderboard ?? true,
-        showRecoveryPercent: data.showRecoveryPercent ?? true,
-        showRankLabels: data.showRankLabels ?? true,
-        hasSeenLeaderboardInfo: data.hasSeenLeaderboardInfo ?? false,
-        labTrackers: migrateTrackers(data.labTrackers ?? DEFAULT_LAB_TRACKERS),
-        defaultWeightRange: data.defaultWeightRange ?? '1W',
-        defaultBodyFatMethod: data.defaultBodyFatMethod ?? 'tape',
-        defaultMeasurement: data.defaultMeasurement ?? { part: 'chest', side: 'left', pump: 'no_pump' },
-        showProgressCharts: data.showProgressCharts ?? true,
-        expandedNotes: data.expandedNotes ?? {},
-        muscleMapLevel: data.muscleMapLevel ?? 'muscles',
-        initialized: true,
-      });
-    } else {
-      set({ initialized: true });
+    // A storage error or a corrupt saved value falls back to the defaults; `initialized` is
+    // always set, so nothing waiting on it hangs
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const data = raw ? JSON.parse(raw) : null;
+      if (data && typeof data === 'object') {
+        set({
+          hasSeenLeaderboardInfo: data.hasSeenLeaderboardInfo ?? false,
+          labTrackers: migrateTrackers(Array.isArray(data.labTrackers) ? data.labTrackers : DEFAULT_LAB_TRACKERS),
+          defaultWeightRange: data.defaultWeightRange ?? '1W',
+          defaultBodyFatMethod: data.defaultBodyFatMethod ?? 'tape',
+          defaultMeasurement: data.defaultMeasurement ?? { part: 'chest', side: 'left', pump: 'no_pump' },
+          showProgressCharts: data.showProgressCharts ?? true,
+          expandedNotes: data.expandedNotes ?? {},
+          muscleMapLevel: data.muscleMapLevel ?? 'muscles',
+          initialized: true,
+        });
+        return;
+      }
+    } catch {
+      // fall through to the defaults
     }
+    set({ initialized: true });
   },
 }));

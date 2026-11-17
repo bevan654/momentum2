@@ -47,7 +47,7 @@ const TABS: SegmentOption<AddFoodTab>[] = [
  * popular / favourite foods and saved meals, plus barcode, MacroLens, Quick add and Make a meal.
  * Every child screen that logs something closes this sheet too.
  */
-export default function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
+function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -459,3 +459,5 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.bold,
     },
   });
+
+export default React.memo(AddFoodModal);

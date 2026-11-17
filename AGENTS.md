@@ -28,7 +28,7 @@ This project is a continuation of an app built with an older model, so expect bu
 | Language | TypeScript 5.9 (strict) |
 | React | 19.1 |
 | Navigation | React Navigation 7 — `native-stack`, `material-top-tabs` (used as bottom bar with custom UI) |
-| State | Zustand 5 (24 stores) |
+| State | Zustand 5 (23 stores) |
 | Animations | Reanimated 4.1 + react-native-worklets — UI-thread only. Never RN `Animated`. |
 | Graphics | @shopify/react-native-skia 2.2 for performance-critical visuals; react-native-svg 15.12 is still installed but no longer imported (removing it needs a native build) |
 | Body map | `momentum-muscle-map` (our own library, git dependency pinned to a release tag; the lockfile pins its commit): Skia + Reanimated renderer, JS only, so OTA-safe |
@@ -62,29 +62,29 @@ This project is a continuation of an app built with an older model, so expect bu
 ├── scripts/                   # Dev/ops scripts (build stamping, imports, seeding, notifications; catalog/ = RepDB exercise import, muscle-map region targets)
 │
 └── src/
-    ├── screens/               # Top-level routes (22 screens)
+    ├── screens/               # Top-level routes (19 screens)
     ├── components/
-    │   ├── auth/              # SocialAuthButtons (Google / Apple OAuth)
+    │   ├── auth/              # Auth screen pieces: AuthLayout, AuthBrand, AuthInput, FieldStatusIcon, authStyles, SocialAuthButtons (Google / Apple OAuth)
     │   ├── body/              # Body map wrappers around momentum-muscle-map: map pair, workout mini maps, exercise thumb, level toggle, region chip, workout heatmap
-    │   ├── dev/               # Story/Workout share overlays, story crop
-    │   ├── food/              # Nutrition tab: day summary (calorie ring, macro bars), water strip, meal cards, food popups; ui/ = shared kit for food popups (header, search, rows, fields, sub-screen, keyboard inset)
-    │   ├── friends/           # Feed, leaderboard, notifications, nudges, comments, search
-    │   ├── home/              # Home dashboard cards, feed and modals
-    │   ├── lab/               # Recovery/analytics: timers, charts, body metrics, muscle radar
-        │   ├── profile/           # Settings sub-views, goal editors
-    │   ├── share/             # Share modal
-    │   ├── ui/                # Shared primitives: Sheet (animated bottom sheet), Portal/PortalHost
-        │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, confetti, finish flow
-    │   ├── workouts/          # Workout history cards, exercise rows, rank/routine cards
+    │   ├── food/              # Nutrition tab: day summary (calorie ring, macro bars), water strip, meal cards, food popups; ui/ = shared kit for food popups (header, search, rows, fields, sub-screen, keyboard inset); macro-lens/ = AI photo scan pieces
+    │   ├── friends/           # Leaderboard, notifications, reports, search, friend stories row (FriendStories), a friend's feed workout (feed-workout/)
+    │   ├── home/              # Home dashboard cards and modals, global Header, Community feed (feed/), activity calendar (activity/)
+    │   ├── lab/               # Recovery tab: body-metric cards (weight, body fat, measurements; shared chart/history/log pieces in trend/), weekly volume, muscle radar, quick stats, AI coach card
+    │   ├── onboarding/        # Onboarding steps (DetailsStep, GoalsStep, UnitInput) + onboardingPlan (activity levels, calorie/macro recommendation)
+    │   ├── profile/           # Settings sub-views (settings/), goal editors
+    │   ├── share/             # Workout sharing: share modal, share card (WorkoutOverlay), story crop
+    │   ├── ui/                # Shared primitives: Sheet (animated bottom sheet), Overlay, Portal/PortalHost
+    │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, exercise picker (exercise-picker/), finish flow and summary (summary/), set rows (set-row/), exercise history (exercise-history/), ghost mode
+    │   ├── workouts/          # Workouts tab: recovery body map, routine cards, today's plan, exercise rows; history/, create-program/, program-day-editor/
     │   └── SheetWrapper.tsx   # Shared modal-sheet chrome
-    ├── stores/                # 24 Zustand stores (see State Management)
-    ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, navigationRef
+    ├── stores/                # 23 Zustand stores (see State Management)
+    ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, navigationRef, freezeFarTabs (react-freeze for far tabs)
     ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
-    ├── lib/                   # supabase, friendsDatabase, catalogDatabase, navigationBridge
+    ├── lib/                   # supabase, friendsDatabase (re-exports the topic files in friends/), catalogDatabase, navigationBridge
     ├── theme/                 # useColors.ts, responsive.ts, typography.ts
-    ├── utils/                 # barcodeApi, displayName, exerciseCatalog, exerciseProgress, localDate (local YYYY-MM-DD), muscleLoad (effective load for heat/recovery), muscleVolume, smoothPath, streakCalculator, strengthScore, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutStorage
-    ├── hooks/                 # useAppUpdates (EAS OTA), useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights)
-    └── constants/             # buildInfo, changelog, muscles, muscleMap (body-map config + heat/recovery reference values, bodyweight fractions), muscleMapLabels
+    ├── utils/                 # barcodeApi, confirmReplaceWorkout, dateLabels (workout date, "Nov 14"), displayName, ema (trend line), exerciseCatalog, exerciseProgress, feedExerciseDetails, formatDuration (clock, h/m and rest text), formatVolume, ghostCompare, localDate (local YYYY-MM-DD), muscleLoad (effective load for heat/recovery), muscleVolume, planExercise (routine/program exercise row), smoothPath, streakCalculator, strengthRanks (rank tiers and thresholds), strengthScore, titleCase, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutProgress, workoutStorage
+    ├── hooks/                 # useAppUpdates (EAS OTA), useDebouncedValue, useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights), useUsernameAvailability (debounced username/email taken check), useToday (today's date, rolls over at midnight)
+    └── constants/             # buildInfo, changelog, dateNames (day/month names), muscles, muscleMap (body-map config + heat/recovery reference values, bodyweight fractions), muscleMapLabels
 
 supabase/
 ├── functions/                 # Edge functions: ai-coach, ai-workout-summary, ai-workout-notifications,
@@ -101,8 +101,8 @@ supabase/
   - `WelcomeSplashScreen` for first-load flash
   - `OnboardingScreen` if profile is incomplete (height/age/gender/starting_weight)
   - `TabNavigator` once authenticated and onboarded
-- **`TabNavigator`** uses `MaterialTopTabNavigator` rendered with a **custom bottom tab bar** (animated indicator, central elevated Home button, Community badge). Tabs: **Recovery, Workouts, Home, Nutrition, Community**. Options: `lazy: true`, `freezeOnBlur: true`, `lazyPreloadDistance: 1`.
-- **`WorkoutsNavigator`** (native stack) hosts: `StartWorkout`, plan editors (`CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`), and `WorkoutDetail`. Re-pressing the Workouts tab triggers `showRecoveryOverlay()` via `navigationBridge`.
+- **`TabNavigator`** uses `MaterialTopTabNavigator` rendered with a **custom bottom tab bar** (animated indicator, central elevated Home button, Community badge). Tabs: **Recovery, Workouts, Home, Nutrition, Community**. Options: `lazy: true`, `lazyPreloadDistance: 1`. material-top-tabs has no `freezeOnBlur`; instead each tab is wrapped in `withFreezeWhenFar` (`navigation/freezeFarTabs.tsx`, `react-freeze`), so tabs more than one away from the current tab don't re-render.
+- **`WorkoutsNavigator`** (native stack) hosts: `StartWorkout` (renders nothing; registers the nav ref), `Plans` (`PlansScreen`) and the plan editors (`CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`). Re-pressing the Workouts tab triggers `showRecoveryOverlay()` via `navigationBridge`.
 - **Community tab** renders `FriendsScreen` directly (no nested navigator). Chat was removed.
 - **`navigationBridge`** exposes imperative entry points (open profile sheet, recovery overlay, workouts nav ref) to non-navigator components.
 - **`ProfileScreen`** is mounted as a 92%-height bottom sheet, opened by long-pressing the Home tab or tapping the avatar.
@@ -128,7 +128,7 @@ supabase/
 - Extract heavy sub-components.
 
 ### Animations
-- Always Reanimated: `useSharedValue`, `useAnimatedStyle`, `withTiming`, `withSpring`. Never RN's `Animated`. UI-thread only.
+- Always Reanimated: `useSharedValue`, `useAnimatedStyle`, `withTiming`, `withSpring`. Never RN's `Animated`. UI-thread only. (One exception: the custom tab bar in `TabNavigator` interpolates the swipe position material-top-tabs gives it, which is an RN Animated value.)
 
 ### Graphics
 - Skia for rings, arcs, gradients, glows. Use Skia, not react-native-svg, for new visuals.
@@ -174,19 +174,19 @@ supabase
 - Components: `PascalCase.tsx`. Stores/utils/services/hooks/lib: `camelCase.ts`. Stores: `use[Domain]Store.ts`.
 
 ### Performance
-- Never block JS thread. Use `freezeOnBlur` on tab screens. Test in release (Hermes + New Arch) only. FlashList for any list >~20 items.
+- Never block JS thread. Tab screens are frozen when more than one tab away (`withFreezeWhenFar`); `freezeOnBlur` does nothing on material-top-tabs. Test in release (Hermes + New Arch) only. FlashList for any list >~20 items.
 
 ### Library-First
 Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No custom solutions unless a measured bottleneck exists.
 
 ---
 
-## State Management — 24 Zustand Stores
+## State Management — 23 Zustand Stores
 
 | Store | Persistence | Responsibility |
 |---|---|---|
-| `useAuthStore` | Supabase Auth + SecureStore | Session, profile CRUD, email verification, beta-welcome flag |
-| `useActiveWorkoutStore` | AsyncStorage + Supabase | Active workout state, sets, rest timer, finish → one `upsert_workout` RPC keyed by the workout's client-generated id (payload built in `utils/workoutPayload.ts`), Undo reopens under the same id (largest store, ~1.4k LOC) |
+| `useAuthStore` | Supabase Auth + SecureStore | Session, profile CRUD, email verification, post-sign-up welcome flag |
+| `useActiveWorkoutStore` | AsyncStorage + Supabase | Active workout state, sets, rest timer, finish → one `upsert_workout` RPC keyed by the workout's client-generated id (payload built in `utils/workoutPayload.ts`), Undo reopens under the same id (largest store, ~700 LOC; types, constants, exercise actions and finish helpers in `stores/activeWorkout/`) |
 | `useWorkoutStore` | Supabase + AsyncStorage (24h) | History, exercise catalog cache, previous-set lookups |
 | `useRegionTargetsStore` | Supabase + AsyncStorage (24h) | Body-map region weights per catalog exercise (`exercise_region_targets`); empty while the table isn't deployed |
 | `useRoutineStore` | Supabase | Saved routines + exercises |
@@ -196,15 +196,14 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | `useNutrientGoalStore` | Supabase | Macro + micronutrient targets |
 | `useSavedMealsStore` | Supabase | User-saved meal templates |
 | `useFavouritesStore` | Supabase | Favourited foods |
-| `useProteinPowderStore` | Supabase | Powder catalog + serving log |
 | `useSupplementStore` | Supabase | Water + creatine entries/goals (optimistic) |
 | `useWeightStore` | Supabase | Weight entries + EMA trend |
 | `useBodyFatStore` | Supabase | Body-fat % entries |
 | `useMeasurementStore` | Supabase | Tape measurements (chest/arms/etc.) |
 | `useRankStore` | Supabase (cached) | Strength scoring, e1RM, per-muscle/overall rank |
 | `useStreakStore` | Computed + fire-and-forget | Streak from workout dates |
-| `useMuscleAnalysisStore` | Pure compute | Weekly muscle volume |
-| `useFriendsStore` | Supabase (4h cache) | Friends, feed, leaderboard, notifications, paginated |
+| `useMuscleAnalysisStore` | Pure compute | Recovery % per muscle group, from workout history |
+| `useFriendsStore` | Supabase (4h cache) | Friends, feed (paginated), reactions, leaderboard, notifications, block/report |
 | `useThemeStore` | AsyncStorage (100ms debounce) | Accent + dark/light mode |
 | `useProfileSettingsStore` | AsyncStorage | Local UI prefs (incl. body-map detail level) |
 | `useChangelogStore` | AsyncStorage | Last-seen changelog version |
@@ -216,7 +215,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 
 | Service | Status | Notes |
 |---|---|---|
-| `notificationService` | Active — initialized in `TabNavigator` via `initNotifications(userId)` | Realtime channel `notif:${userId}` for `notifications` table. One persistent websocket per session. |
+| `notificationService` | Active — Realtime channel via `initNotifications(userId)` from `FriendsScreen` while Community is focused (users with friends); push-token registration via `initPushToken(userId)` from `TabNavigator` for the whole session, cleared on sign-out | Realtime channel `notif:${userId}` for `notifications` table. One websocket while Community is focused. |
 | `liveActivityManager` | Active — started/updated/stopped by `useActiveWorkoutStore` | Active workout on the Lock Screen / status bar. On binaries with `modules/workout-live-activity` (1.0.37+): iOS 16.2+ ActivityKit Live Activity (Lock Screen + Dynamic Island, UI in `targets/workout-activity`) and an Android ongoing notification (channel `workout_live`, native chronometer, exact alarm flips it back to elapsed when a rest ends). Timers tick natively; JS sends a snapshot only when the shown content changes. Older binaries / iOS < 16.2 / Live Activities off: legacy iOS sticky expo-notification with a JS ticker. The scheduled `rest-timer` notification stays the audible rest-complete cue. |
 
 ---
@@ -224,7 +223,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 ## Realtime / Connection Footprint
 
 Per active session, expect roughly:
-- **1 websocket** for `notificationService` (always-on while authenticated).
+- **1 websocket** for `notificationService` while the Community tab is focused (users with friends).
 - **~2 PostgREST pool workers** on the `authenticator` role (kept warm).
 - **1** transient auth/refresh connection.
 
@@ -422,7 +421,7 @@ Keep the codebase as clean and well-structured as possible. Every file should ha
 | Supabase or third-party I/O with side effects | `src/services/` (feature logic) or `src/lib/` (clients, low-level DB helpers) |
 | Pure helpers (no React, no I/O) | `src/utils/` |
 | Reusable hooks | `src/hooks/` |
-| Shared types | `src/types/`. Types used by only one file stay in that file. |
+| Shared types | Next to the module that owns them (e.g. `stores/activeWorkout/types.ts`). Types used by only one file stay in that file. Ask before adding a `src/types/` folder. |
 | Static data and config | `src/constants/` |
 | Edge functions / SQL | `supabase/functions/<name>/`, `supabase/migrations/` |
 | Docs, plans, audits | `docs/` |

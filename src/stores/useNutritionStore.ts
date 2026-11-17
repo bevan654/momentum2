@@ -10,9 +10,6 @@ interface NutritionState {
   carbsGoal: number;
   fat: number;
   fatGoal: number;
-  steps: number;
-  caloriesBurned: number;
-  loading: boolean;
   fetchTodayNutrition: (userId: string) => Promise<void>;
   fetchNutritionGoals: (userId: string) => Promise<void>;
 }
@@ -33,9 +30,6 @@ export const useNutritionStore = create<NutritionState>((set) => ({
   carbsGoal: 250,
   fat: 0,
   fatGoal: 65,
-  steps: 0,
-  caloriesBurned: 0,
-  loading: false,
 
   fetchTodayNutrition: async (userId: string) => {
     const { start, end } = todayRange();

@@ -6,6 +6,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import type { LeaderboardEntry } from '../../lib/friendsDatabase';
 import AvatarCircle from './AvatarCircle';
+import { safeDisplayName } from '../../utils/displayName';
 
 const MEDALS = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
 
@@ -20,7 +21,7 @@ function LeaderboardRow({ entry, isCurrentUser, accentColor, valueLabel }: Props
   const rank = entry.rank;
   const rankChange = entry.rankChange ?? 0;
   const medal = rank <= 3 ? MEDALS[rank - 1] : null;
-  const displayName = entry.profile.username || entry.profile.email;
+  const displayName = safeDisplayName(entry.profile.username, entry.profile.email);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 

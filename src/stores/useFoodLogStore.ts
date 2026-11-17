@@ -3,6 +3,23 @@ import { supabase } from '../lib/supabase';
 import { useNutritionStore } from './useNutritionStore';
 import { toLocalDateString } from '../utils/localDate';
 
+/** Increments per search (and clear), so a slow earlier search can't overwrite newer results. */
+let _searchSeq = 0;
+
+/** Micronutrient columns (vitamins, minerals, sodium, caffeine). Fiber and sugar travel with the macros. */
+export const MICRO_KEYS = [
+  'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k', 'vitamin_b6', 'vitamin_b12',
+  'folate', 'calcium', 'iron', 'magnesium', 'potassium', 'zinc', 'sodium', 'caffeine',
+] as const;
+type MicroKey = (typeof MICRO_KEYS)[number];
+
+/** Each micronutrient of `src` as a number (divided by `per`), or null when it's missing. */
+function microsFrom(src: Record<string, any>, per = 1): Record<MicroKey, number | null> {
+  const out = {} as Record<MicroKey, number | null>;
+  for (const k of MICRO_KEYS) out[k] = src[k] != null ? Number(src[k]) / per : null;
+  return out;
+}
+
 /* ─── Types ────────────────────────────────────────────── */
 
 export interface FoodEntry {
@@ -130,21 +147,7 @@ async function saveUserCreatedFood(
       fat: Number(entry.fat) || 0,
       fiber: entry.fiber != null ? Number(entry.fiber) : null,
       sugar: entry.sugar != null ? Number(entry.sugar) : null,
-      sodium: entry.sodium != null ? Number(entry.sodium) : null,
-      caffeine: entry.caffeine != null ? Number(entry.caffeine) : null,
-      calcium: entry.calcium != null ? Number(entry.calcium) : null,
-      iron: entry.iron != null ? Number(entry.iron) : null,
-      potassium: entry.potassium != null ? Number(entry.potassium) : null,
-      magnesium: entry.magnesium != null ? Number(entry.magnesium) : null,
-      zinc: entry.zinc != null ? Number(entry.zinc) : null,
-      vitamin_a: entry.vitamin_a != null ? Number(entry.vitamin_a) : null,
-      vitamin_c: entry.vitamin_c != null ? Number(entry.vitamin_c) : null,
-      vitamin_d: entry.vitamin_d != null ? Number(entry.vitamin_d) : null,
-      vitamin_e: entry.vitamin_e != null ? Number(entry.vitamin_e) : null,
-      vitamin_k: entry.vitamin_k != null ? Number(entry.vitamin_k) : null,
-      vitamin_b6: entry.vitamin_b6 != null ? Number(entry.vitamin_b6) : null,
-      vitamin_b12: entry.vitamin_b12 != null ? Number(entry.vitamin_b12) : null,
-      folate: entry.folate != null ? Number(entry.folate) : null,
+      ...microsFrom(entry),
       serving_size: Number(entry.serving_size) || 1,
       serving_unit: entry.serving_unit || 'serving',
       created_by: userId,
@@ -168,8 +171,6 @@ interface FoodLogState {
   entries: FoodEntry[];
   mealConfigs: MealConfig[];
   goals: NutritionGoals;
-  // UI state
-  collapsedMeals: Record<string, boolean>;
   loading: boolean;
   // Search
   catalogResults: FoodCatalogItem[];
@@ -180,8 +181,6 @@ interface FoodLogState {
 
   // Actions
   setDate: (date: string) => void;
-  goNextDay: () => void;
-  goPrevDay: () => void;
   goToday: () => void;
   fetchDayEntries: (userId: string, date?: string) => Promise<void>;
   fetchMealConfigs: (userId: string) => Promise<void>;
@@ -190,11 +189,8 @@ interface FoodLogState {
   updateEntry: (entryId: string, updates: Partial<Omit<FoodEntry, 'id' | 'user_id' | 'created_at'>>) => Promise<void>;
   deleteEntry: (entryId: string) => Promise<void>;
   togglePlanned: (entryId: string) => Promise<void>;
-  toggleMealCollapse: (mealSlot: string) => void;
-  updateGoals: (userId: string, goals: Partial<NutritionGoals>) => Promise<void>;
-  addMealConfig: (userId: string, meal: Omit<MealConfig, 'id'>) => Promise<void>;
-  updateMealConfig: (mealId: string, updates: Partial<Omit<MealConfig, 'id'>>) => Promise<void>;
-  deleteMealConfig: (mealId: string) => Promise<void>;
+  /** Optimistic; rolls back and returns the error message if the save fails. */
+  updateGoals: (userId: string, goals: Partial<NutritionGoals>) => Promise<{ error: string | null }>;
   deleteMealGroup: (mealGroupId: string) => Promise<void>;
   searchCatalog: (query: string) => Promise<void>;
   clearSearch: () => void;
@@ -211,7 +207,6 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   entries: [],
   mealConfigs: DEFAULT_MEALS,
   goals: { calorie_goal: 2000, protein_goal: 150, carbs_goal: 250, fat_goal: 65 },
-  collapsedMeals: {},
   loading: false,
   catalogResults: [],
   catalogLoading: false,
@@ -220,20 +215,6 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
 
   setDate: (date: string) => {
     set({ selectedDate: date });
-  },
-
-  goNextDay: () => {
-    const { selectedDate } = get();
-    const d = new Date(selectedDate + 'T12:00:00');
-    d.setDate(d.getDate() + 1);
-    set({ selectedDate: toLocalDateString(d) });
-  },
-
-  goPrevDay: () => {
-    const { selectedDate } = get();
-    const d = new Date(selectedDate + 'T12:00:00');
-    d.setDate(d.getDate() - 1);
-    set({ selectedDate: toLocalDateString(d) });
   },
 
   goToday: () => {
@@ -363,22 +344,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       fiber: entry.fiber != null ? Number(entry.fiber) : null,
       sugar: entry.sugar != null ? Number(entry.sugar) : null,
       is_planned: Boolean(entry.is_planned),
-      // Micronutrients — pass through if present
-      vitamin_a: entry.vitamin_a != null ? Number(entry.vitamin_a) : null,
-      vitamin_c: entry.vitamin_c != null ? Number(entry.vitamin_c) : null,
-      vitamin_d: entry.vitamin_d != null ? Number(entry.vitamin_d) : null,
-      vitamin_e: entry.vitamin_e != null ? Number(entry.vitamin_e) : null,
-      vitamin_k: entry.vitamin_k != null ? Number(entry.vitamin_k) : null,
-      vitamin_b6: entry.vitamin_b6 != null ? Number(entry.vitamin_b6) : null,
-      vitamin_b12: entry.vitamin_b12 != null ? Number(entry.vitamin_b12) : null,
-      folate: entry.folate != null ? Number(entry.folate) : null,
-      calcium: entry.calcium != null ? Number(entry.calcium) : null,
-      iron: entry.iron != null ? Number(entry.iron) : null,
-      magnesium: entry.magnesium != null ? Number(entry.magnesium) : null,
-      potassium: entry.potassium != null ? Number(entry.potassium) : null,
-      zinc: entry.zinc != null ? Number(entry.zinc) : null,
-      sodium: entry.sodium != null ? Number(entry.sodium) : null,
-      caffeine: entry.caffeine != null ? Number(entry.caffeine) : null,
+      ...microsFrom(entry),
     };
     if (targetDate) {
       insertData.created_at = createdAt;
@@ -493,15 +459,6 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     }
   },
 
-  toggleMealCollapse: (mealSlot: string) => {
-    set((s) => ({
-      collapsedMeals: {
-        ...s.collapsedMeals,
-        [mealSlot]: !s.collapsedMeals[mealSlot],
-      },
-    }));
-  },
-
   updateGoals: async (userId: string, goals: Partial<NutritionGoals>) => {
     const prev = get().goals;
     const merged = { ...prev, ...goals };
@@ -529,57 +486,9 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         carbsGoal: prev.carbs_goal,
         fatGoal: prev.fat_goal,
       });
+      return { error: error.message };
     }
-  },
-
-  addMealConfig: async (userId: string, meal: Omit<MealConfig, 'id'>) => {
-    const tempId = `temp-${Date.now()}`;
-    const optimistic: MealConfig = { ...meal, id: tempId };
-    set((s) => ({ mealConfigs: [...s.mealConfigs, optimistic] }));
-
-    const { data, error } = await supabase
-      .from('meal_config')
-      .insert({ user_id: userId, ...meal })
-      .select()
-      .single();
-
-    if (error || !data) {
-      set((s) => ({ mealConfigs: s.mealConfigs.filter((m) => m.id !== tempId) }));
-    } else {
-      set((s) => ({
-        mealConfigs: s.mealConfigs.map((m) => (m.id === tempId ? { ...m, id: data.id } : m)),
-      }));
-    }
-  },
-
-  updateMealConfig: async (mealId: string, updates: Partial<Omit<MealConfig, 'id'>>) => {
-    const prev = get().mealConfigs;
-    set((s) => ({
-      mealConfigs: s.mealConfigs.map((m) => (m.id === mealId ? { ...m, ...updates } : m)),
-    }));
-
-    const { error } = await supabase
-      .from('meal_config')
-      .update(updates)
-      .eq('id', mealId);
-
-    if (error) {
-      set({ mealConfigs: prev });
-    }
-  },
-
-  deleteMealConfig: async (mealId: string) => {
-    const prev = get().mealConfigs;
-    set((s) => ({ mealConfigs: s.mealConfigs.filter((m) => m.id !== mealId) }));
-
-    const { error } = await supabase
-      .from('meal_config')
-      .delete()
-      .eq('id', mealId);
-
-    if (error) {
-      set({ mealConfigs: prev });
-    }
+    return { error: null };
   },
 
   deleteMealGroup: async (mealGroupId: string) => {
@@ -601,6 +510,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   searchCatalog: async (query: string) => {
+    const req = ++_searchSeq;
     if (query.length < 2) {
       set({ catalogResults: [], catalogLoading: false });
       return;
@@ -628,10 +538,11 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         .order('created_at', { ascending: false })
         .limit(20),
     ]);
+    if (req !== _searchSeq) return; // a newer search (or a clear) has started since
 
-    if (catalogRes.error) console.warn('food_catalog search error:', catalogRes.error.message);
-    if (userRes.error) console.warn('user_created_foods search error:', userRes.error.message);
-    if (entryRes.error) console.warn('food_entries search error:', entryRes.error.message);
+    if (__DEV__ && catalogRes.error) console.warn('food_catalog search error:', catalogRes.error.message);
+    if (__DEV__ && userRes.error) console.warn('user_created_foods search error:', userRes.error.message);
+    if (__DEV__ && entryRes.error) console.warn('food_entries search error:', entryRes.error.message);
 
     const catalogItems: FoodCatalogItem[] = (catalogRes.data || []).map((d) => ({
       ...d,
@@ -697,6 +608,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   clearSearch: () => {
+    _searchSeq++;
     set({ catalogResults: [], catalogLoading: false });
   },
 
@@ -739,21 +651,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
           serving_unit: d.serving_unit || 'serving',
           confidence: 'user',
           category: null,
-          vitamin_a: d.vitamin_a != null ? Number(d.vitamin_a) / qty : null,
-          vitamin_c: d.vitamin_c != null ? Number(d.vitamin_c) / qty : null,
-          vitamin_d: d.vitamin_d != null ? Number(d.vitamin_d) / qty : null,
-          vitamin_e: d.vitamin_e != null ? Number(d.vitamin_e) / qty : null,
-          vitamin_k: d.vitamin_k != null ? Number(d.vitamin_k) / qty : null,
-          vitamin_b6: d.vitamin_b6 != null ? Number(d.vitamin_b6) / qty : null,
-          vitamin_b12: d.vitamin_b12 != null ? Number(d.vitamin_b12) / qty : null,
-          folate: d.folate != null ? Number(d.folate) / qty : null,
-          calcium: d.calcium != null ? Number(d.calcium) / qty : null,
-          iron: d.iron != null ? Number(d.iron) / qty : null,
-          magnesium: d.magnesium != null ? Number(d.magnesium) / qty : null,
-          potassium: d.potassium != null ? Number(d.potassium) / qty : null,
-          zinc: d.zinc != null ? Number(d.zinc) / qty : null,
-          sodium: d.sodium != null ? Number(d.sodium) / qty : null,
-          caffeine: d.caffeine != null ? Number(d.caffeine) / qty : null,
+          ...microsFrom(d, qty),
         });
         if (recentFoods.length >= 25) break;
       }

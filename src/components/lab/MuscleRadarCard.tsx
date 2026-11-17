@@ -25,6 +25,8 @@ import { useMuscleLoad } from '../../hooks/useMuscleLoad';
 import { hasPrimaryWork, partsOf, regionVolume, relativeValues, type RegionWeightLookup } from '../../utils/muscleVolume';
 import type { MuscleLoad } from '../../utils/muscleLoad';
 import { regionLabel } from '../../constants/muscleMapLabels';
+import { formatVolumeKg } from '../../utils/formatVolume';
+import { formatMonthDay } from '../../utils/dateLabels';
 
 /* ─── Config ─────────────────────────────────────────────── */
 
@@ -112,10 +114,6 @@ function computeRegionVolume(workouts: WorkoutWithDetails[], days: number, looku
   return regionVolume(exercises, lookup, load);
 }
 
-function formatKg(kg: number): string {
-  return kg >= 1000 ? `${(kg / 1000).toFixed(1)}k kg` : `${Math.round(kg)} kg`;
-}
-
 function polarXY(angle: number, r: number): { x: number; y: number } {
   return {
     x: CENTER + r * Math.cos(angle - Math.PI / 2),
@@ -177,16 +175,14 @@ export default function MuscleRadarCard() {
       share = Math.max(share, bodyValues[part] ?? 0);
     }
     if (!(kg > 0)) return 'Not trained';
-    if (!hasPrimaryWork(regionWork, selected.level, selected.key)) return `${formatKg(kg)} · secondary only`;
-    return `${formatKg(kg)} · ${Math.round(share * 100)}% of top`;
+    if (!hasPrimaryWork(regionWork, selected.level, selected.key)) return `${formatVolumeKg(kg)} · secondary only`;
+    return `${formatVolumeKg(kg)} · ${Math.round(share * 100)}% of top`;
   }, [selected, regionWork, bodyValues]);
 
   const dateRangeLabel = useMemo(() => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - effectiveDays);
-    const fmt = (d: Date) =>
-      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `${fmt(start)} – ${fmt(now)}`;
+    return `${formatMonthDay(start)} – ${formatMonthDay(now)}`;
   }, [effectiveDays]);
 
   const maxSets = useMemo(() => {

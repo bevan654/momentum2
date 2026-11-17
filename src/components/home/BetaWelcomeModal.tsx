@@ -11,26 +11,46 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../../stores/useAuthStore';
+
+const seenKey = (userId: string) => `@momentum_beta_welcome_seen:${userId}`;
 
 interface Props {
   onDismiss?: () => void;
 }
 
-export default function BetaWelcomeModal({ onDismiss }: Props) {
+function BetaWelcomeModal({ onDismiss }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const userId = useAuthStore((s) => s.user?.id);
 
   const [visible, setVisible] = useState(false);
 
+  // Shown once per account: the dismissal is saved per user id. If it was already dismissed,
+  // report that straight away so the changelog and finish-feedback prompts (gated on it) can show.
   useEffect(() => {
     if (!userId) return;
-    setVisible(true);
+    let cancelled = false;
+    (async () => {
+      let seen = false;
+      try {
+        seen = (await AsyncStorage.getItem(seenKey(userId))) === '1';
+      } catch {
+        // Storage unreadable: show it (the old behaviour) rather than skip it
+      }
+      if (cancelled) return;
+      if (seen) onDismiss?.();
+      else setVisible(true);
+    })();
+    return () => { cancelled = true; };
+    // onDismiss is an inline callback from App; only a new user should re-run this
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const dismiss = () => {
     setVisible(false);
+    if (userId) AsyncStorage.setItem(seenKey(userId), '1').catch(() => {});
     onDismiss?.();
   };
 
@@ -118,7 +138,7 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     backdrop: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.65)',
+      backgroundColor: colors.backdrop + 'A6',
     },
     centered: {
       flex: 1,
@@ -224,3 +244,5 @@ const createStyles = (colors: ThemeColors) =>
       fontFamily: Fonts.bold,
     },
   });
+
+export default React.memo(BetaWelcomeModal);

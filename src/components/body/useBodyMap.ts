@@ -16,7 +16,7 @@ let female: BodyPair | null = null;
  * The front and back body for a profile's gender (male unless 'female'). Each body is 62–72 KB of
  * data, so only the two that are shown are loaded, on first use.
  */
-export function getBodies(gender: string | null | undefined): BodyPair {
+function getBodies(gender: string | null | undefined): BodyPair {
   if (gender === 'female') {
     return (female ??= {
       front: require('momentum-muscle-map/data/female-front').default as BodyData,

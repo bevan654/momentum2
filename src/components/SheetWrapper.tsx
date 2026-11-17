@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, Pressable, Platform } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -13,11 +13,9 @@ const VELOCITY_THRESHOLD = 800;
 
 interface SheetWrapperProps {
   children: React.ReactNode;
-  /** If true, only renders backdrop — child handles its own sheet chrome */
-  hasOwnSheet?: boolean;
 }
 
-export default function SheetWrapper({ children, hasOwnSheet = false }: SheetWrapperProps) {
+export default function SheetWrapper({ children }: SheetWrapperProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -40,7 +38,8 @@ export default function SheetWrapper({ children, hasOwnSheet = false }: SheetWra
     goBack();
   }, [goBack]);
 
-  const panGesture = Gesture.Pan()
+  // Built once: a new gesture object each render makes the handler re-attach
+  const panGesture = useMemo(() => Gesture.Pan()
     .activeOffsetY(8)
     .onStart(() => {
       ctx.value = translateY.value;
@@ -56,7 +55,7 @@ export default function SheetWrapper({ children, hasOwnSheet = false }: SheetWra
       } else {
         translateY.value = 0;
       }
-    });
+    }), [goBack]);
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -66,28 +65,10 @@ export default function SheetWrapper({ children, hasOwnSheet = false }: SheetWra
     opacity: backdropOpacity.value,
   }));
 
-  if (hasOwnSheet) {
-    return withHost(
-      <View style={styles.container}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={dismiss}>
-          <Animated.View style={[styles.backdrop, backdropStyle]} />
-        </Pressable>
-        <Animated.View style={[styles.sheet, { marginTop: sheetMarginTop, backgroundColor: colors.background }, sheetStyle]}>
-          <GestureDetector gesture={panGesture}>
-            <Animated.View style={styles.handleRow}>
-              <View style={[styles.handle, { backgroundColor: colors.textTertiary + '60' }]} />
-            </Animated.View>
-          </GestureDetector>
-          {children}
-        </Animated.View>
-      </View>
-    );
-  }
-
   return withHost(
     <View style={styles.container}>
       <Pressable style={StyleSheet.absoluteFill} onPress={dismiss}>
-        <Animated.View style={[styles.backdrop, backdropStyle]} />
+        <Animated.View style={[styles.backdrop, { backgroundColor: colors.backdrop + '80' }, backdropStyle]} />
       </Pressable>
       <Animated.View style={[styles.sheet, { marginTop: sheetMarginTop, backgroundColor: colors.background }, sheetStyle]}>
         <GestureDetector gesture={panGesture}>
@@ -115,10 +96,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
+  backdrop: StyleSheet.absoluteFillObject,
   sheet: {
     flex: 1,
     borderTopLeftRadius: sw(20),

@@ -3,18 +3,16 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
-
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+import { DAY_LONG, MONTH_SHORT } from '../../constants/dateNames';
 
 function MotivationCard() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const now = new Date();
-  const dayName = DAYS[now.getDay()];
+  const dayName = DAY_LONG[now.getDay()];
   const dayNum = now.getDate();
-  const monthName = MONTHS[now.getMonth()];
+  const monthName = MONTH_SHORT[now.getMonth()];
 
   return (
     <View style={styles.container}>

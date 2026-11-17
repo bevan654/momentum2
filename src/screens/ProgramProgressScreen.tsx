@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -9,8 +9,9 @@ import { sw, ms } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useProgramStore } from '../stores/useProgramStore';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
-
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+import { formatHoursMinutes } from '../utils/formatDuration';
+import { WEEKDAY_SHORT, DAY_SHORT, MONTH_SHORT } from '../constants/dateNames';
+import { parseLocalDate } from '../utils/localDate';
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'ProgramProgress'>;
 
@@ -45,7 +46,7 @@ export default function ProgramProgressScreen() {
   const calendarGrid = useMemo(() => {
     if (!program || !program.start_date) return [];
 
-    const startDate = new Date(program.start_date);
+    const startDate = parseLocalDate(program.start_date);
     // Align to Monday
     const jsDay = startDate.getDay();
     const mondayOffset = jsDay === 0 ? -6 : 1 - jsDay;
@@ -77,9 +78,9 @@ export default function ProgramProgressScreen() {
       trainedDates.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
     }
 
-    const programStart = new Date(program.start_date);
+    const programStart = parseLocalDate(program.start_date);
     programStart.setHours(0, 0, 0, 0);
-    const programEnd = program.end_date ? new Date(program.end_date) : null;
+    const programEnd = program.end_date ? parseLocalDate(program.end_date) : null;
     if (programEnd) programEnd.setHours(23, 59, 59, 999);
 
     for (let w = 0; w < totalWeeks; w++) {
@@ -115,7 +116,10 @@ export default function ProgramProgressScreen() {
       sum + week.days.filter((d) => d.isMissed).length, 0);
     const totalVolume = progressData.reduce((sum, p) => sum + p.total_volume, 0);
     const totalDuration = progressData.reduce((sum, p) => sum + p.duration, 0);
-    const adherence = totalScheduled > 0 ? Math.round((totalTrained / totalScheduled) * 100) : 0;
+    // Scheduled days that were trained, out of scheduled days so far (extra workouts don't push it past 100%)
+    const scheduledTrained = calendarGrid.reduce((sum, week) =>
+      sum + week.days.filter((d) => d.isScheduled && d.isPast && d.isInProgram && d.isTrained).length, 0);
+    const adherence = totalScheduled > 0 ? Math.round((scheduledTrained / totalScheduled) * 100) : 0;
 
     // Volume trend
     let volTrend = 0;
@@ -129,15 +133,6 @@ export default function ProgramProgressScreen() {
 
     return { totalTrained, totalMissed, adherence, totalVolume, totalDuration, volTrend };
   }, [progressData, calendarGrid, currentWeek]);
-
-  // Format duration
-  const formatDuration = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m`;
-  };
-
 
   if (!program) {
     return (
@@ -180,13 +175,13 @@ export default function ProgramProgressScreen() {
             <Text style={styles.statLabel}>Missed</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={[styles.statValue, { color: stats.adherence >= 80 ? '#34C759' : stats.adherence >= 50 ? colors.accentOrange : colors.accentRed }]}>
+            <Text style={[styles.statValue, { color: stats.adherence >= 80 ? colors.positive : stats.adherence >= 50 ? colors.accentOrange : colors.accentRed }]}>
               {stats.adherence}%
             </Text>
             <Text style={styles.statLabel}>Adherence</Text>
           </View>
           <View style={styles.statBox}>
-            <Text style={[styles.statValue, { color: stats.volTrend >= 0 ? '#34C759' : colors.accentRed }]}>
+            <Text style={[styles.statValue, { color: stats.volTrend >= 0 ? colors.positive : colors.accentRed }]}>
               {stats.volTrend >= 0 ? '+' : ''}{stats.volTrend}%
             </Text>
             <Text style={styles.statLabel}>Volume</Text>
@@ -197,7 +192,7 @@ export default function ProgramProgressScreen() {
           <View style={styles.totalRow}>
             <View style={styles.totalItem}>
               <Ionicons name="time-outline" size={ms(14)} color={colors.textTertiary} />
-              <Text style={styles.totalText}>{formatDuration(stats.totalDuration)} total</Text>
+              <Text style={styles.totalText}>{formatHoursMinutes(stats.totalDuration)} total</Text>
             </View>
             <View style={styles.totalItem}>
               <Ionicons name="barbell-outline" size={ms(14)} color={colors.textTertiary} />
@@ -211,7 +206,7 @@ export default function ProgramProgressScreen() {
 
         {/* Day headers */}
         <View style={styles.calendarHeader}>
-          {DAYS.map((d) => (
+          {WEEKDAY_SHORT.map((d) => (
             <Text key={d} style={styles.calendarDayHeader}>{d[0]}</Text>
           ))}
         </View>
@@ -225,7 +220,7 @@ export default function ProgramProgressScreen() {
             <View style={styles.calendarWeek}>
               {days.map((day, i) => {
                 let cellStyle = styles.calendarCell;
-                let cellInnerStyle = [styles.calendarCellInner];
+                const cellInnerStyle: StyleProp<ViewStyle>[] = [styles.calendarCellInner];
                 let textColor = colors.textTertiary;
 
                 if (!day.isInProgram) {
@@ -237,7 +232,7 @@ export default function ProgramProgressScreen() {
                   textColor = colors.textOnAccent;
                 } else if (day.isMissed) {
                   cellInnerStyle.push(styles.cellMissed);
-                  textColor = '#fff';
+                  textColor = colors.textOnColor;
                 } else if (day.isToday) {
                   cellInnerStyle.push(styles.cellToday);
                   textColor = colors.accent;
@@ -292,9 +287,7 @@ export default function ProgramProgressScreen() {
             <Text style={styles.sectionLabel}>Recent Workouts</Text>
             {[...progressData].reverse().slice(0, 8).map((entry) => {
               const d = new Date(entry.created_at);
-              const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-              const dateStr = `${dayNames[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+              const dateStr = `${DAY_SHORT[d.getDay()]}, ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
 
               return (
                 <View key={entry.workout_id} style={styles.workoutRow}>
@@ -306,7 +299,7 @@ export default function ProgramProgressScreen() {
                   </View>
                   <View style={styles.workoutStats}>
                     <Text style={styles.workoutVolume}>{(entry.total_volume / 1000).toFixed(1)}t</Text>
-                    <Text style={styles.workoutDuration}>{formatDuration(entry.duration)}</Text>
+                    <Text style={styles.workoutDuration}>{formatHoursMinutes(entry.duration)}</Text>
                   </View>
                 </View>
               );

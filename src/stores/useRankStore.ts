@@ -39,11 +39,8 @@ interface RankState {
   totalWorkouts: number;
   /** < 10 workouts → provisional. */
   isProvisional: boolean;
-  /** Rank name before the most recent updateFromWorkout. */
-  previousRankName: string;
 
   loading: boolean;
-  lastComputed: number | null;
 
   /** Full computation — fetches all workout data and computes from scratch. */
   computeRank: (userId: string) => Promise<void>;
@@ -123,6 +120,47 @@ function rankBodyweight(): number {
   return 70;
 }
 
+/**
+ * Fold workouts' completed working sets (and legacy sets with no set_type) into `bestSets`, keeping
+ * each exercise's highest estimated 1RM. Mutates `bestSets`; returns whether anything improved.
+ */
+function mergeBestSets(
+  bestSets: Record<string, BestSetEntry>,
+  exercises: { name: string; exercise_type?: string | null; sets?: any[] }[],
+  catalogMap: Record<string, any>,
+  ciCatalog: Record<string, any>,
+  bodyweight: number,
+): boolean {
+  let changed = false;
+  for (const ex of exercises) {
+    const cat = catalogLookup(ex.name, catalogMap, ciCatalog);
+    const exType = resolveLoadType(ex.exercise_type, cat?.exercise_type);
+    const rowIsWeighted = toLoadType(ex.exercise_type) === 'weighted';
+
+    for (const s of ex.sets || []) {
+      if (!s.completed) continue;
+      if (s.set_type && s.set_type !== 'working') continue;
+
+      const kg = Number(s.kg) || 0;
+      const reps = Number(s.reps) || 0;
+      if (reps <= 0) continue;
+
+      const setType = rankLoadType(exType, rowIsWeighted, kg);
+      const load = effectiveLoad(kg, bodyweight, setType);
+      if (load <= 0) continue;
+
+      const e1rm = estimateOneRepMax(load, reps);
+      const prev = bestSets[ex.name];
+
+      if (!prev || e1rm > prev.e1rm) {
+        bestSets[ex.name] = { kg, reps, exerciseType: setType, e1rm };
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
 export const useRankStore = create<RankState>((set, get) => ({
   bestSets: {},
   exerciseScores: {},
@@ -133,9 +171,7 @@ export const useRankStore = create<RankState>((set, get) => ({
   diversityBonus: 0,
   totalWorkouts: 0,
   isProvisional: true,
-  previousRankName: 'Novice',
   loading: false,
-  lastComputed: null,
 
   /* ─── Full computation ─────────────────────────────── */
 
@@ -143,21 +179,29 @@ export const useRankStore = create<RankState>((set, get) => ({
     set({ loading: true });
 
     try {
-      // 1. Fetch total workout count
-      const { count } = await supabase
-        .from('workouts')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
+      // 1. Total workout count, and 2. the most recent 500 workout ids (enough for an accurate rank
+      // without loading the whole history), in parallel
+      const [{ count, error: countError }, { data: workoutsData, error: workoutsError }] = await Promise.all([
+        supabase
+          .from('workouts')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId),
+        supabase
+          .from('workouts')
+          .select('id')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(500),
+      ]);
+
+      // A failed query (offline, timeout) is not "no workouts": keep the current/cached rank and
+      // don't persist, so a lower rank from missing data never overwrites the saved one.
+      if (countError || workoutsError) {
+        set({ loading: false });
+        return;
+      }
 
       const totalWorkouts = count ?? 0;
-
-      // 2. Fetch workout IDs (most recent 500 — enough for accurate rank, avoids loading entire history)
-      const { data: workoutsData } = await supabase
-        .from('workouts')
-        .select('id')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(500);
 
       if (!workoutsData || workoutsData.length === 0) {
         set({
@@ -171,7 +215,6 @@ export const useRankStore = create<RankState>((set, get) => ({
           totalWorkouts: 0,
           isProvisional: true,
           loading: false,
-          lastComputed: Date.now(),
         });
         return;
       }
@@ -180,13 +223,20 @@ export const useRankStore = create<RankState>((set, get) => ({
 
       // Batch fetch to avoid URL-length limits on large histories
       const BATCH = 200;
+      const batches: string[][] = [];
+      for (let i = 0; i < workoutIds.length; i += BATCH) batches.push(workoutIds.slice(i, i + BATCH));
+      // In parallel; results are concatenated in batch order, as before
+      const results = await Promise.all(batches.map((batch) => supabase
+        .from('exercises')
+        .select('name, exercise_type, sets(kg, reps, completed, set_type)')
+        .in('workout_id', batch)));
+      // One failed batch would leave the rank computed from partial history: keep the current one
+      if (results.some((r) => r.error)) {
+        set({ loading: false });
+        return;
+      }
       const allExercises: any[] = [];
-      for (let i = 0; i < workoutIds.length; i += BATCH) {
-        const batch = workoutIds.slice(i, i + BATCH);
-        const { data } = await supabase
-          .from('exercises')
-          .select('name, exercise_type, sets(kg, reps, completed, set_type)')
-          .in('workout_id', batch);
+      for (const { data } of results) {
         if (data) allExercises.push(...data);
       }
 
@@ -196,34 +246,7 @@ export const useRankStore = create<RankState>((set, get) => ({
       const bodyweight = rankBodyweight();
 
       const bestSets: Record<string, BestSetEntry> = {};
-
-      for (const ex of allExercises) {
-        const cat = catalogLookup(ex.name, catalogMap, ciCatalog);
-        const exType = resolveLoadType(ex.exercise_type, cat?.exercise_type);
-        const rowIsWeighted = toLoadType(ex.exercise_type) === 'weighted';
-        const sets: any[] = ex.sets || [];
-
-        for (const s of sets) {
-          if (!s.completed) continue;
-          // Count working sets + null set_type (legacy data)
-          if (s.set_type && s.set_type !== 'working') continue;
-
-          const kg = Number(s.kg) || 0;
-          const reps = Number(s.reps) || 0;
-          if (reps <= 0) continue;
-
-          const setType = rankLoadType(exType, rowIsWeighted, kg);
-          const load = effectiveLoad(kg, bodyweight, setType);
-          if (load <= 0) continue;
-
-          const e1rm = estimateOneRepMax(load, reps);
-          const prev = bestSets[ex.name];
-
-          if (!prev || e1rm > prev.e1rm) {
-            bestSets[ex.name] = { kg, reps, exerciseType: setType, e1rm };
-          }
-        }
-      }
+      mergeBestSets(bestSets, allExercises, catalogMap, ciCatalog, bodyweight);
 
       // 4. Compute full rank (pass CI catalog so all exercises resolve)
       const result = computeFullRank({
@@ -243,9 +266,7 @@ export const useRankStore = create<RankState>((set, get) => ({
         diversityBonus: result.diversityBonus,
         totalWorkouts,
         isProvisional: result.isProvisional,
-        previousRankName: result.rank.name,
         loading: false,
-        lastComputed: Date.now(),
       });
 
       get()._persistRank(userId);
@@ -263,43 +284,15 @@ export const useRankStore = create<RankState>((set, get) => ({
     const bodyweight = rankBodyweight();
 
     const bestSets = { ...prevBest };
-    let changed = false;
-
-    for (const ex of exercises) {
-      const cat = catalogLookup(ex.name, catalogMap, ciCatalog);
-      const exType = resolveLoadType(ex.exercise_type, cat?.exercise_type);
-      const rowIsWeighted = toLoadType(ex.exercise_type) === 'weighted';
-
-      for (const s of ex.sets) {
-        if (!s.completed) continue;
-        if (s.set_type && s.set_type !== 'working') continue;
-
-        const kg = Number(s.kg) || 0;
-        const reps = Number(s.reps) || 0;
-        if (reps <= 0) continue;
-
-        const setType = rankLoadType(exType, rowIsWeighted, kg);
-        const load = effectiveLoad(kg, bodyweight, setType);
-        if (load <= 0) continue;
-
-        const e1rm = estimateOneRepMax(load, reps);
-        const prev = bestSets[ex.name];
-
-        if (!prev || e1rm > prev.e1rm) {
-          bestSets[ex.name] = { kg, reps, exerciseType: setType, e1rm };
-          changed = true;
-        }
-      }
-    }
+    const changed = mergeBestSets(bestSets, exercises, catalogMap, ciCatalog, bodyweight);
 
     if (!changed) {
       // Still bump workout count — rank stays the same
-      set({ totalWorkouts: totalWorkouts + 1, previousRankName: get().rank.name });
+      set({ totalWorkouts: totalWorkouts + 1 });
       if (userId) get()._persistRank(userId);
       return;
     }
 
-    const previousRankName = get().rank.name;
     const newTotal = totalWorkouts + 1;
     const result = computeFullRank({
       bestSets,
@@ -318,8 +311,6 @@ export const useRankStore = create<RankState>((set, get) => ({
       diversityBonus: result.diversityBonus,
       totalWorkouts: newTotal,
       isProvisional: result.isProvisional,
-      previousRankName,
-      lastComputed: Date.now(),
     });
 
     if (userId) get()._persistRank(userId);
@@ -386,7 +377,6 @@ export const useRankStore = create<RankState>((set, get) => ({
         },
         { onConflict: 'user_id' },
       )
-      .then(() => {})
-      .catch(() => {});
+      .then(() => {}, () => {});
   },
 }));

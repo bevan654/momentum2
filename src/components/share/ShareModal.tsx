@@ -8,17 +8,16 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import StoryCropModal from '../dev/StoryCropModal';
+import StoryCropModal from './StoryCropModal';
 import Sheet from '../ui/Sheet';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
   children: (props: { imageUri: string | null }) => React.ReactNode;
-  controls?: React.ReactNode;
 }
 
-export default function ShareModal({ visible, onClose, children, controls }: Props) {
+export default function ShareModal({ visible, onClose, children }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -136,8 +135,6 @@ export default function ShareModal({ visible, onClose, children, controls }: Pro
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled
         >
-          {controls}
-
           <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
             {children({ imageUri })}
           </ViewShot>

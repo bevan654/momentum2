@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { rebuildClient, supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
-import { cleanupNotifications } from '../services/notificationService';
+import { cleanupNotifications, stopPushToken, clearPushTokenForSignOut } from '../services/notificationService';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useActiveWorkoutStore } from './useActiveWorkoutStore';
 import { clearWorkout as clearStoredWorkout } from '../utils/workoutStorage';
@@ -134,19 +134,24 @@ async function ensureProfileFromMetadata(user: User): Promise<void> {
     { id: user.id, email: user.email, username },
     { onConflict: 'id' },
   );
+  await upsertDefaultGoals(user.id);
+}
+
+/** A new account's starting nutrition and water/creatine goals. Rows that already exist are left alone. */
+async function upsertDefaultGoals(userId: string): Promise<void> {
   await supabase.from('nutrition_goals').upsert(
     {
-      user_id: user.id,
+      user_id: userId,
       calorie_goal: 2000,
       protein_goal: 150,
       carbs_goal: 250,
       fat_goal: 65,
     },
-    { onConflict: 'user_id' },
+    { onConflict: 'user_id', ignoreDuplicates: true },
   );
   await supabase.from('supplement_goals').upsert(
-    { user_id: user.id, water_goal: 2500, creatine_goal: 5 },
-    { onConflict: 'user_id' },
+    { user_id: userId, water_goal: 2500, creatine_goal: 5 },
+    { onConflict: 'user_id', ignoreDuplicates: true },
   );
 }
 
@@ -185,7 +190,13 @@ interface AuthState {
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
   confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<{ error: string | null }>;
   fetchProfile: (userId: string) => Promise<void>;
-  updateProfile: (updates: Partial<Omit<Profile, 'id' | 'email'>>) => Promise<void>;
+  /** Optimistic; rolls back and returns the error message if the save fails. */
+  /**
+   * Save profile fields. Shown straight away and rolled back on failure, unless `optimistic` is
+   * false: then the profile changes only once the server has saved it (onboarding uses this, since
+   * a complete profile swaps the onboarding screen out and a rollback would bring back an empty form).
+   */
+  updateProfile: (updates: Partial<Omit<Profile, 'id' | 'email'>>, opts?: { optimistic?: boolean }) => Promise<{ error: string | null }>;
   dismissWelcome: () => void;
 }
 
@@ -216,7 +227,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       _authSubscription = null;
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const { _pendingWelcome } = get();
       // Signed out without signOut() (an expired session) or switched accounts:
       // the active workout belongs to the previous account. Its saved copy stays
@@ -230,7 +241,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } else {
         set({ user: session?.user ?? null, session });
       }
+      // A token refresh (about hourly, and on returning to the app) for the same user changes nothing
+      // in the profile, so skip refetching it.
+      const sameUserRefresh = event === 'TOKEN_REFRESHED' && prevUserId === session?.user?.id && get().profile != null;
       if (session?.user) {
+        if (sameUserRefresh) return;
         // Supabase warns against awaiting other auth/database calls inside this
         // callback because the originating auth operation may still hold its
         // internal lock. Defer profile bootstrap until the callback has returned.
@@ -269,12 +284,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  updateProfile: async (updates) => {
+  updateProfile: async (updates, opts) => {
     const { profile } = get();
-    if (!profile) return;
+    if (!profile) return { error: 'Not signed in' };
+    const optimistic = opts?.optimistic ?? true;
 
-    // Optimistic update
-    set({ profile: { ...profile, ...updates } });
+    if (optimistic) set({ profile: { ...profile, ...updates } });
 
     const { error } = await supabase
       .from('profiles')
@@ -282,9 +297,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       .eq('id', profile.id);
 
     if (error) {
-      // Rollback
-      set({ profile });
+      if (optimistic) set({ profile }); // rollback
+      return { error: error.message };
     }
+    if (!optimistic) {
+      const current = get().profile;
+      if (current?.id === profile.id) set({ profile: { ...current, ...updates } });
+    }
+    return { error: null };
   },
 
   signUp: async (email, password, username) => {
@@ -321,19 +341,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return { error: profileError.message };
         }
 
-        await supabase.from('nutrition_goals').upsert({
-          user_id: data.user.id,
-          calorie_goal: 2000,
-          protein_goal: 150,
-          carbs_goal: 250,
-          fat_goal: 65,
-        }, { onConflict: 'user_id' });
-
-        await supabase.from('supplement_goals').upsert({
-          user_id: data.user.id,
-          water_goal: 2500,
-          creatine_goal: 5,
-        }, { onConflict: 'user_id' });
+        await upsertDefaultGoals(data.user.id);
 
         await get().fetchProfile(data.user.id);
       }
@@ -447,6 +455,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     cleanupNotifications();
+    stopPushToken();
+    // Before auth.signOut: the profile write needs this session. Without it the next account on
+    // this phone kept getting the previous account's pushes.
+    const signedOutId = get().user?.id;
+    if (signedOutId) await clearPushTokenForSignOut(signedOutId);
     // Release heavy caches held by stores
     useWorkoutStore.getState().clearCaches();
     // Drop the active workout from memory; its saved copy only comes back for this account
@@ -494,6 +507,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 401 — clear caches + stored workout state so nothing leaks if a different
     // user signs in on this device.
     cleanupNotifications();
+    stopPushToken();
     useWorkoutStore.getState().clearCaches();
     useActiveWorkoutStore.getState().resetForSignOut();
     try {

@@ -1,11 +1,34 @@
 import { useEffect, useCallback, useState } from 'react';
 import { Alert, AppState } from 'react-native';
 import * as Updates from 'expo-updates';
+import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
+
+/** A downloaded update is waiting to be applied (silent mode held it back during a workout). */
+let pendingReload = false;
+
+/** Reloading now would throw away what the user is doing: a workout or its summary. */
+function isBusy(): boolean {
+  const { isActive, showSummary } = useActiveWorkoutStore.getState();
+  return isActive || showSummary;
+}
+
+/** Reloads into the downloaded update unless a workout started meanwhile; otherwise keeps it pending. */
+function reloadIfIdle() {
+  if (isBusy()) {
+    pendingReload = true;
+    return;
+  }
+  pendingReload = false;
+  Updates.reloadAsync().catch(() => {});
+}
 
 /**
  * Checks for EAS updates and either:
  * - Silently downloads and auto-reloads the app, or
  * - Prompts the user with an alert to restart now
+ *
+ * Silent mode never reloads during a workout or while its summary is showing: the update waits for a
+ * later foreground (or applies on the next launch, which expo-updates does on its own).
  *
  * @param mode
  *   'silent'  — download + auto-reload (no user interaction)
@@ -17,6 +40,12 @@ export function useAppUpdates(mode: 'silent' | 'prompt' = 'silent') {
   const checkForUpdate = useCallback(async () => {
     if (__DEV__) return;
     if (!Updates.isEnabled) return;
+
+    // An update was downloaded earlier but held back: apply it now if the user is free
+    if (mode === 'silent' && pendingReload) {
+      reloadIfIdle();
+      return;
+    }
 
     try {
       const update = await Updates.checkForUpdateAsync();
@@ -36,9 +65,11 @@ export function useAppUpdates(mode: 'silent' | 'prompt' = 'silent') {
             { text: 'Restart', onPress: () => Updates.reloadAsync() },
           ],
         );
+      } else if (isBusy()) {
+        pendingReload = true;
       } else {
-        // Silent: auto-reload after a brief delay to let state settle
-        setTimeout(() => Updates.reloadAsync(), 500);
+        // Silent: auto-reload after a brief delay to let state settle (re-checked then)
+        setTimeout(reloadIfIdle, 500);
       }
     } catch {
       // Silently fail

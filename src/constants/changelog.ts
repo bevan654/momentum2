@@ -16,6 +16,23 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.47',
+    date: '2026-11-15',
+    title: "What's New",
+    items: [
+      'Push notifications now work from the moment you sign in, not only after opening Community',
+      'Move exercises up and down in routines and program days again with the arrows on each card',
+      'Smoother workouts: typing weights and reps, ticking sets and the workout timer no longer slow the screen down',
+      'Smoother app overall: tabs you are not using no longer do work in the background, and likes respond instantly',
+      "Signing out now stops that account's notifications on this phone",
+      'Fixed: swiping a set to complete could fill in the wrong exercise after you removed one',
+      "Fixed: some exercises showed example notes that weren't yours",
+      'Fixed: opening the app offline could reset your streak to 0 for friends and the leaderboard',
+      'Fixed: streaks and profile totals for people with over 1,000 workouts',
+      'Fixed: closing a past workout is instant again',
+    ],
+  },
+  {
     version: '1.0.46',
     date: '2026-11-15',
     title: "What's New",

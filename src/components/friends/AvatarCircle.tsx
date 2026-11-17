@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { sw } from '../../theme/responsive';
+import { useColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
+import { initialFor } from '../home/feed/feedHelpers';
 
 const DEFAULT_SIZE = sw(38);
 const AVATAR_GRAY = '#4A4A4E';
@@ -14,7 +16,8 @@ interface Props {
 }
 
 function AvatarCircle({ username, email, size = DEFAULT_SIZE, bgColor = AVATAR_GRAY }: Props) {
-  const initial = (username || email || '?').charAt(0).toUpperCase();
+  const colors = useColors();
+  const initial = initialFor(username, email);
   const fontSize = size * 0.42;
   const ringWidth = size > sw(50) ? 2.5 : 1.5;
 
@@ -32,7 +35,7 @@ function AvatarCircle({ username, email, size = DEFAULT_SIZE, bgColor = AVATAR_G
         },
       ]}
     >
-      <Text style={[styles.initial, { fontSize, color: '#FFFFFF' }]}>{initial}</Text>
+      <Text style={[styles.initial, { fontSize, color: colors.textOnColor }]}>{initial}</Text>
     </View>
   );
 }

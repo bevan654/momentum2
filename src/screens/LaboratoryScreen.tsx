@@ -14,7 +14,7 @@ import BodyMetricsPager from '../components/lab/BodyMetricsPager';
 import LabTimeRangeBar from '../components/lab/LabTimeRangeBar';
 
 export default function LaboratoryScreen() {
-  const user = useAuthStore((s) => s.user);
+  const userId = useAuthStore((s) => s.user?.id);
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
   const fetchExerciseCatalog = useWorkoutStore((s) => s.fetchExerciseCatalog);
   const initialized = useProfileSettingsStore((s) => s.initialized);
@@ -27,12 +27,12 @@ export default function LaboratoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (user?.id) {
-        fetchExerciseCatalog(user.id).then(() => {
-          fetchWorkoutHistory(user.id);
+      if (userId) {
+        fetchExerciseCatalog(userId).then(() => {
+          fetchWorkoutHistory(userId);
         });
       }
-    }, [user?.id])
+    }, [userId])
   );
 
   return (

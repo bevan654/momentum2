@@ -1,5 +1,7 @@
 # Workout Timeout Bug — Fix Plan
 
+> **Done (historical plan).** Implemented as `runWithRecovery` in `src/stores/activeWorkout/supabaseRecovery.ts`.
+
 ## Root Cause (from audit)
 
 1. `supabase.auth.getSession()` on foreground resume doesn't refresh the expired JWT

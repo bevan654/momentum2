@@ -12,8 +12,8 @@ import { useWorkoutStore } from '../stores/useWorkoutStore';
 import ExerciseMuscleThumb from '../components/body/ExerciseMuscleThumb';
 import type { WorkoutsStackParamList } from '../navigation/WorkoutsNavigator';
 import { confirmReplaceWorkout } from '../utils/confirmReplaceWorkout';
-
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+import { formatRest } from '../utils/formatDuration';
+import { WEEKDAY_SHORT } from '../constants/dateNames';
 
 type ScreenProps = NativeStackScreenProps<WorkoutsStackParamList, 'RoutineSummary'>;
 
@@ -28,15 +28,6 @@ export default function RoutineSummaryScreen() {
   const startFromRoutine = useActiveWorkoutStore((s) => s.startFromRoutine);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-
-  const formatRest = useCallback((s: number) => {
-    if (s >= 60) {
-      const m = Math.floor(s / 60);
-      const rem = s % 60;
-      return rem > 0 ? `${m}m${rem}s` : `${m}m`;
-    }
-    return `${s}s`;
-  }, []);
 
   const handleStart = useCallback(() => {
     if (!routine) return;
@@ -70,7 +61,7 @@ export default function RoutineSummaryScreen() {
   }
 
   const daysLabel = routine.days.length > 0
-    ? routine.days.map((d) => DAY_NAMES[d]).join(', ')
+    ? routine.days.map((d) => WEEKDAY_SHORT[d]).join(', ')
     : null;
 
   return (

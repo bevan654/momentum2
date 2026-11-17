@@ -6,8 +6,7 @@ import {
   type LeaderboardEntry,
   type LeaderboardType,
   type SearchResult,
-  getFriendsList,
-  getFriendIds,
+  getFriends,
   getGlobalFeed,
   getFriendsFeed,
   getLeaderboard as dbGetLeaderboard,
@@ -21,20 +20,9 @@ import {
   sendFriendRequest as dbSendRequest,
   acceptFriendRequest as dbAcceptRequest,
   declineFriendRequest as dbDeclineRequest,
-  sendNudge as dbSendNudge,
   addReaction as dbAddReaction,
   removeReaction as dbRemoveReaction,
-  removeFriend as dbRemoveFriend,
-  getBookmarks as dbGetBookmarks,
-  addBookmark as dbAddBookmark,
-  removeBookmark as dbRemoveBookmark,
-  type CommentItem,
-  getComments as dbGetComments,
-  addComment as dbAddComment,
-  deleteComment as dbDeleteComment,
-  getCommentCounts as dbGetCommentCounts,
   blockUser as dbBlockUser,
-  unblockUser as dbUnblockUser,
   getBlockedUserIds as dbGetBlockedUserIds,
   reportContent as dbReportContent,
   type ReportTargetType,
@@ -45,7 +33,8 @@ const FEED_PAGE_SIZE = 15;
 const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 const MAX_FEED_ITEMS = 500;
 const MAX_NOTIFICATIONS = 100;
-const MAX_COMMENT_THREADS = 30;
+/** Bumped by every feed reset and mode switch; a fetch applies only if it is still current. */
+let feedGeneration = 0;
 
 type LeaderboardScope = 'friends' | 'global';
 type LeaderboardCacheKey = `${LeaderboardScope}:${LeaderboardType}`;
@@ -60,7 +49,6 @@ function leaderboardCacheKey(
 interface FriendsState {
   // Friends list
   friends: FriendProfile[];
-  friendsLoading: boolean;
   friendIds: string[];
   friendsFetchedAt: number | null;
 
@@ -72,9 +60,6 @@ interface FriendsState {
   feedFetchedAt: number | null;
   feedMode: 'global' | 'friends';
   setFeedMode: (mode: 'global' | 'friends') => void;
-  pendingFeedItems: ActivityFeedItem[];
-  addPendingFeedItem: (item: ActivityFeedItem) => void;
-  flushPendingFeed: () => void;
 
   // Leaderboard
   leaderboard: LeaderboardEntry[];
@@ -96,22 +81,6 @@ interface FriendsState {
 
   // Blocks (users this user has blocked — one-way)
   blockedIds: string[];
-  blockedLoading: boolean;
-
-  // Bookmarks
-  bookmarks: string[];
-  bookmarksLoading: boolean;
-
-  // Comments
-  comments: Record<string, CommentItem[]>;
-  commentsLoading: boolean;
-  commentCounts: Record<string, number>;
-
-  // Profile sheet
-  profileSheetFriend: FriendProfile | null;
-  profileSheetVisible: boolean;
-  showProfileSheet: (friend: FriendProfile) => void;
-  hideProfileSheet: () => void;
 
   // Actions
   fetchFriends: (userId: string, force?: boolean) => Promise<void>;
@@ -127,19 +96,14 @@ interface FriendsState {
   setNotificationResponded: (notificationId: string, responded: 'accepted' | 'declined') => Promise<void>;
   searchUsers: (query: string, userId: string) => Promise<void>;
   clearSearch: () => void;
-  sendFriendRequest: (userId: string, friendId: string) => Promise<void>;
+  /** Resolves false if the request couldn't be sent. */
+  sendFriendRequest: (userId: string, friendId: string) => Promise<boolean>;
   acceptRequest: (friendshipId: string, userId: string) => Promise<void>;
   declineRequest: (friendshipId: string) => Promise<void>;
-  removeFriend: (friendshipId: string, userId: string) => Promise<void>;
-  sendNudge: (senderId: string, receiverId: string, message: string) => Promise<{ error: string | null }>;
   addReaction: (activityId: string, userId: string, emoji: string) => Promise<void>;
   removeReaction: (activityId: string, userId: string, emoji: string) => Promise<void>;
-  fetchBookmarks: (userId: string) => Promise<void>;
-  toggleBookmark: (activityId: string, userId: string) => Promise<void>;
   fetchBlockedIds: (userId: string) => Promise<void>;
   blockUser: (userId: string, targetUserId: string) => Promise<void>;
-  unblockUser: (userId: string, targetUserId: string) => Promise<void>;
-  isBlocked: (targetUserId: string) => boolean;
   reportContent: (
     reporterId: string,
     targetType: ReportTargetType,
@@ -148,15 +112,21 @@ interface FriendsState {
     reason: ReportReason,
     details?: string,
   ) => Promise<{ error: string | null }>;
-  fetchComments: (activityId: string) => Promise<void>;
-  postComment: (activityId: string, userId: string, text: string, parentId?: string) => Promise<void>;
-  removeComment: (commentId: string, activityId: string) => Promise<void>;
-  fetchCommentCounts: (activityIds: string[]) => Promise<void>;
+}
+
+// Reaction writes for the same post go out one after another, so a quick like -> unlike can't
+// reach the server in the wrong order (the UI updates before the write; see addReaction).
+const _reactionQueue = new Map<string, Promise<void>>();
+function queueReaction(activityId: string, write: () => Promise<void>): Promise<void> {
+  const next = (_reactionQueue.get(activityId) ?? Promise.resolve()).then(write, write);
+  const tail = next.catch(() => {});
+  _reactionQueue.set(activityId, tail);
+  tail.then(() => { if (_reactionQueue.get(activityId) === tail) _reactionQueue.delete(activityId); });
+  return next;
 }
 
 export const useFriendsStore = create<FriendsState>((set, get) => ({
   friends: [],
-  friendsLoading: false,
   friendIds: [],
   friendsFetchedAt: null,
 
@@ -167,30 +137,10 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   feedFetchedAt: null,
   feedMode: 'global',
   setFeedMode: (mode) => {
-    set({ feedMode: mode, feedCursor: null, feedHasMore: true, feedFetchedAt: null });
-  },
-  pendingFeedItems: [],
-
-  addPendingFeedItem: (item) => {
-    set((s) => {
-      // Skip if already in feed or pending
-      if (s.feed.some((f) => f.id === item.id)) return s;
-      if (s.pendingFeedItems.some((f) => f.id === item.id)) return s;
-      return { pendingFeedItems: [item, ...s.pendingFeedItems] };
-    });
-  },
-
-  flushPendingFeed: () => {
-    const { pendingFeedItems, feed } = get();
-    if (pendingFeedItems.length === 0) return;
-    const merged = [...pendingFeedItems, ...feed];
-    const seen = new Set<string>();
-    const deduped = merged.filter((item) => {
-      if (seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    });
-    set({ feed: deduped.slice(0, MAX_FEED_ITEMS), pendingFeedItems: [] });
+    // Drop the other mode's list (and any fetch still in flight for it) so it never shows, or
+    // gets merged, under the new mode
+    feedGeneration++;
+    set({ feedMode: mode, feed: [], feedCursor: null, feedHasMore: true, feedFetchedAt: null, feedLoading: false });
   },
 
   leaderboard: [],
@@ -209,23 +159,6 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   searchLoading: false,
 
   blockedIds: [],
-  blockedLoading: false,
-
-  bookmarks: [],
-  bookmarksLoading: false,
-
-  comments: {},
-  commentsLoading: false,
-  commentCounts: {},
-
-  profileSheetFriend: null,
-  profileSheetVisible: false,
-  showProfileSheet: (friend) => set({ profileSheetFriend: friend, profileSheetVisible: true }),
-  hideProfileSheet: () => {
-    set({ profileSheetVisible: false });
-    // Delay clearing friend data so the close animation can play before unmounting
-    setTimeout(() => set({ profileSheetFriend: null }), 350);
-  },
 
   fetchFriends: async (userId, force = false) => {
     const { friendsFetchedAt, friends: cached } = get();
@@ -238,16 +171,10 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       return;
     }
 
-    set({ friendsLoading: true });
-    try {
-      const [friends, friendIds] = await Promise.all([
-        getFriendsList(userId),
-        getFriendIds(userId),
-      ]);
-      set({ friends, friendIds, friendsFetchedAt: Date.now() });
-    } finally {
-      set({ friendsLoading: false });
-    }
+    const result = await getFriends(userId);
+    // Offline / failed: keep the friends already loaded instead of emptying the list
+    if (!result) return;
+    set({ friends: result.friends, friendIds: result.friendIds, friendsFetchedAt: Date.now() });
   },
 
   fetchFeed: async (userId, reset = false, force = false) => {
@@ -266,6 +193,9 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     if (!reset && !feedHasMore) return;
 
     const cursor = reset ? null : feedCursor;
+    // A reset (or a mode switch) starts a new generation: answers from older ones are ignored
+    if (reset) feedGeneration++;
+    const generation = feedGeneration;
 
     set({ feedLoading: true });
     try {
@@ -273,6 +203,8 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       const items = feedMode === 'friends'
         ? await getFriendsFeed(friendIds, userId, FEED_PAGE_SIZE, reset ? 0 : cached.length, blockedIds)
         : await getGlobalFeed(userId, FEED_PAGE_SIZE, cursor, blockedIds);
+
+      if (generation !== feedGeneration || get().feedMode !== feedMode) return;
 
       const merged = reset ? items : [...get().feed, ...items];
       const seen = new Set<string>();
@@ -291,7 +223,8 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
         feedFetchedAt: reset ? Date.now() : get().feedFetchedAt,
       });
     } finally {
-      set({ feedLoading: false });
+      // A newer fetch owns the loading flag
+      if (generation === feedGeneration) set({ feedLoading: false });
     }
   },
 
@@ -397,12 +330,17 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
 
   markNotificationRead: async (notificationId) => {
     await dbMarkAsRead(notificationId);
-    set((s) => ({
-      notifications: s.notifications.map((n) =>
-        n.id === notificationId ? { ...n, read: true } : n,
-      ),
-      unreadCount: Math.max(0, s.unreadCount - 1),
-    }));
+    set((s) => {
+      // Only an unread one lowers the badge (a double tap, or an already-read row, must not)
+      const wasUnread = s.notifications.some((n) => n.id === notificationId && !n.read);
+      if (!wasUnread) return {};
+      return {
+        notifications: s.notifications.map((n) =>
+          n.id === notificationId ? { ...n, read: true } : n,
+        ),
+        unreadCount: Math.max(0, s.unreadCount - 1),
+      };
+    });
   },
 
   markAllNotificationsRead: async (userId) => {
@@ -425,13 +363,18 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   setNotificationResponded: async (notificationId, responded) => {
     // Optimistic local update so the row keeps its state across remounts even
     // if the network call lags or fails.
-    set((s) => ({
-      notifications: s.notifications.map((n) =>
-        n.id === notificationId
-          ? { ...n, read: true, data: { ...(n.data || {}), responded } }
-          : n,
-      ),
-    }));
+    set((s) => {
+      // Answering an unread request also reads it, so the badge goes down too
+      const wasUnread = s.notifications.some((n) => n.id === notificationId && !n.read);
+      return {
+        notifications: s.notifications.map((n) =>
+          n.id === notificationId
+            ? { ...n, read: true, data: { ...(n.data || {}), responded } }
+            : n,
+        ),
+        unreadCount: wasUnread ? Math.max(0, s.unreadCount - 1) : s.unreadCount,
+      };
+    });
     try {
       await dbSetNotificationResponded(notificationId, responded);
     } catch {}
@@ -450,12 +393,14 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
   clearSearch: () => set({ searchResults: [], searchLoading: false }),
 
   sendFriendRequest: async (userId, friendId) => {
-    await dbSendRequest(userId, friendId);
+    const sent = await dbSendRequest(userId, friendId);
+    if (!sent) return false;
     set((s) => ({
       searchResults: s.searchResults.map((r) =>
         r.id === friendId ? { ...r, friendshipStatus: 'pending' as const } : r,
       ),
     }));
+    return true;
   },
 
   acceptRequest: async (friendshipId, userId) => {
@@ -467,17 +412,9 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     await dbDeclineRequest(friendshipId);
   },
 
-  removeFriend: async (friendshipId, userId) => {
-    await dbRemoveFriend(friendshipId);
-    await get().fetchFriends(userId, true);
-  },
-
-  sendNudge: async (senderId, receiverId, message) => {
-    return dbSendNudge(senderId, receiverId, message);
-  },
-
+  // Optimistic: the heart updates on tap, then the write goes out. (The db helpers log and swallow
+  // errors, so the UI ended in this state on failure before too, only a round-trip later.)
   addReaction: async (activityId, userId, emoji) => {
-    await dbAddReaction(activityId, userId, emoji);
     set((s) => ({
       feed: s.feed.map((item) => {
         if (item.id !== activityId) return item;
@@ -496,10 +433,10 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
         };
       }),
     }));
+    await queueReaction(activityId, () => dbAddReaction(activityId, userId, emoji));
   },
 
   removeReaction: async (activityId, userId, emoji) => {
-    await dbRemoveReaction(activityId, userId, emoji);
     set((s) => ({
       feed: s.feed.map((item) => {
         if (item.id !== activityId) return item;
@@ -513,26 +450,12 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
         };
       }),
     }));
-  },
-
-  fetchBookmarks: async (userId) => {
-    set({ bookmarksLoading: true });
-    try {
-      const ids = await dbGetBookmarks(userId);
-      set({ bookmarks: ids });
-    } finally {
-      set({ bookmarksLoading: false });
-    }
+    await queueReaction(activityId, () => dbRemoveReaction(activityId, userId, emoji));
   },
 
   fetchBlockedIds: async (userId) => {
-    set({ blockedLoading: true });
-    try {
-      const ids = await dbGetBlockedUserIds(userId);
-      set({ blockedIds: ids });
-    } finally {
-      set({ blockedLoading: false });
-    }
+    const ids = await dbGetBlockedUserIds(userId);
+    set({ blockedIds: ids });
   },
 
   blockUser: async (userId, targetUserId) => {
@@ -547,15 +470,17 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       leaderboard: prev.leaderboard.filter((entry) => entry.user_id !== targetUserId),
       searchResults: prev.searchResults.filter((r) => r.id !== targetUserId),
     });
+    const feedGenAtBlock = feedGeneration;
     try {
       await dbBlockUser(userId, targetUserId);
     } catch (err) {
-      // Rollback on failure
+      // Rollback on failure. The feed only if it's still the same list (switching Global/Friends
+      // meanwhile loads a new one, which the old posts must not replace).
       set({
         blockedIds: prev.blockedIds,
         friends: prev.friends,
         friendIds: prev.friendIds,
-        feed: prev.feed,
+        ...(feedGeneration === feedGenAtBlock ? { feed: prev.feed } : {}),
         leaderboard: prev.leaderboard,
         searchResults: prev.searchResults,
       });
@@ -563,117 +488,7 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     }
   },
 
-  unblockUser: async (userId, targetUserId) => {
-    const prev = get();
-    set({ blockedIds: prev.blockedIds.filter((id) => id !== targetUserId) });
-    try {
-      await dbUnblockUser(userId, targetUserId);
-    } catch (err) {
-      set({ blockedIds: prev.blockedIds });
-      throw err;
-    }
-  },
-
-  isBlocked: (targetUserId) => get().blockedIds.includes(targetUserId),
-
   reportContent: async (reporterId, targetType, targetId, targetUserId, reason, details) => {
     return dbReportContent(reporterId, targetType, targetId, targetUserId, reason, details);
   },
-
-  fetchComments: async (activityId) => {
-    set({ commentsLoading: true });
-    try {
-      const items = await dbGetComments(activityId);
-      set((s) => {
-        const updated = { ...s.comments, [activityId]: items };
-        // Evict oldest threads if over cap
-        const keys = Object.keys(updated);
-        if (keys.length > MAX_COMMENT_THREADS) {
-          const toRemove = keys.slice(0, keys.length - MAX_COMMENT_THREADS);
-          for (const k of toRemove) delete updated[k];
-        }
-        return { comments: updated };
-      });
-    } finally {
-      set({ commentsLoading: false });
-    }
-  },
-
-  postComment: async (activityId, userId, text, parentId) => {
-    const comment = await dbAddComment(activityId, userId, text, parentId);
-    if (comment) {
-      set((s) => ({
-        comments: {
-          ...s.comments,
-          [activityId]: [...(s.comments[activityId] || []), comment],
-        },
-        commentCounts: {
-          ...s.commentCounts,
-          [activityId]: (s.commentCounts[activityId] || 0) + 1,
-        },
-      }));
-    }
-  },
-
-  removeComment: async (commentId, activityId) => {
-    // Optimistic: remove from local
-    const prev = get().comments[activityId] || [];
-    set((s) => ({
-      comments: {
-        ...s.comments,
-        [activityId]: prev.filter((c) => c.id !== commentId),
-      },
-      commentCounts: {
-        ...s.commentCounts,
-        [activityId]: Math.max(0, (s.commentCounts[activityId] || 0) - 1),
-      },
-    }));
-
-    try {
-      await dbDeleteComment(commentId);
-    } catch {
-      // Rollback
-      set((s) => ({
-        comments: { ...s.comments, [activityId]: prev },
-        commentCounts: {
-          ...s.commentCounts,
-          [activityId]: (s.commentCounts[activityId] || 0) + 1,
-        },
-      }));
-    }
-  },
-
-  fetchCommentCounts: async (activityIds) => {
-    if (activityIds.length === 0) return;
-    try {
-      const counts = await dbGetCommentCounts(activityIds);
-      set((s) => ({
-        commentCounts: { ...s.commentCounts, ...counts },
-      }));
-    } catch {}
-  },
-
-  toggleBookmark: async (activityId, userId) => {
-    const { bookmarks } = get();
-    const isBookmarked = bookmarks.includes(activityId);
-
-    // Optimistic update
-    if (isBookmarked) {
-      set({ bookmarks: bookmarks.filter((id) => id !== activityId) });
-    } else {
-      set({ bookmarks: [activityId, ...bookmarks] });
-    }
-
-    try {
-      if (isBookmarked) {
-        await dbRemoveBookmark(userId, activityId);
-      } else {
-        await dbAddBookmark(userId, activityId);
-      }
-    } catch {
-      // Rollback
-      set({ bookmarks });
-    }
-  },
-
 }));

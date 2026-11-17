@@ -23,7 +23,7 @@ function formatDuration(s: number): string {
   return `${s}s`;
 }
 
-export default function RestPickerModal({ visible, currentDuration, onSelect, onClose }: Props) {
+function RestPickerModal({ visible, currentDuration, onSelect, onClose }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -94,3 +94,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textOnAccent,
   },
 });
+
+export default React.memo(RestPickerModal);

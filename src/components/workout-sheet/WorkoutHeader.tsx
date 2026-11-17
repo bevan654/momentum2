@@ -11,9 +11,10 @@ import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import RestPickerModal from './RestPickerModal';
 import DurationPickerModal from './DurationPickerModal';
 import ActionSheet, { type ActionSheetItem } from './ActionSheet';
-import { formatClock } from '../../utils/formatDuration';
 import { workoutTotals } from '../../utils/workoutProgress';
 import { queueWorkoutFinishFeedback } from '../../services/workoutFinishFeedback';
+import { useShallow } from 'zustand/shallow';
+import ElapsedClock from './ElapsedClock';
 
 const FOUR_HOURS = 4 * 60 * 60; // 14400 seconds
 
@@ -25,12 +26,10 @@ function formatRestDuration(seconds: number): string {
 function WorkoutHeader() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const elapsedSeconds = useActiveWorkoutStore((s) => s.elapsedSeconds);
   const workoutTitle = useActiveWorkoutStore((s) => s.workoutTitle);
   const setRestDuration = useActiveWorkoutStore((s) => s.setRestDuration);
   const discardWorkout = useActiveWorkoutStore((s) => s.discardWorkout);
   const finishWorkout = useActiveWorkoutStore((s) => s.finishWorkout);
-  const exercises = useActiveWorkoutStore((s) => s.exercises);
   const userId = useAuthStore((s) => s.user?.id);
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
   const fetchExerciseCatalog = useWorkoutStore((s) => s.fetchExerciseCatalog);
@@ -40,7 +39,8 @@ function WorkoutHeader() {
   const [durationPickerVisible, setDurationPickerVisible] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const totals = useMemo(() => workoutTotals(exercises), [exercises]);
+  // Only the totals: typing in a set changes `exercises` on every keystroke, but rarely these numbers.
+  const totals = useActiveWorkoutStore(useShallow((s) => workoutTotals(s.exercises)));
   const setsRatio = totals.setsTotal > 0 ? totals.setsDone / totals.setsTotal : 0;
 
   const handleDiscard = () => {
@@ -53,6 +53,7 @@ function WorkoutHeader() {
   const handleFinish = () => {
     if (!userId || finishing) return;
 
+    const { exercises } = useActiveWorkoutStore.getState();
     if (exercises.length === 0) {
       Alert.alert('No Exercises', 'Add at least one exercise before finishing.');
       return;
@@ -71,7 +72,7 @@ function WorkoutHeader() {
       {
         text: 'Finish',
         onPress: () => {
-          if (elapsedSeconds >= FOUR_HOURS) {
+          if (useActiveWorkoutStore.getState().elapsedSeconds >= FOUR_HOURS) {
             setDurationPickerVisible(true);
           } else {
             doFinish();
@@ -125,7 +126,7 @@ function WorkoutHeader() {
       <View style={styles.titleBlock}>
         <Text style={styles.title} numberOfLines={1}>{workoutTitle || 'Workout'}</Text>
         <Text style={styles.elapsed} numberOfLines={1}>
-          {formatClock(elapsedSeconds)}
+          <ElapsedClock />
           {totals.volumeKg > 0 ? `  ·  ${Math.round(totals.volumeKg).toLocaleString()} kg` : ''}
         </Text>
       </View>

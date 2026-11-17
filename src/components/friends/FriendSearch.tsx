@@ -10,7 +10,7 @@ import { useFriendsStore } from '../../stores/useFriendsStore';
 import type { SearchResult } from '../../lib/friendsDatabase';
 import SearchResultRow from './SearchResultRow';
 
-export default function FriendSearch() {
+function FriendSearch() {
   const [query, setQuery] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -55,7 +55,7 @@ export default function FriendSearch() {
 
   const renderItem = useCallback(
     ({ item }: { item: SearchResult }) => (
-      <SearchResultRow result={item} onAdd={() => handleAdd(item.id)} />
+      <SearchResultRow result={item} onAdd={handleAdd} />
     ),
     [handleAdd],
   );
@@ -108,7 +108,6 @@ export default function FriendSearch() {
             data={searchResults}
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
-            estimatedItemSize={sw(60)}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -164,3 +163,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: ms(18),
   },
 });
+
+export default React.memo(FriendSearch);

@@ -10,8 +10,7 @@ import { useWorkoutStore } from '../../stores/useWorkoutStore';
 import { useProgramStore, type ProgramDayExercise } from '../../stores/useProgramStore';
 import { hideRecoveryOverlay } from '../../lib/navigationBridge';
 import { confirmReplaceWorkout } from '../../utils/confirmReplaceWorkout';
-
-const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+import { WEEKDAY_LONG } from '../../constants/dateNames';
 
 function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHeader?: React.ReactNode; onPreview?: (routine: Routine) => void; onOpenPlans?: () => void }) {
   const routines = useRoutineStore((s) => s.routines);
@@ -21,8 +20,6 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
   const getCurrentWeek = useProgramStore((s) => s.getCurrentWeek);
   const startFromRoutine = useActiveWorkoutStore((s) => s.startFromRoutine);
   const startFromProgram = useActiveWorkoutStore((s) => s.startFromProgram);
-  const catalogMap = useWorkoutStore((s) => s.catalogMap);
-  const prevMap = useWorkoutStore((s) => s.prevMap);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -63,7 +60,7 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
             <>
               <Ionicons name="bed-outline" size={ms(24)} color={colors.textTertiary} />
               <Text style={styles.emptyStateTitle}>Rest Day</Text>
-              <Text style={styles.emptyStateSub}>No workout scheduled for {DAYS_FULL[todayDow]}</Text>
+              <Text style={styles.emptyStateSub}>No workout scheduled for {WEEKDAY_LONG[todayDow]}</Text>
               <View style={styles.emptyStateBtn}>
                 <Text style={styles.emptyStateBtnText}>View Plans</Text>
                 <Ionicons name="chevron-forward" size={ms(12)} color={colors.accent} />
@@ -143,7 +140,7 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
                 };
                 confirmReplaceWorkout(() => {
                   hideRecoveryOverlay();
-                  startFromProgram(pseudoRoutine, catalogMap, prevMap, activeProgram.id, week);
+                  startFromProgram(pseudoRoutine, useWorkoutStore.getState().catalogMap, useWorkoutStore.getState().prevMap, activeProgram.id, week);
                 });
               }}
             >
@@ -200,7 +197,7 @@ function TodayScheduled({ programHeader, onPreview, onOpenPlans }: { programHead
               onPress={() => {
                 confirmReplaceWorkout(() => {
                   hideRecoveryOverlay();
-                  startFromRoutine(routine, catalogMap, prevMap);
+                  startFromRoutine(routine, useWorkoutStore.getState().catalogMap, useWorkoutStore.getState().prevMap);
                 });
               }}
             >
@@ -285,11 +282,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(13),
     fontFamily: Fonts.bold,
   },
-  todayMeta: {
-    color: colors.textTertiary,
-    fontSize: ms(10),
-    fontFamily: Fonts.medium,
-  },
   todayBtnRow: {
     flexDirection: 'row',
     gap: sw(6),
@@ -353,17 +345,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textTertiary,
     fontSize: ms(10),
     fontFamily: Fonts.medium,
-  },
-  todayProgramName: {
-    flex: 1,
-    color: colors.accent,
-    fontSize: ms(10),
-    fontFamily: Fonts.bold,
-  },
-  todayDivider: {
-    height: 1,
-    backgroundColor: colors.cardBorder,
-    marginVertical: sw(6),
   },
   todayCardRoutine: {
     backgroundColor: colors.surface,

@@ -36,7 +36,7 @@ const EQUIPMENT = [
   'Band', 'Kettlebell', 'Smith Machine', 'EZ Bar', 'Plate',
 ] as const;
 
-/* ── Category → suggested primary muscles (canonical) ��─── */
+/* ── Category → suggested primary muscles (canonical) ───── */
 
 const CATEGORY_SUGGESTED: Record<string, CanonicalMuscle[]> = {
   Chest: CATEGORY_MUSCLES.Chest,
@@ -140,7 +140,7 @@ interface Props {
   }) => void;
 }
 
-export default function CreateCustomExerciseModal({
+function CreateCustomExerciseModal({
   visible,
   initialName,
   onClose,
@@ -231,7 +231,7 @@ export default function CreateCustomExerciseModal({
             <Text style={styles.sectionLabel}>MUSCLE GROUP</Text>
             <View style={styles.chipGrid}>
               {CATEGORIES.map((cat) => {
-                const color = UI_CATEGORY_COLORS[cat as keyof typeof UI_CATEGORY_COLORS] ?? '#6B7280';
+                const color = UI_CATEGORY_COLORS[cat as keyof typeof UI_CATEGORY_COLORS] ?? colors.textTertiary;
                 const active = category === cat;
                 return (
                   <TouchableOpacity
@@ -596,3 +596,5 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textTertiary,
     },
   });
+
+export default React.memo(CreateCustomExerciseModal);

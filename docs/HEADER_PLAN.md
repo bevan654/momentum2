@@ -1,5 +1,7 @@
 # Header Plan — Branded Home Header Bar
 
+> **Done (historical plan).** The header shipped as `src/components/home/Header.tsx`; its avatar opens the profile sheet through `openProfileSheet` in `src/lib/navigationBridge.ts`.
+
 ## Approach
 Replace the existing greeting section in HomeScreen with a branded header row containing three columns:
 - **Left**: Two-line greeting ("Welcome Back," + username)
