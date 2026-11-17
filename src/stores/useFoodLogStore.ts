@@ -189,6 +189,8 @@ interface FoodLogState {
   entries: FoodEntry[];
   mealConfigs: MealConfig[];
   goals: NutritionGoals;
+  /** False until the account's goals have loaded: `goals` holds defaults, not the user's values. */
+  goalsLoaded: boolean;
   loading: boolean;
   /** The selected day's entries failed to load (offline): the diary shouldn't look like an empty day. */
   loadError: boolean;
@@ -225,6 +227,9 @@ const DEFAULT_GOALS: NutritionGoals = { calorie_goal: 2000, protein_goal: 150, c
 let dayRequestId = 0;
 /** The user and day (`userId:date`) whose entries are currently in the store. */
 let loadedEntriesKey: string | null = null;
+
+/** Increments per goals load and save, so an older load can't overwrite newer goals. */
+let _goalsRequestId = 0;
 
 /** Makes optimistic ids unique even for two adds in the same millisecond. */
 let _tempSeq = 0;
@@ -283,6 +288,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   entries: [],
   mealConfigs: DEFAULT_MEALS,
   goals: DEFAULT_GOALS,
+  goalsLoaded: false,
   loading: false,
   loadError: false,
   catalogResults: [],
@@ -365,22 +371,30 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   fetchGoals: async (userId: string) => {
+    const requestId = ++_goalsRequestId;
     const { data } = await supabase
       .from('nutrition_goals')
       .select('calorie_goal, protein_goal, carbs_goal, fat_goal')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
+    // A newer load, a save or a sign-out happened meanwhile: this answer may be out of date.
+    if (requestId !== _goalsRequestId) return;
+    if (!data) return;
 
-    if (data) {
-      set({
-        goals: {
-          calorie_goal: Number(data.calorie_goal),
-          protein_goal: Number(data.protein_goal),
-          carbs_goal: Number(data.carbs_goal),
-          fat_goal: Number(data.fat_goal),
-        },
-      });
-    }
+    const goals: NutritionGoals = {
+      calorie_goal: Number(data.calorie_goal),
+      protein_goal: Number(data.protein_goal),
+      carbs_goal: Number(data.carbs_goal),
+      fat_goal: Number(data.fat_goal),
+    };
+    set({ goals, goalsLoaded: true });
+    // Home reads its own copy of the goals: keep both the same.
+    useNutritionStore.setState({
+      calorieGoal: goals.calorie_goal,
+      proteinGoal: goals.protein_goal,
+      carbsGoal: goals.carbs_goal,
+      fatGoal: goals.fat_goal,
+    });
   },
 
   addEntry: async (userId: string, entry, targetDate?: string, targetHour?: number) => {
@@ -548,6 +562,8 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   updateGoals: async (userId: string, goals: Partial<NutritionGoals>) => {
+    // A load that started before this save would bring back the old value.
+    _goalsRequestId++;
     const prev = get().goals;
     const merged = { ...prev, ...goals };
     set({ goals: merged });
@@ -560,22 +576,27 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       ...(goals.fat_goal != null && { fatGoal: goals.fat_goal }),
     });
 
+    // Upsert, not update: an account without a goals row (some older accounts) would
+    // otherwise "save" nothing, with no error, and lose the change on the next load.
+    // Only the changed columns are sent, so the other goals on the account are kept.
     const { error } = await supabase
       .from('nutrition_goals')
-      .update(goals)
-      .eq('user_id', userId);
+      .upsert({ user_id: userId, ...goals, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
 
     if (error) {
-      set({ goals: prev });
-      // Rollback nutrition store too
+      // Undo only the fields this call changed.
+      const restore: Partial<NutritionGoals> = {};
+      for (const k of Object.keys(goals) as (keyof NutritionGoals)[]) restore[k] = prev[k];
+      set((s) => ({ goals: { ...s.goals, ...restore } }));
       useNutritionStore.setState({
-        calorieGoal: prev.calorie_goal,
-        proteinGoal: prev.protein_goal,
-        carbsGoal: prev.carbs_goal,
-        fatGoal: prev.fat_goal,
+        ...(restore.calorie_goal != null && { calorieGoal: restore.calorie_goal }),
+        ...(restore.protein_goal != null && { proteinGoal: restore.protein_goal }),
+        ...(restore.carbs_goal != null && { carbsGoal: restore.carbs_goal }),
+        ...(restore.fat_goal != null && { fatGoal: restore.fat_goal }),
       });
       return { error: error.message };
     }
+    set({ goalsLoaded: true });
     return { error: null };
   },
 
@@ -770,12 +791,14 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     dayRequestId++;
     loadedEntriesKey = null;
     _reloadAfterWrites = null;
+    _goalsRequestId++;
     _searchSeq++;
     set({
       selectedDate: toLocalDateString(),
       entries: [],
       mealConfigs: DEFAULT_MEALS,
       goals: DEFAULT_GOALS,
+      goalsLoaded: false,
       loading: false,
       loadError: false,
       catalogResults: [],

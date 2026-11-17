@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 
+/** Today's eaten totals for Home. The goals are loaded (and saved) by useFoodLogStore, which writes them here. */
 interface NutritionState {
   calories: number;
   calorieGoal: number;
@@ -11,7 +12,6 @@ interface NutritionState {
   fat: number;
   fatGoal: number;
   fetchTodayNutrition: (userId: string) => Promise<void>;
-  fetchNutritionGoals: (userId: string) => Promise<void>;
   /** Clears the previous account's totals and goals. */
   resetForSignOut: () => void;
 }
@@ -81,23 +81,6 @@ export const useNutritionStore = create<NutritionState>((set) => ({
       carbs: Math.round(carbs),
       fat: Math.round(fat),
     });
-  },
-
-  fetchNutritionGoals: async (userId: string) => {
-    const { data } = await supabase
-      .from('nutrition_goals')
-      .select('calorie_goal, protein_goal, carbs_goal, fat_goal')
-      .eq('user_id', userId)
-      .single();
-
-    if (data) {
-      set({
-        calorieGoal: Number(data.calorie_goal),
-        proteinGoal: Number(data.protein_goal),
-        carbsGoal: Number(data.carbs_goal),
-        fatGoal: Number(data.fat_goal),
-      });
-    }
   },
 
   resetForSignOut: () => {

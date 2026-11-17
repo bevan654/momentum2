@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View } from 'react-native';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useFoodLogStore } from '../../../stores/useFoodLogStore';
@@ -14,18 +14,30 @@ export function NutritionGoalsEditor() {
   const waterGoal = useSupplementStore((s) => s.waterGoal);
   const updateSupplementGoals = useSupplementStore((s) => s.updateSupplementGoals);
 
+  const goalsLoaded = useFoodLogStore((s) => s.goalsLoaded);
   const [cal, setCal] = useState(String(goals.calorie_goal));
+
+  // Show the account's goal once it loads (the field starts on the 2000 kcal default).
+  useEffect(() => {
+    if (userId && !goalsLoaded) useFoodLogStore.getState().fetchGoals(userId);
+  }, [userId, goalsLoaded]);
+  useEffect(() => {
+    setCal(String(goals.calorie_goal));
+  }, [goals.calorie_goal]);
   const [waterText, setWaterText] = useState(String(waterGoal));
 
   const handleCalBlur = useCallback(() => {
     if (!userId) return;
     const num = parseInt(cal, 10);
-    if (!isNaN(num) && num > 0) {
+    // Unchanged, or the real goal hasn't loaded: saving would overwrite it with the default.
+    if (num === goals.calorie_goal || !goalsLoaded) {
+      setCal(String(goals.calorie_goal));
+    } else if (!isNaN(num) && num > 0) {
       updateGoals(userId, { calorie_goal: num });
     } else {
       setCal(String(goals.calorie_goal));
     }
-  }, [userId, cal, goals.calorie_goal, updateGoals]);
+  }, [userId, cal, goals.calorie_goal, goalsLoaded, updateGoals]);
 
   const handleWaterBlur = useCallback(() => {
     if (!userId) return;

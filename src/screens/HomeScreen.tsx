@@ -7,6 +7,7 @@ import { Fonts } from '../theme/typography';
 import { sw, ms } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNutritionStore } from '../stores/useNutritionStore';
+import { useFoodLogStore } from '../stores/useFoodLogStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
@@ -22,7 +23,6 @@ import { useNavigation } from '@react-navigation/native';
 function HomeScreen() {
   const userId = useAuthStore((s) => s.user?.id);
   const fetchTodayNutrition = useNutritionStore((s) => s.fetchTodayNutrition);
-  const fetchNutritionGoals = useNutritionStore((s) => s.fetchNutritionGoals);
   const fetchTodaySupplements = useSupplementStore((s) => s.fetchTodaySupplements);
   const fetchSupplementGoals = useSupplementStore((s) => s.fetchSupplementGoals);
   const fetchWorkoutHistory = useWorkoutStore((s) => s.fetchWorkoutHistory);
@@ -38,7 +38,7 @@ function HomeScreen() {
   useEffect(() => {
     if (userId) {
       fetchTodayNutrition(userId);
-      fetchNutritionGoals(userId);
+      useFoodLogStore.getState().fetchGoals(userId);
       fetchTodaySupplements(userId);
       fetchSupplementGoals(userId);
       fetchExerciseCatalog(userId).then(() => fetchWorkoutHistory(userId));
@@ -51,6 +51,8 @@ function HomeScreen() {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && userId) {
         fetchTodayNutrition(userId);
+        // Goals may have been changed on another phone.
+        useFoodLogStore.getState().fetchGoals(userId);
         fetchTodaySupplements(userId);
         useStreakStore.getState().refreshStreak(userId);
       }
