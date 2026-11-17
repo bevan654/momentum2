@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Overlay from '../ui/Overlay';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -29,6 +29,15 @@ function SupplementLogSheet({ visible, label, unit, color, entries, onDelete, on
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  // The bin icon is small and next to the list: ask first, so a stray tap can't delete an entry.
+  const confirmDelete = useCallback((e: SupplementEntry) => {
+    const amount = `${Math.round(Number(e.amount) * 10) / 10} ${unit}`;
+    Alert.alert(`Delete ${amount} of ${label}?`, undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => onDelete(e) },
+    ]);
+  }, [unit, label, onDelete]);
+
   return (
     <Overlay visible={visible} animationType="fade" onRequestClose={onClose} onDismiss={onClosed}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -49,7 +58,7 @@ function SupplementLogSheet({ visible, label, unit, color, entries, onDelete, on
                   </Text>
                   <Text style={styles.time}>{formatTime(e.created_at)}</Text>
                   <TouchableOpacity
-                    onPress={() => onDelete(e)}
+                    onPress={() => confirmDelete(e)}
                     hitSlop={8}
                     accessibilityRole="button"
                     accessibilityLabel={`Delete ${e.amount} ${unit} of ${label}`}
