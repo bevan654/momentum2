@@ -319,6 +319,7 @@ function FoodLoggerScreen() {
             onAdd={handleAddToMeal}
             onPressEntry={handlePressEntry}
             onTogglePlanned={togglePlanned}
+            onDeleteEntry={handleDeleteEntry}
             onPressGroup={handlePressMealGroup}
             onDeleteGroup={handleDeleteMealGroup}
           />

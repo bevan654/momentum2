@@ -10,12 +10,13 @@ interface Props {
   onAdd: (meal: MealBucket) => void;
   onPressEntry: (entry: FoodEntry) => void;
   onTogglePlanned: (id: string) => void;
+  onDeleteEntry: (id: string) => void;
   onPressGroup: (groupId: string, entries: FoodEntry[]) => void;
   onDeleteGroup: (groupId: string) => void;
 }
 
 /** The day's food as one card per meal, in the user's meal order. */
-function MealList({ entries, onAdd, onPressEntry, onTogglePlanned, onPressGroup, onDeleteGroup }: Props) {
+function MealList({ entries, onAdd, onPressEntry, onTogglePlanned, onDeleteEntry, onPressGroup, onDeleteGroup }: Props) {
   const mealConfigs = useFoodLogStore((s) => s.mealConfigs);
   const meals = useMemo(() => groupEntriesByMeal(entries, mealConfigs), [entries, mealConfigs]);
 
@@ -28,6 +29,7 @@ function MealList({ entries, onAdd, onPressEntry, onTogglePlanned, onPressGroup,
           onAdd={onAdd}
           onPressEntry={onPressEntry}
           onTogglePlanned={onTogglePlanned}
+          onDeleteEntry={onDeleteEntry}
           onPressGroup={onPressGroup}
           onDeleteGroup={onDeleteGroup}
         />
