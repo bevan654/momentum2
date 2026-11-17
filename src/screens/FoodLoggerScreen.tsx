@@ -18,6 +18,7 @@ import NutritionHero from '../components/food/NutritionHero';
 import HydrationStrip from '../components/food/HydrationStrip';
 import DateNavigator from '../components/food/DateNavigator';
 import RefreshBanner, { type RefreshResult } from '../components/food/RefreshBanner';
+import UndoBanner, { type UndoOffer } from '../components/food/UndoBanner';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
 import { useToday } from '../hooks/useToday';
@@ -37,6 +38,7 @@ function FoodLoggerScreen() {
   const deleteEntry = useFoodLogStore((s) => s.deleteEntry);
   const togglePlanned = useFoodLogStore((s) => s.togglePlanned);
   const deleteMealGroup = useFoodLogStore((s) => s.deleteMealGroup);
+  const restoreDeleted = useFoodLogStore((s) => s.restoreDeleted);
 
   const fetchDateSupplements = useSupplementStore((s) => s.fetchDateSupplements);
 
@@ -227,11 +229,33 @@ function FoodLoggerScreen() {
     clearEditEntrySoon();
   }, []);
 
+  // The last delete, offered for a few seconds as "Deleted … · Undo".
+  const [undoOffer, setUndoOffer] = useState<UndoOffer | null>(null);
+  const undoRowsRef = React.useRef<FoodEntry[]>([]); // React.useRef: the redesign drops the named import
+  const offerUndo = useCallback((rows: FoodEntry[], message: string) => {
+    if (rows.length === 0) return;
+    undoRowsRef.current = rows;
+    setUndoOffer((prev) => ({ message, id: (prev?.id ?? 0) + 1 }));
+  }, []);
+  const handleUndo = useCallback(() => {
+    const rows = undoRowsRef.current;
+    undoRowsRef.current = [];
+    setUndoOffer(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    restoreDeleted(rows);
+  }, [restoreDeleted]);
+  const handleUndoExpire = useCallback(() => {
+    undoRowsRef.current = [];
+    setUndoOffer(null);
+  }, []);
+
   const handleDeleteEntry = useCallback((id: string) => {
+    const removed = useFoodLogStore.getState().entries.filter((e) => e.id === id);
+    offerUndo(removed, `Deleted ${removed[0]?.name ?? 'food'}`);
     setEditDetailVisible(false);
     deleteEntry(id);
     clearEditEntrySoon();
-  }, [deleteEntry]);
+  }, [deleteEntry, offerUndo]);
 
   // Meal group handlers
   const handlePressMealGroup = useCallback((groupId: string, groupEntries: FoodEntry[]) => {
@@ -244,8 +268,10 @@ function FoodLoggerScreen() {
   }, []);
 
   const handleDeleteMealGroup = useCallback((groupId: string) => {
+    const removed = useFoodLogStore.getState().entries.filter((e) => e.meal_group_id === groupId);
+    offerUndo(removed, `Deleted ${removed[0]?.meal_group_name || 'meal'}`);
     deleteMealGroup(groupId);
-  }, [deleteMealGroup]);
+  }, [deleteMealGroup, offerUndo]);
 
   const handleDismissGroupEdit = useCallback(() => {
     setEditGroupModalVisible(false);
@@ -329,6 +355,7 @@ function FoodLoggerScreen() {
         editMealGroupId={editGroupId}
         editMealGroupEntries={editGroupEntries}
       />
+      <UndoBanner offer={undoOffer} onUndo={handleUndo} onExpire={handleUndoExpire} />
       {!addModalVisible && !editDetailVisible && !editGroupModalVisible && (
         <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.8}>
           <Ionicons name="add" size={ms(26)} color={colors.textOnAccent} />

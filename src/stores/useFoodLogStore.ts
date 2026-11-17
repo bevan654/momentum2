@@ -215,6 +215,8 @@ interface FoodLogState {
   /** Optimistic; rolls back and returns the error message if the save fails. */
   updateGoals: (userId: string, goals: Partial<NutritionGoals>) => Promise<{ error: string | null }>;
   deleteMealGroup: (mealGroupId: string) => Promise<void>;
+  /** Undo a delete: puts the removed rows back exactly as they were (same ids and times). */
+  restoreDeleted: (rows: FoodEntry[]) => Promise<void>;
   searchCatalog: (query: string) => Promise<void>;
   clearSearch: () => void;
   fetchDefaultFoods: (userId: string) => Promise<void>;
@@ -250,8 +252,20 @@ function beginWrite() {
   _writeSeq++;
 }
 
+/** Resolved when no write is pending (used by undo, which must run after the delete it undoes). */
+let _idleWaiters: (() => void)[] = [];
+function whenWritesIdle(): Promise<void> {
+  if (_pendingWrites === 0) return Promise.resolve();
+  return new Promise((resolve) => _idleWaiters.push(resolve));
+}
+
 function endWrite(get: () => FoodLogState) {
   _pendingWrites = Math.max(0, _pendingWrites - 1);
+  if (_pendingWrites === 0 && _idleWaiters.length) {
+    const waiters = _idleWaiters;
+    _idleWaiters = [];
+    waiters.forEach((w) => w());
+  }
   if (_pendingWrites > 0 || !_reloadAfterWrites) return;
   const { userId, date } = _reloadAfterWrites;
   _reloadAfterWrites = null;
@@ -620,6 +634,30 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       alertWriteFailed('delete that meal');
     } else if (removed[0]) {
       syncNutrition(removed[0].user_id);
+    }
+    endWrite(get);
+  },
+
+  restoreDeleted: async (rows: FoodEntry[]) => {
+    if (rows.length === 0) return;
+    const userId = rows[0].user_id;
+    // Show them again only if their day is the one on screen.
+    const day = toLocalDateString(new Date(rows[0].created_at));
+    if (loadedEntriesKey === `${userId}:${day}`) {
+      set((s) => ({ entries: restoreEntries(s.entries, rows) }));
+    }
+
+    // The delete may still be on its way: re-inserting the same ids before it lands would clash.
+    await whenWritesIdle();
+    beginWrite();
+    const { error } = await supabase.from('food_entries').insert(rows.map((r) => ({ ...r })));
+    // 23505 = those rows still exist (the delete itself failed), which is what undo wants anyway.
+    if (error && error.code !== '23505') {
+      const ids = new Set(rows.map((r) => r.id));
+      set((s) => ({ entries: s.entries.filter((e) => !ids.has(e.id)) }));
+      alertWriteFailed('undo that delete');
+    } else {
+      syncNutrition(userId);
     }
     endWrite(get);
   },
