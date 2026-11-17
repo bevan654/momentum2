@@ -137,7 +137,7 @@ async function ensureProfileFromMetadata(user: User): Promise<void> {
   await upsertDefaultGoals(user.id);
 }
 
-/** A new account's starting nutrition and water/creatine goals (kept if the rows already exist). */
+/** A new account's starting nutrition and water/creatine goals. Rows that already exist are left alone. */
 async function upsertDefaultGoals(userId: string): Promise<void> {
   await supabase.from('nutrition_goals').upsert(
     {
@@ -147,11 +147,11 @@ async function upsertDefaultGoals(userId: string): Promise<void> {
       carbs_goal: 250,
       fat_goal: 65,
     },
-    { onConflict: 'user_id' },
+    { onConflict: 'user_id', ignoreDuplicates: true },
   );
   await supabase.from('supplement_goals').upsert(
     { user_id: userId, water_goal: 2500, creatine_goal: 5 },
-    { onConflict: 'user_id' },
+    { onConflict: 'user_id', ignoreDuplicates: true },
   );
 }
 

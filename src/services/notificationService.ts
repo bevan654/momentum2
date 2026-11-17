@@ -203,6 +203,11 @@ async function registerPushToken(allowPrompt: boolean): Promise<void> {
         .from('profiles')
         .update({ push_token: token })
         .eq('id', userId);
+      // Signed out while that save was in flight: undo it, so the old account stops getting this
+      // phone's notifications. (Needs the session; best-effort if it's already gone.)
+      if (pushUserId !== userId) {
+        await supabase.from('profiles').update({ push_token: null }).eq('id', userId).eq('push_token', token);
+      }
     }
   } catch {
     // Expected in Expo Go — push tokens require a development build.
