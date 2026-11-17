@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo } from 'react';
-import { StyleSheet, ScrollView } from 'react-native';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
+import { StyleSheet, ScrollView, View, Keyboard, TextInput, type LayoutChangeEvent, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, type ThemeColors } from '../../../theme/useColors';
@@ -7,6 +7,17 @@ import { sw } from '../../../theme/responsive';
 import { useLayerBackHandler } from '../../ui/Portal';
 import FoodSheetHeader from './FoodSheetHeader';
 import { useKeyboardInset } from './useKeyboardInset';
+
+/** Space kept between a focused field and the keyboard / top edge when scrolling it into view. */
+const REVEAL_MARGIN = sw(28);
+
+/** Lets fields inside a FoodSubScreen ask to be scrolled above the keyboard when focused. */
+const RevealContext = createContext<() => void>(() => {});
+
+/** onFocus handler for a field: scrolls it into view above the keyboard (no-op outside a FoodSubScreen). */
+export function useRevealOnFocus(): () => void {
+  return useContext(RevealContext);
+}
 
 interface Props {
   visible: boolean;
@@ -51,6 +62,46 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
 
   useLayerBackHandler(visible, onBack, isBackActive);
 
+  // Keep the focused field visible: scroll it just above the keyboard (or below the header)
+  // when the keyboard opens and whenever another field is focused while it's open.
+  const scrollRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
+  const scrollY = useRef(0);
+  const viewportH = useRef(0);
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reveal = useCallback(() => {
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    // Wait a beat for the keyboard padding to settle, so the viewport height is final.
+    revealTimer.current = setTimeout(() => {
+      const input = TextInput.State.currentlyFocusedInput();
+      const content = contentRef.current;
+      if (!visible || !input || !content || viewportH.current <= 0) return;
+      (input as any).measureLayout(content, (_x: number, y: number, _w: number, h: number) => {
+        const top = scrollY.current;
+        const bottom = top + viewportH.current;
+        if (y + h + REVEAL_MARGIN > bottom) {
+          scrollRef.current?.scrollTo({ y: y + h + REVEAL_MARGIN - viewportH.current, animated: true });
+        } else if (y - REVEAL_MARGIN < top) {
+          scrollRef.current?.scrollTo({ y: Math.max(0, y - REVEAL_MARGIN), animated: true });
+        }
+      }, () => {});
+    }, 80);
+  }, [visible]);
+  useEffect(() => {
+    if (!visible) return;
+    const sub = Keyboard.addListener('keyboardDidShow', reveal);
+    return () => {
+      sub.remove();
+      if (revealTimer.current) clearTimeout(revealTimer.current);
+    };
+  }, [visible, reveal]);
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollY.current = e.nativeEvent.contentOffset.y;
+  }, []);
+  const handleLayout = useCallback((e: LayoutChangeEvent) => {
+    viewportH.current = e.nativeEvent.layout.height;
+  }, []);
+
   return (
     <Animated.View
       style={[StyleSheet.absoluteFill, styles.screen, animStyle]}
@@ -60,13 +111,21 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
       <Animated.View ref={kbInset.ref} style={[styles.flex, kbInset.style]}>
         <FoodSheetHeader title={title} subtitle={subtitle} leading="back" onLeading={onBack} right={right} />
         <ScrollView
+          ref={scrollRef}
           style={styles.flex}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
+          // Dismiss as soon as the user scrolls: dragging the keyboard down ("interactive")
+          // resized the screen on every frame, which made the content jump.
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={32}
+          onLayout={handleLayout}
         >
-          {children}
+          <View ref={contentRef} collapsable={false} style={styles.contentInner}>
+            <RevealContext.Provider value={reveal}>{children}</RevealContext.Provider>
+          </View>
         </ScrollView>
         {footer ? <Animated.View style={[styles.footer, footerStyle]}>{footer}</Animated.View> : null}
       </Animated.View>
@@ -87,6 +146,8 @@ const createStyles = (colors: ThemeColors) =>
       paddingHorizontal: sw(16),
       paddingTop: sw(6),
       paddingBottom: sw(24),
+    },
+    contentInner: {
       gap: sw(16),
     },
     footer: {

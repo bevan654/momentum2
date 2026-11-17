@@ -27,21 +27,27 @@ export function useKeyboardInset(enabled = true) {
   const keyboard = useAnimatedKeyboard();
   const { height: windowHeight } = useWindowDimensions();
   const padding = useSharedValue(0);
+  /** Distance from the view's bottom edge to the window bottom, measured once per keyboard opening. */
+  const below = useSharedValue(-1);
 
   useAnimatedReaction(
     () => keyboard.height.value,
     (kb) => {
       if (kb <= 0) {
         padding.value = 0;
+        below.value = -1;
         return;
       }
       // Hidden or covered: keep the current padding until this view is showing again.
       if (!enabled) return;
-      const m = measure(ref);
-      if (!m) return;
-      // Distance from the view's bottom edge to the bottom of the window.
-      const below = Math.max(0, windowHeight - (m.pageY + m.height));
-      padding.value = Math.max(0, kb - below);
+      // Measure once when the keyboard starts to open, not on every frame of its animation:
+      // the view doesn't move while it opens, and measuring each frame made it stutter.
+      if (below.value < 0) {
+        const m = measure(ref);
+        if (!m) return;
+        below.value = Math.max(0, windowHeight - (m.pageY + m.height));
+      }
+      padding.value = Math.max(0, kb - below.value);
     },
     [windowHeight, enabled],
   );

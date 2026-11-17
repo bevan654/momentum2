@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -21,6 +21,7 @@ import { findMealConfig } from './groupEntriesByMeal';
 import { sanitizeDecimal } from './decimalInput';
 
 import { MICROS, type FoodDetailData, type MealItemData } from './foodDetailTypes';
+import RevealTextInput from './ui/RevealTextInput';
 
 export type { FoodDetailData, MealItemData } from './foodDetailTypes';
 
@@ -415,7 +416,7 @@ function FoodDetailModal({
       {/* Energy */}
       <View style={[s.card, s.energyCard]}>
         <View style={s.energyRow}>
-          <TextInput
+          <RevealTextInput
             style={s.energyInput}
             value={energyUnit === 'kcal' ? customCal : displayEnergy}
             onChangeText={(v) => handleEnergyChange(sanitizeDecimal(v))}

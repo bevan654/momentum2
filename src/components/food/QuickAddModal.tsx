@@ -14,6 +14,7 @@ import NumberField from './ui/NumberField';
 import MacroSplitBar from './MacroSplitBar';
 import { findMealConfig } from './groupEntriesByMeal';
 import { sanitizeDecimal } from './decimalInput';
+import RevealTextInput from './ui/RevealTextInput';
 
 interface Props {
   visible: boolean;
@@ -186,7 +187,7 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
       {/* Name */}
       <View style={s.group}>
         <Text style={s.label}>Name (optional)</Text>
-        <TextInput
+        <RevealTextInput
           style={s.textField}
           value={name}
           onChangeText={setName}
@@ -272,7 +273,7 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
               <View key={g.key} style={[s.microRow, i > 0 && s.microDivider]}>
                 <View style={[s.microDot, { backgroundColor: g.color }]} />
                 <Text style={s.microLabel} numberOfLines={1}>{g.name}</Text>
-                <TextInput
+                <RevealTextInput
                   style={s.microInput}
                   value={microValues[g.key] || ''}
                   onChangeText={(v) => handleMicroChange(g.key, sanitizeDecimal(v))}
