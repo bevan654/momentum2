@@ -79,6 +79,12 @@ const checks = {
       }
     }
     if (calls === 0) problems.push('found no navigate(\'…\') calls in src (the check needs updating)');
+    // Nested targets: navigate('Workouts', { screen: 'StartWorkout' }).
+    for (const f of walk('src', /\.tsx?$/)) {
+      for (const m of read(f).matchAll(/\bnavigate\w*\(\s*'\w+'\s*,\s*\{[^}]*?\bscreen:\s*'(\w+)'/g)) {
+        if (!registered.has(m[1])) problems.push(`${f}: navigates to nested screen '${m[1]}', which no navigator registers`);
+      }
+    }
     for (const m of tabNav.matchAll(/route\.name\s*===\s*'(\w+)'/g)) {
       if (!tabs.has(m[1])) problems.push(`TabNavigator compares route.name to '${m[1]}', which isn't a tab`);
     }
@@ -122,7 +128,8 @@ const checks = {
       const src = read(file);
       for (const call of src.matchAll(/\.rpc\(\s*'upsert_workout'\s*,\s*\{/g)) {
         const literal = braceBlock(src, call.index + call[0].length - 1);
-        for (const m of literal.matchAll(/^\s*(\w+)\s*:/gm)) {
+        // Keys at the start of a line or after `{` / `,` (skips `a ? b : c`).
+        for (const m of literal.matchAll(/(?:^|[{,])\s*(\w+)\s*:/gm)) {
           if (m[1] !== 'p' && !sqlKeys.has(m[1])) problems.push(`${file}: sends '${m[1]}' to upsert_workout but ${sqlName} never reads it`);
         }
       }
@@ -175,18 +182,18 @@ const checks = {
   /** Every store with a sign-out reset is called by useAuthStore. */
   signOutReset() {
     const auth = read('src/stores/useAuthStore.ts');
-    const problems = [];
-    let found = 0;
+    const resets = new Set(); // "useXStore.method", once even if both the type and the implementation match
     for (const f of fs.readdirSync(path.join(root, 'src/stores')).filter((n) => /^use\w+Store\.ts$/.test(n))) {
       const store = f.replace(/\.ts$/, '');
       // `reset: () =>`, `reset: async () =>` or `reset() {`
       for (const m of read(`src/stores/${f}`).matchAll(/^\s*(?:async\s+)?(resetForSignOut|clearCaches)\s*(?::\s*(?:async\s*)?\(|\()/gm)) {
-        found++;
-        if (!auth.includes(`${store}.getState().${m[1]}()`)) problems.push(`${store}.${m[1]} is never called from useAuthStore`);
+        resets.add(`${store}.${m[1]}`);
       }
     }
-    if (found === 0) problems.push('found no store with resetForSignOut/clearCaches (the check needs updating)');
-    return problems;
+    if (resets.size === 0) return ['found no store with resetForSignOut/clearCaches (the check needs updating)'];
+    return [...resets]
+      .filter((r) => !auth.includes(`${r.replace('.', '.getState().')}()`))
+      .map((r) => `${r} is never called from useAuthStore`);
   },
 };
 
@@ -240,5 +247,8 @@ if (args.includes('--touched')) {
     console.log(`\n${failed} hidden-link problem(s). Each is either a real bug or an out-of-date map: check both sides.`);
     process.exit(1);
   }
-  console.log(`Hidden links: all ${Object.keys(checks).length} checks pass.`);
+  const total = Object.keys(checks).length;
+  console.log(notes.length
+    ? `Hidden links: ${total - notes.length} of ${total} checks pass, ${notes.length} skipped (see above).`
+    : `Hidden links: all ${total} checks pass.`);
 }
