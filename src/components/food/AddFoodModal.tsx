@@ -70,6 +70,8 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const [tab, setTab] = useState<AddFoodTab>('home');
   const [deepSearchEnabled, setDeepSearchEnabled] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True while the 300 ms debounce waits, so "No results" doesn't flash before the search starts.
+  const [searchPending, setSearchPending] = useState(false);
   const ai = useAiFoodSearch(query);
 
   // Child screens
@@ -114,6 +116,7 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   useEffect(() => {
     if (visible) return;
     if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null; }
+    setSearchPending(false);
     setQuery('');
     clearSearch();
     ai.clearCache();
@@ -133,7 +136,9 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const handleSearch = useCallback((text: string) => {
     setQuery(text);
     if (searchTimer.current) clearTimeout(searchTimer.current);
+    setSearchPending(text.trim().length >= 2);
     searchTimer.current = setTimeout(() => {
+      setSearchPending(false);
       searchCatalog(text);
       searchCache(text);
     }, 300);
@@ -141,6 +146,7 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
 
   const handleClearSearch = useCallback(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
+    setSearchPending(false);
     setQuery('');
     clearSearch();
     clearCache();
@@ -210,7 +216,8 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const handleCloseReport = useCallback(() => setReportTarget(null), []);
 
   /* ── List header: actions, tabs, banners ──────────── */
-  const searching = query.length > 0;
+  // Searches need 2 characters; with 1, keep showing the normal lists instead of "No results".
+  const searching = query.trim().length >= 2;
   const { showAiResults, hideAiResults, aiError } = ai;
   const listHeader = useMemo(() => (
     <View style={s.listHeader}>
@@ -275,9 +282,9 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
         />
         <View style={s.flex}>
           <AddFoodResults
-            searching={query.length > 0}
+            searching={searching}
             tab={tab}
-            loading={catalogLoading || ai.aiSearching}
+            loading={catalogLoading || ai.aiSearching || searchPending}
             results={results}
             aiMode={ai.showAiResults}
             recentFoods={recentFoods}

@@ -513,8 +513,10 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     }
   },
 
-  searchCatalog: async (query: string) => {
+  searchCatalog: async (rawQuery: string) => {
     const req = ++_searchSeq;
+    // iOS autocorrect often adds a trailing space, which would stop "oats " matching "oats".
+    const query = rawQuery.trim();
     if (query.length < 2) {
       set({ catalogResults: [], catalogLoading: false });
       return;
@@ -580,6 +582,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         serving_unit: d.serving_unit || 'serving',
         confidence: 'user_submitted',
         category: null,
+        ...microsFrom(d),
       });
     }
 
@@ -605,6 +608,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         serving_unit: d.serving_unit || 'serving',
         confidence: 'user',
         category: null,
+        ...microsFrom(d, qty),
       });
     }
 
