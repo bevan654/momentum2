@@ -40,7 +40,8 @@ interface Props {
   /** Callbacks get the set's index so the parent can pass the same functions to every row (keeps React.memo effective). */
   onUpdate: (index: number, field: 'kg' | 'reps', value: string) => void;
   onToggle: (index: number) => void;
-  onDelete: ((index: number) => void) | null;
+  /** Delete this set; `target` is the set that was swiped (its index may have moved since). */
+  onDelete: ((index: number, target: ActiveSet) => void) | null;
   onInputFocus?: (y: number) => void;
   isGhost?: boolean;
   ghostResult?: 'win' | 'loss' | 'tie' | null;
@@ -134,6 +135,9 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
       cancelAnimation(translateX);
       cancelAnimation(fadeAnim);
       cancelAnimation(flashAnim);
+      cancelAnimation(rowHeight);
+      cancelAnimation(rowOpacity);
+      cancelAnimation(rowMargin);
     };
   }, []);
 
@@ -177,9 +181,10 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
 
   /* ── Delete collapse ─────────────────────────────── */
 
-  // Rows are keyed by position, so after a delete this row shows the next set. The set is removed
-  // only once the collapse has finished, and the collapse is undone as soon as the row holds a
-  // different set (or, if the store refused the delete, shortly after), so no row stays invisible.
+  // Rows are keyed by position, so after a delete this row shows the next set. The swiped set is
+  // recorded when the swipe ends and removed by identity once the collapse has finished (an earlier
+  // row's delete can shift it to another row meanwhile). The collapse is undone as soon as the row
+  // holds a different set (or, if the store refused the delete, shortly after), so no row stays invisible.
   const setRef = useRef(set);
   setRef.current = set;
   const deletedSetRef = useRef<ActiveSet | null>(null);
@@ -197,8 +202,23 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
     rowMargin.value = sw(1);
   }, []);
 
+  // True from the end of a delete swipe until the collapse finishes or is undone
+  const collapsingRef = useRef(false);
+  const markDeleting = useCallback(() => {
+    deletedSetRef.current = setRef.current;
+    collapsingRef.current = true;
+  }, []);
+
   useEffect(() => {
-    if (deletedSetRef.current && deletedSetRef.current !== set) resetCollapse();
+    const target = deletedSetRef.current;
+    if (target && target !== set) {
+      // The swiped set moved to another row before the collapse finished: delete it now (a no-op
+      // if it's already gone, e.g. this row's own delete just went through).
+      const collapsing = collapsingRef.current;
+      collapsingRef.current = false;
+      resetCollapse();
+      if (collapsing) onDeleteRef.current?.(indexRef.current, target);
+    }
   }, [set, resetCollapse]);
 
   useEffect(() => () => {
@@ -206,8 +226,10 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
   }, []);
 
   const fireDelete = useCallback(() => {
-    deletedSetRef.current = setRef.current;
-    onDeleteRef.current?.(indexRef.current);
+    const target = deletedSetRef.current;
+    collapsingRef.current = false;
+    if (!target) return;
+    onDeleteRef.current?.(indexRef.current, target);
     // Still the same set: the delete didn't happen (e.g. the workout is being saved)
     if (restoreTimer.current) clearTimeout(restoreTimer.current);
     restoreTimer.current = setTimeout(() => {
@@ -246,6 +268,7 @@ function SetRow({ index, set, prevSet, suggestedKg, suggestedReps, exerciseType,
         } else if (e.translationX < -SWIPE_THRESHOLD && canDelete) {
           // Delete: slide out, collapse, then remove the set
           runOnJS(deleteHaptic)();
+          runOnJS(markDeleting)();
           translateX.value = withTiming(-400, { duration: 200 });
           rowOpacity.value = withDelay(100, withTiming(0, { duration: 150 }));
           rowMargin.value = withDelay(150, withTiming(0, { duration: 200 }));

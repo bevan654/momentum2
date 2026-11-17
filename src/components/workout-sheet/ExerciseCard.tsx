@@ -13,7 +13,7 @@ import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useActiveWorkoutStore } from '../../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../../stores/useWorkoutStore';
-import type { ActiveExercise } from '../../stores/useActiveWorkoutStore';
+import type { ActiveExercise, ActiveSet } from '../../stores/useActiveWorkoutStore';
 import { toSlug, SLUG_LABELS } from '../../utils/muscleVolume';
 import { useProfileSettingsStore } from '../../stores/useProfileSettingsStore';
 import { suggestSets } from '../../utils/exerciseProgress';
@@ -76,7 +76,13 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, isCurrent, showGhostSet
     onExerciseFocus?.(exerciseIndex);
     toggleSetComplete(exerciseIndex, setIdx);
   }, [exerciseIndex, onExerciseFocus, toggleSetComplete]);
-  const handleSetDelete = useCallback((setIdx: number) => removeSet(exerciseIndex, setIdx), [exerciseIndex, removeSet]);
+  // Delete the swiped set wherever it is now (an earlier quick delete can have moved it); skip if it's gone
+  const handleSetDelete = useCallback((setIdx: number, target: ActiveSet) => {
+    const sets = useActiveWorkoutStore.getState().exercises[exerciseIndex]?.sets;
+    if (!sets) return;
+    const i = sets[setIdx] === target ? setIdx : sets.indexOf(target);
+    if (i >= 0) removeSet(exerciseIndex, i);
+  }, [exerciseIndex, removeSet]);
   const handleSetInputFocus = useCallback((y: number) => {
     onExerciseFocus?.(exerciseIndex);
     onInputFocus?.(y);
