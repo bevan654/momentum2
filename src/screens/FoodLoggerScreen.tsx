@@ -259,8 +259,8 @@ function FoodLoggerScreen() {
       <ScrollView
         style={styles.diaryPage}
         showsVerticalScrollIndicator={false}
-        // iOS only starts pull-to-refresh from a bounce, so bouncing stays on.
-        overScrollMode="never"
+        // Bounce (iOS) and stretch (Android) at the ends instead of stopping dead; iOS also
+        // needs the bounce to start pull-to-refresh.
         removeClippedSubviews
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
