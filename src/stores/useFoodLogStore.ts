@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useNutritionStore } from './useNutritionStore';
 import { toLocalDateString } from '../utils/localDate';
+import { getCurrentUserId } from '../lib/currentUser';
 
 /** Increments per search (and clear), so a slow earlier search can't overwrite newer results. */
 let _searchSeq = 0;
@@ -634,6 +635,8 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
 
     set({ catalogLoading: true });
 
+    // "Your foods" means this account's own entries: filter here rather than relying only on RLS.
+    const userId = getCurrentUserId();
     const [catalogRes, userRes, entryRes] = await Promise.all([
       supabase
         .from('food_catalog')
@@ -647,12 +650,15 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         .ilike('name', `%${query}%`)
         .order('created_at', { ascending: false })
         .limit(10),
-      supabase
-        .from('food_entries')
-        .select('*')
-        .ilike('name', `%${query}%`)
-        .order('created_at', { ascending: false })
-        .limit(20),
+      userId
+        ? supabase
+          .from('food_entries')
+          .select('*')
+          .eq('user_id', userId)
+          .ilike('name', `%${query}%`)
+          .order('created_at', { ascending: false })
+          .limit(20)
+        : Promise.resolve({ data: [] as any[], error: null }),
     ]);
     if (req !== _searchSeq) return; // a newer search (or a clear) has started since
 
