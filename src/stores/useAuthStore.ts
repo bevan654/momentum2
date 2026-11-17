@@ -10,6 +10,7 @@ import { useSavedMealsStore } from './useSavedMealsStore';
 import { useFavouritesStore } from './useFavouritesStore';
 import { useNutrientGoalStore } from './useNutrientGoalStore';
 import { useSupplementStore } from './useSupplementStore';
+import { setCurrentUserId } from '../lib/currentUser';
 import { clearWorkout as clearStoredWorkout } from '../utils/workoutStorage';
 import { AppState, Linking } from 'react-native';
 
@@ -578,3 +579,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return { error: null };
   },
 }));
+
+// Keep the shared signed-in id current for stores that can't import this one (see lib/currentUser).
+setCurrentUserId(useAuthStore.getState().user?.id ?? null);
+useAuthStore.subscribe((state) => setCurrentUserId(state.user?.id ?? null));

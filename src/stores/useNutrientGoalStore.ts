@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
-import { useAuthStore } from './useAuthStore';
+import { getCurrentUserId } from '../lib/currentUser';
 
 const MACRO_ENABLED_KEY = '@momentum_enabled_macros';
 const MICRO_GOALS_KEY = '@momentum_micro_goals';
@@ -95,7 +95,7 @@ const DEFAULT_MACROS = ['protein', 'carbs', 'fat'];
 let _gen = 0;
 
 async function save(key: string, value: unknown) {
-  const userId = useAuthStore.getState().user?.id;
+  const userId = getCurrentUserId();
   if (!userId) return;
   try {
     await writeUserScoped(key, userId, JSON.stringify(value));
@@ -108,7 +108,7 @@ export const useNutrientGoalStore = create<NutrientGoalState>((set, get) => ({
   loaded: false,
 
   loadConfigs: async () => {
-    const userId = useAuthStore.getState().user?.id;
+    const userId = getCurrentUserId();
     if (!userId) return;
     const gen = _gen;
     let enabledMacros = DEFAULT_MACROS;

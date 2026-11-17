@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
-import { useAuthStore } from './useAuthStore';
+import { getCurrentUserId } from '../lib/currentUser';
 
 const STORAGE_KEY = 'momentum_saved_meals';
 
@@ -53,7 +53,7 @@ let _gen = 0;
 let _loading: Promise<void> | null = null;
 
 function persist(meals: SavedMeal[]) {
-  const userId = useAuthStore.getState().user?.id;
+  const userId = getCurrentUserId();
   if (!userId) return;
   writeUserScoped(STORAGE_KEY, userId, JSON.stringify(meals)).catch(() => {});
 }
@@ -65,7 +65,7 @@ export const useSavedMealsStore = create<SavedMealsState>((set, get) => ({
   loadMeals: () => {
     if (get().loaded) return Promise.resolve();
     if (_loading) return _loading;
-    const userId = useAuthStore.getState().user?.id;
+    const userId = getCurrentUserId();
     if (!userId) return Promise.resolve();
     const gen = _gen;
     const run = (async () => {

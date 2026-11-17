@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
-import { useAuthStore } from './useAuthStore';
+import { getCurrentUserId } from '../lib/currentUser';
 import type { FoodCatalogItem } from './useFoodLogStore';
 
 const STORAGE_KEY = '@momentum_favourites';
@@ -26,7 +26,7 @@ let _gen = 0;
 let _loading: Promise<void> | null = null;
 
 function persist(favourites: FoodCatalogItem[]) {
-  const userId = useAuthStore.getState().user?.id;
+  const userId = getCurrentUserId();
   if (!userId) return;
   writeUserScoped(STORAGE_KEY, userId, JSON.stringify(favourites)).catch(() => {});
 }
@@ -38,7 +38,7 @@ export const useFavouritesStore = create<FavouritesState>((set, get) => ({
   loadFavourites: () => {
     if (get().loaded) return Promise.resolve();
     if (_loading) return _loading;
-    const userId = useAuthStore.getState().user?.id;
+    const userId = getCurrentUserId();
     if (!userId) return Promise.resolve();
     const gen = _gen;
     const run = (async () => {
