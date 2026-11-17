@@ -69,6 +69,7 @@ const Chip = React.memo(function Chip({ itemKey, label, step, stepText, icon, co
         <Ionicons name={(done ? 'checkmark' : icon || 'ellipse-outline') as IconName} size={ms(14)} color={color} />
       </View>
       <View style={styles.chipBody}>
+        <Text style={styles.chipName} numberOfLines={1}>{label}</Text>
         <Text style={styles.chipText} numberOfLines={1}>
           <Text style={styles.chipValue}>{value}</Text>
           <Text style={styles.chipGoal}> / {goal} {unit}</Text>
@@ -250,6 +251,12 @@ const createStyles = (colors: ThemeColors) =>
     chipBody: {
       flex: 1,
       gap: sw(4),
+    },
+    chipName: {
+      color: colors.textSecondary,
+      fontSize: ms(11),
+      lineHeight: ms(14),
+      fontFamily: Fonts.semiBold,
     },
     chipText: {
       fontSize: ms(12),
