@@ -9,6 +9,7 @@
     "web": "expo start --web",
     "eas-build-pre-install": "rm -rf .expo && mkdir -p .expo/web/cache/production/images",
     "check:map": "node scripts/check-codebase-map.js",
+    "check:links": "node scripts/check-hidden-links.js",
     "knip": "npx --yes knip@6.44.0"
   },
   "dependencies": {

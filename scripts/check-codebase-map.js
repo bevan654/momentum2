@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Checks that every file or folder path mentioned in CODEBASE_MAP.md still exists.
+ * Checks that every file or folder path mentioned in CODEBASE_MAP.md still exists, and that the
+ * screen/store/table counts written in CODEBASE_MAP.md, CLAUDE.md and AGENTS.md match the code.
  * Run with `npm run check:map` after changing the map or moving code.
  * Optional argument: a different map file to check.
  *
@@ -91,10 +92,36 @@ lines.forEach((line, i) => {
   }
 });
 
+// Counts written in the docs ("19 screens", "23 Zustand stores", "49 tables") must match the code.
+const countDir = (dir, re) => fs.readdirSync(path.join(root, dir)).filter((f) => re.test(f)).length;
+const actual = {
+  screens: countDir('src/screens', /\.tsx$/),
+  stores: countDir('src/stores', /^use\w+Store\.ts$/),
+  tables: (fs.readFileSync(path.join(root, 'database-schema.md'), 'utf8').match(/^CREATE TABLE public\./gm) || []).length,
+};
+const countDocs = process.argv[2] ? [mapFile] : [mapFile, path.join(root, 'CLAUDE.md'), path.join(root, 'AGENTS.md')];
+const wrongCounts = [];
+for (const doc of countDocs) {
+  if (!fs.existsSync(doc)) continue;
+  fs.readFileSync(doc, 'utf8').split(/\r?\n/).forEach((line, i) => {
+    for (const m of line.matchAll(/\b(\d+)\s+(?:route-level\s+|Zustand\s+)?(screens|stores|tables)\b/gi)) {
+      const kind = m[2].toLowerCase();
+      if (Number(m[1]) !== actual[kind]) {
+        wrongCounts.push(`${path.basename(doc)}:${i + 1}  says "${m[0]}", but there are ${actual[kind]} ${kind}`);
+      }
+    }
+  });
+}
+
 if (missing.length) {
   console.error(`${mapName} mentions ${missing.length} path(s) that don't exist:`);
   for (const m of missing) console.error(`  ${m}`);
   console.error('Fix the map (or the path), then update its "Last verified" line.');
-  process.exit(1);
 }
-console.log(`${mapName}: all ${checked} path mentions exist.`);
+if (wrongCounts.length) {
+  console.error(`${wrongCounts.length} count(s) in the docs don't match the code:`);
+  for (const c of wrongCounts) console.error(`  ${c}`);
+  console.error('Update the numbers (screens: src/screens/*.tsx, stores: src/stores/use*Store.ts, tables: database-schema.md).');
+}
+if (missing.length || wrongCounts.length) process.exit(1);
+console.log(`${mapName}: all ${checked} path mentions exist; screen/store/table counts match (${actual.screens}/${actual.stores}/${actual.tables}).`);
