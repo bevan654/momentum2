@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useNutritionStore } from './useNutritionStore';
 import { toLocalDateString } from '../utils/localDate';
@@ -172,6 +173,8 @@ interface FoodLogState {
   mealConfigs: MealConfig[];
   goals: NutritionGoals;
   loading: boolean;
+  /** The selected day's entries failed to load (offline): the diary shouldn't look like an empty day. */
+  loadError: boolean;
   // Search
   catalogResults: FoodCatalogItem[];
   catalogLoading: boolean;
@@ -206,12 +209,65 @@ let dayRequestId = 0;
 /** The user and day (`userId:date`) whose entries are currently in the store. */
 let loadedEntriesKey: string | null = null;
 
+/** Makes optimistic ids unique even for two adds in the same millisecond. */
+let _tempSeq = 0;
+/** Adds, edits and deletes still waiting for the server. */
+let _pendingWrites = 0;
+/** Bumped when a write starts, so a day load that began earlier knows it may be missing it. */
+let _writeSeq = 0;
+/** A day load that landed while writes were pending; it runs again once they finish. */
+let _reloadAfterWrites: { userId: string; date: string } | null = null;
+
+function isTempId(id: string) {
+  return id.startsWith('temp-');
+}
+
+function beginWrite() {
+  _pendingWrites++;
+  _writeSeq++;
+}
+
+function endWrite(get: () => FoodLogState) {
+  _pendingWrites = Math.max(0, _pendingWrites - 1);
+  if (_pendingWrites > 0 || !_reloadAfterWrites) return;
+  const { userId, date } = _reloadAfterWrites;
+  _reloadAfterWrites = null;
+  if (loadedEntriesKey === `${userId}:${date}`) get().fetchDayEntries(userId, date);
+}
+
+/** A failed save is shown, not swallowed: otherwise the food just disappears from the diary. */
+function alertWriteFailed(action: string) {
+  Alert.alert(`Couldn't ${action}`, 'Check your connection and try again.');
+}
+
+/** Numeric columns as numbers (Postgres numeric arrives as strings). */
+function normalizeEntry(d: any): FoodEntry {
+  return {
+    ...d,
+    calories: Number(d.calories || 0),
+    protein: Number(d.protein || 0),
+    carbs: Number(d.carbs || 0),
+    fat: Number(d.fat || 0),
+    quantity: Number(d.quantity || 1),
+    is_planned: Boolean(d.is_planned),
+  };
+}
+
+/** Puts entries back after a failed delete, in time order, unless they're already there. */
+function restoreEntries(current: FoodEntry[], removed: FoodEntry[]): FoodEntry[] {
+  const ids = new Set(current.map((e) => e.id));
+  const back = removed.filter((e) => !ids.has(e.id));
+  if (back.length === 0) return current;
+  return [...current, ...back].sort((a, b) => a.created_at.localeCompare(b.created_at));
+}
+
 export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   selectedDate: toLocalDateString(),
   entries: [],
   mealConfigs: DEFAULT_MEALS,
   goals: DEFAULT_GOALS,
   loading: false,
+  loadError: false,
   catalogResults: [],
   catalogLoading: false,
   recentFoods: [],
@@ -228,11 +284,12 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   fetchDayEntries: async (userId: string, date?: string) => {
     const dateStr = date || get().selectedDate;
     const requestId = ++dayRequestId;
+    const writeSeq = _writeSeq;
     // Switching to another day (or account): drop the old entries so totals never show the wrong day.
     const key = `${userId}:${dateStr}`;
     if (key !== loadedEntriesKey) {
       loadedEntriesKey = key;
-      set({ entries: [], loading: true });
+      set({ entries: [], loading: true, loadError: false });
     } else {
       set({ loading: true });
     }
@@ -249,22 +306,23 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     // A newer request (e.g. the user tapped another day) has started: ignore this response.
     if (requestId !== dayRequestId) return;
 
-    if (!error && data) {
-      set({
-        entries: data.map((d) => ({
-          ...d,
-          calories: Number(d.calories || 0),
-          protein: Number(d.protein || 0),
-          carbs: Number(d.carbs || 0),
-          fat: Number(d.fat || 0),
-          quantity: Number(d.quantity || 1),
-          is_planned: Boolean(d.is_planned),
-        })),
-        loading: false,
-      });
-    } else {
-      set({ loading: false });
+    if (error || !data) {
+      set({ loading: false, loadError: true });
+      return;
     }
+
+    // An add, edit or delete started while this loaded, so the result may not include it, and
+    // replacing the list would wipe it from the screen. Load again once the writes are done.
+    if (_pendingWrites > 0) {
+      _reloadAfterWrites = { userId, date: dateStr };
+      return;
+    }
+    if (writeSeq !== _writeSeq) {
+      get().fetchDayEntries(userId, dateStr);
+      return;
+    }
+
+    set({ entries: data.map(normalizeEntry), loading: false, loadError: false });
   },
 
   fetchMealConfigs: async (userId: string) => {
@@ -309,7 +367,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   addEntry: async (userId: string, entry, targetDate?: string, targetHour?: number) => {
-    const tempId = `temp-${Date.now()}`;
+    const tempId = `temp-${Date.now()}-${++_tempSeq}`;
     const { selectedDate } = get();
     let createdAt: string;
     if (targetDate && targetHour != null) {
@@ -360,44 +418,33 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       saveUserCreatedFood(userId, entry);
     }
 
+    beginWrite();
+    let saved: FoodEntry | null = null;
     try {
       const { data, error } = await supabase
         .from('food_entries')
         .insert(insertData)
         .select()
         .single();
-
-      if (showOptimistic) {
-        if (error || !data) {
-          set((s) => ({ entries: s.entries.filter((e) => e.id !== tempId) }));
-        } else {
-          set((s) => ({
-            entries: s.entries.map((e) =>
-              e.id === tempId
-                ? {
-                    ...data,
-                    calories: Number(data.calories || 0),
-                    protein: Number(data.protein || 0),
-                    carbs: Number(data.carbs || 0),
-                    fat: Number(data.fat || 0),
-                    quantity: Number(data.quantity || 1),
-                    is_planned: Boolean(data.is_planned),
-                  }
-                : e,
-            ),
-          }));
-        }
-      }
-      if (!error) syncNutrition(userId);
+      if (!error && data) saved = normalizeEntry(data);
     } catch {
-      if (showOptimistic) {
-        set((s) => ({ entries: s.entries.filter((e) => e.id !== tempId) }));
-      }
+      // handled below
     }
+    if (saved) {
+      const row = saved;
+      set((s) => ({ entries: s.entries.map((e) => (e.id === tempId ? row : e)) }));
+      syncNutrition(userId);
+    } else {
+      set((s) => ({ entries: s.entries.filter((e) => e.id !== tempId) }));
+      alertWriteFailed('save that food');
+    }
+    endWrite(get);
   },
 
   updateEntry: async (entryId: string, updates) => {
-    const prev = get().entries;
+    // Not saved yet (it still has its temporary id): there's no row to update.
+    if (isTempId(entryId)) return;
+    const before = get().entries.find((e) => e.id === entryId);
     // Optimistic update
     set((s) => ({
       entries: s.entries.map((e) =>
@@ -405,39 +452,53 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       ),
     }));
 
+    beginWrite();
     const { error } = await supabase
       .from('food_entries')
       .update(updates)
       .eq('id', entryId);
 
     if (error) {
-      set({ entries: prev });
-    } else {
-      const uid = prev.find((e) => e.id === entryId)?.user_id;
-      if (uid) syncNutrition(uid);
+      // Undo only this entry's change, keeping anything else that happened meanwhile.
+      if (before) {
+        const restore: Partial<FoodEntry> = {};
+        for (const k of Object.keys(updates) as (keyof FoodEntry)[]) (restore as any)[k] = before[k];
+        set((s) => ({ entries: s.entries.map((e) => (e.id === entryId ? { ...e, ...restore } : e)) }));
+      }
+      alertWriteFailed('update that food');
+    } else if (before) {
+      syncNutrition(before.user_id);
     }
+    endWrite(get);
   },
 
   deleteEntry: async (entryId: string) => {
-    const prev = get().entries;
+    if (isTempId(entryId)) return;
+    const removed = get().entries.find((e) => e.id === entryId);
+    const dayKey = loadedEntriesKey;
     // Optimistic delete
     set((s) => ({ entries: s.entries.filter((e) => e.id !== entryId) }));
 
+    beginWrite();
     const { error } = await supabase
       .from('food_entries')
       .delete()
       .eq('id', entryId);
 
     if (error) {
-      // Rollback
-      set({ entries: prev });
-    } else {
-      const uid = prev.find((e) => e.id === entryId)?.user_id;
-      if (uid) syncNutrition(uid);
+      // Put it back only if the same day is still showing.
+      if (removed && loadedEntriesKey === dayKey) {
+        set((s) => ({ entries: restoreEntries(s.entries, [removed]) }));
+      }
+      alertWriteFailed('delete that food');
+    } else if (removed) {
+      syncNutrition(removed.user_id);
     }
+    endWrite(get);
   },
 
   togglePlanned: async (entryId: string) => {
+    if (isTempId(entryId)) return;
     const entry = get().entries.find((e) => e.id === entryId);
     if (!entry) return;
 
@@ -449,6 +510,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       ),
     }));
 
+    beginWrite();
     const { error } = await supabase
       .from('food_entries')
       .update({ is_planned: newPlanned })
@@ -460,7 +522,12 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
           e.id === entryId ? { ...e, is_planned: !newPlanned } : e,
         ),
       }));
+      alertWriteFailed('update that food');
+    } else {
+      // Home counts only eaten food, so it changes when an entry is marked eaten or planned.
+      syncNutrition(entry.user_id);
     }
+    endWrite(get);
   },
 
   updateGoals: async (userId: string, goals: Partial<NutritionGoals>) => {
@@ -496,21 +563,26 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   deleteMealGroup: async (mealGroupId: string) => {
-    const prev = get().entries;
+    const removed = get().entries.filter((e) => e.meal_group_id === mealGroupId);
+    const dayKey = loadedEntriesKey;
     // Optimistic delete all entries in this meal group
     set((s) => ({ entries: s.entries.filter((e) => e.meal_group_id !== mealGroupId) }));
 
+    beginWrite();
     const { error } = await supabase
       .from('food_entries')
       .delete()
       .eq('meal_group_id', mealGroupId);
 
     if (error) {
-      set({ entries: prev });
-    } else {
-      const uid = prev[0]?.user_id;
-      if (uid) syncNutrition(uid);
+      if (loadedEntriesKey === dayKey) {
+        set((s) => ({ entries: restoreEntries(s.entries, removed) }));
+      }
+      alertWriteFailed('delete that meal');
+    } else if (removed[0]) {
+      syncNutrition(removed[0].user_id);
     }
+    endWrite(get);
   },
 
   searchCatalog: async (rawQuery: string) => {
@@ -680,6 +752,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   resetForSignOut: () => {
     dayRequestId++;
     loadedEntriesKey = null;
+    _reloadAfterWrites = null;
     _searchSeq++;
     set({
       selectedDate: toLocalDateString(),
@@ -687,6 +760,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       mealConfigs: DEFAULT_MEALS,
       goals: DEFAULT_GOALS,
       loading: false,
+      loadError: false,
       catalogResults: [],
       catalogLoading: false,
       recentFoods: [],

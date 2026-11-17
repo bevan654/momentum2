@@ -1,10 +1,11 @@
 import React, { useEffect, useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ActivityIndicator } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { sw, ms } from '../theme/responsive';
+import { Fonts } from '../theme/typography';
 import { useFoodLogStore } from '../stores/useFoodLogStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
@@ -26,6 +27,7 @@ function FoodLoggerScreen() {
   const entries = useFoodLogStore((s) => s.entries);
   const goals = useFoodLogStore((s) => s.goals);
   const loading = useFoodLogStore((s) => s.loading);
+  const loadError = useFoodLogStore((s) => s.loadError);
 
   const setDate = useFoodLogStore((s) => s.setDate);
   const fetchDayEntries = useFoodLogStore((s) => s.fetchDayEntries);
@@ -119,24 +121,42 @@ function FoodLoggerScreen() {
     setAddModalVisible(true);
   }, [isToday]);
 
+  // The meal for the current time; on another day, logged at that meal's usual start time
+  // (like the meal "+" buttons), not at this hour of that day.
   const handleFabPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const h = new Date().getHours();
-    setAddMealSlot(mealSlotForHour(useFoodLogStore.getState().mealConfigs, h));
-    setAddHour(h);
+    const configs = useFoodLogStore.getState().mealConfigs;
+    const nowHour = new Date().getHours();
+    const slot = mealSlotForHour(configs, nowHour);
+    const meal = configs.find((c) => c.slot === slot);
+    setAddMealSlot(slot);
+    setAddHour(isToday || !meal ? nowHour : hourFromTimeStart(meal.time_start));
     setAddModalVisible(true);
-  }, []);
+  }, [isToday]);
 
   const handleDismissModal = useCallback(() => {
     setAddModalVisible(false);
   }, []);
 
-  const handleRefresh = useCallback(() => {
+  // Only a pull shows the refresh spinner; switching days has its own loading row below.
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
     if (!userId) return;
-    fetchDayEntries(userId, selectedDate);
-    fetchDateSupplements(userId, selectedDate);
-    if (isToday) useSupplementStore.getState().fetchTodaySupplements(userId);
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchDayEntries(userId, selectedDate),
+        fetchDateSupplements(userId, selectedDate),
+        isToday ? useSupplementStore.getState().fetchTodaySupplements(userId) : null,
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
   }, [userId, selectedDate, isToday]);
+
+  const handleRetry = useCallback(() => {
+    if (userId) fetchDayEntries(userId, selectedDate);
+  }, [userId, selectedDate]);
 
   // Tap entry → open detail modal
   // Clear the edited entry after the close animation; cancel that if another entry opens first,
@@ -149,6 +169,8 @@ function FoodLoggerScreen() {
   useEffect(() => () => { if (clearEditTimer.current) clearTimeout(clearEditTimer.current); }, []);
 
   const handlePressEntry = useCallback((entry: FoodEntry) => {
+    // Still saving (temporary id): nothing to edit yet.
+    if (entry.id.startsWith('temp-')) return;
     if (clearEditTimer.current) clearTimeout(clearEditTimer.current);
     setEditEntry(entry);
     setEditDetailVisible(true);
@@ -237,14 +259,25 @@ function FoodLoggerScreen() {
       <ScrollView
         style={styles.diaryPage}
         showsVerticalScrollIndicator={false}
-        bounces={false}
+        // iOS only starts pull-to-refresh from a bounce, so bouncing stays on.
         overScrollMode="never"
         removeClippedSubviews
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={handleRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
         <View>
+          {loadError ? (
+            <TouchableOpacity style={styles.statusRow} onPress={handleRetry} activeOpacity={0.7} accessibilityRole="button">
+              <Ionicons name="cloud-offline-outline" size={ms(15)} color={colors.accentOrange} />
+              <Text style={styles.statusText}>Couldn't load this day. Tap to try again.</Text>
+            </TouchableOpacity>
+          ) : loading && entries.length === 0 && !refreshing ? (
+            <View style={styles.statusRow}>
+              <ActivityIndicator size="small" color={colors.textTertiary} />
+              <Text style={styles.statusText}>Loading…</Text>
+            </View>
+          ) : null}
           <NutritionHero entries={entries} goals={goals} />
           <HydrationStrip isToday={isToday} />
           <View style={styles.mealsGap} />
@@ -302,6 +335,25 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(8),
+    marginHorizontal: sw(16),
+    marginTop: sw(8),
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(10),
+    borderRadius: sw(12),
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  statusText: {
+    flex: 1,
+    color: colors.textSecondary,
+    fontSize: ms(12),
+    fontFamily: Fonts.medium,
   },
   mealsGap: {
     height: sw(12),
