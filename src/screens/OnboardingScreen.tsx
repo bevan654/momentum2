@@ -194,9 +194,9 @@ export default function OnboardingScreen() {
         height: Number(height),
         starting_weight: Number(weight),
         goal_weight: Number(goalWeight),
-      });
+      }, { optimistic: false });
       if (profileError) {
-        // The store rolled the profile back, so App shows onboarding again (the alert is global)
+        // Not saved, so the profile is still incomplete and this form (with what was typed) stays up
         const taken = /duplicate|unique|username/i.test(profileError);
         Alert.alert(
           taken ? 'Username taken' : "Couldn't save your profile",

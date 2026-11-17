@@ -191,7 +191,12 @@ interface AuthState {
   confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<{ error: string | null }>;
   fetchProfile: (userId: string) => Promise<void>;
   /** Optimistic; rolls back and returns the error message if the save fails. */
-  updateProfile: (updates: Partial<Omit<Profile, 'id' | 'email'>>) => Promise<{ error: string | null }>;
+  /**
+   * Save profile fields. Shown straight away and rolled back on failure, unless `optimistic` is
+   * false: then the profile changes only once the server has saved it (onboarding uses this, since
+   * a complete profile swaps the onboarding screen out and a rollback would bring back an empty form).
+   */
+  updateProfile: (updates: Partial<Omit<Profile, 'id' | 'email'>>, opts?: { optimistic?: boolean }) => Promise<{ error: string | null }>;
   dismissWelcome: () => void;
 }
 
@@ -279,12 +284,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  updateProfile: async (updates) => {
+  updateProfile: async (updates, opts) => {
     const { profile } = get();
     if (!profile) return { error: 'Not signed in' };
+    const optimistic = opts?.optimistic ?? true;
 
-    // Optimistic update
-    set({ profile: { ...profile, ...updates } });
+    if (optimistic) set({ profile: { ...profile, ...updates } });
 
     const { error } = await supabase
       .from('profiles')
@@ -292,9 +297,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       .eq('id', profile.id);
 
     if (error) {
-      // Rollback
-      set({ profile });
+      if (optimistic) set({ profile }); // rollback
       return { error: error.message };
+    }
+    if (!optimistic) {
+      const current = get().profile;
+      if (current?.id === profile.id) set({ profile: { ...current, ...updates } });
     }
     return { error: null };
   },
