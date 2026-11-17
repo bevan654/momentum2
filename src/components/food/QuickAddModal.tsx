@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
@@ -25,6 +25,11 @@ interface Props {
 
 const KJ_PER_KCAL = 4.184;
 
+/** Units a quick add can be logged in. "serving" counts servings; the rest are an amount. */
+const SERVING_UNITS = ['serving', 'g', 'ml', 'oz', 'cup'] as const;
+type ServingUnit = (typeof SERVING_UNITS)[number];
+const DEFAULT_AMOUNT: Record<ServingUnit, string> = { serving: '1', g: '100', ml: '250', oz: '1', cup: '1' };
+
 /**
  * Quick add: log calories and macros without picking a food. Calories left blank are
  * worked out from the macros (P and C 4 kcal/g, F 9 kcal/g). Only tracked micros are shown.
@@ -47,6 +52,8 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
   }, [loaded, loadConfigs]);
 
   const [name, setName] = useState('');
+  const [servingUnit, setServingUnit] = useState<ServingUnit>('serving');
+  const [amount, setAmount] = useState(DEFAULT_AMOUNT.serving);
   const [calories, setCalories] = useState('');
   const [kj, setKj] = useState('');
   const [protein, setProtein] = useState('');
@@ -74,6 +81,8 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
   useEffect(() => {
     if (visible) return;
     setName('');
+    setServingUnit('serving');
+    setAmount(DEFAULT_AMOUNT.serving);
     setCalories('');
     setKj('');
     setProtein('');
@@ -81,6 +90,13 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
     setFat('');
     setMicroValues({});
   }, [visible]);
+
+  // Switching unit starts from a typical amount (1 serving, 100 g, 250 ml...).
+  const handleUnitChange = useCallback((unit: ServingUnit) => {
+    Haptics.selectionAsync();
+    setServingUnit(unit);
+    setAmount(DEFAULT_AMOUNT[unit]);
+  }, []);
 
   const handleMicroChange = useCallback((key: string, value: string) => {
     setMicroValues((prev) => ({ ...prev, [key]: value }));
@@ -94,6 +110,7 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
   // What the screen shows and what gets saved: typed calories, else worked out from macros.
   const previewCal = entered > 0 ? entered : fromMacros;
   const autoCalc = entered <= 0 && fromMacros > 0;
+  const amountNum = Number(amount) > 0 ? Number(amount) : 1;
   const canSubmit = entered > 0 || p > 0 || c > 0 || f > 0;
 
   const handleAdd = useCallback(() => {
@@ -114,15 +131,17 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
       carbs: c,
       fat: f,
       meal_type: mealSlot,
-      quantity: 1,
-      serving_size: 1,
-      serving_unit: 'serving',
+      // Servings are a count (2 servings = quantity 2); other units are one serving of that
+      // amount (250 ml = quantity 1 of 250 ml). The values typed are for the whole amount.
+      quantity: servingUnit === 'serving' ? amountNum : 1,
+      serving_size: servingUnit === 'serving' ? 1 : amountNum,
+      serving_unit: servingUnit,
       is_planned: false,
       ...microFields,
     }, targetHour != null ? selectedDate : undefined, targetHour);
 
     onAdded();
-  }, [userId, canSubmit, name, previewCal, p, c, f, mealSlot, targetHour, selectedDate, addEntry, onAdded, microGoals, microValues]);
+  }, [userId, canSubmit, name, previewCal, p, c, f, mealSlot, targetHour, selectedDate, addEntry, onAdded, microGoals, microValues, servingUnit, amountNum]);
 
   return (
     <FoodSubScreen
@@ -167,6 +186,38 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
           onSubmitEditing={() => calRef.current?.focus()}
           accessibilityLabel="Name"
         />
+      </View>
+
+      {/* Serving */}
+      <View style={s.group}>
+        <Text style={s.label}>Amount</Text>
+        <View style={s.unitRow} accessibilityRole="radiogroup">
+          {SERVING_UNITS.map((u) => {
+            const active = u === servingUnit;
+            return (
+              <Pressable
+                key={u}
+                style={[s.unitChip, active && s.unitChipActive]}
+                onPress={() => handleUnitChange(u)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={u === 'serving' ? 'Servings' : u}
+              >
+                <Text style={[s.unitText, active && s.unitTextActive]}>{u === 'serving' ? 'Servings' : u}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={s.row}>
+          <NumberField
+            label={servingUnit === 'serving' ? 'Servings' : 'Amount'}
+            unit={servingUnit === 'serving' ? undefined : servingUnit}
+            value={amount}
+            onChangeText={setAmount}
+            onSubmitEditing={() => calRef.current?.focus()}
+          />
+        </View>
+        <Text style={s.hint}>Calories and macros below are for this amount.</Text>
       </View>
 
       {/* Energy */}
@@ -262,6 +313,39 @@ const createStyles = (colors: ThemeColors) =>
     row: {
       flexDirection: 'row',
       gap: sw(8),
+    },
+    unitRow: {
+      flexDirection: 'row',
+      gap: sw(6),
+    },
+    unitChip: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: sw(8),
+      borderRadius: sw(10),
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    unitChipActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    unitText: {
+      color: colors.textSecondary,
+      fontSize: ms(12),
+      lineHeight: ms(16),
+      fontFamily: Fonts.semiBold,
+    },
+    unitTextActive: {
+      color: colors.textOnAccent,
+    },
+    hint: {
+      color: colors.textTertiary,
+      fontSize: ms(11),
+      lineHeight: ms(15),
+      fontFamily: Fonts.medium,
     },
     textField: {
       color: colors.textPrimary,
