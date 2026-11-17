@@ -6,10 +6,8 @@ import { sw, ms } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
 import type { ActivityFeedItem } from '../../../lib/friendsDatabase';
 import { useAuthStore } from '../../../stores/useAuthStore';
-import { useActiveWorkoutStore } from '../../../stores/useActiveWorkoutStore';
-import { useWorkoutStore } from '../../../stores/useWorkoutStore';
-import { confirmReplaceWorkout } from '../../../utils/confirmReplaceWorkout';
-import { postedExerciseType, targetKg } from './feedWorkoutHelpers';
+import { safeDisplayName } from '../../../utils/displayName';
+import { useStartFeedWorkout } from './useStartFeedWorkout';
 import { titleCase } from '../../../utils/titleCase';
 import { compareGhostSet } from '../../../utils/ghostCompare';
 import { useSaveFeedRoutine } from './useSaveFeedRoutine';
@@ -18,7 +16,7 @@ import { formatHoursMinutes } from '../../../utils/formatDuration';
 /* ── Ghost content ─────────────────────────────────── */
 
 export function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss: () => void }) {
-  const displayName = item.profile.username || item.profile.email;
+  const displayName = safeDisplayName(item.profile.username, item.profile.email);
   const exercises = item.exercise_details || [];
   const ghostExercises = item.ghost_exercises!;
   const ghostUserName = item.ghost_username!;
@@ -26,35 +24,20 @@ export function GhostContent({ item, onDismiss }: { item: ActivityFeedItem; onDi
 
   const userId = useAuthStore((s) => s.user?.id);
   const isSelf = userId === item.user_id;
-  const startFromRoutine = useActiveWorkoutStore((s) => s.startFromRoutine);
-  const catalogMap = useWorkoutStore((s) => s.catalogMap);
 
   const handleSaveRoutine = useSaveFeedRoutine(exercises, displayName);
 
+  const startFeedWorkout = useStartFeedWorkout(onDismiss);
   const startChallenge = useCallback((targetName: string, targetExercises: { name: string; sets: { kg: number; reps: number }[] }[]) => {
-    const ghostPrevMap: Record<string, { kg: number; reps: number }[]> = {};
-    for (const ex of targetExercises) {
-      if (ex.sets && ex.sets.length > 0) {
-        ghostPrevMap[ex.name] = ex.sets.map((s) => ({ kg: targetKg(s.kg), reps: s.reps }));
-      }
-    }
     // Ghost exercises carry no type; the post's own exercise of the same name does.
     const postedTypes = new Map(exercises.map((ex) => [ex.name, ex.exercise_type]));
-    const routine = {
-      id: `feed-ghost-${item.id}`,
-      exercises: targetExercises.map((ex) => ({
-        name: ex.name,
-        default_sets: ex.sets?.length || 3,
-        exercise_type: postedExerciseType(ex.name, postedTypes.get(ex.name), catalogMap),
-      })),
-    };
-    // Close this sheet first and start the workout once its close animation has
-    // played, so the workout sheet doesn't open underneath it.
-    confirmReplaceWorkout(() => {
-      onDismiss();
-      setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, targetName), 350);
-    });
-  }, [item.id, exercises, startFromRoutine, catalogMap, onDismiss]);
+    startFeedWorkout(`feed-ghost-${item.id}`, targetName, targetExercises.map((ex) => ({
+      name: ex.name,
+      sets: ex.sets || [],
+      setCount: ex.sets?.length || 3,
+      postedType: postedTypes.get(ex.name),
+    })));
+  }, [item.id, exercises, startFeedWorkout]);
 
   const [showPicker, setShowPicker] = useState(false);
 

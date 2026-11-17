@@ -6,10 +6,9 @@ import { sw, ms } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
 import ExerciseMuscleThumb from '../../body/ExerciseMuscleThumb';
 import type { ActivityFeedItem, FeedExerciseDetail } from '../../../lib/friendsDatabase';
-import { useActiveWorkoutStore } from '../../../stores/useActiveWorkoutStore';
-import { useWorkoutStore } from '../../../stores/useWorkoutStore';
-import { confirmReplaceWorkout } from '../../../utils/confirmReplaceWorkout';
-import { formatVolume, postedExerciseType, targetKg } from './feedWorkoutHelpers';
+import { formatVolumeKg } from '../../../utils/formatVolume';
+import { safeDisplayName } from '../../../utils/displayName';
+import { useStartFeedWorkout } from './useStartFeedWorkout';
 import { formatHoursMinutes } from '../../../utils/formatDuration';
 import { formatWorkoutDate } from '../../../utils/dateLabels';
 import { titleCase } from '../../../utils/titleCase';
@@ -18,43 +17,27 @@ import { useSaveFeedRoutine } from './useSaveFeedRoutine';
 /* ── Normal workout content ────────────────────────── */
 
 export function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; onDismiss: () => void }) {
-  const displayName = item.profile.username || item.profile.email;
+  const displayName = safeDisplayName(item.profile.username, item.profile.email);
   const exercises = item.exercise_details || [];
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const startFromRoutine = useActiveWorkoutStore((s) => s.startFromRoutine);
-  const catalogMap = useWorkoutStore((s) => s.catalogMap);
-
   const handleSaveRoutine = useSaveFeedRoutine(exercises, displayName);
 
+  const startFeedWorkout = useStartFeedWorkout(onDismiss);
   const handleTryWorkout = useCallback(() => {
-    const ghostPrevMap: Record<string, { kg: number; reps: number }[]> = {};
-    for (const ex of exercises) {
-      if (ex.sets && ex.sets.length > 0) {
-        ghostPrevMap[ex.name] = ex.sets.map((s) => ({ kg: targetKg(s.kg), reps: s.reps }));
-      } else if (ex.best_kg > 0 || ex.best_reps > 0) {
-        ghostPrevMap[ex.name] = Array.from({ length: ex.sets_count || 3 }, () => ({
-          kg: targetKg(ex.best_kg),
-          reps: ex.best_reps,
-        }));
-      }
-    }
-    const routine = {
-      id: `feed-${item.id}`,
-      exercises: exercises.map((ex) => ({
-        name: ex.name,
-        default_sets: ex.sets_count || 3,
-        exercise_type: postedExerciseType(ex.name, ex.exercise_type, catalogMap),
-      })),
-    };
-    // Close this sheet first and start the workout once its close animation has
-    // played, so the workout sheet doesn't open underneath it.
-    confirmReplaceWorkout(() => {
-      onDismiss();
-      setTimeout(() => startFromRoutine(routine, catalogMap, ghostPrevMap, displayName), 350);
-    });
-  }, [item.id, exercises, startFromRoutine, catalogMap, onDismiss, displayName]);
+    startFeedWorkout(`feed-${item.id}`, displayName, exercises.map((ex) => ({
+      name: ex.name,
+      // Posts from older builds have no per-set list: race the best set, sets_count times
+      sets: ex.sets && ex.sets.length > 0
+        ? ex.sets
+        : ex.best_kg > 0 || ex.best_reps > 0
+          ? Array.from({ length: ex.sets_count || 3 }, () => ({ kg: ex.best_kg, reps: ex.best_reps }))
+          : [],
+      setCount: ex.sets_count || 3,
+      postedType: ex.exercise_type,
+    })));
+  }, [item.id, exercises, startFeedWorkout, displayName]);
 
   return (
     <>
@@ -74,7 +57,7 @@ export function WorkoutContent({ item, onDismiss }: { item: ActivityFeedItem; on
           <Text style={styles.workoutSub}>
             {exercises.length} exercise{exercises.length !== 1 ? 's' : ''}
             {'  \u00b7  '}{formatHoursMinutes(item.duration)}
-            {'  \u00b7  '}{formatVolume(item.total_volume)}
+            {'  \u00b7  '}{formatVolumeKg(item.total_volume)}
           </Text>
         </View>
 

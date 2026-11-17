@@ -1,11 +1,6 @@
 import type { FeedExerciseDetail } from '../../../lib/friendsDatabase';
 import { resolveLoadType } from '../../../utils/muscleLoad';
 
-export function formatVolume(kg: number): string {
-  if (kg >= 1000) return `${(kg / 1000).toFixed(1)}k kg`;
-  return `${kg} kg`;
-}
-
 type CatalogTypes = Readonly<Record<string, { exercise_type?: string | null } | undefined>>;
 
 /**
