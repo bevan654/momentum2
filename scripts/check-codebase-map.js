@@ -113,6 +113,20 @@ for (const doc of countDocs) {
   });
 }
 
+// Text saved in the wrong encoding (UTF-8 read as Windows-1252, e.g. by PowerShell 5.1) turns → into â†’.
+const garbled = [];
+for (const doc of countDocs) {
+  if (!fs.existsSync(doc)) continue;
+  fs.readFileSync(doc, 'utf8').split(/\r?\n/).forEach((line, i) => {
+    if (/â€|â†|Ã[\u0080-¿]/.test(line)) garbled.push(`${path.basename(doc)}:${i + 1}`);
+  });
+}
+if (garbled.length) {
+  console.error(`${garbled.length} line(s) look garbled by a wrong text encoding (e.g. "â†’" instead of "→"):`);
+  for (const g of garbled) console.error(`  ${g}`);
+  console.error('Restore the characters (git show origin/main:<file>) and save the file as UTF-8.');
+}
+
 if (missing.length) {
   console.error(`${mapName} mentions ${missing.length} path(s) that don't exist:`);
   for (const m of missing) console.error(`  ${m}`);
@@ -123,5 +137,5 @@ if (wrongCounts.length) {
   for (const c of wrongCounts) console.error(`  ${c}`);
   console.error('Update the numbers (screens: src/screens/*.tsx, stores: src/stores/use*Store.ts, tables: database-schema.md).');
 }
-if (missing.length || wrongCounts.length) process.exit(1);
+if (missing.length || wrongCounts.length || garbled.length) process.exit(1);
 console.log(`${mapName}: all ${checked} path mentions exist; screen/store/table counts match (${actual.screens}/${actual.stores}/${actual.tables}).`);
