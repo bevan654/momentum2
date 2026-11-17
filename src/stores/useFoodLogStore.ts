@@ -130,25 +130,42 @@ function dateRange(dateStr: string) {
   return { start, end };
 }
 
+/** Quick Add's name when the user didn't type one: not a food anyone could search for. */
+const UNNAMED_QUICK_ADD = 'quick add';
+
 /**
- * Save a user-created food to the shared user_created_foods table.
- * Fire-and-forget — errors are silently ignored.
+ * Save a user-created food to the shared user_created_foods table (readable by every user).
+ * Stored per single serving, once per user and name. Fire-and-forget — errors are ignored.
  */
 async function saveUserCreatedFood(
   userId: string,
   entry: Record<string, any>,
 ) {
+  const name = String(entry.name || '').trim();
+  if (!name || name.toLowerCase() === UNNAMED_QUICK_ADD) return;
+  // The entry holds totals for the amount logged; the shared row is one serving.
+  const qty = Number(entry.quantity) > 0 ? Number(entry.quantity) : 1;
   try {
+    // Already shared by this user: don't add a copy on every log.
+    const { data: existing, error: lookupError } = await supabase
+      .from('user_created_foods')
+      .select('id')
+      .eq('created_by', userId)
+      // Case-insensitive exact match: escape ilike's wildcards.
+      .ilike('name', name.replace(/[\\%_]/g, (c) => `\\${c}`))
+      .limit(1);
+    if (lookupError || (existing && existing.length > 0)) return;
+
     await supabase.from('user_created_foods').insert({
-      name: entry.name,
+      name,
       brand: entry.brand ?? null,
-      calories: Number(entry.calories) || 0,
-      protein: Number(entry.protein) || 0,
-      carbs: Number(entry.carbs) || 0,
-      fat: Number(entry.fat) || 0,
-      fiber: entry.fiber != null ? Number(entry.fiber) : null,
-      sugar: entry.sugar != null ? Number(entry.sugar) : null,
-      ...microsFrom(entry),
+      calories: (Number(entry.calories) || 0) / qty,
+      protein: (Number(entry.protein) || 0) / qty,
+      carbs: (Number(entry.carbs) || 0) / qty,
+      fat: (Number(entry.fat) || 0) / qty,
+      fiber: entry.fiber != null ? Number(entry.fiber) / qty : null,
+      sugar: entry.sugar != null ? Number(entry.sugar) / qty : null,
+      ...microsFrom(entry, qty),
       serving_size: Number(entry.serving_size) || 1,
       serving_unit: entry.serving_unit || 'serving',
       created_by: userId,
