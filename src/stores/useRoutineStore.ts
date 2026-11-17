@@ -99,7 +99,11 @@ export const useRoutineStore = create<RoutineState>((set, get) => ({
         .from('routine_exercises')
         .insert(rows);
 
-      if (exError) return { error: exError.message };
+      if (exError) {
+        // Don't leave an empty routine behind (a retry would make a second copy)
+        await supabase.from('routines').delete().eq('id', routine.id);
+        return { error: exError.message };
+      }
     }
 
     await get().fetchRoutines(userId);
@@ -114,8 +118,13 @@ export const useRoutineStore = create<RoutineState>((set, get) => ({
 
     if (error) return { error: error.message };
 
-    // Replace all exercises: delete old, insert new
-    await supabase.from('routine_exercises').delete().eq('routine_id', routineId);
+    // Replace all exercises: delete old, insert new. Not one transaction, so on a failure refetch
+    // to show what was actually saved.
+    const { error: deleteError } = await supabase.from('routine_exercises').delete().eq('routine_id', routineId);
+    if (deleteError) {
+      await get().fetchRoutines(userId);
+      return { error: deleteError.message };
+    }
 
     if (exercises.length > 0) {
       const rows = exercises.map((e) => ({ routine_id: routineId, ...planExerciseColumns(e) }));
@@ -124,7 +133,10 @@ export const useRoutineStore = create<RoutineState>((set, get) => ({
         .from('routine_exercises')
         .insert(rows);
 
-      if (exError) return { error: exError.message };
+      if (exError) {
+        await get().fetchRoutines(userId);
+        return { error: "The routine's exercises didn't save. Check the routine and try saving again." };
+      }
     }
 
     await get().fetchRoutines(userId);

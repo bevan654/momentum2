@@ -117,11 +117,12 @@ export default function CreateProgramScreen() {
 
       if (isEditing) {
         const { error } = await updateProgram(editProgramId!, name.trim(), startDate, endDate, days);
+        // Refetch either way: a failed save can leave the program part-written
+        await fetchPrograms(userId);
         if (error) {
           Alert.alert('Error', error);
           return;
         }
-        await fetchPrograms(userId);
       } else {
         const { error } = await createProgram(userId, name.trim(), startDate, endDate, days);
         if (error) {

@@ -106,6 +106,37 @@ interface ProgramState {
   getDurationWeeks: (program?: Program | null) => number;
 }
 
+/**
+ * Insert a program's days and their exercises. Returns a user-facing error if any insert failed
+ * (the rest are still attempted), or null.
+ */
+async function insertProgramDays(programId: string, days: ProgramDay[]): Promise<string | null> {
+  let failed = false;
+  for (const day of days) {
+    const { data: dayRow, error: dayErr } = await supabase
+      .from('program_days')
+      .insert({ program_id: programId, day_of_week: day.day_of_week, label: day.label })
+      .select('id')
+      .single();
+
+    if (dayErr || !dayRow) {
+      if (__DEV__) console.error('Insert program_day error:', dayErr);
+      failed = true;
+      continue;
+    }
+
+    if (day.exercises.length > 0) {
+      const rows = day.exercises.map((e) => ({ program_day_id: dayRow.id, ...planExerciseColumns(e) }));
+      const { error: exErr } = await supabase.from('program_day_exercises').insert(rows);
+      if (exErr) {
+        if (__DEV__) console.error('Insert program_day_exercises error:', exErr);
+        failed = true;
+      }
+    }
+  }
+  return failed ? "Some of the program's days didn't save. Check the program and try saving again." : null;
+}
+
 export const useProgramStore = create<ProgramState>((set, get) => ({
   programs: [],
   activeProgram: null,
@@ -179,31 +210,11 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
         return { error: error?.message || 'Failed to create program' };
       }
 
-      for (const day of days) {
-        const { data: dayRow, error: dayErr } = await supabase
-          .from('program_days')
-          .insert({
-            program_id: program.id,
-            day_of_week: day.day_of_week,
-            label: day.label,
-          })
-          .select('id')
-          .single();
-
-        if (dayErr || !dayRow) {
-          if (__DEV__) console.error('Insert program_day error:', dayErr);
-          continue;
-        }
-
-        if (day.exercises.length > 0) {
-          const rows = day.exercises.map((e) => ({ program_day_id: dayRow.id, ...planExerciseColumns(e) }));
-          const { error: exErr } = await supabase.from('program_day_exercises').insert(rows);
-          if (__DEV__ && exErr) console.error('Insert program_day_exercises error:', exErr);
-        }
-      }
-
+      const daysError = await insertProgramDays(program.id, days);
+      // Don't leave a half-saved program behind (a retry would make a second copy)
+      if (daysError) await supabase.from('programs').delete().eq('id', program.id);
       await get().fetchPrograms(userId);
-      return { error: null };
+      return { error: daysError };
     } catch (e: any) {
       if (__DEV__) console.error('createProgram exception:', e);
       return { error: e?.message || 'Unexpected error' };
@@ -220,29 +231,12 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
 
     if (error) return { error: error.message };
 
-    // Delete all days (cascade deletes exercises)
-    await supabase.from('program_days').delete().eq('program_id', programId);
+    // Delete all days (cascade deletes exercises), then insert the new ones. Not one transaction:
+    // a failure part-way leaves the program missing days, so it's reported and the caller refetches.
+    const { error: deleteError } = await supabase.from('program_days').delete().eq('program_id', programId);
+    if (deleteError) return { error: deleteError.message };
 
-    for (const day of days) {
-      const { data: dayRow, error: dayErr } = await supabase
-        .from('program_days')
-        .insert({
-          program_id: programId,
-          day_of_week: day.day_of_week,
-          label: day.label,
-        })
-        .select('id')
-        .single();
-
-      if (dayErr || !dayRow) continue;
-
-      if (day.exercises.length > 0) {
-        const rows = day.exercises.map((e) => ({ program_day_id: dayRow.id, ...planExerciseColumns(e) }));
-        await supabase.from('program_day_exercises').insert(rows);
-      }
-    }
-
-    return { error: null };
+    return { error: await insertProgramDays(programId, days) };
   },
 
   /* ─── Delete program ───────────────────────────────── */
