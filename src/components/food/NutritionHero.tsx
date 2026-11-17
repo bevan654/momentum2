@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -42,12 +42,14 @@ function NutritionHero({ entries, goals }: Props) {
     ].filter((m) => enabled.has(m.key));
   }, [totals, goals, colors, enabledMacros]);
 
-  // Micronutrient totals are only needed while the breakdown is open.
+  // Micronutrient totals are only worked out while the breakdown is open. While it fades out
+  // after closing, keep showing the last totals instead of snapping every bar to zero.
   const microKeys = useMemo(() => microGoals.map((g) => g.key), [microGoals]);
-  const microTotals = useMemo(
-    () => (expanded ? sumMicros(entries, microKeys) : {}),
-    [expanded, entries, microKeys],
-  );
+  const lastMicroTotals = useRef<Record<string, number>>({});
+  const microTotals = useMemo(() => {
+    if (expanded) lastMicroTotals.current = sumMicros(entries, microKeys);
+    return lastMicroTotals.current;
+  }, [expanded, entries, microKeys]);
 
   const handleOpen = useCallback(() => setExpanded(true), []);
   const handleClose = useCallback(() => setExpanded(false), []);
