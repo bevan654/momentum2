@@ -8,7 +8,7 @@ import {
   } from 'react-native';
 import Overlay from '../ui/Overlay';
 import { Ionicons } from '@expo/vector-icons';
-import { Swipeable } from 'react-native-gesture-handler';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -109,7 +109,7 @@ function ExerciseCard({
 
   const summary = `${sets.length} sets · ${repRange} reps`;
 
-  const swipeableRef = useRef<Swipeable>(null);
+  const swipeableRef = useRef<SwipeableMethods>(null);
 
   const renderRightActions = useCallback(() => (
     <TouchableOpacity
@@ -126,7 +126,7 @@ function ExerciseCard({
   ), [onRemove, index, styles]);
 
   return (
-    <Swipeable
+    <ReanimatedSwipeable
       ref={swipeableRef}
       renderRightActions={renderRightActions}
       overshootRight={false}
@@ -286,7 +286,7 @@ function ExerciseCard({
         </TouchableOpacity>
       </Overlay>
     </View>
-    </Swipeable>
+    </ReanimatedSwipeable>
   );
 }
 

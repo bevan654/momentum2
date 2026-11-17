@@ -9,7 +9,7 @@ import { useColors, type ThemeColors } from '../theme/useColors';
 import { Fonts } from '../theme/typography';
 import { sw, ms, SCREEN_HEIGHT } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
-import { useRoutineStore } from '../stores/useRoutineStore';
+import { useRoutineStore, type Routine } from '../stores/useRoutineStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useProgramStore } from '../stores/useProgramStore';
@@ -76,6 +76,20 @@ export default function PlansScreen() {
     backdropOpacity.value = 0;
     goBack();
   }, [goBack, sheetTravel]);
+
+  const openRoutine = useCallback((routine: Routine) => navigation.navigate('RoutineSummary', { routineId: routine.id }), [navigation]);
+  const playRoutine = useCallback((routine: Routine) => {
+    // Dismiss the Plans transparent-modal stack first — iOS rejects
+    // presenting ActiveWorkoutSheet's Modal while another modal is on top.
+    confirmReplaceWorkout(() => {
+      dismiss();
+      setTimeout(() => startFromRoutine(routine, catalogMap, prevMap), 350);
+    });
+  }, [dismiss, startFromRoutine, catalogMap, prevMap]);
+  const removeRoutine = useCallback(async (routine: Routine) => {
+    const { error } = await deleteRoutine(routine.id);
+    if (error) Alert.alert('Error', error);
+  }, [deleteRoutine]);
 
   const panGesture = useMemo(
     () =>
@@ -183,19 +197,9 @@ export default function PlansScreen() {
               <RoutineCard
                 key={routine.id}
                 routine={routine}
-                onPress={() => navigation.navigate('RoutineSummary', { routineId: routine.id })}
-                onPlay={() => {
-                  // Dismiss the Plans transparent-modal stack first — iOS rejects
-                  // presenting ActiveWorkoutSheet's Modal while another modal is on top.
-                  confirmReplaceWorkout(() => {
-                    dismiss();
-                    setTimeout(() => startFromRoutine(routine, catalogMap, prevMap), 350);
-                  });
-                }}
-                onDelete={async () => {
-                  const { error } = await deleteRoutine(routine.id);
-                  if (error) Alert.alert('Error', error);
-                }}
+                onPress={openRoutine}
+                onPlay={playRoutine}
+                onDelete={removeRoutine}
               />
             ))
           )}

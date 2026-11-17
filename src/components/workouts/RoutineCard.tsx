@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Swipeable } from 'react-native-gesture-handler';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -11,21 +11,24 @@ import { WEEKDAY_SHORT } from '../../constants/dateNames';
 
 interface Props {
   routine: Routine;
-  onPress: () => void;
-  onPlay: () => void;
-  onDelete: () => void;
+  onPress: (routine: Routine) => void;
+  onPlay: (routine: Routine) => void;
+  onDelete: (routine: Routine) => void;
 }
 
 function RoutineCard({ routine, onPress, onPlay, onDelete }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const catalogMap = useWorkoutStore((s) => s.catalogMap);
-  const swipeableRef = useRef<Swipeable>(null);
+  const swipeableRef = useRef<SwipeableMethods>(null);
 
   const handleDelete = useCallback(() => {
     swipeableRef.current?.close();
-    onDelete();
-  }, [onDelete]);
+    onDelete(routine);
+  }, [onDelete, routine]);
+
+  const handlePress = useCallback(() => onPress(routine), [onPress, routine]);
+  const handlePlay = useCallback(() => onPlay(routine), [onPlay, routine]);
 
   const renderRightActions = useCallback(() => (
     <TouchableOpacity
@@ -55,7 +58,7 @@ function RoutineCard({ routine, onPress, onPlay, onDelete }: Props) {
 
   return (
     <View style={styles.swipeContainer}>
-      <Swipeable
+      <ReanimatedSwipeable
         ref={swipeableRef}
         renderRightActions={renderRightActions}
         overshootRight={false}
@@ -63,7 +66,7 @@ function RoutineCard({ routine, onPress, onPlay, onDelete }: Props) {
       >
         <View style={styles.card}>
           <View style={styles.cardRow}>
-            <Pressable style={({ pressed }) => [styles.info, pressed && styles.cardPressed]} onPress={onPress}>
+            <Pressable style={({ pressed }) => [styles.info, pressed && styles.cardPressed]} onPress={handlePress}>
               <Text style={styles.name} numberOfLines={1}>{routine.name}</Text>
               <Text style={styles.sub}>
                 {routine.exercises.length} exercise{routine.exercises.length !== 1 ? 's' : ''}
@@ -87,12 +90,12 @@ function RoutineCard({ routine, onPress, onPlay, onDelete }: Props) {
                 </View>
               )}
             </Pressable>
-            <TouchableOpacity style={styles.playBtn} onPress={onPlay} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.playBtn} onPress={handlePlay} activeOpacity={0.7}>
               <Ionicons name="play" size={ms(18)} color={colors.textOnAccent} />
             </TouchableOpacity>
           </View>
         </View>
-      </Swipeable>
+      </ReanimatedSwipeable>
     </View>
   );
 }

@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Swipeable } from 'react-native-gesture-handler';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
@@ -124,7 +124,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, isCurrent, showGhostSet
     [exercise.sets, exercise.prevSets, exercise.exercise_type],
   );
 
-  const swipeableRef = React.useRef<Swipeable>(null);
+  const swipeableRef = React.useRef<SwipeableMethods>(null);
 
   const displayName = titleCase(exercise.name);
   const menuActions = useMemo<ActionSheetItem[]>(() => {
@@ -158,7 +158,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, isCurrent, showGhostSet
       style={[styles.swipeContainer, isCurrent && styles.currentBorder]}
       onPress={() => onExerciseFocus?.(exerciseIndex)}
     >
-    <Swipeable
+    <ReanimatedSwipeable
       ref={swipeableRef}
       renderRightActions={isGhost ? undefined : renderRightActions}
       enabled={!isGhost}
@@ -363,7 +363,7 @@ function ExerciseCard({ exercise, exerciseIndex, isLast, isCurrent, showGhostSet
               </View>
             )}
       </View>
-    </Swipeable>
+    </ReanimatedSwipeable>
 
       <ActionSheet
         visible={menuOpen}
