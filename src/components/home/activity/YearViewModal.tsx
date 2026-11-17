@@ -151,7 +151,7 @@ export function YearViewModal({
   }, [workoutMap, year]);
 
   return (
-    <Modal visible={visible} animationType="slide" onShow={handleShow} statusBarTranslucent>
+    <Modal visible={visible} animationType="slide" onShow={handleShow} onRequestClose={onClose} statusBarTranslucent>
       <GestureHandlerRootView style={ys.hostRoot}>
       <PortalHost>
       <View style={[ys.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
