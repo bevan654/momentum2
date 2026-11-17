@@ -18,6 +18,7 @@ import FoodLogOptions, { buildDateChips } from './FoodLogOptions';
 import FoodNameCard from './FoodNameCard';
 import MicroEditor from './MicroEditor';
 import { findMealConfig } from './groupEntriesByMeal';
+import { sanitizeDecimal } from './decimalInput';
 
 import { MICROS, type FoodDetailData, type MealItemData } from './foodDetailTypes';
 
@@ -42,6 +43,13 @@ interface Props {
   onFoodSwap?: (food: FoodDetailData) => void;
   /** When set, "Add" button adds to meal instead of logging. Hides meal/date selectors. */
   onAddToMeal?: (item: MealItemData) => void;
+}
+
+/** A typed number string scaled by `ratio` (one decimal); blank stays blank. */
+function rescale(value: string, ratio: number): string {
+  if (value === '') return value;
+  const n = Number(value);
+  return Number.isFinite(n) ? String(Math.round(n * ratio * 10) / 10) : value;
 }
 
 /* ─── Main component ───────────────────────────────────── */
@@ -94,22 +102,17 @@ function FoodDetailModal({
   const [energyUnit, setEnergyUnit] = useState<'kcal' | 'kj'>('kcal');
   const [displayEnergy, setDisplayEnergy] = useState('');
 
+  // Only the display changes: `customCal` always holds kcal (typing kJ updates it too), so
+  // switching units doesn't count as editing and serving changes keep scaling the energy.
   const handleToggleUnit = useCallback(() => {
-    setEnergyUnit((prev) => {
-      const next = prev === 'kcal' ? 'kj' : 'kcal';
-      const n = Number(prev === 'kcal' ? customCal : displayEnergy);
-      if (next === 'kj') {
-        setDisplayEnergy(Number.isFinite(n) && n > 0 ? String(Math.round(n * 4.184)) : '');
-      } else {
-        // kj → kcal: convert displayEnergy back
-        const kjVal = Number(displayEnergy);
-        const kcal = Number.isFinite(kjVal) && kjVal > 0 ? Math.round(kjVal / 4.184) : 0;
-        setCustomCal(kcal > 0 ? String(kcal) : '');
-        macroManualRef.current = true;
-      }
-      return next;
-    });
-  }, [customCal, displayEnergy]);
+    if (energyUnit === 'kcal') {
+      const n = Number(customCal);
+      setDisplayEnergy(Number.isFinite(n) && n > 0 ? String(Math.round(n * 4.184)) : '');
+      setEnergyUnit('kj');
+    } else {
+      setEnergyUnit('kcal');
+    }
+  }, [energyUnit, customCal]);
 
   const handleEnergyChange = useCallback((v: string) => {
     macroManualRef.current = true;
@@ -142,7 +145,9 @@ function FoodDetailModal({
       setQuantity(String(q));
       setServingSize(String(food.serving_size));
       setIsPlanned(initialIsPlanned);
-      setTargetDate(selectedDate);
+      // Planning offers today and the next 13 days. When the diary shows a day outside that
+      // (the past, or further ahead), start on today so the chip and the save agree.
+      setTargetDate(dateChips.some((c) => c.date === selectedDate) ? selectedDate : dateChips[0].date);
       setAltSource('off');
       setAltLoading(false);
       setCustomName(food.name);
@@ -189,26 +194,51 @@ function FoodDetailModal({
     return (qty * ss) / food.serving_size;
   }, [food, quantity, servingSize]);
 
-  // Update macro fields when scale changes (unless user manually edited)
+  // Update the fields when quantity or serving changes. Values typed by hand are kept but scaled
+  // by the same ratio, so correcting the label's numbers and then logging 2 servings doubles them.
+  const prevScaleRef = useRef(scale);
   useEffect(() => {
-    if (!food || macroManualRef.current) return;
-    const kcal = Math.round(food.calories * scale);
-    setCustomCal(String(kcal));
-    if (energyUnit === 'kj') setDisplayEnergy(String(Math.round(kcal * 4.184)));
-    setCustomPro(String(Math.round(food.protein * scale * 10) / 10));
-    setCustomCarb(String(Math.round(food.carbs * scale * 10) / 10));
-    setCustomFat(String(Math.round(food.fat * scale * 10) / 10));
-  }, [food, scale]);
+    const prevScale = prevScaleRef.current;
+    prevScaleRef.current = scale;
+    if (!food) return;
+    const ratio = prevScale > 0 ? scale / prevScale : 1;
 
-  // Update micro fields when scale changes (unless user manually edited)
-  useEffect(() => {
-    if (!food || microManualRef.current) return;
-    const updated: Record<string, string> = {};
-    for (const m of MICROS) {
-      const v = (food as any)[m.key];
-      if (v != null) updated[m.key] = String(Math.round(Number(v) * scale * 10) / 10);
+    let kcal: number | null = null;
+    if (macroManualRef.current) {
+      if (ratio !== 1) {
+        kcal = Number(customCal) > 0 ? Math.round(Number(customCal) * ratio) : null;
+        if (kcal != null) setCustomCal(String(kcal));
+        setCustomPro((v) => rescale(v, ratio));
+        setCustomCarb((v) => rescale(v, ratio));
+        setCustomFat((v) => rescale(v, ratio));
+      }
+    } else {
+      kcal = Math.round(food.calories * scale);
+      setCustomCal(String(kcal));
+      setCustomPro(String(Math.round(food.protein * scale * 10) / 10));
+      setCustomCarb(String(Math.round(food.carbs * scale * 10) / 10));
+      setCustomFat(String(Math.round(food.fat * scale * 10) / 10));
     }
-    setCustomMicros(updated);
+    if (kcal != null && energyUnit === 'kj') setDisplayEnergy(String(Math.round(kcal * 4.184)));
+
+    if (microManualRef.current) {
+      if (ratio !== 1) {
+        setCustomMicros((prev) => {
+          const next: Record<string, string> = {};
+          for (const k of Object.keys(prev)) next[k] = rescale(prev[k], ratio);
+          return next;
+        });
+      }
+    } else {
+      const updated: Record<string, string> = {};
+      for (const m of MICROS) {
+        const v = (food as any)[m.key];
+        if (v != null) updated[m.key] = String(Math.round(Number(v) * scale * 10) / 10);
+      }
+      setCustomMicros(updated);
+    }
+    // Runs only when the food or the scale changes; the typed values are read at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [food, scale]);
 
   const scaled = useMemo(() => ({
@@ -268,7 +298,8 @@ function FoodDetailModal({
       // A typed fiber/sugar value is the total for this amount (like the log path); per serving = / qty
       const perServing = (key: 'fiber' | 'sugar'): number | null => {
         const typed = customMicros[key];
-        if (typed != null && typed !== '') {
+        if (typed === '') return null; // cleared by the user
+        if (typed != null) {
           const n = Number(typed);
           return Number.isFinite(n) ? Math.round((n / qty) * 10) / 10 : null;
         }
@@ -297,7 +328,9 @@ function FoodDetailModal({
     const microFields: Record<string, number | null> = {};
     for (const m of MICROS) {
       const v = customMicros[m.key];
-      if (v != null && v !== '') {
+      if (v === '') {
+        microFields[m.key] = null; // cleared by the user
+      } else if (v != null) {
         const n = Number(v);
         microFields[m.key] = Number.isFinite(n) ? n : null;
       } else {
@@ -382,7 +415,7 @@ function FoodDetailModal({
           <TextInput
             style={s.energyInput}
             value={energyUnit === 'kcal' ? customCal : displayEnergy}
-            onChangeText={(v) => handleEnergyChange(v.replace(',', '.'))}
+            onChangeText={(v) => handleEnergyChange(sanitizeDecimal(v))}
             keyboardType="numeric"
             keyboardAppearance={isDark ? 'dark' : 'light'}
             placeholder="0"

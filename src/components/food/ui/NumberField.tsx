@@ -4,6 +4,7 @@ import { useColors, type ThemeColors } from '../../../theme/useColors';
 import { sw, ms } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
 import { useThemeStore } from '../../../stores/useThemeStore';
+import { sanitizeDecimal } from '../decimalInput';
 
 interface Props extends Pick<TextInputProps, 'returnKeyType' | 'onSubmitEditing' | 'blurOnSubmit'> {
   label: string;
@@ -34,8 +35,8 @@ const NumberField = forwardRef<TextInput, Props>(function NumberField(
           ref={ref}
           style={styles.input}
           value={value}
-          // Accept a comma as the decimal mark ("1,5" → "1.5") so Number() reads it.
-          onChangeText={(v) => onChangeText(v.replace(',', '.'))}
+          // Accept a comma as the decimal mark ("1,5" → "1.5"); drop "-" and extra dots (Android).
+          onChangeText={(v) => onChangeText(sanitizeDecimal(v))}
           placeholder={placeholder}
           placeholderTextColor={colors.textTertiary}
           // 'numeric' keeps a return key on iOS, so Next moves between fields.

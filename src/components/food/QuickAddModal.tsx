@@ -13,6 +13,7 @@ import PrimaryActionBar from './ui/PrimaryActionBar';
 import NumberField from './ui/NumberField';
 import MacroSplitBar from './MacroSplitBar';
 import { findMealConfig } from './groupEntriesByMeal';
+import { sanitizeDecimal } from './decimalInput';
 
 interface Props {
   visible: boolean;
@@ -199,7 +200,7 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
                 <TextInput
                   style={s.microInput}
                   value={microValues[g.key] || ''}
-                  onChangeText={(v) => handleMicroChange(g.key, v.replace(',', '.'))}
+                  onChangeText={(v) => handleMicroChange(g.key, sanitizeDecimal(v))}
                   placeholder="0"
                   placeholderTextColor={colors.textTertiary}
                   keyboardType="numeric"
