@@ -1,54 +1,29 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Platform,
-  KeyboardAvoidingView,
-  StatusBar,
-  Alert,
-} from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-} from 'react-native-reanimated';
+import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import { useFoodLogStore, MICRO_KEYS } from '../../stores/useFoodLogStore';
+import { useFoodLogStore, type FoodCatalogItem, type FoodEntry } from '../../stores/useFoodLogStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useNutritionStore } from '../../stores/useNutritionStore';
+import { useThemeStore } from '../../stores/useThemeStore';
 import { useSavedMealsStore, type MealItem, type SavedMeal } from '../../stores/useSavedMealsStore';
-import { useFavouritesStore } from '../../stores/useFavouritesStore';
-import { supabase } from '../../lib/supabase';
-import type { FoodCatalogItem, FoodEntry } from '../../stores/useFoodLogStore';
 import FoodDetailModal from './FoodDetailModal';
 import type { FoodDetailData, MealItemData } from './FoodDetailModal';
-import { useLayerBackHandler } from '../ui/Portal';
-
-/* ─── Props ────────────────────────────────────────────── */
-
-function generateGroupId(): string {
-  const hex = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
-  return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-${hex()}-${hex()}${hex()}${hex()}`;
-}
-
-const round = (v: number, factor: number) => Math.round(v * factor) / factor;
-
-/** An entry's micronutrients per unit of quantity (the basis meal items use). */
-function microsPerUnit(e: FoodEntry, qty: number): Record<string, number | null> {
-  const out: Record<string, number | null> = {};
-  for (const key of MICRO_KEYS) {
-    const v = e[key];
-    out[key] = v != null ? Number(v) / qty : null;
-  }
-  return out;
-}
+import BarcodeScannerModal from './BarcodeScannerModal';
+import QuickAddModal from './QuickAddModal';
+import AddFoodActions from './AddFoodActions';
+import MacroSplitBar from './MacroSplitBar';
+import FoodSubScreen from './ui/FoodSubScreen';
+import PrimaryActionBar from './ui/PrimaryActionBar';
+import RevealTextInput from './ui/RevealTextInput';
+import FoodRow from './ui/FoodRow';
+import { catalogToDetail } from './foodMapping';
+import { findMealConfig } from './groupEntriesByMeal';
+import MealFoodPicker from './create-meal/MealFoodPicker';
+import { useLogMeal } from './create-meal/useLogMeal';
+import { entriesToMealItems, itemFromData, itemTotals, newItemId, updateItemFromData } from './create-meal/mealItems';
 
 interface Props {
   visible: boolean;
@@ -75,229 +50,98 @@ interface MealItemRowProps {
   c: ThemeColors;
 }
 
-const MealItemRow = React.memo(function MealItemRow({
-  item, onPress, onRemove, s, c,
-}: MealItemRowProps) {
-  const totalCal = Math.round(item.calories * item.quantity);
-  const totalP = Math.round(item.protein * item.quantity);
-  const totalC = Math.round(item.carbs * item.quantity);
-  const totalF = Math.round(item.fat * item.quantity);
-
+const MealItemRow = React.memo(function MealItemRow({ item, onPress, onRemove, s, c }: MealItemRowProps) {
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
   const handleRemove = useCallback(() => onRemove(item.id), [item.id, onRemove]);
-
+  const serving = `${Math.round(item.serving_size * 10) / 10} ${item.serving_unit} × ${item.quantity}`;
   return (
-    <TouchableOpacity style={s.itemCard} onPress={handlePress} activeOpacity={0.7}>
-      <View style={s.itemTop}>
-        <View style={s.itemInfo}>
-          <Text style={s.itemName} numberOfLines={1}>{item.name}</Text>
-          {item.brand ? <Text style={s.itemBrand} numberOfLines={1}>{item.brand}</Text> : null}
-          <Text style={s.itemServing}>{item.serving_size}{item.serving_unit} × {item.quantity}</Text>
-        </View>
-        <View style={s.catalogRight}>
-          <Text style={s.itemCalBig}>{totalCal}</Text>
-          <Text style={s.itemCalUnit}>kcal</Text>
-        </View>
-        <TouchableOpacity onPress={handleRemove} hitSlop={8} style={s.removeBtn}>
+    <FoodRow
+      name={item.name}
+      subtitle={item.brand ? `${item.brand} · ${serving}` : serving}
+      calories={item.calories * item.quantity}
+      protein={item.protein * item.quantity}
+      carbs={item.carbs * item.quantity}
+      fat={item.fat * item.quantity}
+      onPress={handlePress}
+      accessibilityHint="Edit the amount or values"
+      trailing={(
+        <Pressable onPress={handleRemove} hitSlop={8} style={s.removeBtn} accessibilityRole="button" accessibilityLabel={`Remove ${item.name}`}>
           <Ionicons name="close" size={ms(14)} color={c.textTertiary} />
-        </TouchableOpacity>
-      </View>
-      <View style={s.itemBottom}>
-        <View style={s.itemMacros}>
-          <Text style={[s.itemMacro, { color: c.protein }]}>P {totalP}g</Text>
-          <Text style={[s.itemMacro, { color: c.carbs }]}>C {totalC}g</Text>
-          <Text style={[s.itemMacro, { color: c.fat }]}>F {totalF}g</Text>
-        </View>
-        <Ionicons name="create-outline" size={ms(14)} color={c.textTertiary} />
-      </View>
-    </TouchableOpacity>
-  );
-});
-
-/* ─── Catalog row (search result) ──────────────────────── */
-
-interface CatalogRowProps {
-  item: FoodCatalogItem;
-  onSelect: (item: FoodCatalogItem) => void;
-  s: ReturnType<typeof createStyles>;
-  c: ThemeColors;
-}
-
-const CatalogRow = React.memo(function CatalogRow({ item, onSelect, s, c }: CatalogRowProps) {
-  const handleSelect = useCallback(() => onSelect(item), [item, onSelect]);
-  return (
-    <TouchableOpacity style={s.catalogRow} onPress={handleSelect} activeOpacity={0.7}>
-      <View style={s.catalogInfo}>
-        <Text style={s.catalogName} numberOfLines={1}>{item.name}</Text>
-        {item.brand ? <Text style={s.catalogBrand} numberOfLines={1}>{item.brand}</Text> : null}
-        <View style={s.catalogMacros}>
-          <Text style={[s.catalogMacro, { color: c.protein }]}>P {Math.round(item.protein)}</Text>
-          <Text style={[s.catalogMacro, { color: c.carbs }]}>C {Math.round(item.carbs)}</Text>
-          <Text style={[s.catalogMacro, { color: c.fat }]}>F {Math.round(item.fat)}</Text>
-          <Text style={s.catalogServing}>{item.serving_size}{item.serving_unit}</Text>
-        </View>
-      </View>
-      <View style={s.catalogRight}>
-        <Text style={s.catalogCals}>{Math.round(item.calories)}</Text>
-        <Text style={s.catalogCalUnit}>kcal</Text>
-      </View>
-      <Ionicons name="add-circle" size={ms(22)} color={c.accent} />
-    </TouchableOpacity>
+        </Pressable>
+      )}
+    />
   );
 });
 
 /* ─── Main component ───────────────────────────────────── */
 
-export default function CreateMealModal({
+/**
+ * Make a meal: build a meal from searched, scanned or quick-added foods, then log it (one
+ * meal group in the diary) and/or save it for later. Also edits a saved meal or a logged one.
+ */
+function CreateMealModal({
   visible, mealSlot, targetHour, onDismiss, isBackActive, onLogged, initialMeal,
   editMealGroupId, editMealGroupEntries,
 }: Props) {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
+  const isDark = useThemeStore((st) => st.mode) === 'dark';
 
-  /* ── Fade + scale (pure UI-thread) ────────────────────── */
-  const progress = useSharedValue(0);
-
-  useEffect(() => {
-    progress.value = visible ? 1 : 0;
-  }, [visible]);
-
-  // Android back closes only this screen, not the whole Add Food sheet underneath.
-  useLayerBackHandler(visible, onDismiss, isBackActive);
-
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: progress.value,
-  }));
-
-  /* ── Store selectors ────────────────────────────────── */
   const userId = useAuthStore((st) => st.user?.id);
-  const selectedDate = useFoodLogStore((st) => st.selectedDate);
-  const catalogResults = useFoodLogStore((st) => st.catalogResults);
-  const catalogLoading = useFoodLogStore((st) => st.catalogLoading);
-  const searchCatalog = useFoodLogStore((st) => st.searchCatalog);
-  const clearSearch = useFoodLogStore((st) => st.clearSearch);
-  const fetchDayEntries = useFoodLogStore((st) => st.fetchDayEntries);
-  const recentFoods = useFoodLogStore((st) => st.recentFoods);
-  const popularFoods = useFoodLogStore((st) => st.popularFoods);
-  const fetchDefaultFoods = useFoodLogStore((st) => st.fetchDefaultFoods);
-
-  const savedMeals = useSavedMealsStore((st) => st.meals);
-  const loadSavedMeals = useSavedMealsStore((st) => st.loadMeals);
+  const mealLabel = useFoodLogStore((st) => findMealConfig(st.mealConfigs, mealSlot)?.label);
   const saveMeal = useSavedMealsStore((st) => st.saveMeal);
   const updateMeal = useSavedMealsStore((st) => st.updateMeal);
 
-  const favourites = useFavouritesStore((st) => st.favourites);
-  const loadFavourites = useFavouritesStore((st) => st.loadFavourites);
-
-  /* ── Local state ────────────────────────────────────── */
+  /* ── The meal being built ───────────────────────────── */
   const [mealName, setMealName] = useState('');
   const [items, setItems] = useState<MealItem[]>([]);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
-  const [defaultTab, setDefaultTab] = useState<'popular' | 'recent' | 'favourites' | 'meals'>('recent');
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /* ── Initialize from saved meal OR logged meal group ── */
   useEffect(() => {
-    if (visible && editMealGroupEntries && editMealGroupEntries.length > 0) {
-      // Editing a logged meal group — convert FoodEntry[] → MealItem[]
+    if (!visible) {
+      // Closed (the Nutrition screen keeps this mounted): nothing stays open for next time.
+      setDetailFood(null);
+      setEditingItemId(null);
+      setScannerVisible(false);
+      setQuickAddVisible(false);
+      setScanNotice(null);
+      return;
+    }
+    if (editMealGroupEntries && editMealGroupEntries.length > 0) {
       setMealName(editMealGroupEntries[0].meal_group_name || '');
-      setItems(editMealGroupEntries.map((e) => {
-        const qty = e.quantity || 1;
-        return {
-          id: `item-${e.id}`,
-          name: e.name,
-          brand: e.brand,
-          food_catalog_id: e.food_catalog_id,
-          calories: e.calories / qty,
-          protein: e.protein / qty,
-          carbs: e.carbs / qty,
-          fat: e.fat / qty,
-          fiber: e.fiber != null ? e.fiber / qty : null,
-          sugar: e.sugar != null ? e.sugar / qty : null,
-          micros: microsPerUnit(e, qty),
-          serving_size: e.serving_size || 1,
-          serving_unit: e.serving_unit || 'serving',
-          quantity: qty,
-        };
-      }));
+      setItems(entriesToMealItems(editMealGroupEntries));
       setEditingMealId(null);
-    } else if (visible && initialMeal) {
+    } else if (initialMeal) {
       setMealName(initialMeal.name);
       setItems([...initialMeal.items]);
       setEditingMealId(initialMeal.id);
-    } else if (visible) {
+    } else {
       setMealName('');
       setItems([]);
       setEditingMealId(null);
     }
   }, [visible, initialMeal, editMealGroupEntries]);
 
-  /* ── Load defaults on open ──────────────────────────── */
-  useEffect(() => {
-    if (visible && userId) fetchDefaultFoods(userId);
-    if (visible) { loadFavourites(); loadSavedMeals(); }
-  }, [visible, userId]);
-
-  /* ── Reset on close ─────────────────────────────────── */
-  useEffect(() => {
-    if (!visible) {
-      if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null; }
-      setQuery('');
-      clearSearch();
-      setDetailVisible(false);
-      setDetailFood(null);
-      setEditingItemId(null);
-      setDefaultTab('recent');
-    }
-  }, [visible]);
-
-  /* ── Search ─────────────────────────────────────────── */
-  const handleSearch = useCallback((text: string) => {
-    setQuery(text);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => searchCatalog(text), 300);
-  }, [searchCatalog]);
-
-  /* ── Detail modal state (for configuring serving before add) ── */
+  /* ── Child screens ──────────────────────────────────── */
   const [detailFood, setDetailFood] = useState<FoodDetailData | null>(null);
-  const [detailVisible, setDetailVisible] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [detailQuantity, setDetailQuantity] = useState(1);
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [quickAddVisible, setQuickAddVisible] = useState(false);
+  const [scanNotice, setScanNotice] = useState<string | null>(null);
+  /** Bumped after each add, so the search clears for the next food. */
+  const [clearSignal, setClearSignal] = useState(0);
 
-  /* ── Select catalog item → open detail modal ─────────── */
-  const handleSelectItem = useCallback((item: FoodCatalogItem) => {
-    setEditingItemId(null);
-    setDetailFood({
-      name: item.name,
-      brand: item.brand,
-      food_catalog_id: item.food_catalog_id || null,
-      calories: item.calories,
-      protein: item.protein,
-      carbs: item.carbs,
-      fat: item.fat,
-      fiber: item.fiber,
-      sugar: item.sugar,
-      serving_size: item.serving_size,
-      serving_unit: item.serving_unit,
-      confidence: item.confidence,
-      vitamin_a: item.vitamin_a, vitamin_c: item.vitamin_c,
-      vitamin_d: item.vitamin_d, vitamin_e: item.vitamin_e,
-      vitamin_k: item.vitamin_k, vitamin_b6: item.vitamin_b6,
-      vitamin_b12: item.vitamin_b12, folate: item.folate,
-      calcium: item.calcium, iron: item.iron,
-      magnesium: item.magnesium, potassium: item.potassium,
-      zinc: item.zinc, sodium: item.sodium,
-      caffeine: item.caffeine,
-    });
-    setDetailVisible(true);
+  const openDetail = useCallback((food: FoodDetailData, item?: MealItem) => {
+    setEditingItemId(item?.id ?? null);
+    setDetailQuantity(item?.quantity || 1);
+    setDetailFood(food);
   }, []);
 
-  /* ── Tap existing item → open detail for editing ────── */
+  const handleSelectFood = useCallback((item: FoodCatalogItem) => openDetail(catalogToDetail(item)), [openDetail]);
+
   const handleEditItem = useCallback((item: MealItem) => {
-    setEditingItemId(item.id);
-    setDetailQuantity(item.quantity || 1);
-    setDetailFood({
+    openDetail({
       name: item.name,
       brand: item.brand,
       food_catalog_id: item.food_catalog_id,
@@ -310,95 +154,66 @@ export default function CreateMealModal({
       ...item.micros,
       serving_size: item.serving_size,
       serving_unit: item.serving_unit,
-    });
-    setDetailVisible(true);
-  }, []);
-
-  /* ── Detail modal confirms → add or update item ──────── */
-  const handleDetailAddToMeal = useCallback((data: MealItemData) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (editingItemId) {
-      // Update existing item
-      setItems((prev) => prev.map((i) => i.id === editingItemId ? {
-        ...i,
-        calories: data.calories,
-        protein: data.protein,
-        carbs: data.carbs,
-        fat: data.fat,
-        fiber: data.fiber,
-        sugar: data.sugar,
-        micros: data.micros,
-        serving_size: data.serving_size,
-        serving_unit: data.serving_unit,
-        quantity: data.quantity,
-      } : i));
-    } else {
-      // Add new item
-      const mealItem: MealItem = {
-        id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        name: data.name,
-        brand: data.brand,
-        food_catalog_id: data.food_catalog_id,
-        calories: data.calories,
-        protein: data.protein,
-        carbs: data.carbs,
-        fat: data.fat,
-        fiber: data.fiber,
-        sugar: data.sugar,
-        micros: data.micros,
-        serving_size: data.serving_size,
-        serving_unit: data.serving_unit,
-        quantity: data.quantity,
-      };
-      setItems((prev) => [...prev, mealItem]);
-    }
-    setDetailVisible(false);
-    setDetailFood(null);
-    setEditingItemId(null);
-    setQuery('');
-    clearSearch();
-  }, [editingItemId, clearSearch]);
+    }, item);
+  }, [openDetail]);
 
   const handleDetailDismiss = useCallback(() => {
-    setDetailVisible(false);
     setDetailFood(null);
     setEditingItemId(null);
   }, []);
 
-  /* ── Add saved meal items (compound meal) ────────────── */
-  const handleAddSavedMeal = useCallback((meal: SavedMeal) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const newItems: MealItem[] = meal.items.map((item) => ({
-      ...item,
-      id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    }));
-    setItems((prev) => [...prev, ...newItems]);
+  const addItem = useCallback((data: MealItemData) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setItems((prev) => [...prev, itemFromData(data)]);
+    setClearSignal((n) => n + 1);
   }, []);
 
-  /* ── Remove item ────────────────────────────────────── */
+  const handleDetailAddToMeal = useCallback((data: MealItemData) => {
+    if (editingItemId) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setItems((prev) => prev.map((i) => (i.id === editingItemId ? updateItemFromData(i, data) : i)));
+    } else {
+      addItem(data);
+    }
+    handleDetailDismiss();
+  }, [editingItemId, addItem, handleDetailDismiss]);
+
+  /* ── Scan a barcode ─────────────────────────────────── */
+  const handleOpenScanner = useCallback(() => { setScanNotice(null); setScannerVisible(true); }, []);
+  const handleScanDismiss = useCallback(() => setScannerVisible(false), []);
+  const handleScanFound = useCallback((food: FoodDetailData) => {
+    setScannerVisible(false);
+    openDetail(food);
+  }, [openDetail]);
+  const handleScanNotFound = useCallback((_barcode: string, failed?: boolean) => {
+    setScannerVisible(false);
+    setScanNotice(failed
+      ? "Couldn't look up that barcode. Check your connection and try again."
+      : 'Product not found. Search for it, or use Quick add.');
+  }, []);
+
+  /* ── Quick add ──────────────────────────────────────── */
+  const handleOpenQuickAdd = useCallback(() => { setScanNotice(null); setQuickAddVisible(true); }, []);
+  const handleQuickAddDismiss = useCallback(() => setQuickAddVisible(false), []);
+  const handleQuickItem = useCallback((data: MealItemData) => {
+    addItem(data);
+    setQuickAddVisible(false);
+  }, [addItem]);
+
+  /* ── Saved meals and removing ───────────────────────── */
+  const handleAddSavedMeal = useCallback((meal: SavedMeal) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setItems((prev) => [...prev, ...meal.items.map((item) => ({ ...item, id: newItemId() }))]);
+  }, []);
+
   const handleRemoveItem = useCallback((id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setItems((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
-  /* ── Compute totals ─────────────────────────────────── */
-  const totals = useMemo(() => {
-    let cal = 0, pro = 0, carb = 0, fat = 0;
-    for (const i of items) {
-      cal += i.calories * i.quantity;
-      pro += i.protein * i.quantity;
-      carb += i.carbs * i.quantity;
-      fat += i.fat * i.quantity;
-    }
-    return {
-      calories: Math.round(cal),
-      protein: Math.round(pro),
-      carbs: Math.round(carb),
-      fat: Math.round(fat),
-    };
-  }, [items]);
+  const totals = useMemo(() => itemTotals(items), [items]);
 
-  /* ── Save meal ──────────────────────────────────────── */
+  /* ── Save for later ─────────────────────────────────── */
   // Ignores a second tap while the first save runs, so a meal can't be saved twice.
   const savingRef = useRef(false);
   const handleSave = useCallback(async () => {
@@ -426,773 +241,249 @@ export default function CreateMealModal({
     Alert.alert('Saved', `"${name}" has been saved.`);
   }, [mealName, items, editingMealId, saveMeal, updateMeal]);
 
-  /* ── Log meal ───────────────────────────────────────── */
+  /* ── Log ────────────────────────────────────────────── */
+  const logMeal = useLogMeal({ userId, mealSlot, targetHour, editMealGroupId, editMealGroupEntries, onLogged });
+  const handleLog = useCallback(() => { logMeal(items, mealName); }, [logMeal, items, mealName]);
+
   const isEditingGroup = !!editMealGroupId;
-  const loggingRef = useRef(false);
+  const title = isEditingGroup ? 'Edit logged meal' : editingMealId ? 'Edit meal' : 'Make a meal';
+  const itemCount = `${items.length} ${items.length === 1 ? 'item' : 'items'}`;
 
-  const handleLog = useCallback(async () => {
-    if (!userId) return;
-    // Ignore a second tap while a save is in flight, so the meal isn't logged twice.
-    if (loggingRef.current) return;
-    loggingRef.current = true;
-    try {
-      if (items.length === 0) {
-        Alert.alert('No Items', 'Add at least one food item to log.');
-        return;
-      }
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const saveButton = useMemo(() => (
+    <Pressable
+      onPress={handleSave}
+      hitSlop={8}
+      style={({ pressed }) => [s.saveBtn, pressed && s.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel="Save meal for later"
+    >
+      <Ionicons name="bookmark-outline" size={ms(18)} color={colors.accent} />
+    </Pressable>
+  ), [handleSave, s, colors.accent]);
 
-      const groupId = editMealGroupId || generateGroupId();
-      const groupName = mealName.trim() || 'Meal';
-
-      // When editing a logged group, keep what the editor doesn't show (micronutrients,
-      // catalog link, planned flag, exact time) from the original entries.
-      const originals = new Map((editMealGroupId && editMealGroupEntries ? editMealGroupEntries : [])
-        .map((e) => [`item-${e.id}`, e]));
-      const firstOriginal = editMealGroupId ? editMealGroupEntries?.[0] : undefined;
-
-      // Build created_at timestamp for the target date
-      let createdAt: string;
-      if (firstOriginal?.created_at) {
-        createdAt = firstOriginal.created_at;
-      } else if (selectedDate && targetHour != null) {
-        createdAt = new Date(selectedDate + `T${String(targetHour).padStart(2, '0')}:00:00`).toISOString();
-      } else if (selectedDate) {
-        createdAt = new Date(selectedDate + 'T12:00:00').toISOString();
-      } else {
-        createdAt = new Date().toISOString();
-      }
-
-      // Build rows for a single batch insert
-      const rows = items.map((item) => {
-        const qty = item.quantity;
-        const orig = originals.get(item.id);
-        const row: Record<string, unknown> = {
-          user_id: userId,
-          name: item.name,
-          // One decimal, like single foods: whole grams per item undercounted meals of small items.
-          calories: round(item.calories * qty, 10),
-          protein: round(item.protein * qty, 10),
-          carbs: round(item.carbs * qty, 10),
-          fat: round(item.fat * qty, 10),
-          meal_type: mealSlot,
-          brand: item.brand || null,
-          food_catalog_id: orig?.food_catalog_id ?? item.food_catalog_id ?? null,
-          serving_size: Number(item.serving_size) || 1,
-          serving_unit: item.serving_unit || 'serving',
-          quantity: qty,
-          fiber: item.fiber != null ? Math.round(item.fiber * qty * 10) / 10 : null,
-          sugar: item.sugar != null ? Math.round(item.sugar * qty * 10) / 10 : null,
-          is_planned: firstOriginal?.is_planned ?? false,
-          created_at: createdAt,
-          meal_group_id: groupId,
-          meal_group_name: groupName,
-        };
-        // Micronutrients travel with each item per serving (kept items start from their entry,
-        // and the detail screen rescales them when the serving changes).
-        for (const key of MICRO_KEYS) {
-          const v = item.micros?.[key];
-          row[key] = v != null ? round(Number(v) * qty, 100) : null;
-        }
-        return row;
-      });
-
-      // Insert the new rows first, then remove the old ones, so a failure never loses the meal.
-      const { data: inserted, error } = await supabase.from('food_entries').insert(rows).select('id');
-
-      if (error) {
-        if (__DEV__) console.error('[CreateMeal] Supabase insert error:', error);
-        Alert.alert('Log Failed', error.message);
-        return;
-      }
-
-      if (editMealGroupId && originals.size > 0) {
-        const oldIds = [...originals.values()].map((e) => e.id);
-        const { error: delErr } = await supabase.from('food_entries').delete().in('id', oldIds);
-        if (delErr) {
-          // Undo the insert so the meal isn't duplicated.
-          const newIds = (inserted || []).map((r: { id: string }) => r.id);
-          if (newIds.length) await supabase.from('food_entries').delete().in('id', newIds);
-          if (__DEV__) console.error('[CreateMeal] Delete old group error:', delErr);
-          Alert.alert('Update Failed', delErr.message);
-          return;
-        }
-      }
-
-      // Refetch entries from Supabase to update the view
-      await fetchDayEntries(userId, selectedDate);
-      // Sync HomeScreen nutrition
-      useNutritionStore.getState().fetchTodayNutrition(userId);
-      onLogged();
-    } finally {
-      loggingRef.current = false;
-    }
-  }, [userId, items, mealSlot, mealName, selectedDate, targetHour, editMealGroupId, editMealGroupEntries, fetchDayEntries, onLogged]);
-
-  /* ── Search display logic ───────────────────────────── */
-  const showResults = query.length > 0 && catalogResults.length > 0;
-  const showEmpty = query.length > 0 && catalogResults.length === 0 && !catalogLoading;
-  const hasRecent = recentFoods.length > 0;
-  const hasPopular = popularFoods.length > 0;
-  const hasFavourites = favourites.length > 0;
-  const hasSavedMeals = savedMeals.length > 0;
-  const showDefaults = query.length === 0 && (hasRecent || hasPopular || hasFavourites || hasSavedMeals);
-
-  /* ── Render ─────────────────────────────────────────── */
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={visible ? 'auto' : 'none'}>
-      <Animated.View style={[s.overlay, animStyle]} collapsable={false}>
-        <KeyboardAvoidingView
-          style={s.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          {/* Header */}
-          <View style={s.header}>
-            <TouchableOpacity onPress={onDismiss} style={s.backBtn} activeOpacity={0.5}>
-              <Ionicons name="chevron-back" size={ms(20)} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <Text style={s.title}>{isEditingGroup ? 'Edit Logged Meal' : editingMealId ? 'Edit Meal' : 'Create Meal'}</Text>
-            <TouchableOpacity onPress={handleSave} style={s.saveHeaderBtn} activeOpacity={0.5}>
-              <Ionicons name="bookmark-outline" size={ms(18)} color={colors.accent} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={s.flex}
-            contentContainerStyle={s.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Meal name input */}
-            <View style={s.nameRow}>
-              <Ionicons name="restaurant-outline" size={ms(18)} color={colors.accent} />
-              <TextInput
-                style={s.nameInput}
-                placeholder="Meal name (e.g. Chicken Rice Bowl)"
-                placeholderTextColor={colors.textTertiary + '50'}
-                value={mealName}
-                onChangeText={setMealName}
-                returnKeyType="done"
-              />
-            </View>
-
-            {/* Macro summary */}
-            {items.length > 0 && (
-              <View style={s.summaryCard}>
-                <Text style={s.summaryCalories}>{totals.calories} kcal</Text>
-                <View style={s.summaryMacros}>
-                  <View style={s.summaryMacroCol}>
-                    <Text style={[s.summaryMacroVal, { color: colors.protein }]}>{totals.protein}g</Text>
-                    <Text style={s.summaryMacroLabel}>Protein</Text>
-                  </View>
-                  <View style={s.summaryDot} />
-                  <View style={s.summaryMacroCol}>
-                    <Text style={[s.summaryMacroVal, { color: colors.carbs }]}>{totals.carbs}g</Text>
-                    <Text style={s.summaryMacroLabel}>Carbs</Text>
-                  </View>
-                  <View style={s.summaryDot} />
-                  <View style={s.summaryMacroCol}>
-                    <Text style={[s.summaryMacroVal, { color: colors.fat }]}>{totals.fat}g</Text>
-                    <Text style={s.summaryMacroLabel}>Fat</Text>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {/* Items section */}
-            <View style={s.sectionHeader}>
-              <Text style={s.sectionLabel}>ITEMS ({items.length})</Text>
-            </View>
-
-            {items.length === 0 ? (
-              <View style={s.emptyItems}>
-                <Ionicons name="nutrition-outline" size={ms(28)} color={colors.textTertiary + '60'} />
-                <Text style={s.emptyItemsText}>Search below to add foods</Text>
-              </View>
-            ) : (
-              items.map((item) => (
-                <MealItemRow
-                  key={item.id}
-                  item={item}
-                  onPress={handleEditItem}
-                  onRemove={handleRemoveItem}
-                  s={s}
-                  c={colors}
-                />
-              ))
-            )}
-
-            {/* Divider */}
-            <View style={s.divider}>
-              <View style={s.dividerLine} />
-              <Text style={s.dividerText}>ADD FOODS</Text>
-              <View style={s.dividerLine} />
-            </View>
-
-            {/* Search bar */}
-            <View style={s.searchRow}>
-              <Ionicons name="search" size={ms(17)} color={colors.textTertiary + '80'} />
-              <TextInput
-                style={s.searchText}
-                placeholder="Search foods, brands, recipes..."
-                placeholderTextColor={colors.textTertiary + '50'}
-                value={query}
-                onChangeText={handleSearch}
-                returnKeyType="search"
-              />
-              {query.length > 0 && (
-                <TouchableOpacity onPress={() => { setQuery(''); clearSearch(); }} hitSlop={8} style={s.searchClearBtn}>
-                  <Ionicons name="close" size={ms(12)} color={colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Filter chips */}
-            {query.length === 0 && (
-              <View style={s.chipRow}>
-                {([
-                  { key: 'recent' as const, label: 'Recent', icon: 'time-outline' as const },
-                  { key: 'popular' as const, label: 'Popular', icon: 'trending-up-outline' as const },
-                  { key: 'favourites' as const, label: 'Favs', icon: 'heart-outline' as const },
-                  { key: 'meals' as const, label: 'Meals', icon: 'restaurant-outline' as const },
-                ]).map((tab) => {
-                  const active = defaultTab === tab.key;
-                  return (
-                    <TouchableOpacity
-                      key={tab.key}
-                      style={[s.chip, active && s.chipActive]}
-                      onPress={() => setDefaultTab(tab.key)}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons
-                        name={tab.icon}
-                        size={ms(14)}
-                        color={active ? colors.textOnAccent : colors.textSecondary}
-                      />
-                      <Text style={[s.chipText, active && s.chipTextActive]}>
-                        {tab.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
-            {/* Search results / defaults */}
-            {catalogLoading ? (
-              <View style={s.searchState}>
-                <Text style={s.searchStateText}>Searching...</Text>
-              </View>
-            ) : showEmpty ? (
-              <View style={s.searchState}>
-                <Ionicons name="search-outline" size={ms(24)} color={colors.textTertiary} />
-                <Text style={s.searchStateText}>No results found</Text>
-              </View>
-            ) : showResults ? (
-              catalogResults.map((item, i) => (
-                <CatalogRow key={item.id + i} item={item} onSelect={handleSelectItem} s={s} c={colors} />
-              ))
-            ) : showDefaults ? (
-              <>
-                {defaultTab === 'popular' && hasPopular && popularFoods.map((item) => (
-                  <CatalogRow key={`p-${item.id}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
-                ))}
-                {defaultTab === 'recent' && hasRecent && recentFoods.map((item, i) => (
-                  <CatalogRow key={`r-${item.id}-${i}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
-                ))}
-                {defaultTab === 'recent' && !hasRecent && (
-                  <View style={s.searchState}>
-                    <Text style={s.searchStateText}>No recent foods yet</Text>
-                  </View>
-                )}
-                {defaultTab === 'favourites' && hasFavourites && favourites.map((item, i) => (
-                  <CatalogRow key={`fav-${item.id}-${i}`} item={item} onSelect={handleSelectItem} s={s} c={colors} />
-                ))}
-                {defaultTab === 'favourites' && !hasFavourites && (
-                  <View style={s.searchState}>
-                    <Ionicons name="heart-outline" size={ms(24)} color={colors.textTertiary} />
-                    <Text style={s.searchStateText}>No favourites yet</Text>
-                  </View>
-                )}
-                {defaultTab === 'meals' && hasSavedMeals && savedMeals.map((meal) => {
-                  const totalCal = Math.round(meal.items.reduce((sum, i) => sum + i.calories * i.quantity, 0));
-                  const totalP = Math.round(meal.items.reduce((sum, i) => sum + i.protein * i.quantity, 0));
-                  const totalC = Math.round(meal.items.reduce((sum, i) => sum + i.carbs * i.quantity, 0));
-                  const totalF = Math.round(meal.items.reduce((sum, i) => sum + i.fat * i.quantity, 0));
-                  return (
-                    <TouchableOpacity
-                      key={meal.id}
-                      style={s.savedMealCard}
-                      onPress={() => handleAddSavedMeal(meal)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={s.savedMealInfo}>
-                        <Text style={s.savedMealName} numberOfLines={1}>{meal.name}</Text>
-                        <View style={s.savedMealMeta}>
-                          <Text style={s.savedMealItems}>{meal.items.length} items</Text>
-                          <View style={s.savedMealMacros}>
-                            <Text style={[s.catalogMacro, { color: colors.protein }]}>P {totalP}</Text>
-                            <Text style={[s.catalogMacro, { color: colors.carbs }]}>C {totalC}</Text>
-                            <Text style={[s.catalogMacro, { color: colors.fat }]}>F {totalF}</Text>
-                          </View>
-                        </View>
-                      </View>
-                      <View style={s.catalogRight}>
-                        <Text style={s.catalogCals}>{totalCal}</Text>
-                        <Text style={s.catalogCalUnit}>kcal</Text>
-                      </View>
-                      <Ionicons name="add-circle" size={ms(22)} color={colors.accent} />
-                    </TouchableOpacity>
-                  );
-                })}
-                {defaultTab === 'meals' && !hasSavedMeals && (
-                  <View style={s.searchState}>
-                    <Ionicons name="restaurant-outline" size={ms(24)} color={colors.textTertiary} />
-                    <Text style={s.searchStateText}>No saved meals yet</Text>
-                  </View>
-                )}
-              </>
-            ) : (
-              <View style={s.searchState}>
-                <Text style={s.searchStateText}>Search for foods to add to your meal</Text>
-              </View>
-            )}
-
-            {/* Bottom padding */}
-            <View style={{ height: sw(100) }} />
-          </ScrollView>
-
-          {/* Fixed bottom bar */}
-          <View style={s.bottomBar}>
-            <TouchableOpacity
-              style={[s.logBtn, items.length === 0 && s.logBtnDisabled]}
-              onPress={handleLog}
-              activeOpacity={0.7}
-              disabled={items.length === 0}
-            >
-              <Ionicons name="add-circle-outline" size={ms(20)} color={colors.textOnAccent} />
-              <Text style={s.logBtnText}>{isEditingGroup ? 'Update Meal' : 'Log Meal'} ({items.length} items)</Text>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      </Animated.View>
-
-      <FoodDetailModal
-        visible={detailVisible}
-        food={detailFood}
-        initialMealSlot={mealSlot}
-        initialIsPlanned={false}
-        initialQuantity={editingItemId ? detailQuantity : 1}
-        onDismiss={handleDetailDismiss}
-        onAdded={handleDetailDismiss}
-        onAddToMeal={handleDetailAddToMeal}
+    <>
+      <FoodSubScreen
+        visible={visible}
+        title={title}
+        subtitle={mealLabel ? `to ${mealLabel}` : undefined}
+        onBack={onDismiss}
         isBackActive={isBackActive}
-      />
-    </View>
+        right={saveButton}
+        footer={(
+          <PrimaryActionBar
+            label={isEditingGroup ? 'Update meal' : 'Log meal'}
+            sublabel={items.length > 0 ? `${itemCount} · ${totals.calories} kcal` : undefined}
+            icon="add-circle-outline"
+            onPress={handleLog}
+            disabled={items.length === 0}
+          />
+        )}
+      >
+        {/* The shared rows and search bar have their own side margins: let them use the full width. */}
+        <View style={s.bleed}>
+          <View style={s.padded}>
+            <RevealTextInput
+              style={s.nameInput}
+              placeholder="Meal name (e.g. Chicken rice bowl)"
+              placeholderTextColor={colors.textTertiary}
+              value={mealName}
+              onChangeText={setMealName}
+              returnKeyType="done"
+              keyboardAppearance={isDark ? 'dark' : 'light'}
+              accessibilityLabel="Meal name"
+            />
+          </View>
+
+          {items.length > 0 && (
+            <View style={s.hero}>
+              <Text style={s.heroNum}>
+                {totals.calories.toLocaleString()}
+                <Text style={s.heroUnit}> kcal</Text>
+              </Text>
+              <View style={s.heroBar}>
+                <MacroSplitBar protein={totals.protein} carbs={totals.carbs} fat={totals.fat} />
+              </View>
+            </View>
+          )}
+
+          <Text style={[s.label, s.padded]}>Items ({items.length})</Text>
+          {items.length === 0 ? (
+            <View style={s.emptyItems}>
+              <Ionicons name="nutrition-outline" size={ms(24)} color={colors.textTertiary} />
+              <Text style={s.emptyItemsText}>Search, scan or quick add foods below</Text>
+            </View>
+          ) : (
+            <View style={s.rows}>
+              {items.map((item) => (
+                <MealItemRow key={item.id} item={item} onPress={handleEditItem} onRemove={handleRemoveItem} s={s} c={colors} />
+              ))}
+            </View>
+          )}
+
+          <Text style={[s.label, s.padded, s.addLabel]}>Add foods</Text>
+          <AddFoodActions onScan={handleOpenScanner} onQuickAdd={handleOpenQuickAdd} />
+          {!!scanNotice && (
+            <View style={s.banner}>
+              <Ionicons name="alert-circle-outline" size={ms(15)} color={colors.accentOrange} />
+              <Text style={s.bannerText}>{scanNotice}</Text>
+              <Pressable onPress={() => setScanNotice(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss">
+                <Ionicons name="close" size={ms(15)} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+          )}
+          {visible && (
+            <MealFoodPicker onSelectFood={handleSelectFood} onAddSavedMeal={handleAddSavedMeal} clearSignal={clearSignal} />
+          )}
+        </View>
+      </FoodSubScreen>
+
+      {!!detailFood && (
+        <FoodDetailModal
+          visible
+          food={detailFood}
+          initialMealSlot={mealSlot}
+          initialIsPlanned={false}
+          initialQuantity={editingItemId ? detailQuantity : 1}
+          onDismiss={handleDetailDismiss}
+          onAdded={handleDetailDismiss}
+          onAddToMeal={handleDetailAddToMeal}
+          onFoodSwap={setDetailFood}
+          isBackActive={isBackActive}
+        />
+      )}
+      {quickAddVisible && (
+        <QuickAddModal
+          visible
+          mealSlot={mealSlot}
+          subtitle="to your meal"
+          onDismiss={handleQuickAddDismiss}
+          onAdded={handleQuickAddDismiss}
+          onSubmitItem={handleQuickItem}
+        />
+      )}
+      {scannerVisible && (
+        <BarcodeScannerModal
+          visible
+          onDismiss={handleScanDismiss}
+          onFoodFound={handleScanFound}
+          onNotFound={handleScanNotFound}
+        />
+      )}
+    </>
   );
 }
 
+export default React.memo(CreateMealModal);
+
 /* ─── Styles ───────────────────────────────────────────── */
 
-const STATUS_H = StatusBar.currentHeight ?? 0;
-
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  flex: { flex: 1 },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.background,
-    paddingTop: Platform.OS === 'android' ? STATUS_H + sw(8) : sw(60),
+  bleed: {
+    marginHorizontal: -sw(16),
+    gap: sw(12),
   },
-  /* Header */
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: sw(12),
-    marginBottom: sw(12),
+  padded: {
+    marginHorizontal: sw(16),
   },
-  backBtn: {
+  pressed: {
+    opacity: 0.6,
+  },
+  saveBtn: {
     width: sw(36),
     height: sw(36),
-    borderRadius: sw(12),
+    borderRadius: sw(18),
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  title: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: ms(18),
-    lineHeight: ms(24),
-    fontFamily: Fonts.bold,
-    textAlign: 'center',
-    letterSpacing: -0.3,
-  },
-  saveHeaderBtn: {
-    width: sw(36),
-    height: sw(36),
-    borderRadius: sw(12),
-    backgroundColor: colors.accent + '18',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /* Scroll content */
-  scrollContent: {
-    paddingHorizontal: sw(16),
-    paddingBottom: sw(20),
-  },
-  /* Meal name */
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: sw(12),
-    paddingHorizontal: sw(14),
-    height: sw(48),
-    gap: sw(10),
-    marginBottom: sw(12),
   },
   nameInput: {
-    flex: 1,
     color: colors.textPrimary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
+    fontSize: ms(15),
     fontFamily: Fonts.medium,
-    padding: 0,
-  },
-  /* Summary card */
-  summaryCard: {
-    backgroundColor: colors.card,
+    paddingHorizontal: sw(14),
+    height: sw(48),
     borderRadius: sw(14),
-    padding: sw(14),
-    marginBottom: sw(14),
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  hero: {
     alignItems: 'center',
     gap: sw(8),
-    ...colors.cardShadow,
+    paddingVertical: sw(4),
   },
-  summaryCalories: {
+  heroNum: {
     color: colors.textPrimary,
-    fontSize: ms(22),
-    lineHeight: ms(28),
+    fontSize: ms(34),
+    lineHeight: ms(40),
     fontFamily: Fonts.extraBold,
-    letterSpacing: -0.5,
+    letterSpacing: -1,
   },
-  summaryMacros: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(16),
-  },
-  summaryMacroCol: {
-    alignItems: 'center',
-    gap: sw(2),
-  },
-  summaryMacroVal: {
-    fontSize: ms(15),
-    lineHeight: ms(20),
-    fontFamily: Fonts.bold,
-  },
-  summaryMacroLabel: {
+  heroUnit: {
     color: colors.textTertiary,
-    fontSize: ms(10),
-    lineHeight: ms(13),
-    fontFamily: Fonts.medium,
+    fontSize: ms(15),
+    fontFamily: Fonts.semiBold,
+    letterSpacing: 0,
   },
-  summaryDot: {
-    width: sw(3),
-    height: sw(3),
-    borderRadius: sw(1.5),
-    backgroundColor: colors.textTertiary,
-    opacity: 0.3,
+  heroBar: {
+    alignSelf: 'stretch',
+    paddingHorizontal: sw(56),
   },
-  /* Section header */
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: sw(8),
-  },
-  sectionLabel: {
-    color: colors.textSecondary,
+  label: {
+    color: colors.textTertiary,
     fontSize: ms(11),
     lineHeight: ms(15),
-    fontFamily: Fonts.bold,
-    letterSpacing: 0.8,
+    fontFamily: Fonts.semiBold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
-  /* Empty items */
+  addLabel: {
+    marginTop: sw(8),
+  },
+  rows: {
+    gap: sw(8),
+  },
   emptyItems: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: sw(24),
-    gap: sw(8),
+    gap: sw(6),
+    paddingVertical: sw(18),
+    marginHorizontal: sw(16),
+    borderRadius: sw(16),
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.cardBorder,
   },
   emptyItemsText: {
     color: colors.textTertiary,
-    fontSize: ms(13),
-    lineHeight: ms(18),
-    fontFamily: Fonts.medium,
-  },
-  /* Meal item card */
-  itemCard: {
-    backgroundColor: colors.card,
-    borderRadius: sw(12),
-    padding: sw(12),
-    marginBottom: sw(6),
-    gap: sw(6),
-    ...colors.cardShadow,
-  },
-  itemTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(8),
-  },
-  itemInfo: {
-    flex: 1,
-    gap: sw(1),
-  },
-  itemName: {
-    color: colors.textPrimary,
-    fontSize: ms(13),
-    lineHeight: ms(18),
-    fontFamily: Fonts.semiBold,
-  },
-  itemBrand: {
-    color: colors.textTertiary,
-    fontSize: ms(10),
-    lineHeight: ms(14),
+    fontSize: ms(12),
+    lineHeight: ms(17),
     fontFamily: Fonts.medium,
   },
   removeBtn: {
-    width: sw(24),
-    height: sw(24),
-    borderRadius: sw(8),
-    backgroundColor: colors.surface,
+    width: sw(30),
+    height: sw(30),
+    borderRadius: sw(15),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  itemServing: {
-    color: colors.textTertiary,
-    fontSize: ms(10),
-    lineHeight: ms(14),
-    fontFamily: Fonts.medium,
-    marginTop: sw(1),
-  },
-  itemCalBig: {
-    color: colors.textPrimary,
-    fontSize: ms(15),
-    lineHeight: ms(20),
-    fontFamily: Fonts.extraBold,
-  },
-  itemCalUnit: {
-    color: colors.textTertiary,
-    fontSize: ms(9),
-    lineHeight: ms(12),
-    fontFamily: Fonts.semiBold,
-  },
-  itemBottom: {
+  banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  itemMacros: {
-    flexDirection: 'row',
     gap: sw(8),
-  },
-  itemMacro: {
-    fontSize: ms(10),
-    lineHeight: ms(14),
-    fontFamily: Fonts.bold,
-  },
-  /* Divider */
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(10),
-    marginVertical: sw(14),
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.surface,
-  },
-  dividerText: {
-    color: colors.accent,
-    fontSize: ms(10),
-    lineHeight: ms(14),
-    fontFamily: Fonts.extraBold,
-    letterSpacing: 0.5,
-  },
-  /* Search bar */
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: sw(12),
-    paddingHorizontal: sw(14),
-    height: sw(46),
-    gap: sw(10),
-    marginBottom: sw(12),
-  },
-  searchText: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: ms(14),
-    lineHeight: ms(20),
-    fontFamily: Fonts.regular,
-    padding: 0,
-    letterSpacing: 0.1,
-  },
-  searchClearBtn: {
-    width: sw(22),
-    height: sw(22),
-    borderRadius: sw(11),
-    backgroundColor: colors.textTertiary + '20',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /* Tab pills */
-  chipRow: {
-    flexDirection: 'row',
-    paddingHorizontal: sw(16),
-    gap: sw(8),
-    marginBottom: sw(12),
-  },
-  chip: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: sw(4),
-    paddingVertical: sw(8),
-    borderRadius: sw(20),
-    backgroundColor: colors.surface,
-  },
-  chipActive: {
-    backgroundColor: colors.accent,
-  },
-  chipText: {
-    color: colors.textSecondary,
-    fontSize: ms(13),
-    lineHeight: ms(18),
-    fontFamily: Fonts.semiBold,
-  },
-  chipTextActive: {
-    color: colors.textOnAccent,
-  },
-  /* Search states */
-  searchState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: sw(20),
-    gap: sw(6),
-  },
-  searchStateText: {
-    color: colors.textTertiary,
-    fontSize: ms(13),
-    lineHeight: ms(18),
-    fontFamily: Fonts.medium,
-  },
-  /* Catalog row */
-  catalogRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: sw(12),
-    paddingVertical: sw(10),
+    marginHorizontal: sw(16),
     paddingHorizontal: sw(12),
-    gap: sw(10),
-    marginBottom: sw(6),
-  },
-  catalogInfo: { flex: 1, gap: sw(2) },
-  catalogName: {
-    color: colors.textPrimary,
-    fontSize: ms(13),
-    lineHeight: ms(18),
-    fontFamily: Fonts.semiBold,
-    flexShrink: 1,
-  },
-  catalogBrand: {
-    color: colors.textTertiary,
-    fontSize: ms(10),
-    lineHeight: ms(14),
-    fontFamily: Fonts.medium,
-  },
-  catalogMacros: { flexDirection: 'row', gap: sw(8), marginTop: sw(2) },
-  catalogMacro: { fontSize: ms(10), lineHeight: ms(14), fontFamily: Fonts.bold },
-  catalogServing: {
-    fontSize: ms(10),
-    lineHeight: ms(14),
-    fontFamily: Fonts.medium,
-    color: colors.textTertiary,
-  },
-  catalogRight: { alignItems: 'center' },
-  catalogCals: {
-    color: colors.textPrimary,
-    fontSize: ms(15),
-    lineHeight: ms(20),
-    fontFamily: Fonts.extraBold,
-  },
-  catalogCalUnit: {
-    color: colors.textTertiary,
-    fontSize: ms(9),
-    lineHeight: ms(12),
-    fontFamily: Fonts.semiBold,
-  },
-  /* Saved meal card */
-  savedMealCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: sw(12),
     paddingVertical: sw(10),
-    paddingHorizontal: sw(12),
-    gap: sw(10),
-    marginBottom: sw(6),
+    borderRadius: sw(12),
+    borderWidth: 1,
+    backgroundColor: colors.accentOrange + '1A',
+    borderColor: colors.accentOrange + '40',
   },
-  savedMealInfo: { flex: 1, gap: sw(4) },
-  savedMealName: {
+  bannerText: {
+    flex: 1,
     color: colors.textPrimary,
-    fontSize: ms(13),
-    lineHeight: ms(18),
-    fontFamily: Fonts.semiBold,
-  },
-  savedMealMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: sw(10),
-  },
-  savedMealItems: {
-    color: colors.textTertiary,
-    fontSize: ms(10),
-    lineHeight: ms(14),
+    fontSize: ms(12),
+    lineHeight: ms(17),
     fontFamily: Fonts.medium,
-  },
-  savedMealMacros: {
-    flexDirection: 'row',
-    gap: sw(6),
-  },
-  /* Bottom bar */
-  bottomBar: {
-    paddingHorizontal: sw(16),
-    paddingTop: sw(10),
-    paddingBottom: Platform.OS === 'ios' ? sw(34) : sw(16),
-    backgroundColor: colors.background,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.surface,
-  },
-  logBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
-    borderRadius: sw(14),
-    paddingVertical: sw(14),
-    gap: sw(8),
-  },
-  logBtnDisabled: {
-    opacity: 0.4,
-  },
-  logBtnText: {
-    color: colors.textOnAccent,
-    fontSize: ms(15),
-    lineHeight: ms(20),
-    fontFamily: Fonts.bold,
   },
 });

@@ -15,6 +15,7 @@ import MacroSplitBar from './MacroSplitBar';
 import { findMealConfig } from './groupEntriesByMeal';
 import { sanitizeDecimal } from './decimalInput';
 import RevealTextInput from './ui/RevealTextInput';
+import type { MealItemData } from './foodDetailTypes';
 
 interface Props {
   visible: boolean;
@@ -22,6 +23,13 @@ interface Props {
   targetHour?: number;
   onDismiss: () => void;
   onAdded: () => void;
+  /**
+   * Make a meal: return the food as a meal item (values for one serving, plus how many)
+   * instead of logging it to the diary.
+   */
+  onSubmitItem?: (item: MealItemData) => void;
+  /** Overrides the "to Breakfast" subtitle (e.g. "to your meal"). */
+  subtitle?: string;
 }
 
 const KJ_PER_KCAL = 4.184;
@@ -35,7 +43,7 @@ const DEFAULT_AMOUNT: Record<ServingUnit, string> = { serving: '1', g: '100', ml
  * Quick add: log calories and macros without picking a food. Calories left blank are
  * worked out from the macros (P and C 4 kcal/g, F 9 kcal/g). Only tracked micros are shown.
  */
-function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Props) {
+function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded, onSubmitItem, subtitle }: Props) {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
   const isDark = useThemeStore((st) => st.mode) === 'dark';
@@ -123,7 +131,39 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
   const canSubmit = entered > 0 || p > 0 || c > 0 || f > 0;
 
   const handleAdd = useCallback(() => {
-    if (!userId || !canSubmit) return;
+    if (!canSubmit) return;
+    if (onSubmitItem) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // A meal item holds one serving's values and a quantity; the meal multiplies them out.
+      // Fiber and sugar have their own fields; the rest of the tracked nutrients go in micros.
+      const micros: Record<string, number | null> = {};
+      let fiber: number | null = null;
+      let sugar: number | null = null;
+      for (const g of microGoals) {
+        const val = Number(microValues[g.key]);
+        const v = val > 0 ? round1(val) : null;
+        if (g.key === 'fiber') fiber = v;
+        else if (g.key === 'sugar') sugar = v;
+        else micros[g.key] = v;
+      }
+      onSubmitItem({
+        name: name.trim() || 'Quick add',
+        brand: null,
+        food_catalog_id: null,
+        calories: perServingCal,
+        protein: round1(p),
+        carbs: round1(c),
+        fat: round1(f),
+        fiber,
+        sugar,
+        micros,
+        serving_size: amountNum,
+        serving_unit: servingUnit,
+        quantity: multiplier,
+      });
+      return;
+    }
+    if (!userId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const microFields: Record<string, number | null> = {};
@@ -150,17 +190,17 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
     }, targetHour != null ? selectedDate : undefined, targetHour);
 
     onAdded();
-  }, [userId, canSubmit, name, previewCal, p, c, f, mealSlot, targetHour, selectedDate, addEntry, onAdded, microGoals, microValues, servingUnit, amountNum, multiplier]);
+  }, [userId, canSubmit, name, previewCal, perServingCal, p, c, f, mealSlot, targetHour, selectedDate, addEntry, onAdded, onSubmitItem, microGoals, microValues, servingUnit, amountNum, multiplier]);
 
   return (
     <FoodSubScreen
       visible={visible}
       title="Quick add"
-      subtitle={mealLabel ? `to ${mealLabel}` : undefined}
+      subtitle={subtitle ?? (mealLabel ? `to ${mealLabel}` : undefined)}
       onBack={onDismiss}
       footer={
         <PrimaryActionBar
-          label="Add"
+          label={onSubmitItem ? 'Add to meal' : 'Add'}
           sublabel={previewCal > 0 ? `${previewCal} kcal` : undefined}
           icon="flash"
           onPress={handleAdd}
