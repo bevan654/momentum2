@@ -11,6 +11,8 @@ interface NutritionState {
   carbsGoal: number;
   fat: number;
   fatGoal: number;
+  /** Today's eaten micronutrients (and fiber, sugar), by food_entries column. */
+  micros: Record<string, number>;
   fetchTodayNutrition: (userId: string) => Promise<void>;
   /** Clears the previous account's totals and goals. */
   resetForSignOut: () => void;
@@ -25,7 +27,14 @@ const INITIAL = {
   carbsGoal: 250,
   fat: 0,
   fatGoal: 65,
+  micros: {} as Record<string, number>,
 };
+
+/** food_entries columns summed into `micros` (the nutrients a user can track on Home). */
+const MICRO_COLUMNS = [
+  'fiber', 'sugar', 'caffeine', 'sodium', 'calcium', 'iron', 'potassium', 'magnesium', 'zinc',
+  'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k', 'vitamin_b6', 'vitamin_b12', 'folate',
+] as const;
 
 function todayRange() {
   const now = new Date();
@@ -47,7 +56,7 @@ export const useNutritionStore = create<NutritionState>((set) => ({
     const { start, end } = todayRange();
     const { data, error } = await supabase
       .from('food_entries')
-      .select('calories, protein, carbs, fat, is_planned')
+      .select(`calories, protein, carbs, fat, is_planned, ${MICRO_COLUMNS.join(', ')}`)
       .eq('user_id', userId)
       .gte('created_at', start)
       .lt('created_at', end);
@@ -60,7 +69,7 @@ export const useNutritionStore = create<NutritionState>((set) => ({
     if (error || !data) {
       if (_loadedKey !== key) {
         _loadedKey = key;
-        set({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+        set({ calories: 0, protein: 0, carbs: 0, fat: 0, micros: {} });
       }
       return;
     }
@@ -68,18 +77,24 @@ export const useNutritionStore = create<NutritionState>((set) => ({
 
     // Same as the Nutrition tab: planned food doesn't count until it's eaten, whole numbers.
     let calories = 0, protein = 0, carbs = 0, fat = 0;
-    for (const entry of data) {
+    const micros: Record<string, number> = {};
+    for (const entry of data as unknown as Record<string, unknown>[]) {
       if (entry.is_planned) continue;
       calories += Number(entry.calories || 0);
       protein += Number(entry.protein || 0);
       carbs += Number(entry.carbs || 0);
       fat += Number(entry.fat || 0);
+      for (const key of MICRO_COLUMNS) {
+        const v = entry[key];
+        if (v != null) micros[key] = (micros[key] || 0) + Number(v);
+      }
     }
     set({
       calories: Math.round(calories),
       protein: Math.round(protein),
       carbs: Math.round(carbs),
       fat: Math.round(fat),
+      micros,
     });
   },
 
