@@ -153,6 +153,7 @@ function FoodLoggerScreen() {
       await Promise.all([
         fetchDayEntries(userId, selectedDate),
         fetchDateSupplements(userId, selectedDate),
+        fetchMealConfigs(userId),
         isToday ? useSupplementStore.getState().fetchTodaySupplements(userId) : null,
       ]);
       ok = !useFoodLogStore.getState().loadError;

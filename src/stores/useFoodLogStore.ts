@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useNutritionStore } from './useNutritionStore';
 import { toLocalDateString } from '../utils/localDate';
 import { getCurrentUserId } from '../lib/currentUser';
+import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
 
 /** Increments per search (and clear), so a slow earlier search can't overwrite newer results. */
 let _searchSeq = 0;
@@ -176,8 +177,12 @@ async function saveUserCreatedFood(
   }
 }
 
-/** Fire-and-forget: re-fetch today's nutrition so HomeScreen updates instantly */
-function syncNutrition(userId: string) {
+/**
+ * Fire-and-forget: re-fetch today's nutrition so HomeScreen updates instantly. Home only shows
+ * today, so a change to another day (by its `created_at`) skips the request.
+ */
+function syncNutrition(userId: string, createdAt?: string) {
+  if (createdAt && toLocalDateString(new Date(createdAt)) !== toLocalDateString()) return;
   useNutritionStore.getState().fetchTodayNutrition(userId);
 }
 
@@ -230,6 +235,48 @@ const DEFAULT_GOALS: NutritionGoals = { calorie_goal: 2000, protein_goal: 150, c
 let dayRequestId = 0;
 /** The user and day (`userId:date`) whose entries are currently in the store. */
 let loadedEntriesKey: string | null = null;
+/** The key whose entries actually finished loading (not the placeholder shown while loading). */
+let fetchedEntriesKey: string | null = null;
+
+/**
+ * Days already seen this session (`userId:date` → entries), so going back to one shows it at
+ * once while it reloads, instead of an empty diary. Only the most recent few are kept.
+ */
+const dayCache = new Map<string, FoodEntry[]>();
+const DAY_CACHE_SIZE = 14;
+
+function rememberDay(key: string | null, entries: FoodEntry[]) {
+  if (!key || key !== fetchedEntriesKey) return;
+  dayCache.delete(key);
+  dayCache.set(key, entries);
+  while (dayCache.size > DAY_CACHE_SIZE) {
+    const oldest = dayCache.keys().next().value;
+    if (oldest === undefined) break;
+    dayCache.delete(oldest);
+  }
+}
+
+/** A write to a day that isn't on screen: its cached copy is now out of date. */
+function forgetDay(userId: string, createdAt: string) {
+  dayCache.delete(`${userId}:${toLocalDateString(new Date(createdAt))}`);
+}
+
+/** Increments per meal-slot load (and sign-out), so an older load can't land afterwards. */
+let _mealsRequestId = 0;
+const MEALS_CACHE_KEY = 'meal_config_cache';
+
+/** Keeps the previous object for each row that didn't change, so unchanged rows don't re-render. */
+function reuseRows(prev: FoodEntry[], next: FoodEntry[]): FoodEntry[] {
+  if (prev.length === 0) return next;
+  const byId = new Map(prev.map((e) => [e.id, e]));
+  return next.map((e) => {
+    const old = byId.get(e.id);
+    if (!old) return e;
+    const keys = Object.keys(e) as (keyof FoodEntry)[];
+    if (keys.length !== Object.keys(old).length) return e;
+    return keys.every((k) => old[k] === e[k]) ? old : e;
+  });
+}
 
 /** Increments per goals load and save, so an older load can't overwrite newer goals. */
 let _goalsRequestId = 0;
@@ -312,11 +359,23 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   popularFoods: [],
 
   setDate: (date: string) => {
-    set({ selectedDate: date });
+    if (date === get().selectedDate) return;
+    // Swap the day's food in the same update as the date, so the summary never shows a frame of
+    // the previous day's totals. A day seen earlier shows its cached food while it reloads.
+    const userId = loadedEntriesKey?.split(':')[0];
+    if (!userId) {
+      set({ selectedDate: date });
+      return;
+    }
+    rememberDay(loadedEntriesKey, get().entries);
+    const key = `${userId}:${date}`;
+    dayRequestId++; // a load of the old day still on its way must not land on this one
+    loadedEntriesKey = key;
+    set({ selectedDate: date, entries: dayCache.get(key) ?? [], loading: true, loadError: false });
   },
 
   goToday: () => {
-    set({ selectedDate: toLocalDateString() });
+    get().setDate(toLocalDateString());
   },
 
   fetchDayEntries: async (userId: string, date?: string) => {
@@ -326,8 +385,9 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     // Switching to another day (or account): drop the old entries so totals never show the wrong day.
     const key = `${userId}:${dateStr}`;
     if (key !== loadedEntriesKey) {
+      rememberDay(loadedEntriesKey, get().entries);
       loadedEntriesKey = key;
-      set({ entries: [], loading: true, loadError: false });
+      set({ entries: dayCache.get(key) ?? [], loading: true, loadError: false });
     } else {
       set({ loading: true });
     }
@@ -360,29 +420,44 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       return;
     }
 
-    set({ entries: data.map(normalizeEntry), loading: false, loadError: false });
+    fetchedEntriesKey = key;
+    set({ entries: reuseRows(get().entries, data.map(normalizeEntry)), loading: false, loadError: false });
   },
 
   fetchMealConfigs: async (userId: string) => {
-    const { data } = await supabase
+    const requestId = ++_mealsRequestId;
+    // The copy saved on this phone first, so custom meals show straight away on a cold start
+    // instead of the defaults (with their food under "Other") until the server answers.
+    try {
+      const cached = await readUserScoped(MEALS_CACHE_KEY, userId);
+      if (cached && requestId === _mealsRequestId) {
+        const meals = JSON.parse(cached) as MealConfig[];
+        if (Array.isArray(meals) && meals.length > 0) set({ mealConfigs: meals });
+      }
+    } catch {
+      // No usable cache: keep what's shown.
+    }
+
+    const { data, error } = await supabase
       .from('meal_config')
       .select('*')
       .eq('user_id', userId)
       .order('sort_order', { ascending: true });
+    // A newer load or a sign-out happened meanwhile.
+    if (requestId !== _mealsRequestId) return;
+    if (error || !data || data.length === 0) return;
 
-    if (data && data.length > 0) {
-      set({
-        mealConfigs: data.map((d) => ({
-          id: d.id,
-          slot: d.slot,
-          label: d.label,
-          icon: d.icon,
-          time_start: d.time_start,
-          enabled: d.enabled,
-          sort_order: d.sort_order,
-        })),
-      });
-    }
+    const meals: MealConfig[] = data.map((d) => ({
+      id: d.id,
+      slot: d.slot,
+      label: d.label,
+      icon: d.icon,
+      time_start: d.time_start,
+      enabled: d.enabled,
+      sort_order: d.sort_order,
+    }));
+    if (JSON.stringify(get().mealConfigs) !== JSON.stringify(meals)) set({ mealConfigs: meals });
+    writeUserScoped(MEALS_CACHE_KEY, userId, JSON.stringify(meals)).catch(() => {});
   },
 
   fetchGoals: async (userId: string) => {
@@ -434,6 +509,8 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const showOptimistic = !targetDate || targetDate === selectedDate;
     if (showOptimistic) {
       set((s) => ({ entries: [...s.entries, optimistic] }));
+    } else {
+      forgetDay(userId, createdAt);
     }
 
     const insertData: Record<string, any> = {
@@ -479,7 +556,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     if (saved) {
       const row = saved;
       set((s) => ({ entries: s.entries.map((e) => (e.id === tempId ? row : e)) }));
-      syncNutrition(userId);
+      syncNutrition(userId, row.created_at);
     } else {
       set((s) => ({ entries: s.entries.filter((e) => e.id !== tempId) }));
       alertWriteFailed('save that food');
@@ -513,7 +590,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       }
       alertWriteFailed('update that food');
     } else if (before) {
-      syncNutrition(before.user_id);
+      syncNutrition(before.user_id, before.created_at);
     }
     endWrite(get);
   },
@@ -538,7 +615,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       }
       alertWriteFailed('delete that food');
     } else if (removed) {
-      syncNutrition(removed.user_id);
+      syncNutrition(removed.user_id, removed.created_at);
     }
     endWrite(get);
   },
@@ -571,7 +648,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       alertWriteFailed('update that food');
     } else {
       // Home counts only eaten food, so it changes when an entry is marked eaten or planned.
-      syncNutrition(entry.user_id);
+      syncNutrition(entry.user_id, entry.created_at);
     }
     endWrite(get);
   },
@@ -633,7 +710,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       }
       alertWriteFailed('delete that meal');
     } else if (removed[0]) {
-      syncNutrition(removed[0].user_id);
+      syncNutrition(removed[0].user_id, removed[0].created_at);
     }
     endWrite(get);
   },
@@ -645,6 +722,8 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const day = toLocalDateString(new Date(rows[0].created_at));
     if (loadedEntriesKey === `${userId}:${day}`) {
       set((s) => ({ entries: restoreEntries(s.entries, rows) }));
+    } else {
+      forgetDay(userId, rows[0].created_at);
     }
 
     // The delete may still be on its way: re-inserting the same ids before it lands would clash.
@@ -657,7 +736,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       set((s) => ({ entries: s.entries.filter((e) => !ids.has(e.id)) }));
       alertWriteFailed('undo that delete');
     } else {
-      syncNutrition(userId);
+      syncNutrition(userId, rows[0].created_at);
     }
     endWrite(get);
   },
@@ -838,6 +917,9 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   resetForSignOut: () => {
     dayRequestId++;
     loadedEntriesKey = null;
+    fetchedEntriesKey = null;
+    dayCache.clear();
+    _mealsRequestId++;
     _reloadAfterWrites = null;
     _goalsRequestId++;
     _searchSeq++;
