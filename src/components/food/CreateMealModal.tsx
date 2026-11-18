@@ -38,6 +38,8 @@ interface Props {
   editMealGroupId?: string | null;
   /** When editing a logged meal group, pass the group's entries */
   editMealGroupEntries?: FoodEntry[] | null;
+  /** Space under the buttons when the keyboard is closed (pass a small value above a tab bar). */
+  bottomInset?: number;
 }
 
 /* ─── Meal item row (memoized) ─────────────────────────── */
@@ -81,7 +83,7 @@ const MealItemRow = React.memo(function MealItemRow({ item, onPress, onRemove, s
  */
 function CreateMealModal({
   visible, mealSlot, targetHour, onDismiss, isBackActive, onLogged, initialMeal,
-  editMealGroupId, editMealGroupEntries,
+  editMealGroupId, editMealGroupEntries, bottomInset,
 }: Props) {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
@@ -214,10 +216,14 @@ function CreateMealModal({
   const totals = useMemo(() => itemTotals(items), [items]);
 
   /* ── Save for later ─────────────────────────────────── */
+  // Read at tap time, so the save button (and the header) don't re-render on every keystroke.
+  const draftRef = useRef({ mealName, items, editingMealId });
+  draftRef.current = { mealName, items, editingMealId };
   // Ignores a second tap while the first save runs, so a meal can't be saved twice.
   const savingRef = useRef(false);
   const handleSave = useCallback(async () => {
     if (savingRef.current) return;
+    const { mealName, items, editingMealId } = draftRef.current;
     const name = mealName.trim();
     if (!name) {
       Alert.alert('Meal Name', 'Please enter a name for your meal.');
@@ -239,11 +245,14 @@ function CreateMealModal({
       savingRef.current = false;
     }
     Alert.alert('Saved', `"${name}" has been saved.`);
-  }, [mealName, items, editingMealId, saveMeal, updateMeal]);
+  }, [saveMeal, updateMeal]);
 
   /* ── Log ────────────────────────────────────────────── */
   const logMeal = useLogMeal({ userId, mealSlot, targetHour, editMealGroupId, editMealGroupEntries, onLogged });
-  const handleLog = useCallback(() => { logMeal(items, mealName); }, [logMeal, items, mealName]);
+  const handleLog = useCallback(() => {
+    const { items, mealName } = draftRef.current;
+    logMeal(items, mealName);
+  }, [logMeal]);
 
   const isEditingGroup = !!editMealGroupId;
   const title = isEditingGroup ? 'Edit logged meal' : editingMealId ? 'Edit meal' : 'Make a meal';
@@ -269,6 +278,8 @@ function CreateMealModal({
         subtitle={mealLabel ? `to ${mealLabel}` : undefined}
         onBack={onDismiss}
         isBackActive={isBackActive}
+        covered={!!detailFood || quickAddVisible || scannerVisible}
+        bottomInset={bottomInset}
         right={saveButton}
         footer={(
           <PrimaryActionBar
@@ -350,6 +361,7 @@ function CreateMealModal({
           onAddToMeal={handleDetailAddToMeal}
           onFoodSwap={setDetailFood}
           isBackActive={isBackActive}
+          bottomInset={bottomInset}
         />
       )}
       {quickAddVisible && (
@@ -360,6 +372,8 @@ function CreateMealModal({
           onDismiss={handleQuickAddDismiss}
           onAdded={handleQuickAddDismiss}
           onSubmitItem={handleQuickItem}
+          isBackActive={isBackActive}
+          bottomInset={bottomInset}
         />
       )}
       {scannerVisible && (

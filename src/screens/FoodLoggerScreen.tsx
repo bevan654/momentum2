@@ -356,6 +356,7 @@ function FoodLoggerScreen() {
         onLogged={handleGroupEditLogged}
         editMealGroupId={editGroupId}
         editMealGroupEntries={editGroupEntries}
+        bottomInset={sw(12)}
       />
       <UndoBanner offer={undoOffer} onUndo={handleUndo} onExpire={handleUndoExpire} />
       {!addModalVisible && !editDetailVisible && !editGroupModalVisible && (

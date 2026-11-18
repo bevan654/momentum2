@@ -30,6 +30,10 @@ interface Props {
   onSubmitItem?: (item: MealItemData) => void;
   /** Overrides the "to Breakfast" subtitle (e.g. "to your meal"). */
   subtitle?: string;
+  /** Screen-level use: Android back only closes this while it returns true (e.g. tab focused). */
+  isBackActive?: () => boolean;
+  /** Space under the button when the keyboard is closed (pass a small value above a tab bar). */
+  bottomInset?: number;
 }
 
 const KJ_PER_KCAL = 4.184;
@@ -43,7 +47,7 @@ const DEFAULT_AMOUNT: Record<ServingUnit, string> = { serving: '1', g: '100', ml
  * Quick add: log calories and macros without picking a food. Calories left blank are
  * worked out from the macros (P and C 4 kcal/g, F 9 kcal/g). Only tracked micros are shown.
  */
-function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded, onSubmitItem, subtitle }: Props) {
+function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded, onSubmitItem, subtitle, isBackActive, bottomInset }: Props) {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
   const isDark = useThemeStore((st) => st.mode) === 'dark';
@@ -198,6 +202,8 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded, onSu
       title="Quick add"
       subtitle={subtitle ?? (mealLabel ? `to ${mealLabel}` : undefined)}
       onBack={onDismiss}
+      isBackActive={isBackActive}
+      bottomInset={bottomInset}
       footer={
         <PrimaryActionBar
           label={onSubmitItem ? 'Add to meal' : 'Add'}

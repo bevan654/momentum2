@@ -88,6 +88,8 @@ function MealFoodPicker({ onSelectFood, onAddSavedMeal, clearSignal }: Props) {
   const favourites = useFavouritesStore((st) => st.favourites);
 
   const [query, setQuery] = useState('');
+  /** The text the store's results are for: anything else (e.g. Log food's search) isn't shown. */
+  const [searchedFor, setSearchedFor] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('recent');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -107,6 +109,7 @@ function MealFoodPicker({ onSelectFood, onAddSavedMeal, clearSignal }: Props) {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       searchTimer.current = null;
+      setSearchedFor(text);
       useFoodLogStore.getState().searchCatalog(text);
     }, 300);
   }, []);
@@ -115,21 +118,26 @@ function MealFoodPicker({ onSelectFood, onAddSavedMeal, clearSignal }: Props) {
     // Cancel a search still waiting to run, or it would bring the results back after the clear.
     if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null; }
     setQuery('');
+    setSearchedFor(null);
     useFoodLogStore.getState().clearSearch();
   }, []);
 
+  // Only a change while open clears (the value outlives a close on the Nutrition screen).
+  const lastSignal = useRef(clearSignal);
   useEffect(() => {
-    if (clearSignal > 0) handleClear();
+    if (clearSignal === lastSignal.current) return;
+    lastSignal.current = clearSignal;
+    handleClear();
   }, [clearSignal, handleClear]);
 
   const searching = query.trim().length >= MIN_QUERY;
 
   let body: React.ReactNode;
   if (searching) {
-    if (catalogResults.length > 0) {
+    if (searchedFor !== null && catalogResults.length > 0) {
       // Keep the previous results on screen while a refined search runs, instead of flickering.
       body = catalogResults.map((item, i) => <FoodPickRow key={`${item.id}-${i}`} item={item} onSelect={onSelectFood} />);
-    } else if (catalogLoading) {
+    } else if (catalogLoading || searchedFor === null) {
       body = <FoodEmptyState loading title="Searching…" />;
     } else {
       body = <FoodEmptyState icon="search-outline" title="No results found" subtitle="Try another name, scan it, or use Quick add" />;

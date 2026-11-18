@@ -26,6 +26,8 @@ interface Props {
   onBack: () => void;
   /** Screen-level use: Android back only closes this while it returns true (e.g. tab focused). */
   isBackActive?: () => boolean;
+  /** Another screen sits on top: stays shown, but stops following the keyboard. */
+  covered?: boolean;
   right?: React.ReactNode;
   /** Pinned under the scroll content (e.g. the main action button). */
   footer?: React.ReactNode;
@@ -40,7 +42,7 @@ interface Props {
  * fades in over the sheet, back button + Android back close only this screen,
  * scrollable body with a pinned footer that respects the home indicator and keyboard.
  */
-function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, footer, bottomInset, children }: Props) {
+function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, covered, right, footer, bottomInset, children }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -49,7 +51,8 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
   const progress = useSharedValue(0);
   // Only while showing: food detail stays mounted on the Nutrition screen and inside Make a meal,
   // and a hidden screen shouldn't re-measure and re-pad on every frame of another keyboard.
-  const kbInset = useKeyboardInset(visible);
+  const tracking = visible && !covered;
+  const kbInset = useKeyboardInset(tracking);
   // Home-indicator spacing under the footer, dropped while the keyboard sits right below it.
   const restInset = bottomInset ?? Math.max(insets.bottom, sw(12));
   const kbOpen = kbInset.open;
@@ -75,7 +78,7 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
     revealTimer.current = setTimeout(() => {
       const input = TextInput.State.currentlyFocusedInput();
       const content = contentRef.current;
-      if (!visible || !input || !content || viewportH.current <= 0) return;
+      if (!tracking || !input || !content || viewportH.current <= 0) return;
       (input as any).measureLayout(content, (_x: number, y: number, _w: number, h: number) => {
         const top = scrollY.current;
         const bottom = top + viewportH.current;
@@ -86,15 +89,15 @@ function FoodSubScreen({ visible, title, subtitle, onBack, isBackActive, right, 
         }
       }, () => {});
     }, 80);
-  }, [visible]);
+  }, [tracking]);
   useEffect(() => {
-    if (!visible) return;
+    if (!tracking) return;
     const sub = Keyboard.addListener('keyboardDidShow', reveal);
     return () => {
       sub.remove();
       if (revealTimer.current) clearTimeout(revealTimer.current);
     };
-  }, [visible, reveal]);
+  }, [tracking, reveal]);
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     scrollY.current = e.nativeEvent.contentOffset.y;
   }, []);

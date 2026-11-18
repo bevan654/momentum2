@@ -5,6 +5,7 @@ import { useNutritionStore } from './useNutritionStore';
 import { toLocalDateString } from '../utils/localDate';
 import { getCurrentUserId } from '../lib/currentUser';
 import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
+import { cachedDay, rememberDay, forgetDay, clearDayCache, reuseRows } from './foodLog/dayCache';
 
 /** Increments per search (and clear), so a slow earlier search can't overwrite newer results. */
 let _searchSeq = 0;
@@ -238,45 +239,16 @@ let loadedEntriesKey: string | null = null;
 /** The key whose entries actually finished loading (not the placeholder shown while loading). */
 let fetchedEntriesKey: string | null = null;
 
-/**
- * Days already seen this session (`userId:date` → entries), so going back to one shows it at
- * once while it reloads, instead of an empty diary. Only the most recent few are kept.
- */
-const dayCache = new Map<string, FoodEntry[]>();
-const DAY_CACHE_SIZE = 14;
-
-function rememberDay(key: string | null, entries: FoodEntry[]) {
-  if (!key || key !== fetchedEntriesKey) return;
-  dayCache.delete(key);
-  dayCache.set(key, entries);
-  while (dayCache.size > DAY_CACHE_SIZE) {
-    const oldest = dayCache.keys().next().value;
-    if (oldest === undefined) break;
-    dayCache.delete(oldest);
+/** Keeps the day on screen for later, if its entries finished loading (not the loading placeholder). */
+function keepLoadedDay(entries: FoodEntry[]) {
+  if (loadedEntriesKey && loadedEntriesKey === fetchedEntriesKey) {
+    rememberDay(loadedEntriesKey, entries, _pendingWrites > 0);
   }
-}
-
-/** A write to a day that isn't on screen: its cached copy is now out of date. */
-function forgetDay(userId: string, createdAt: string) {
-  dayCache.delete(`${userId}:${toLocalDateString(new Date(createdAt))}`);
 }
 
 /** Increments per meal-slot load (and sign-out), so an older load can't land afterwards. */
 let _mealsRequestId = 0;
 const MEALS_CACHE_KEY = 'meal_config_cache';
-
-/** Keeps the previous object for each row that didn't change, so unchanged rows don't re-render. */
-function reuseRows(prev: FoodEntry[], next: FoodEntry[]): FoodEntry[] {
-  if (prev.length === 0) return next;
-  const byId = new Map(prev.map((e) => [e.id, e]));
-  return next.map((e) => {
-    const old = byId.get(e.id);
-    if (!old) return e;
-    const keys = Object.keys(e) as (keyof FoodEntry)[];
-    if (keys.length !== Object.keys(old).length) return e;
-    return keys.every((k) => old[k] === e[k]) ? old : e;
-  });
-}
 
 /** Increments per goals load and save, so an older load can't overwrite newer goals. */
 let _goalsRequestId = 0;
@@ -367,11 +339,11 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       set({ selectedDate: date });
       return;
     }
-    rememberDay(loadedEntriesKey, get().entries);
+    keepLoadedDay(get().entries);
     const key = `${userId}:${date}`;
     dayRequestId++; // a load of the old day still on its way must not land on this one
     loadedEntriesKey = key;
-    set({ selectedDate: date, entries: dayCache.get(key) ?? [], loading: true, loadError: false });
+    set({ selectedDate: date, entries: cachedDay(key) ?? [], loading: true, loadError: false });
   },
 
   goToday: () => {
@@ -385,9 +357,9 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     // Switching to another day (or account): drop the old entries so totals never show the wrong day.
     const key = `${userId}:${dateStr}`;
     if (key !== loadedEntriesKey) {
-      rememberDay(loadedEntriesKey, get().entries);
+      keepLoadedDay(get().entries);
       loadedEntriesKey = key;
-      set({ entries: dayCache.get(key) ?? [], loading: true, loadError: false });
+      set({ entries: cachedDay(key) ?? [], loading: true, loadError: false });
     } else {
       set({ loading: true });
     }
@@ -426,26 +398,37 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
 
   fetchMealConfigs: async (userId: string) => {
     const requestId = ++_mealsRequestId;
-    // The copy saved on this phone first, so custom meals show straight away on a cold start
-    // instead of the defaults (with their food under "Other") until the server answers.
+    const showMeals = (meals: MealConfig[]) => {
+      if (JSON.stringify(get().mealConfigs) !== JSON.stringify(meals)) set({ mealConfigs: meals });
+    };
+    // Ask the server straight away, and meanwhile show the copy saved on this phone, so custom
+    // meals appear at once on a cold start instead of the defaults (food under "Other").
+    // Promise.resolve starts the query now (a Supabase query only runs once something awaits it).
+    const request = Promise.resolve(supabase
+      .from('meal_config')
+      .select('*')
+      .eq('user_id', userId)
+      .order('sort_order', { ascending: true }));
     try {
       const cached = await readUserScoped(MEALS_CACHE_KEY, userId);
       if (cached && requestId === _mealsRequestId) {
         const meals = JSON.parse(cached) as MealConfig[];
-        if (Array.isArray(meals) && meals.length > 0) set({ mealConfigs: meals });
+        if (Array.isArray(meals) && meals.length > 0) showMeals(meals);
       }
     } catch {
-      // No usable cache: keep what's shown.
+      // No usable copy: keep what's shown.
     }
 
-    const { data, error } = await supabase
-      .from('meal_config')
-      .select('*')
-      .eq('user_id', userId)
-      .order('sort_order', { ascending: true });
+    const { data, error } = await request;
     // A newer load or a sign-out happened meanwhile.
     if (requestId !== _mealsRequestId) return;
-    if (error || !data || data.length === 0) return;
+    if (error || !data) return;
+    if (data.length === 0) {
+      // The account has no meals of its own (any more): back to the defaults, and forget the copy.
+      showMeals(DEFAULT_MEALS);
+      writeUserScoped(MEALS_CACHE_KEY, userId, '[]').catch(() => {});
+      return;
+    }
 
     const meals: MealConfig[] = data.map((d) => ({
       id: d.id,
@@ -456,7 +439,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       enabled: d.enabled,
       sort_order: d.sort_order,
     }));
-    if (JSON.stringify(get().mealConfigs) !== JSON.stringify(meals)) set({ mealConfigs: meals });
+    showMeals(meals);
     writeUserScoped(MEALS_CACHE_KEY, userId, JSON.stringify(meals)).catch(() => {});
   },
 
@@ -918,7 +901,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     dayRequestId++;
     loadedEntriesKey = null;
     fetchedEntriesKey = null;
-    dayCache.clear();
+    clearDayCache();
     _mealsRequestId++;
     _reloadAfterWrites = null;
     _goalsRequestId++;
