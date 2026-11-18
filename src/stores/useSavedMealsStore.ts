@@ -11,7 +11,7 @@ export interface MealItem {
   name: string;
   brand?: string | null;
   food_catalog_id?: string | null;
-  /** Macros are per base_serving_size (the original catalog serving) */
+  /** Per one serving of serving_size + serving_unit; the meal multiplies them by quantity. */
   calories: number;
   protein: number;
   carbs: number;
@@ -22,7 +22,7 @@ export interface MealItem {
   micros?: Record<string, number | null>;
   /** User-editable serving size */
   serving_size: number;
-  /** Original catalog serving size (defaults to serving_size for backward compat) */
+  /** Unused: only on meals saved by old builds. */
   base_serving_size?: number;
   serving_unit: string;
   quantity: number;
