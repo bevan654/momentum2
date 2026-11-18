@@ -112,7 +112,7 @@ The code comment at line 134 says "searching by email would let anyone confirm w
 `createNotification(userId, ...)` is a plain client-side `INSERT` into `public.notifications`, with `user_id` set to whoever the client wants. Same with `sendNudge` (line 771) and `sendMessage`. The 24h nudge cooldown is checked client-side, so any malicious client can omit the check.
 
 For this not to be exploitable, the `notifications` / `nudges` / `messages` tables would need INSERT policies that constrain `user_id` / `receiver_id` to either the friend graph or the caller's `auth.uid()`. I cannot see those policies in the migrations folder (the foundational schema isn't in `supabase/migrations/`). If they're missing or use `WITH CHECK (true)`, an attacker with any user account can:
-- Create unlimited notifications for any user (push fans out via the `push-notification` Edge Function trigger → loud spam to victim's phone).
+- Create unlimited notifications for any user (push fans out via the `send-push-notification` Edge Function trigger → loud spam to victim's phone).
 - Send unlimited nudges with arbitrary `message` text (no length limit, no friendship check on the client).
 - Insert messages into other users' conversations (if `messages` RLS only checks `sender_id = auth.uid()`).
 
