@@ -311,7 +311,8 @@ function FoodDetailModal({
       for (const key of MICRO_KEYS) micros[key] = perServing(key);
       onAddToMeal({
         name: customName.trim() || food.name,
-        brand: customBrand.trim() || food.brand,
+        // Starts as the food's brand, so a blank field means the user cleared it.
+        brand: customBrand.trim() || null,
         food_catalog_id: food.food_catalog_id,
         calories: Math.round(scaled.cal / qty * 10) / 10,
         protein: Math.round(scaled.pro / qty * 10) / 10,

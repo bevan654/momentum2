@@ -98,6 +98,8 @@ function CreateMealModal({
   const [mealName, setMealName] = useState('');
   const [items, setItems] = useState<MealItem[]>([]);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
+  /** The meal as it was opened or last saved: leaving with anything else asks first. */
+  const savedDraft = useRef<{ name: string; items: MealItem[] }>({ name: '', items: [] });
 
   useEffect(() => {
     if (!visible) {
@@ -109,18 +111,18 @@ function CreateMealModal({
       setScanNotice(null);
       return;
     }
+    const start = (name: string, startItems: MealItem[], mealId: string | null) => {
+      setMealName(name);
+      setItems(startItems);
+      setEditingMealId(mealId);
+      savedDraft.current = { name, items: startItems };
+    };
     if (editMealGroupEntries && editMealGroupEntries.length > 0) {
-      setMealName(editMealGroupEntries[0].meal_group_name || '');
-      setItems(entriesToMealItems(editMealGroupEntries));
-      setEditingMealId(null);
+      start(editMealGroupEntries[0].meal_group_name || '', entriesToMealItems(editMealGroupEntries), null);
     } else if (initialMeal) {
-      setMealName(initialMeal.name);
-      setItems([...initialMeal.items]);
-      setEditingMealId(initialMeal.id);
+      start(initialMeal.name, [...initialMeal.items], initialMeal.id);
     } else {
-      setMealName('');
-      setItems([]);
-      setEditingMealId(null);
+      start('', [], null);
     }
   }, [visible, initialMeal, editMealGroupEntries]);
 
@@ -241,11 +243,32 @@ function CreateMealModal({
       } else {
         setEditingMealId(await saveMeal(name, items));
       }
+      savedDraft.current = { name: mealName, items };
     } finally {
       savingRef.current = false;
     }
     Alert.alert('Saved', `"${name}" has been saved.`);
   }, [saveMeal, updateMeal]);
+
+  /* ── Leave ──────────────────────────────────────────── */
+  // Back (header or Android) with unsaved changes asks before throwing them away.
+  const handleBack = useCallback(() => {
+    const { mealName, items } = draftRef.current;
+    const saved = savedDraft.current;
+    const changed = items !== saved.items || mealName.trim() !== saved.name.trim();
+    if (!changed) {
+      onDismiss();
+      return;
+    }
+    Alert.alert(
+      'Discard this meal?',
+      "Your changes haven't been logged or saved.",
+      [
+        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: onDismiss },
+      ],
+    );
+  }, [onDismiss]);
 
   /* ── Log ────────────────────────────────────────────── */
   const logMeal = useLogMeal({ userId, mealSlot, targetHour, editMealGroupId, editMealGroupEntries, onLogged });
@@ -276,7 +299,7 @@ function CreateMealModal({
         visible={visible}
         title={title}
         subtitle={mealLabel ? `to ${mealLabel}` : undefined}
-        onBack={onDismiss}
+        onBack={handleBack}
         isBackActive={isBackActive}
         covered={!!detailFood || quickAddVisible || scannerVisible}
         bottomInset={bottomInset}
