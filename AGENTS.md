@@ -49,48 +49,7 @@ This project is a continuation of an app built with an older model, so expect bu
 
 ## Project Structure
 
-```
-/
-├── App.tsx                    # Font load, auth gate, theme bootstrap, nav root
-├── app.config.ts              # Expo config (bundle IDs, plugins, EAS)
-├── database-schema.md         # Postgres schema reference (all public tables, generated from the live schema)
-├── docs/                      # Plans, audits, security review
-├── modules/                   # Local Expo modules (autolinked native code)
-│   └── workout-live-activity/ # Active-workout Live Activity (iOS ActivityKit) + ongoing notification (Android); JS API in index.ts
-├── targets/                   # iOS extension targets built by @bacons/apple-targets (survive `prebuild --clean`)
-│   └── workout-activity/      # SwiftUI Live Activity: Lock Screen + Dynamic Island (iOS 16.2+)
-├── scripts/                   # Dev/ops scripts (build stamping, imports, seeding, notifications; catalog/ = RepDB exercise import, muscle-map region targets)
-│
-└── src/
-    ├── screens/               # Top-level routes (19 screens)
-    ├── components/
-    │   ├── auth/              # Auth screen pieces: AuthLayout, AuthBrand, AuthInput, FieldStatusIcon, authStyles, SocialAuthButtons (Google / Apple OAuth)
-    │   ├── body/              # Body map wrappers around momentum-muscle-map: map pair, workout mini maps, exercise thumb, level toggle, region chip, workout heatmap
-    │   ├── food/              # Nutrition tab: day summary (calorie ring, macro bars), water strip, meal cards, food popups; ui/ = shared kit for food popups (header, search, rows, fields, sub-screen, keyboard inset); macro-lens/ = AI photo scan pieces
-    │   ├── friends/           # Leaderboard, notifications, reports, search, friend stories row (FriendStories), a friend's feed workout (feed-workout/)
-    │   ├── home/              # Home dashboard cards and modals, global Header, Community feed (feed/), activity calendar (activity/)
-    │   ├── lab/               # Recovery tab: body-metric cards (weight, body fat, measurements; shared chart/history/log pieces in trend/), weekly volume, muscle radar, quick stats, AI coach card
-    │   ├── onboarding/        # Onboarding steps (DetailsStep, GoalsStep, UnitInput) + onboardingPlan (activity levels, calorie/macro recommendation)
-    │   ├── profile/           # Settings sub-views (settings/), goal editors
-    │   ├── share/             # Workout sharing: share modal, share card (WorkoutOverlay), story crop
-    │   ├── ui/                # Shared primitives: Sheet (animated bottom sheet), Overlay, Portal/PortalHost
-    │   ├── workout-sheet/     # Active workout: bottom sheet, sets, rest timer, exercise picker (exercise-picker/), finish flow and summary (summary/), set rows (set-row/), exercise history (exercise-history/), ghost mode
-    │   ├── workouts/          # Workouts tab: recovery body map, routine cards, today's plan, exercise rows; history/, create-program/, program-day-editor/
-    │   └── SheetWrapper.tsx   # Shared modal-sheet chrome
-    ├── stores/                # 23 Zustand stores (see State Management)
-    ├── navigation/            # AuthNavigator, TabNavigator, WorkoutsNavigator, navigationRef, freezeFarTabs (react-freeze for far tabs)
-    ├── services/              # liveActivityManager, notificationService, workoutFinishFeedback
-    ├── lib/                   # supabase, friendsDatabase (re-exports the topic files in friends/), catalogDatabase, navigationBridge
-    ├── theme/                 # useColors.ts, responsive.ts, typography.ts
-    ├── utils/                 # barcodeApi, confirmReplaceWorkout, dateLabels (workout date, "Nov 14"), displayName, ema (trend line), exerciseCatalog, exerciseProgress, feedExerciseDetails, formatDuration (clock, h/m and rest text), formatVolume, ghostCompare, localDate (local YYYY-MM-DD), muscleLoad (effective load for heat/recovery), muscleVolume, planExercise (routine/program exercise row), smoothPath, streakCalculator, strengthRanks (rank tiers and thresholds), strengthScore, titleCase, uploadWorkoutPhoto, uuid, workoutPayload (active workout → upsert_workout payload), workoutProgress, workoutStorage
-    ├── hooks/                 # useAppUpdates (EAS OTA), useDebouncedValue, useForceUpdate (force-update gate), useLingerMount, useMuscleLoad (bodyweight + types for effective load), useRegionWeightLookup (body-map weights), useUsernameAvailability (debounced username/email taken check), useToday (today's date, rolls over at midnight)
-    └── constants/             # buildInfo, changelog, dateNames (day/month names), muscles, muscleMap (body-map config + heat/recovery reference values, bodyweight fractions), muscleMapLabels
-
-supabase/
-├── functions/                 # Edge functions: ai-coach, ai-workout-summary, ai-workout-notifications,
-│                              #   gemini-food-scan, gemini-food-search, push-notification, delete-account, discord-*
-└── migrations/                # Dated SQL migrations (YYYYMMDD_description.sql)
-```
+See `CODEBASE_MAP.md`: where every folder and module lives, entry points, load-bearing code and the "Where to find X" table. It is the single source for project structure; keep it current (see `.claude/rules/navigation.md`).
 
 ---
 
@@ -434,7 +393,7 @@ Keep the codebase as clean and well-structured as possible. Every file should ha
 - **Colocate.** Sub-components, hooks and helpers that only one feature uses live in that feature's folder, not in the global `utils/` or `hooks/`.
 - **Delete, don't orphan.** When a feature is removed or replaced, delete its components, store slices, styles, assets, unused imports and dead code in the same change. Don't leave commented-out code or `*Old`/`*V2` copies lying around.
 - **Naming:** follow the conventions in File Naming. Names should say what the file does (`WorkoutSummaryModal.tsx`, not `Modal2.tsx`).
-- When the structure changes, update the Project Structure tree in this file.
+- When the structure changes, update `CODEBASE_MAP.md` and run `npm run check:map`.
 
 ---
 

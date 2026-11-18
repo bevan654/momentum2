@@ -1,8 +1,8 @@
 # Codebase Map
 
-**Last verified:** 2026-11-16, against the code at commit `d0c4b93` (main) plus the cleanup branch merged on top.
+**Last verified:** 2026-11-17, against the code at commit `ac25c32` (main).
 
-An index of where things live and how they connect. Rules and conventions are in `CLAUDE.md`; database tables are in `database-schema.md`. If `CLAUDE.md`'s Project Structure tree disagrees with this map, this map is current.
+An index of where things live and how they connect. Rules and conventions are in `CLAUDE.md`; database tables are in `database-schema.md`. This map is the only description of the project structure; `CLAUDE.md` points here instead of keeping its own tree.
 
 ## Overview
 Momentum is a React Native fitness app (iOS + Android): workouts, nutrition, body metrics, recovery and a social feed.
@@ -23,12 +23,12 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `src/utils/` | Helpers, mostly pure (dates, volume, strength score, payloads). Exceptions with side effects: `barcodeApi`, `uploadWorkoutPhoto`, `workoutStorage` (I/O), `confirmReplaceWorkout` (alerts + store writes) |
 | `src/hooks/` | Shared hooks (OTA updates, force-update gate, muscle load, region weights, today's date, linger-mount for exit animations, debounced value, username/email availability check for sign-up and onboarding) |
 | `src/theme/` | `useColors.ts` (theme tokens), `responsive.ts` (`sw`/`ms`/`sh`), `typography.ts` (`Fonts`) |
-| `src/constants/` | Static data: `muscles`, `muscleMap`, `muscleMapLabels`, `changelog`, `buildInfo` (auto-stamped, don't move) |
+| `src/constants/` | Static data: `muscles`, `muscleMap`, `muscleMapLabels`, `dateNames`, `changelog`, `buildInfo` (auto-stamped, don't move) |
 | `modules/workout-live-activity/` | Local native Expo module (Swift/Kotlin + `index.ts`): Live Activity / ongoing notification. Native: changes need a store build |
-| `targets/workout-activity/` | iOS Live Activity widget (SwiftUI). Native: changes need a store build |
+| `targets/workout-activity/` | iOS Live Activity widget (SwiftUI), built by `@bacons/apple-targets` (survives `prebuild --clean`). Native: changes need a store build |
 | `supabase/migrations/` | Dated SQL migrations. Database changes go through bevan |
 | `supabase/functions/` | Deno edge functions (AI coach/summaries, Gemini food scan/search, push, Discord, delete-account) + `_shared/` |
-| `scripts/` | Dev/ops scripts: `stamp-build.js` + `update.bat` (OTA release), `catalog/` (exercise catalog + region-target tooling), `check-codebase-map.js` (`npm run check:map`), one-off admin scripts |
+| `scripts/` | Dev/ops scripts: `stamp-build.js` + `update.bat` (OTA release), `catalog/` (exercise catalog + region-target tooling), `check-codebase-map.js` (`npm run check:map`), `check-hidden-links.js` (`npm run check:links`), one-off admin scripts |
 | `.claude/` | Shared Claude Code setup: `agents/codebase-scout.md`, `rules/navigation.md`, `settings.json` (turns on the TypeScript LSP plugin). Everything else in it is personal and git-ignored. Anything added to `agents/` or `rules/` is shared with the whole team, so keep personal agents and rules in `~/.claude/` instead |
 | `docs/` | Past plans, audits and the security review. Historical: may describe code that has since changed |
 | `assets/` | `logo.png` (app icon, splash, share cards) |
@@ -89,6 +89,24 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | `src/utils/localDate.ts` | ~14 files; day boundaries |
 | `src/constants/muscles.ts` | ~12 files; legacy muscle names that every app build understands |
 
+### Hidden links (LSP can't see these)
+Connections through strings, `getState()`, SQL or the database itself. Changing one side compiles fine and fails silently, so when you touch either side, check the other by text search. `npm run check:links` checks the ones that can be checked mechanically, and `npm run check:links -- --touched` lists the rows a branch touches (used for the PR-time map refresh in `.claude/rules/navigation.md`).
+
+| Link | Both ends | Breaks if only one side changes |
+|---|---|---|
+| Food goals → nutrition store | `stores/useFoodLogStore.ts` writes goal fields into `useNutritionStore` via `setState` | Renamed field is ignored (no type error); Home goals go stale |
+| Cross-store calls and sign-out reset | `stores/useActiveWorkoutStore.ts`, `stores/activeWorkout/finishHelpers.ts`, `stores/activeWorkout/exerciseActions.ts`, `stores/useRankStore.ts`, `stores/useFoodLogStore.ts` call other stores' `getState()`; `stores/useAuthStore.ts` calls `useWorkoutStore.clearCaches` and `useActiveWorkoutStore.resetForSignOut` on sign-out (no other store has a reset) | A new store with per-user data needs its own reset called there, or it leaks into the next account |
+| Workout save payload ↔ `upsert_workout` | `utils/workoutPayload.ts` (keys), callers in `stores/useActiveWorkoutStore.ts` and `components/workout-sheet/summary/useSummaryEdit.ts`; SQL `supabase/migrations/20261119_upsert_workout_rpc.sql` reads `p->>'key'` | Renamed key is saved as null with no error; a new mode or cast must change on both sides |
+| Old vs new workout shapes | Old builds insert `workouts` → `exercises` → `sets` directly; readers in `stores/useWorkoutStore.ts` and `lib/friends/feed.ts` | A reader that assumes new nullable columns (`started_at`, `completed_at`, …) are set breaks on old-build workouts; see Compatibility rule in `CLAUDE.md` |
+| `exercises_link_identity` trigger | `supabase/migrations/20261114_workout_tracking_fields.sql` (wrapped in `exception when others`) | Removing the guard can make old builds' workout inserts fail; renames need an `exercise_aliases` row |
+| Webhooks on `profiles` / `notifications` | Triggers exist only in production (dashboard-made, **not** in `supabase/migrations`); `supabase/functions/send-push-notification/`, `supabase/functions/_shared/webhookAuth.ts`; client writes in `lib/friends/notifications.ts` (`notifications` insert) and `services/notificationService.ts` (`profiles.push_token` updates); cron inserts from `supabase/functions/ai-workout-notifications/` | Renaming a function, column or the webhook secret breaks pushes/Discord silently; every `notifications` insert sends a push |
+| `navigationBridge` registrations | Set in `navigation/TabNavigator.tsx`, `navigation/WorkoutsNavigator.tsx`; called from `home/Header.tsx`, `workouts/TodayScheduled.tsx`, `screens/WorkoutHistoryScreen.tsx` | Callbacks are null until the owner mounts and callers use `?.`, so a missing registration does nothing |
+| Route and tab name strings | Registered in `src/navigation/`; used in `navigate('…')` calls, `navigation/navigationRef.ts` (`globalNavigate`), `constants/changelog.ts` (CTA targets), and `TabNavigator`'s `TAB_ICONS` / `route.name === …` checks | A renamed route or tab breaks navigation, icons, long-press or badge with no type error |
+| Main-lift names | `utils/strengthScore.ts` (`MAIN_LIFT_ASSIGNMENTS`), `workout-sheet/exercise-picker/pickerData.ts` (`LEADERBOARD_LIFTS`), latest `get_community_leaderboard` in `supabase/migrations/20261120_leaderboard_plausible_bodyweight.sql` (name lists) | Renaming a main lift drops users off the Big Three boards unless the old name stays in every list |
+| `user_ranks` → leaderboard triggers | `stores/useRankStore.ts` upserts `best_sets`; triggers in `supabase/migrations/20260719_leaderboard_overtake_notifications.sql` | Changing the `best_sets` shape breaks leaderboards and overtake notifications; errors are swallowed |
+| Body-map id ↔ region rows | `MUSCLE_MAP_ID` in `constants/muscleMap.ts`; `lib/catalogDatabase.ts`, `stores/useRegionTargetsStore.ts`; `exercise_region_targets.map_id` rows | Bumping the map library without matching rows (or vice versa) gives an empty heat map |
+| RPC names and storage keys | Client `.rpc('…')` calls in `lib/friends/` and `hooks/useUsernameAvailability.ts`; `username_or_email_taken` and `get_global_feed` exist only in production (no migration). AsyncStorage keys in about a dozen files, e.g. `utils/workoutStorage.ts` (in-progress workout), `stores/useThemeStore.ts`, `stores/useRegionTargetsStore.ts` (search for `AsyncStorage` before renaming a key) | Changed RPC params return an error the client swallows; a renamed storage key loses users' saved data (e.g. an in-progress workout) |
+
 ## Where to find X
 | Task | Look in |
 |---|---|
@@ -103,6 +121,7 @@ Changes here ripple widely, so check all references (LSP) before editing.
 | Strength score, ranks | `utils/strengthScore.ts`, `stores/useRankStore.ts` |
 | Food logging, macros, AI food scan | `components/food/`, `stores/useFoodLogStore.ts`, `stores/useNutritionStore.ts`, `stores/useNutrientGoalStore.ts` |
 | Barcode lookup | `utils/barcodeApi.ts` |
+| Shared formatting and compare helpers | `src/utils/` (`formatDuration`, `formatVolume`, `dateLabels`, `ghostCompare`, `ema`, `smoothPath`, `planExercise`, `feedExerciseDetails`); local copies of `formatDuration` and `compareGhostSet` also exist, so use LSP, not grep |
 | Water, creatine, supplements | `stores/useSupplementStore.ts`, `components/home/SupplementsCard.tsx` (+ `components/home/SupplementDetailModal.tsx`), `components/home/WaterCard.tsx` |
 | Weight, body fat, measurements | `components/lab/` (shared chart, history and log pieces in `components/lab/trend/`), `stores/useWeightStore.ts`, `stores/useBodyFatStore.ts`, `stores/useMeasurementStore.ts` |
 | Feed, friends, leaderboard, reactions | `components/friends/`, `components/home/Feed.tsx`, `stores/useFriendsStore.ts`, `lib/friendsDatabase.ts` |
@@ -133,4 +152,4 @@ Treat with care:
 - `docs/` is historical, so verify against the code before trusting it.
 
 ## Maintenance
-Update this file in the same change whenever folders or modules are added, moved, renamed or deleted, a tab or route changes, or anything else described here stops being true. Then run `npm run check:map` (checks every path here still exists) and update the **Last verified** line at the top to today's date and the commit on `main` you checked against (`git rev-parse --short origin/main` after syncing). Use a `main` commit, not a branch commit, because branch commits can disappear when a PR is squash-merged.
+Update this file in the same change whenever folders or modules are added, moved, renamed or deleted, a tab or route changes, or anything else described here stops being true. Then run `npm run check:map` (checks every path here still exists, and that the screen/store/table counts here and in `CLAUDE.md`/`AGENTS.md` match the code). If a Hidden links row changed, also run `npm run check:links`. Then update the **Last verified** line at the top to today's date and the commit on `main` you checked against (`git rev-parse --short origin/main` after syncing). Use a `main` commit, not a branch commit, because branch commits can disappear when a PR is squash-merged.
