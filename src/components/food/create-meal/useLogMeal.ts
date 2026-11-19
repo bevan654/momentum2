@@ -84,6 +84,8 @@ export function useLogMeal({ userId, mealSlot, targetHour, editMealGroupId, edit
         }
       }
 
+      // Its foods stay in Recent / "Your foods" even if the meal is deleted from the diary later.
+      useFoodLogStore.getState().rememberLoggedFoods(userId, rows);
       await fetchDayEntries(userId, selectedDate);
       useNutritionStore.getState().fetchTodayNutrition(userId);
       onLogged();

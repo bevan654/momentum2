@@ -6,6 +6,7 @@ import { toLocalDateString } from '../utils/localDate';
 import { getCurrentUserId } from '../lib/currentUser';
 import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
 import { cachedDay, rememberDay, forgetDay, clearDayCache, reuseRows } from './foodLog/dayCache';
+import { loadFoodHistory, rememberFoods, matchFoodHistory, resetFoodHistory } from './foodLog/foodHistory';
 
 /** Increments per search (and clear), so a slow earlier search can't overwrite newer results. */
 let _searchSeq = 0;
@@ -22,6 +23,28 @@ function microsFrom(src: Record<string, any>, per = 1): Record<MicroKey, number 
   const out = {} as Record<MicroKey, number | null>;
   for (const k of MICRO_KEYS) out[k] = src[k] != null ? Number(src[k]) / per : null;
   return out;
+}
+
+/** A logged food_entries row (totals for `quantity` servings) → a pickable food for one serving. */
+function entryToFood(d: Record<string, any>): FoodCatalogItem {
+  const qty = Number(d.quantity) || 1;
+  return {
+    id: d.id,
+    food_catalog_id: d.food_catalog_id || null,
+    name: d.name,
+    brand: d.brand || null,
+    calories: Number(d.calories || 0) / qty,
+    protein: Number(d.protein || 0) / qty,
+    carbs: Number(d.carbs || 0) / qty,
+    fat: Number(d.fat || 0) / qty,
+    fiber: d.fiber != null ? Number(d.fiber) / qty : null,
+    sugar: d.sugar != null ? Number(d.sugar) / qty : null,
+    serving_size: Number(d.serving_size) || 1,
+    serving_unit: d.serving_unit || 'serving',
+    confidence: 'user',
+    category: null,
+    ...microsFrom(d, qty),
+  };
 }
 
 /* ─── Types ────────────────────────────────────────────── */
@@ -226,6 +249,8 @@ interface FoodLogState {
   searchCatalog: (query: string) => Promise<void>;
   clearSearch: () => void;
   fetchDefaultFoods: (userId: string) => Promise<void>;
+  /** Keeps just-logged rows in this phone's food history (Recent / "Your foods" survive deletes). */
+  rememberLoggedFoods: (userId: string, rows: Record<string, any>[]) => void;
   /** Clears the previous account's diary, goals, meals and recent foods from memory. */
   resetForSignOut: () => void;
 }
@@ -540,6 +565,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       const row = saved;
       set((s) => ({ entries: s.entries.map((e) => (e.id === tempId ? row : e)) }));
       syncNutrition(userId, row.created_at);
+      rememberFoods(userId, [entryToFood(row)]).catch(() => {});
     } else {
       set((s) => ({ entries: s.entries.filter((e) => e.id !== tempId) }));
       alertWriteFailed('save that food');
@@ -737,7 +763,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
 
     // "Your foods" means this account's own entries: filter here rather than relying only on RLS.
     const userId = getCurrentUserId();
-    const [catalogRes, userRes, entryRes] = await Promise.all([
+    const [catalogRes, userRes, entryRes, history] = await Promise.all([
       supabase
         .from('food_catalog')
         .select('*')
@@ -759,6 +785,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
           .order('created_at', { ascending: false })
           .limit(20)
         : Promise.resolve({ data: [] as any[], error: null }),
+      userId ? loadFoodHistory(userId) : Promise.resolve([]),
     ]);
     if (req !== _searchSeq) return; // a newer search (or a clear) has started since
 
@@ -774,24 +801,14 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       const key = d.name?.toLowerCase();
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      const qty = Number(d.quantity) || 1;
-      entryItems.push({
-        id: d.id,
-        food_catalog_id: d.food_catalog_id || null,
-        name: d.name,
-        brand: d.brand || null,
-        calories: Number(d.calories || 0) / qty,
-        protein: Number(d.protein || 0) / qty,
-        carbs: Number(d.carbs || 0) / qty,
-        fat: Number(d.fat || 0) / qty,
-        fiber: d.fiber != null ? Number(d.fiber) / qty : null,
-        sugar: d.sugar != null ? Number(d.sugar) / qty : null,
-        serving_size: Number(d.serving_size) || 1,
-        serving_unit: d.serving_unit || 'serving',
-        confidence: 'user',
-        category: null,
-        ...microsFrom(d, qty),
-      });
+      entryItems.push(entryToFood(d));
+    }
+    // Plus foods logged earlier whose diary entries have since been deleted.
+    for (const f of matchFoodHistory(history, query, 20)) {
+      const key = f.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      entryItems.push(f);
     }
 
     // Then the shared catalog, minus foods already listed as the user's own.
@@ -841,7 +858,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   fetchDefaultFoods: async (userId: string) => {
-    const [recentRes, popularRes] = await Promise.all([
+    const [recentRes, popularRes, history] = await Promise.all([
       supabase
         .from('food_entries')
         .select('*')
@@ -853,36 +870,24 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
         .select('*')
         .order('popularity', { ascending: false })
         .limit(10),
+      loadFoodHistory(userId),
     ]);
 
-    // Deduplicate recent entries by name → keep last 5 unique
+    // The diary's latest foods and this phone's food history (which keeps foods whose entries
+    // were deleted), newest first, one per name.
+    // Times compared as dates: the server's "+00:00" and the phone's "Z" don't sort as text.
+    const candidates: { food: FoodCatalogItem; at: number }[] = [
+      ...(recentRes.data || []).map((d) => ({ food: entryToFood(d), at: Date.parse(d.created_at) || 0 })),
+      ...history.map((f) => ({ food: f as FoodCatalogItem, at: Date.parse(f.used_at) || 0 })),
+    ].sort((a, b) => b.at - a.at);
     const seen = new Set<string>();
     const recentFoods: FoodCatalogItem[] = [];
-    if (recentRes.data) {
-      for (const d of recentRes.data) {
-        const key = d.name?.toLowerCase();
-        if (!key || seen.has(key)) continue;
-        seen.add(key);
-        const qty = Number(d.quantity) || 1;
-        recentFoods.push({
-          id: d.id,
-          food_catalog_id: d.food_catalog_id || null,
-          name: d.name,
-          brand: d.brand || null,
-          calories: Number(d.calories || 0) / qty,
-          protein: Number(d.protein || 0) / qty,
-          carbs: Number(d.carbs || 0) / qty,
-          fat: Number(d.fat || 0) / qty,
-          fiber: d.fiber != null ? Number(d.fiber) / qty : null,
-          sugar: d.sugar != null ? Number(d.sugar) / qty : null,
-          serving_size: Number(d.serving_size) || 1,
-          serving_unit: d.serving_unit || 'serving',
-          confidence: 'user',
-          category: null,
-          ...microsFrom(d, qty),
-        });
-        if (recentFoods.length >= 25) break;
-      }
+    for (const { food } of candidates) {
+      const key = food.name?.toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      recentFoods.push(food);
+      if (recentFoods.length >= 25) break;
     }
 
     const popularFoods: FoodCatalogItem[] = (popularRes.data || []).map((d) => ({
@@ -897,11 +902,16 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     set({ recentFoods, popularFoods });
   },
 
+  rememberLoggedFoods: (userId: string, rows: Record<string, any>[]) => {
+    rememberFoods(userId, rows.map(entryToFood)).catch(() => {});
+  },
+
   resetForSignOut: () => {
     dayRequestId++;
     loadedEntriesKey = null;
     fetchedEntriesKey = null;
     clearDayCache();
+    resetFoodHistory();
     _mealsRequestId++;
     _reloadAfterWrites = null;
     _goalsRequestId++;

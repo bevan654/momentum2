@@ -17,7 +17,7 @@ Nearly all app code is TypeScript in `src/`. There is no path alias: imports are
 | `src/screens/` | 19 route-level screens |
 | `src/navigation/` | `AuthNavigator`, `TabNavigator` (the 5 tabs), `WorkoutsNavigator` (Workouts tab stack), `navigationRef`, `freezeFarTabs` (stops tabs more than one away from the current tab re-rendering) |
 | `src/components/<feature>/` | UI per feature (table below) |
-| `src/stores/` | 23 Zustand stores, `use[Domain]Store.ts`: app state and most Supabase reads/writes. Helpers split out of a large store live in a folder named after it (`activeWorkout/`, `foodLog/dayCache.ts`: the diary's per-day cache) |
+| `src/stores/` | 23 Zustand stores, `use[Domain]Store.ts`: app state and most Supabase reads/writes. Helpers split out of a large store live in a folder named after it (`activeWorkout/`, `foodLog/dayCache.ts`: the diary's per-day cache; `foodLog/foodHistory.ts`: every food logged on this phone, so Recent and "Your foods" keep foods whose diary entries were deleted) |
 | `src/lib/` | Supabase client (`supabase.ts`), social DB calls (`friendsDatabase.ts`, which re-exports the topic files in `lib/friends/`), catalog DB (`catalogDatabase.ts`), `navigationBridge.ts`, `userScopedStorage.ts` (AsyncStorage keys per account), `currentUser.ts` (signed-in id for stores that can't import `useAuthStore`) |
 | `src/services/` | Side-effect services: `notificationService` (Realtime), `liveActivityManager` (Lock Screen), `workoutFinishFeedback` |
 | `src/utils/` | Helpers, mostly pure (dates, volume, strength score, payloads). Exceptions with side effects: `barcodeApi`, `uploadWorkoutPhoto`, `workoutStorage` (I/O), `confirmReplaceWorkout` (alerts + store writes) |
