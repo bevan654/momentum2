@@ -179,6 +179,14 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
     scanRef.current = null;
     c?.abort();
   }, []);
+  // Hidden some other way than its own close (e.g. the whole Log food sheet closed) while a scan
+  // runs: cancel it too, and start from the camera next time.
+  useEffect(() => {
+    if (visible || !scanRef.current) return;
+    scanRef.current.abort();
+    scanRef.current = null;
+    resetToCamera();
+  }, [visible, resetToCamera]);
 
   const analyze = useCallback(async (base64: string, mimeType: string, context?: string) => {
     scanRef.current?.abort();

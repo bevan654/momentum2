@@ -282,7 +282,10 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
 
     set((s) => ({ todayServings: Math.round((s.todayServings + servings) * 100) / 100, lastPowderId: powder.id }));
     writeUserScoped(LAST_POWDER_KEY, userId, powder.id).catch(() => {});
-    const rollback = () => set((s) => ({ todayServings: Math.max(0, Math.round((s.todayServings - servings) * 100) / 100) }));
+    // Skipped after a sign-out: it would change the next account's count.
+    const rollback = () => {
+      if (gen === _gen) set((s) => ({ todayServings: Math.max(0, Math.round((s.todayServings - servings) * 100) / 100) }));
+    };
 
     // Written directly rather than through the diary's addEntry, which would also publish the
     // powder's name to the shared user_created_foods table.
@@ -332,6 +335,7 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
   }),
 
   deleteLog: (userId, log) => trackedWrite(get, async () => {
+    const gen = _gen;
     const isToday = log.date === toLocalDateString();
     set((s) => ({
       dateLogs: s.dateLogs.filter((l) => l.id !== log.id),
@@ -340,6 +344,7 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
     // Deleting the snack is what takes it off the count (the link clears with it).
     const { error } = await supabase.from('food_entries').delete().eq('id', log.food_entry_id).eq('user_id', userId);
     if (error) {
+      if (gen !== _gen) return false; // signed out meanwhile: nothing of this account is shown
       set((s) => ({
         dateLogs: s.logsDate === log.date && !s.dateLogs.some((l) => l.id === log.id)
           ? [...s.dateLogs, log].sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -370,12 +375,13 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
 
   relink: async (userId, links) => {
     if (links.length === 0) return;
+    const gen = _gen;
     await trackedWrite(get, () => Promise.all(links.map((l) => supabase
       .from('protein_powder_log')
       .update({ food_entry_id: l.foodEntryId })
       .eq('id', l.logId)
       .eq('user_id', userId))));
-    get().refresh(userId);
+    if (gen === _gen) get().refresh(userId);
   },
 
   resetForSignOut: () => {
