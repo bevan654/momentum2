@@ -14,6 +14,11 @@ interface NutritionState {
   /** Today's eaten micronutrients (and fiber, sugar), by food_entries column. */
   micros: Record<string, number>;
   fetchTodayNutrition: (userId: string) => Promise<void>;
+  /**
+   * Today's totals from rows the app already has (the diary showing today), instead of a request.
+   * Also makes a request still on its way ignore its answer, which may be older.
+   */
+  setTodayFromRows: (userId: string, rows: Record<string, unknown>[]) => void;
   /** Clears the previous account's totals and goals. */
   resetForSignOut: () => void;
 }
@@ -41,6 +46,30 @@ function todayRange() {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
   return { start, end };
+}
+
+/** Eaten totals and micros of today's rows (planned food doesn't count until it's eaten). */
+function totalsFrom(rows: Record<string, unknown>[]) {
+  let calories = 0, protein = 0, carbs = 0, fat = 0;
+  const micros: Record<string, number> = {};
+  for (const entry of rows) {
+    if (entry.is_planned) continue;
+    calories += Number(entry.calories || 0);
+    protein += Number(entry.protein || 0);
+    carbs += Number(entry.carbs || 0);
+    fat += Number(entry.fat || 0);
+    for (const key of MICRO_COLUMNS) {
+      const v = entry[key];
+      if (v != null) micros[key] = (micros[key] || 0) + Number(v);
+    }
+  }
+  return {
+    calories: Math.round(calories),
+    protein: Math.round(protein),
+    carbs: Math.round(carbs),
+    fat: Math.round(fat),
+    micros,
+  };
 }
 
 /** Increments per totals request, so an older response can't overwrite newer totals. */
@@ -74,28 +103,14 @@ export const useNutritionStore = create<NutritionState>((set) => ({
       return;
     }
     _loadedKey = key;
-
     // Same as the Nutrition tab: planned food doesn't count until it's eaten, whole numbers.
-    let calories = 0, protein = 0, carbs = 0, fat = 0;
-    const micros: Record<string, number> = {};
-    for (const entry of data as unknown as Record<string, unknown>[]) {
-      if (entry.is_planned) continue;
-      calories += Number(entry.calories || 0);
-      protein += Number(entry.protein || 0);
-      carbs += Number(entry.carbs || 0);
-      fat += Number(entry.fat || 0);
-      for (const key of MICRO_COLUMNS) {
-        const v = entry[key];
-        if (v != null) micros[key] = (micros[key] || 0) + Number(v);
-      }
-    }
-    set({
-      calories: Math.round(calories),
-      protein: Math.round(protein),
-      carbs: Math.round(carbs),
-      fat: Math.round(fat),
-      micros,
-    });
+    set(totalsFrom(data as unknown as Record<string, unknown>[]));
+  },
+
+  setTodayFromRows: (userId: string, rows: Record<string, unknown>[]) => {
+    _requestId++;
+    _loadedKey = `${userId}:${todayRange().start}`;
+    set(totalsFrom(rows));
   },
 
   resetForSignOut: () => {

@@ -47,12 +47,16 @@ function HomeScreen() {
     }
   }, [userId]);
 
+  const goalsCheckedAt = React.useRef(Date.now());
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && userId) {
         fetchTodayNutrition(userId);
-        // Goals may have been changed on another phone.
-        useFoodLogStore.getState().fetchGoals(userId);
+        // Goals may have been changed on another phone (checked at most every 10 minutes).
+        if (Date.now() - goalsCheckedAt.current > 10 * 60 * 1000) {
+          goalsCheckedAt.current = Date.now();
+          useFoodLogStore.getState().fetchGoals(userId);
+        }
         fetchTodaySupplements(userId);
         useStreakStore.getState().refreshStreak(userId);
       }

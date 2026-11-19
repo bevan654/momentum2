@@ -246,8 +246,11 @@ function FoodLoggerScreen() {
   const [undoOffer, setUndoOffer] = useState<UndoOffer | null>(null);
   const undoRowsRef = React.useRef<FoodEntry[]>([]); // React.useRef: the redesign drops the named import
   // A deleted (or restored) protein powder snack changes the serving count: reload it after.
-  const refreshPowder = useCallback(() => {
-    if (userId && tracksPowder()) useProteinPowderStore.getState().refresh(userId);
+  const refreshPowder = useCallback((ids?: string[]) => {
+    if (!userId || !tracksPowder()) return;
+    // Only a protein snack changes the count: skip the reload for any other food.
+    if (ids && !useProteinPowderStore.getState().dateLogs.some((l) => ids.includes(l.food_entry_id))) return;
+    useProteinPowderStore.getState().refresh(userId);
   }, [userId]);
 
   // Protein powder adds whose snacks were just deleted: Undo links them back to the snacks it
@@ -271,7 +274,7 @@ function FoodLoggerScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     restoreDeleted(rows).then(() => {
       if (userId && links.length > 0) useProteinPowderStore.getState().relink(userId, links);
-      else refreshPowder();
+      else refreshPowder(rows.map((r) => r.id));
     });
   }, [restoreDeleted, refreshPowder, userId]);
   const handleUndoExpire = useCallback(() => {
@@ -288,7 +291,7 @@ function FoodLoggerScreen() {
       // It's back on screen: its Undo would now re-insert (or hide) a food that still exists.
       // Only withdraw it if it's still this food's offer (not a later delete's).
       if (!ok && undoRowsRef.current.some((r) => r.id === id)) handleUndoExpire();
-      refreshPowder();
+      refreshPowder([id]);
     });
     clearEditEntrySoon();
   }, [deleteEntry, offerUndo, refreshPowder, handleUndoExpire]);
@@ -306,7 +309,7 @@ function FoodLoggerScreen() {
   const handleDeleteMealGroup = useCallback((groupId: string) => {
     const removed = useFoodLogStore.getState().entries.filter((e) => e.meal_group_id === groupId);
     offerUndo(removed, `Deleted ${removed[0]?.meal_group_name || 'meal'}`);
-    deleteMealGroup(groupId).then(refreshPowder);
+    deleteMealGroup(groupId).then(() => refreshPowder(removed.map((r) => r.id)));
   }, [deleteMealGroup, offerUndo, refreshPowder]);
 
   const handleDismissGroupEdit = useCallback(() => {

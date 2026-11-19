@@ -153,8 +153,46 @@ function refreshDateEntriesIfToday(get: () => SupplementState, userId: string) {
   if (latestDateRequest === today) get().fetchDateSupplements(userId, today);
 }
 
+/**
+ * A tap just saved `row` for today: add it to the Nutrition tab's day list locally when that list
+ * is today's and loaded (saves a reload of the whole day on the app's most frequent tap).
+ */
+function addToDateEntries(
+  get: () => SupplementState,
+  set: (fn: (s: SupplementState) => Partial<SupplementState>) => void,
+  userId: string,
+  row: SupplementEntry | null,
+) {
+  const today = toLocalDateString();
+  if (row && !dateLoadInFlight && get().dateEntriesDate === today && loadedDateKey === `${userId}:${today}`) {
+    set((s) => (s.dateEntries.some((e) => e.id === row.id) ? {} : { dateEntries: [...s.dateEntries, row] }));
+  } else {
+    refreshDateEntriesIfToday(get, userId);
+  }
+}
+
+/** A today entry was deleted (undo): drop it from the day list locally, same idea. */
+function removeFromDateEntries(
+  get: () => SupplementState,
+  set: (fn: (s: SupplementState) => Partial<SupplementState>) => void,
+  userId: string,
+  id: string,
+) {
+  const today = toLocalDateString();
+  if (!dateLoadInFlight && get().dateEntriesDate === today && loadedDateKey === `${userId}:${today}`) {
+    set((s) => ({ dateEntries: s.dateEntries.filter((e) => e.id !== id) }));
+  } else {
+    refreshDateEntriesIfToday(get, userId);
+  }
+}
+
+const ENTRY_COLUMNS = 'id, type, amount, created_at';
+
 /** Bumped on sign-out, so a config load still running for the previous account is ignored. */
 let _gen = 0;
+
+/** A day-list load is still on its way: a local change could be overwritten by it, so reload instead. */
+let dateLoadInFlight = false;
 
 /** Latest date asked for by fetchDateSupplements, and a counter so older responses are ignored. */
 let latestDateRequest: string | null = null;
@@ -404,29 +442,25 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   },
 
   fetchSupplementGoals: async (userId: string) => {
-    const gen = _gen; // before any await, so a sign-out during the config load is caught too
-    await get().loadSupplementConfigs(userId);
-
+    const gen = _gen; // before any await, so a sign-out during the loads is caught too
+    // All three at once: the water card used to show the defaults for an extra round trip.
+    const [, raw, { data }] = await Promise.all([
+      get().loadSupplementConfigs(userId),
+      readUserScoped(WATER_AMOUNTS_KEY, userId).catch(() => null),
+      supabase.from('supplement_goals').select('water_goal').eq('user_id', userId).single(),
+    ]);
+    if (gen !== _gen) return;
     try {
-      const raw = await readUserScoped(WATER_AMOUNTS_KEY, userId);
       const parsed = raw ? JSON.parse(raw) : null;
-      if (gen === _gen && Array.isArray(parsed) && parsed.length > 0) set({ waterIncrements: parsed });
+      if (Array.isArray(parsed) && parsed.length > 0) set({ waterIncrements: parsed });
     } catch {}
-
-    const { data } = await supabase
-      .from('supplement_goals')
-      .select('water_goal')
-      .eq('user_id', userId)
-      .single();
-
-    if (data && gen === _gen) {
-      set({ waterGoal: Number(data.water_goal) });
-    }
+    if (data) set({ waterGoal: Number(data.water_goal) });
   },
 
   fetchDateSupplements: async (userId: string, date: string) => {
     latestDateRequest = date;
     const requestId = ++dateRequestId;
+    dateLoadInFlight = true;
     // Switching day (or account): drop the old list so it never shows under the new date.
     const key = `${userId}:${date}`;
     if (key !== loadedDateKey) {
@@ -441,6 +475,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .order('created_at', { ascending: true });
 
     if (requestId !== dateRequestId) return;
+    dateLoadInFlight = false;
     set({ dateEntries: (data as SupplementEntry[]) || [], dateEntriesDate: date });
   },
 
@@ -450,17 +485,17 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     set((s) => ({ water: s.water + ml }));
 
     beginTodayWrite();
-    const { error } = await supabase.from('supplement_entries').insert({
+    const { data: row, error } = await supabase.from('supplement_entries').insert({
       user_id: userId,
       type: 'water',
       amount: ml,
       date: toLocalDateString(),
-    });
+    }).select(ENTRY_COLUMNS).single();
 
     if (error) {
       set((s) => ({ water: s.water - ml }));
     } else {
-      refreshDateEntriesIfToday(get, userId);
+      addToDateEntries(get, set, userId, row as SupplementEntry | null);
     }
     endTodayWrite(get);
   },
@@ -497,7 +532,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     if (error) {
       set((s) => ({ water: s.water + amount }));
     } else {
-      refreshDateEntriesIfToday(get, userId);
+      removeFromDateEntries(get, set, userId, data.id);
     }
     _undoingKeys.delete('water');
     endTodayWrite(get);
@@ -514,12 +549,12 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     }));
 
     beginTodayWrite();
-    const { error } = await supabase.from('supplement_entries').insert({
+    const { data: row, error } = await supabase.from('supplement_entries').insert({
       user_id: userId,
       type: key,
       amount,
       date: toLocalDateString(),
-    });
+    }).select(ENTRY_COLUMNS).single();
 
     if (error) {
       set((s) => ({
@@ -529,7 +564,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
         },
       }));
     } else {
-      refreshDateEntriesIfToday(get, userId);
+      addToDateEntries(get, set, userId, row as SupplementEntry | null);
     }
     endTodayWrite(get);
   },
@@ -562,7 +597,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
         supplementTotals: { ...s.supplementTotals, [key]: Math.round(((s.supplementTotals[key] || 0) + amount) * 100) / 100 },
       }));
     } else {
-      refreshDateEntriesIfToday(get, userId);
+      removeFromDateEntries(get, set, userId, last.id);
     }
     _undoingKeys.delete(key);
     endTodayWrite(get);
@@ -638,6 +673,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   resetForSignOut: () => {
     _gen++;
     dateRequestId++;
+    dateLoadInFlight = false;
     _todayRequestId++;
     _reloadTodayFor = null;
     latestDateRequest = null;

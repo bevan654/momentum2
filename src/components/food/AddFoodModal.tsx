@@ -67,6 +67,9 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const loadFavourites = useFavouritesStore((st) => st.loadFavourites);
 
   const [query, setQuery] = useState('');
+  /** The text the last search ran for (set after the debounce): the results are grouped by it,
+   *  so typing doesn't rebuild the whole list on every keystroke. */
+  const [searchedQuery, setSearchedQuery] = useState('');
   const [tab, setTab] = useState<AddFoodTab>('home');
   const [deepSearchEnabled, setDeepSearchEnabled] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -121,6 +124,7 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
     if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null; }
     setSearchPending(false);
     setQuery('');
+    setSearchedQuery('');
     clearSearch();
     ai.clearCache();
     setDetailFood(null);
@@ -142,6 +146,7 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
     setSearchPending(text.trim().length >= 2);
     searchTimer.current = setTimeout(() => {
       setSearchPending(false);
+      setSearchedQuery(text);
       searchCatalog(text);
       searchCache(text);
     }, 300);
@@ -151,6 +156,7 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     setSearchPending(false);
     setQuery('');
+    setSearchedQuery('');
     clearSearch();
     clearCache();
   }, [clearSearch, clearCache]);
@@ -160,7 +166,7 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   // A Deep Search answer is shown on its own.
   const { myResults, results } = useMemo(() => {
     if (ai.showAiResults) return { myResults: [] as FoodCatalogItem[], results: ai.aiResults };
-    const q = query.trim().toLowerCase();
+    const q = searchedQuery.trim().toLowerCase();
     const seen = new Set<string>();
     const mine: FoodCatalogItem[] = [];
     for (const f of favourites) {
@@ -181,7 +187,7 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
       others.push(r);
     }
     return { myResults: mine, results: others };
-  }, [ai.showAiResults, ai.aiResults, ai.cachedResults, catalogResults, favourites, query]);
+  }, [ai.showAiResults, ai.aiResults, ai.cachedResults, catalogResults, favourites, searchedQuery]);
 
   /* ── Child screens ────────────────────────────────── */
   const openDetail = useCallback((food: FoodDetailData) => { setDetailFood(food); setDetailVisible(true); }, []);

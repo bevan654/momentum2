@@ -206,7 +206,16 @@ async function saveUserCreatedFood(
  * today, so a change to another day (by its `created_at`) skips the request.
  */
 function syncNutrition(userId: string, createdAt?: string) {
-  if (createdAt && toLocalDateString(new Date(createdAt)) !== toLocalDateString()) return;
+  const today = toLocalDateString();
+  if (createdAt && toLocalDateString(new Date(createdAt)) !== today) return;
+  // The diary is showing today's real (loaded) rows: add them up here instead of downloading
+  // the same rows again. Unsaved (temporary) rows are left out, as the server doesn't have them.
+  const key = `${userId}:${today}`;
+  if (loadedEntriesKey === key && fetchedEntriesKey === key) {
+    const rows = useFoodLogStore.getState().entries.filter((e) => !isTempId(e.id));
+    useNutritionStore.getState().setTodayFromRows(userId, rows as unknown as Record<string, unknown>[]);
+    return;
+  }
   useNutritionStore.getState().fetchTodayNutrition(userId);
 }
 
@@ -279,6 +288,16 @@ function keepLoadedDay(entries: FoodEntry[]) {
 
 /** Increments per Recent/Popular load (and sign-out), so a slow one can't land afterwards. */
 let _defaultsReq = 0;
+/** When Recent/Popular last loaded, for whom, and at which write: reused for a few minutes. */
+let _defaultsFor: string | null = null;
+let _defaultsAt = 0;
+let _defaultsWriteSeq = -1;
+const DEFAULTS_FRESH_MS = 5 * 60 * 1000;
+/** The food_entries columns Recent needs (entryToFood), not every column of 100 rows. */
+const RECENT_COLUMNS = [
+  'id', 'name', 'brand', 'food_catalog_id', 'calories', 'protein', 'carbs', 'fat', 'fiber', 'sugar',
+  'serving_size', 'serving_unit', 'quantity', 'created_at', ...MICRO_KEYS,
+].join(', ');
 
 /** Increments per meal-slot load (and sign-out), so an older load can't land afterwards. */
 let _mealsRequestId = 0;
@@ -327,6 +346,8 @@ function endWrite(get: () => FoodLogState) {
 
 /** A failed save is shown, not swallowed: otherwise the food just disappears from the diary. */
 function alertWriteFailed(action: string) {
+  const userId = getCurrentUserId();
+  if (userId) useNutritionStore.getState().fetchTodayNutrition(userId);
   Alert.alert(`Couldn't ${action}`, 'Check your connection and try again.');
 }
 
@@ -885,11 +906,15 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   fetchDefaultFoods: async (userId: string) => {
+    // Opening Log food (and Make a meal inside it) asks again each time: reuse a recent answer
+    // unless food was logged or changed since.
+    if (_defaultsFor === userId && Date.now() - _defaultsAt < DEFAULTS_FRESH_MS && _defaultsWriteSeq === _writeSeq) return;
     const req = ++_defaultsReq;
+    const seqAtStart = _writeSeq;
     const [recentRes, popularRes, history] = await Promise.all([
       supabase
         .from('food_entries')
-        .select('*')
+        .select(RECENT_COLUMNS)
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(100),
@@ -905,7 +930,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     // were deleted), newest first, one per name.
     // Times compared as dates: the server's "+00:00" and the phone's "Z" don't sort as text.
     const candidates: { food: FoodCatalogItem; at: number }[] = [
-      ...(recentRes.data || []).map((d) => ({ food: entryToFood(d), at: Date.parse(d.created_at) || 0 })),
+      ...((recentRes.data || []) as unknown as Record<string, any>[]).map((d) => ({ food: entryToFood(d), at: Date.parse(d.created_at) || 0 })),
       ...history.map((f) => ({ food: f as FoodCatalogItem, at: Date.parse(f.used_at) || 0 })),
     ].sort((a, b) => b.at - a.at);
     const seen = new Set<string>();
@@ -929,18 +954,27 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     }));
 
     if (req !== _defaultsReq) return; // a newer load, or a sign-out, since
+    if (!recentRes.error && !popularRes.error) {
+      _defaultsFor = userId;
+      _defaultsAt = Date.now();
+      _defaultsWriteSeq = seqAtStart;
+    }
     set({ recentFoods, popularFoods });
   },
 
   rememberLoggedFoods: (userId: string, rows: Record<string, any>[]) => {
+    _defaultsFor = null;
     rememberFoods(userId, rows.map(entryToFood)).catch(() => {});
   },
 
   syncExternalWrite: (userId: string, createdAt: string) => {
+    _defaultsFor = null; // Recent includes it next time Log food opens
     const day = toLocalDateString(new Date(createdAt));
     if (loadedEntriesKey === `${userId}:${day}`) get().fetchDayEntries(userId, day);
     else forgetDay(userId, createdAt);
-    syncNutrition(userId, createdAt);
+    if (toLocalDateString(new Date(createdAt)) === toLocalDateString()) {
+      useNutritionStore.getState().fetchTodayNutrition(userId);
+    }
   },
 
   resetForSignOut: () => {
@@ -950,6 +984,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     clearDayCache();
     resetFoodHistory();
     _defaultsReq++;
+    _defaultsFor = null;
     _mealsRequestId++;
     _reloadAfterWrites = null;
     _goalsRequestId++;
