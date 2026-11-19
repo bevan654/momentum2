@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -11,6 +11,7 @@ import FoodRow from './ui/FoodRow';
 import FavouriteButton from './ui/FavouriteButton';
 import FoodEmptyState from './ui/FoodEmptyState';
 import { foodSubtitle, savedMealTotals } from './foodMapping';
+import { confirmDeleteMeal } from './create-meal/confirmDeleteMeal';
 
 export type AddFoodTab = 'home' | 'favourites' | 'meals';
 
@@ -146,7 +147,17 @@ function AddFoodResults({
               carbs={t.carbs}
               fat={t.fat}
               onPress={() => onOpenSavedMeal(item.meal)}
-              trailing={<Ionicons name="chevron-forward" size={ms(16)} color={colors.textTertiary} style={styles.chevron} />}
+              trailing={(
+                <Pressable
+                  onPress={() => confirmDeleteMeal(item.meal)}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.deleteBtn, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${item.meal.name}`}
+                >
+                  <Ionicons name="trash-outline" size={ms(17)} color={colors.textTertiary} />
+                </Pressable>
+              )}
             />
           </View>
         );
@@ -197,7 +208,14 @@ const createStyles = (colors: ThemeColors) =>
     gap: {
       paddingBottom: sw(8),
     },
-    chevron: {
-      paddingHorizontal: sw(8),
+    deleteBtn: {
+      width: sw(36),
+      height: sw(36),
+      borderRadius: sw(18),
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pressed: {
+      opacity: 0.5,
     },
   });

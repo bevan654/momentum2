@@ -44,6 +44,7 @@ interface SavedMealsState {
   loadMeals: () => Promise<void>;
   saveMeal: (name: string, items: MealItem[]) => Promise<string>;
   updateMeal: (id: string, name: string, items: MealItem[]) => Promise<void>;
+  deleteMeal: (id: string) => Promise<void>;
   /** Clears this account's meals from memory (they stay saved on the phone for when it signs in again). */
   resetForSignOut: () => void;
 }
@@ -99,6 +100,13 @@ export const useSavedMealsStore = create<SavedMealsState>((set, get) => ({
     const updated = get().meals.map((m) =>
       m.id === id ? { ...m, name, items, updated_at: new Date().toISOString() } : m,
     );
+    set({ meals: updated });
+    persist(updated);
+  },
+
+  deleteMeal: async (id: string) => {
+    await get().loadMeals();
+    const updated = get().meals.filter((m) => m.id !== id);
     set({ meals: updated });
     persist(updated);
   },

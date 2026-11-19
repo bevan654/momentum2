@@ -23,6 +23,7 @@ import { catalogToDetail } from './foodMapping';
 import { findMealConfig } from './groupEntriesByMeal';
 import MealFoodPicker from './create-meal/MealFoodPicker';
 import { useLogMeal } from './create-meal/useLogMeal';
+import { confirmDeleteMeal } from './create-meal/confirmDeleteMeal';
 import { entriesToMealItems, itemFromData, itemTotals, newItemId, updateItemFromData } from './create-meal/mealItems';
 
 interface Props {
@@ -270,6 +271,14 @@ function CreateMealModal({
     );
   }, [onDismiss]);
 
+  /* ── Delete a saved meal ────────────────────────────── */
+  const handleDeleteMeal = useCallback(() => {
+    const { mealName, editingMealId } = draftRef.current;
+    if (!editingMealId) return;
+    const saved = useSavedMealsStore.getState().meals.find((m) => m.id === editingMealId);
+    confirmDeleteMeal({ id: editingMealId, name: saved?.name || mealName.trim() || 'Meal' }, onDismiss);
+  }, [onDismiss]);
+
   /* ── Log ────────────────────────────────────────────── */
   const logMeal = useLogMeal({ userId, mealSlot, targetHour, editMealGroupId, editMealGroupEntries, onLogged });
   const handleLog = useCallback(() => {
@@ -311,6 +320,9 @@ function CreateMealModal({
             icon="add-circle-outline"
             onPress={handleLog}
             disabled={items.length === 0}
+            secondary={editingMealId
+              ? { icon: 'trash-outline', onPress: handleDeleteMeal, label: 'Delete saved meal', destructive: true }
+              : undefined}
           />
         )}
       >
