@@ -9,6 +9,10 @@ import { Fonts } from '../theme/typography';
 import { useFoodLogStore } from '../stores/useFoodLogStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
+import { useProteinPowderStore, PROTEIN_POWDER_KEY } from '../stores/useProteinPowderStore';
+
+/** Protein powder's count follows its diary snacks: only users who track it load it. */
+const tracksPowder = () => useSupplementStore.getState().supplementConfigs.some((c) => c.key === PROTEIN_POWDER_KEY);
 import MealList from '../components/food/MealList';
 import { hourFromTimeStart, mealSlotForHour, OTHER_SLOT, type MealBucket } from '../components/food/groupEntriesByMeal';
 import AddFoodModal from '../components/food/AddFoodModal';
@@ -82,6 +86,7 @@ function FoodLoggerScreen() {
     if (!userId) return;
     fetchDayEntries(userId, selectedDate);
     fetchDateSupplements(userId, selectedDate);
+    if (tracksPowder()) useProteinPowderStore.getState().fetchDate(userId, selectedDate);
   }, [userId, selectedDate]);
 
   // No auto-scroll to the current hour: the day summary at the top should stay in view.
@@ -111,6 +116,7 @@ function FoodLoggerScreen() {
     if (!userId || totalsDayRef.current === todayStr) return;
     totalsDayRef.current = todayStr;
     useSupplementStore.getState().fetchTodaySupplements(userId);
+    if (tracksPowder()) useProteinPowderStore.getState().fetchToday(userId);
   }, [userId, todayStr]);
 
   // Always pass an hour so food lands on the day being viewed: now for today,
@@ -153,6 +159,7 @@ function FoodLoggerScreen() {
       await Promise.all([
         fetchDayEntries(userId, selectedDate),
         fetchDateSupplements(userId, selectedDate),
+        tracksPowder() ? useProteinPowderStore.getState().fetchDate(userId, selectedDate) : null,
         fetchMealConfigs(userId),
         isToday ? useSupplementStore.getState().fetchTodaySupplements(userId) : null,
       ]);
@@ -233,6 +240,11 @@ function FoodLoggerScreen() {
   // The last delete, offered for a few seconds as "Deleted … · Undo".
   const [undoOffer, setUndoOffer] = useState<UndoOffer | null>(null);
   const undoRowsRef = React.useRef<FoodEntry[]>([]); // React.useRef: the redesign drops the named import
+  // A deleted (or restored) protein powder snack changes the serving count: reload it after.
+  const refreshPowder = useCallback(() => {
+    if (userId && tracksPowder()) useProteinPowderStore.getState().refresh(userId);
+  }, [userId]);
+
   const offerUndo = useCallback((rows: FoodEntry[], message: string) => {
     if (rows.length === 0) return;
     undoRowsRef.current = rows;
@@ -243,8 +255,8 @@ function FoodLoggerScreen() {
     undoRowsRef.current = [];
     setUndoOffer(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    restoreDeleted(rows);
-  }, [restoreDeleted]);
+    restoreDeleted(rows).then(refreshPowder);
+  }, [restoreDeleted, refreshPowder]);
   const handleUndoExpire = useCallback(() => {
     undoRowsRef.current = [];
     setUndoOffer(null);
@@ -254,9 +266,9 @@ function FoodLoggerScreen() {
     const removed = useFoodLogStore.getState().entries.filter((e) => e.id === id);
     offerUndo(removed, `Deleted ${removed[0]?.name ?? 'food'}`);
     setEditDetailVisible(false);
-    deleteEntry(id);
+    deleteEntry(id).then(refreshPowder);
     clearEditEntrySoon();
-  }, [deleteEntry, offerUndo]);
+  }, [deleteEntry, offerUndo, refreshPowder]);
 
   // Meal group handlers
   const handlePressMealGroup = useCallback((groupId: string, groupEntries: FoodEntry[]) => {
@@ -271,8 +283,8 @@ function FoodLoggerScreen() {
   const handleDeleteMealGroup = useCallback((groupId: string) => {
     const removed = useFoodLogStore.getState().entries.filter((e) => e.meal_group_id === groupId);
     offerUndo(removed, `Deleted ${removed[0]?.meal_group_name || 'meal'}`);
-    deleteMealGroup(groupId);
-  }, [deleteMealGroup, offerUndo]);
+    deleteMealGroup(groupId).then(refreshPowder);
+  }, [deleteMealGroup, offerUndo, refreshPowder]);
 
   const handleDismissGroupEdit = useCallback(() => {
     setEditGroupModalVisible(false);

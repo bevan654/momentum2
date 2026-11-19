@@ -2,6 +2,8 @@ import React from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView,
   type StyleProp, type ViewStyle,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Overlay from '../ui/Overlay';
@@ -18,6 +20,9 @@ import { sw, ms } from '../../theme/responsive';
 /* ─── Styles (one sheet per palette) ──────────────────── */
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: colors.backdrop + '99',
@@ -212,13 +217,16 @@ export default function CardDetailSheet({ visible, onClose, onDismiss, children 
 function SheetFrame({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   const styles = useCardDetailStyles();
   return (
-    <Pressable style={styles.backdrop} onPress={onClose}>
-      <Pressable style={styles.sheet} onPress={stopPropagation}>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {children}
-        </ScrollView>
+    // Moves up out of the keyboard's way when a popup has a field (e.g. protein powder servings).
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <Pressable style={styles.sheet} onPress={stopPropagation}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {children}
+          </ScrollView>
+        </Pressable>
       </Pressable>
-    </Pressable>
+    </KeyboardAvoidingView>
   );
 }
 

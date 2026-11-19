@@ -28,7 +28,7 @@ This project is a continuation of an app built with an older model, so expect bu
 | Language | TypeScript 5.9 (strict) |
 | React | 19.1 |
 | Navigation | React Navigation 7 — `native-stack`, `material-top-tabs` (used as bottom bar with custom UI) |
-| State | Zustand 5 (23 stores) |
+| State | Zustand 5 (24 stores) |
 | Animations | Reanimated 4.1 + react-native-worklets — UI-thread only. Never RN `Animated`. |
 | Graphics | @shopify/react-native-skia 2.2 for performance-critical visuals; react-native-svg 15.12 is still installed but no longer imported (removing it needs a native build) |
 | Body map | `momentum-muscle-map` (our own library, git dependency pinned to a release tag; the lockfile pins its commit): Skia + Reanimated renderer, JS only, so OTA-safe |
@@ -140,7 +140,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 
 ---
 
-## State Management — 23 Zustand Stores
+## State Management — 24 Zustand Stores
 
 | Store | Persistence | Responsibility |
 |---|---|---|
@@ -156,6 +156,7 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | `useSavedMealsStore` | AsyncStorage (per account) | User-saved meal templates (on this phone only) |
 | `useFavouritesStore` | AsyncStorage (per account) | Favourited foods (on this phone only) |
 | `useSupplementStore` | Supabase | Water + creatine entries/goals (optimistic) |
+| `useProteinPowderStore` | Supabase | Protein powder supplement: the user's powders and each add (servings), which also logs a Snacks entry; the count follows that diary row |
 | `useWeightStore` | Supabase | Weight entries + EMA trend |
 | `useBodyFatStore` | Supabase | Body-fat % entries |
 | `useMeasurementStore` | Supabase | Tape measurements (chest/arms/etc.) |

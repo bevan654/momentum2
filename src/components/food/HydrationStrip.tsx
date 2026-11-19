@@ -6,8 +6,10 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useSupplementStore, type SupplementEntry } from '../../stores/useSupplementStore';
-import SupplementLogSheet from './SupplementLogSheet';
+import { useSupplementStore } from '../../stores/useSupplementStore';
+import { useProteinPowderStore, PROTEIN_POWDER_KEY } from '../../stores/useProteinPowderStore';
+import SupplementLogSheet, { type LogSheetEntry } from './SupplementLogSheet';
+import ProteinPowderModal from '../home/ProteinPowderModal';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -103,21 +105,32 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
   const setWaterIncrements = useSupplementStore((s) => s.setWaterIncrements);
   const updateSupplementConfig = useSupplementStore((s) => s.updateSupplementConfig);
   const waterStep = waterIncrements[0] ?? 250;
+  // Protein powder counts its own adds (each also a diary snack), not supplement entries.
+  const powderToday = useProteinPowderStore((s) => s.todayServings);
+  const powderLogs = useProteinPowderStore((s) => s.dateLogs);
+  const powderConfig = configs.find((c) => c.key === PROTEIN_POWDER_KEY);
+  const [powderOpen, setPowderOpen] = useState(false);
+  const handleClosePowder = useCallback(() => setPowderOpen(false), []);
   // logKey picks what the sheet shows; it stays set while the sheet fades out.
   const [logKey, setLogKey] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
 
   // Today uses the live totals; a past day adds up that day's entries.
   const { waterMl, totals } = useMemo(() => {
-    if (isToday) return { waterMl: water, totals: todayTotals };
     let w = 0;
-    const t: Record<string, number> = {};
-    for (const e of dateEntries) {
-      if (e.type === 'water') w += Number(e.amount);
-      else t[e.type] = (t[e.type] || 0) + Number(e.amount);
+    let t: Record<string, number> = {};
+    if (isToday) {
+      w = water;
+      t = { ...todayTotals, [PROTEIN_POWDER_KEY]: powderToday };
+    } else {
+      for (const e of dateEntries) {
+        if (e.type === 'water') w += Number(e.amount);
+        else t[e.type] = (t[e.type] || 0) + Number(e.amount);
+      }
+      t[PROTEIN_POWDER_KEY] = Math.round(powderLogs.reduce((n, l) => n + l.amount, 0) * 100) / 100;
     }
     return { waterMl: w, totals: t };
-  }, [isToday, water, todayTotals, dateEntries]);
+  }, [isToday, water, todayTotals, dateEntries, powderToday, powderLogs]);
 
   const waterInLitres = waterGoal >= 1000;
 
@@ -125,6 +138,7 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
     if (!userId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (key === WATER_KEY) addWater(userId, step);
+    else if (key === PROTEIN_POWDER_KEY) setPowderOpen(true); // choose the powder and servings
     else addSupplement(userId, key, step);
   }, [userId, addWater, addSupplement]);
 
@@ -135,13 +149,20 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
   }, []);
   const handleCloseLog = useCallback(() => setLogOpen(false), []);
   const handleLogClosed = useCallback(() => setLogKey(null), []);
-  const handleDeleteEntry = useCallback((entry: SupplementEntry) => {
+  const handleDeleteEntry = useCallback((entry: LogSheetEntry) => {
     if (!userId) return;
-    deleteSupplementEntry(userId, entry);
-  }, [userId, deleteSupplementEntry]);
+    if (logKey === PROTEIN_POWDER_KEY) {
+      const log = useProteinPowderStore.getState().dateLogs.find((l) => l.id === entry.id);
+      if (log) useProteinPowderStore.getState().deleteLog(userId, log);
+      return;
+    }
+    const supplementEntry = useSupplementStore.getState().dateEntries.find((e) => e.id === entry.id);
+    if (supplementEntry) deleteSupplementEntry(userId, supplementEntry);
+  }, [userId, logKey, deleteSupplementEntry]);
 
   const logConfig = logKey && logKey !== WATER_KEY ? configs.find((c) => c.key === logKey) : undefined;
-  const logAmounts = logKey === WATER_KEY ? waterIncrements : logConfig?.increments ?? [];
+  // Protein powder has no quick amounts: each add picks a powder and servings in its picker.
+  const logAmounts = logKey === WATER_KEY ? waterIncrements : logKey === PROTEIN_POWDER_KEY ? [] : logConfig?.increments ?? [];
 
   // Saved to the account: supplements in their config (synced), water on this phone for now.
   const handleAmountsChange = useCallback((amounts: number[]) => {
@@ -152,10 +173,15 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
   const handleLogAmount = useCallback((amount: number) => {
     if (logKey) handleAdd(logKey, amount);
   }, [logKey, handleAdd]);
-  const logEntries = useMemo(
-    () => (logKey ? dateEntries.filter((e) => e.type === logKey) : []),
-    [logKey, dateEntries],
-  );
+  const logEntries: LogSheetEntry[] = useMemo(() => {
+    if (!logKey) return [];
+    if (logKey === PROTEIN_POWDER_KEY) {
+      return powderLogs.map((l) => ({ id: l.id, amount: l.amount, created_at: l.created_at, note: l.name }));
+    }
+    return dateEntries
+      .filter((e) => e.type === logKey)
+      .map((e) => ({ id: e.id, amount: Number(e.amount), created_at: e.created_at }));
+  }, [logKey, dateEntries, powderLogs]);
 
   // Water first, then each supplement, laid out two per row. An odd one out on the last row
   // stretches to the full width, so the grid always looks filled.
@@ -223,6 +249,9 @@ function HydrationStrip({ isToday }: { isToday: boolean }) {
       onClose={handleCloseLog}
       onClosed={handleLogClosed}
     />
+    {powderConfig && (
+      <ProteinPowderModal visible={powderOpen} onClose={handleClosePowder} config={powderConfig} />
+    )}
     </>
   );
 }

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
 import { toLocalDateString } from '../utils/localDate';
+import { PROTEIN_POWDER_KEY } from './useProteinPowderStore';
 
 const CONFIGS_KEY = '@momentum_supplement_configs';
 /** Water's quick amounts (ml). Stored on the phone per account until the database has a column for them. */
@@ -42,7 +43,8 @@ export const SUPPLEMENT_PRESETS: SupplementPreset[] = [
   { key: 'magnesium', name: 'Magnesium', defaultGoal: 400, unit: 'mg', icon: 'sparkles-outline', color: '#8B5CF6', increments: [200, 400] },
   { key: 'zinc', name: 'Zinc', defaultGoal: 15, unit: 'mg', icon: 'shield-outline', color: '#64748B', increments: [15] },
   { key: 'caffeine', name: 'Caffeine', defaultGoal: 200, unit: 'mg', icon: 'cafe-outline', color: '#92400E', increments: [100, 200] },
-  { key: 'protein_powder', name: 'Protein', defaultGoal: 30, unit: 'g', icon: 'nutrition-outline', color: '#86EFAC', increments: [25, 30] },
+  // Counted in servings of the user's own powders; each add also logs a snack (useProteinPowderStore).
+  { key: PROTEIN_POWDER_KEY, name: 'Protein powder', defaultGoal: 1, unit: 'servings', icon: 'nutrition-outline', color: '#86EFAC', increments: [1] },
   { key: 'ashwagandha', name: 'Ashwagandha', defaultGoal: 600, unit: 'mg', icon: 'leaf-outline', color: '#22C55E', increments: [300, 600] },
 ];
 
@@ -130,7 +132,8 @@ interface SupplementState {
   fetchDateSupplements: (userId: string, date: string) => Promise<void>;
   addWater: (userId: string, ml: number) => Promise<void>;
   addSupplement: (userId: string, key: string, amount: number) => Promise<void>;
-  resetSupplement: (userId: string, key: string) => Promise<void>;
+  /** Removes today's most recent entry of this supplement (not the whole day). */
+  undoLastSupplement: (userId: string, key: string) => Promise<void>;
   deleteSupplementEntry: (userId: string, entry: SupplementEntry) => Promise<void>;
   undoLastWater: (userId: string) => Promise<void>;
   /** Optimistic; rolls back and returns the error message if the save fails. */
@@ -519,23 +522,29 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     endTodayWrite(get);
   },
 
-  resetSupplement: async (userId: string, key: string) => {
-    const prev = get().supplementTotals[key] || 0;
-    set((s) => ({
-      supplementTotals: { ...s.supplementTotals, [key]: 0 },
-    }));
-
+  undoLastSupplement: async (userId: string, key: string) => {
     beginTodayWrite();
-    const { error } = await supabase
+    const { data: last } = await supabase
       .from('supplement_entries')
-      .delete()
+      .select('id, amount')
       .eq('user_id', userId)
       .eq('date', toLocalDateString())
-      .eq('type', key);
+      .eq('type', key)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!last) {
+      endTodayWrite(get);
+      return;
+    }
+    const amount = Number(last.amount) || 0;
+    const sub = (v: number) => Math.max(0, Math.round((v - amount) * 100) / 100);
+    set((s) => ({ supplementTotals: { ...s.supplementTotals, [key]: sub(s.supplementTotals[key] || 0) } }));
 
+    const { error } = await supabase.from('supplement_entries').delete().eq('id', last.id);
     if (error) {
       set((s) => ({
-        supplementTotals: { ...s.supplementTotals, [key]: prev },
+        supplementTotals: { ...s.supplementTotals, [key]: Math.round(((s.supplementTotals[key] || 0) + amount) * 100) / 100 },
       }));
     } else {
       refreshDateEntriesIfToday(get, userId);

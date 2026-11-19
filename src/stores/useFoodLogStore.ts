@@ -251,6 +251,11 @@ interface FoodLogState {
   fetchDefaultFoods: (userId: string) => Promise<void>;
   /** Keeps just-logged rows in this phone's food history (Recent / "Your foods" survive deletes). */
   rememberLoggedFoods: (userId: string, rows: Record<string, any>[]) => void;
+  /**
+   * Food written to the diary from outside this store (e.g. protein powder): reloads its day if
+   * it's on screen (or forgets the day's cached copy) and refreshes Home's totals.
+   */
+  syncExternalWrite: (userId: string, createdAt: string) => void;
   /** Clears the previous account's diary, goals, meals and recent foods from memory. */
   resetForSignOut: () => void;
 }
@@ -904,6 +909,13 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
 
   rememberLoggedFoods: (userId: string, rows: Record<string, any>[]) => {
     rememberFoods(userId, rows.map(entryToFood)).catch(() => {});
+  },
+
+  syncExternalWrite: (userId: string, createdAt: string) => {
+    const day = toLocalDateString(new Date(createdAt));
+    if (loadedEntriesKey === `${userId}:${day}`) get().fetchDayEntries(userId, day);
+    else forgetDay(userId, createdAt);
+    syncNutrition(userId, createdAt);
   },
 
   resetForSignOut: () => {

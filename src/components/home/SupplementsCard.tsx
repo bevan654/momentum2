@@ -1,14 +1,16 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { useSupplementStore, type SupplementConfig } from '../../stores/useSupplementStore';
+import { useProteinPowderStore, PROTEIN_POWDER_KEY } from '../../stores/useProteinPowderStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { sw, ms } from '../../theme/responsive';
 import AddSupplementModal from './AddSupplementModal';
 import SupplementDetailModal, { formatIncrement } from './SupplementDetailModal';
+import ProteinPowderModal from './ProteinPowderModal';
 
 const GRID_GAP = sw(10);
 const COLUMNS = 2;
@@ -19,6 +21,7 @@ interface CellProps {
   config: SupplementConfig;
   total: number;
   onAdd: (key: string, amount: number) => void;
+  /** Removes the most recent add (not the whole day). */
   onReset: (key: string) => void;
   /** When true, renders without own bg/shadow/width (used inside splitCard) */
   embedded?: boolean;
@@ -33,6 +36,9 @@ const SupplementCell = React.memo(function SupplementCell({
   const complete = total >= config.dailyGoal;
   const [expanded, setExpanded] = useState(false);
   const handleClose = useCallback(() => setExpanded(false), []);
+  // Protein powder always opens its picker (choose the powder and servings).
+  const isPowder = config.key === PROTEIN_POWDER_KEY;
+  const shown = Math.round(total * 100) / 100;
 
   return (
       <TouchableOpacity
@@ -55,7 +61,7 @@ const SupplementCell = React.memo(function SupplementCell({
 
         {/* Value */}
         <View style={styles.cellValueRow}>
-          <Text style={styles.cellCurrent}>{total}</Text>
+          <Text style={styles.cellCurrent}>{shown}</Text>
           <Text style={styles.cellGoal}>/{config.dailyGoal}{config.unit}</Text>
           {complete && (
             <Ionicons name="checkmark-circle" size={ms(14)} color={config.color} style={{ marginLeft: sw(4) }} />
@@ -70,7 +76,13 @@ const SupplementCell = React.memo(function SupplementCell({
         </View>
 
         {/* Buttons */}
-        {!complete && (
+        {isPowder ? (
+          <View style={styles.cellButtons}>
+            <TouchableOpacity style={styles.cellAddBtn} onPress={() => setExpanded(true)} activeOpacity={0.7}>
+              <Text style={styles.cellAddBtnText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !complete && (
           <View style={styles.cellButtons}>
             {config.increments.map((inc) => (
               <TouchableOpacity
@@ -85,14 +97,18 @@ const SupplementCell = React.memo(function SupplementCell({
           </View>
         )}
         {/* Detail modal (portalled; builds nothing while closed) */}
-        <SupplementDetailModal
-          visible={expanded}
-          onClose={handleClose}
-          config={config}
-          total={total}
-          onAdd={onAdd}
-          onReset={onReset}
-        />
+        {isPowder ? (
+          <ProteinPowderModal visible={expanded} onClose={handleClose} config={config} />
+        ) : (
+          <SupplementDetailModal
+            visible={expanded}
+            onClose={handleClose}
+            config={config}
+            total={total}
+            onAdd={onAdd}
+            onReset={onReset}
+          />
+        )}
       </TouchableOpacity>
     );
 });
@@ -103,8 +119,20 @@ function SupplementsCard() {
   const configs = useSupplementStore((s) => s.supplementConfigs);
   const totals = useSupplementStore((s) => s.supplementTotals);
   const addSupplement = useSupplementStore((s) => s.addSupplement);
-  const resetSupplement = useSupplementStore((s) => s.resetSupplement);
+  const undoLastSupplement = useSupplementStore((s) => s.undoLastSupplement);
   const userId = useAuthStore((s) => s.user?.id);
+  const powderServings = useProteinPowderStore((s) => s.todayServings);
+  const hasPowder = configs.some((c) => c.key === PROTEIN_POWDER_KEY);
+
+  // Protein powder's servings load only for users who track it: now, and when the app returns.
+  useEffect(() => {
+    if (!userId || !hasPowder) return;
+    useProteinPowderStore.getState().fetchToday(userId);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') useProteinPowderStore.getState().fetchToday(userId);
+    });
+    return () => sub.remove();
+  }, [userId, hasPowder]);
   const colors = useColors();
   const styles = useMemo(() => createCardStyles(colors), [colors]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -116,8 +144,12 @@ function SupplementsCard() {
 
   const handleReset = useCallback((key: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (userId) resetSupplement(userId, key);
-  }, [userId, resetSupplement]);
+    if (!userId) return;
+    if (key === PROTEIN_POWDER_KEY) useProteinPowderStore.getState().undoLast(userId);
+    else undoLastSupplement(userId, key);
+  }, [userId, undoLastSupplement]);
+  // Protein powder's count comes from its own log (each add is also a diary snack).
+  const totalFor = (key: string) => (key === PROTEIN_POWDER_KEY ? powderServings : totals[key] || 0);
 
   let body: React.ReactNode;
 
@@ -143,7 +175,7 @@ function SupplementsCard() {
         <View style={styles.splitLeft}>
           <SupplementCell
             config={config}
-            total={totals[config.key] || 0}
+            total={totalFor(config.key)}
             onAdd={handleAdd}
             onReset={handleReset}
             embedded
@@ -176,7 +208,7 @@ function SupplementsCard() {
               <View key={config.key} style={gridStyles.item}>
                 <SupplementCell
                   config={config}
-                  total={totals[config.key] || 0}
+                  total={totalFor(config.key)}
                   onAdd={handleAdd}
                   onReset={handleReset}
                 />

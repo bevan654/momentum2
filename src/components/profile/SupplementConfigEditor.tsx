@@ -14,6 +14,8 @@ import {
 } from '../../stores/useSupplementStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import GoalEditorRow, { createGoalEditorStyles } from './settings/GoalEditorRow';
+import ProteinPowderManager from './settings/ProteinPowderManager';
+import { PROTEIN_POWDER_KEY } from '../../stores/useProteinPowderStore';
 
 const UNITS = ['g', 'mg', 'mcg', 'IU', 'ml', 'caps'];
 
@@ -132,12 +134,20 @@ function SupplementConfigEditor() {
     <View>
       {/* Active supplements */}
       {configs.map((config) => (
-        <SupplementGoalRow
-          key={config.key}
-          config={config}
-          onGoalChange={handleGoalChange}
-          onRemove={handleRemove}
-        />
+        <React.Fragment key={config.key}>
+          <SupplementGoalRow
+            config={config}
+            onGoalChange={handleGoalChange}
+            onRemove={handleRemove}
+          />
+          {/* Protein powder: the user's powders (flavours), each with its macros per serving. */}
+          {config.key === PROTEIN_POWDER_KEY && (
+            <View style={styles.powders}>
+              <Text style={styles.powdersLabel}>My powders</Text>
+              <ProteinPowderManager />
+            </View>
+          )}
+        </React.Fragment>
       ))}
 
       {/* Add supplement */}
@@ -235,6 +245,19 @@ function SupplementConfigEditor() {
 /* ─── Styles ──────────────────────────────────────────── */
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  powders: {
+    gap: sw(8),
+    paddingBottom: sw(12),
+    paddingLeft: sw(8),
+  },
+  powdersLabel: {
+    color: colors.textTertiary,
+    fontSize: ms(11),
+    lineHeight: ms(15),
+    fontFamily: Fonts.semiBold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   customToggle: {
     flexDirection: 'row',
     alignItems: 'center',

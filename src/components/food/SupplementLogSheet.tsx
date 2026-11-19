@@ -5,16 +5,24 @@ import Overlay from '../ui/Overlay';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms, sh } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
-import type { SupplementEntry } from '../../stores/useSupplementStore';
 import QuickAmountsEditor from './QuickAmountsEditor';
+
+/** One logged amount (a supplement entry, or a protein powder add with the powder's name). */
+export interface LogSheetEntry {
+  id: string;
+  amount: number;
+  created_at: string;
+  /** Shown after the amount, e.g. the protein powder's name; deleting it also removes its diary snack. */
+  note?: string;
+}
 
 interface Props {
   visible: boolean;
   label: string;
   unit: string;
   color: string;
-  entries: SupplementEntry[];
-  onDelete: (entry: SupplementEntry) => void;
+  entries: LogSheetEntry[];
+  onDelete: (entry: LogSheetEntry) => void;
   /** Quick amounts (the first is the tile's one-tap amount), edited here. */
   amounts: number[];
   onAmountsChange: (amounts: number[]) => void;
@@ -36,9 +44,9 @@ function SupplementLogSheet({ visible, label, unit, color, entries, onDelete, am
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   // The bin icon is small and next to the list: ask first, so a stray tap can't delete an entry.
-  const confirmDelete = useCallback((e: SupplementEntry) => {
-    const amount = `${Math.round(Number(e.amount) * 10) / 10} ${unit}`;
-    Alert.alert(`Delete ${amount} of ${label}?`, undefined, [
+  const confirmDelete = useCallback((e: LogSheetEntry) => {
+    const amount = `${Math.round(Number(e.amount) * 100) / 100} ${unit}`;
+    Alert.alert(`Delete ${amount} of ${e.note || label}?`, e.note ? "It's also removed from your food diary." : undefined, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => onDelete(e) },
     ]);
@@ -66,8 +74,9 @@ function SupplementLogSheet({ visible, label, unit, color, entries, onDelete, am
             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
               {entries.map((e, i) => (
                 <View key={e.id} style={[styles.row, i > 0 && styles.divider]}>
-                  <Text style={styles.amount}>
-                    {Math.round(Number(e.amount) * 10) / 10} {unit}
+                  <Text style={styles.amount} numberOfLines={1}>
+                    {Math.round(Number(e.amount) * 100) / 100} {unit}
+                    {e.note ? <Text style={styles.note}> · {e.note}</Text> : null}
                   </Text>
                   <Text style={styles.time}>{formatTime(e.created_at)}</Text>
                   <TouchableOpacity
@@ -165,6 +174,10 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: ms(14),
       lineHeight: ms(19),
       fontFamily: Fonts.semiBold,
+    },
+    note: {
+      color: colors.textSecondary,
+      fontFamily: Fonts.medium,
     },
     time: {
       color: colors.textTertiary,

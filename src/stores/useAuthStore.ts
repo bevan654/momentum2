@@ -7,6 +7,7 @@ import { useActiveWorkoutStore } from './useActiveWorkoutStore';
 import { useFoodLogStore } from './useFoodLogStore';
 import { useNutritionStore } from './useNutritionStore';
 import { useSavedMealsStore } from './useSavedMealsStore';
+import { useProteinPowderStore } from './useProteinPowderStore';
 import { useFavouritesStore } from './useFavouritesStore';
 import { useNutrientGoalStore } from './useNutrientGoalStore';
 import { useSupplementStore } from './useSupplementStore';
@@ -131,6 +132,7 @@ function resetFoodStores() {
   useFavouritesStore.getState().resetForSignOut();
   useNutrientGoalStore.getState().resetForSignOut();
   useSupplementStore.getState().resetForSignOut();
+  useProteinPowderStore.getState().resetForSignOut();
 }
 
 /**
