@@ -912,7 +912,8 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const recentFoods: FoodCatalogItem[] = [];
     for (const { food } of candidates) {
       const key = food.name?.toLowerCase();
-      if (!key || seen.has(key)) continue;
+      // Unnamed Quick adds are one-off numbers, not foods to pick again.
+      if (!key || seen.has(key) || key.trim() === UNNAMED_QUICK_ADD) continue;
       seen.add(key);
       recentFoods.push(food);
       if (recentFoods.length >= 25) break;

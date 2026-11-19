@@ -285,8 +285,9 @@ function FoodLoggerScreen() {
     offerUndo(removed, `Deleted ${removed[0]?.name ?? 'food'}`);
     setEditDetailVisible(false);
     deleteEntry(id).then((ok) => {
-      // It's back on screen: an Undo offer would now re-insert (or hide) a food that still exists.
-      if (!ok) handleUndoExpire();
+      // It's back on screen: its Undo would now re-insert (or hide) a food that still exists.
+      // Only withdraw it if it's still this food's offer (not a later delete's).
+      if (!ok && undoRowsRef.current.some((r) => r.id === id)) handleUndoExpire();
       refreshPowder();
     });
     clearEditEntrySoon();

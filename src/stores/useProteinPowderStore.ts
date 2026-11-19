@@ -117,17 +117,27 @@ let _undoing = false;
 
 /** Runs a write while counting it as pending, then reloads once if a load landed meanwhile. */
 async function trackedWrite<T>(get: () => ProteinPowderState, run: () => Promise<T>): Promise<T> {
+  const gen = _gen;
   _pending++;
   _writeSeq++;
   try {
     return await run();
   } finally {
-    _pending = Math.max(0, _pending - 1);
-    if (_pending === 0 && _reloadFor) {
-      const userId = _reloadFor;
-      _reloadFor = null;
-      get().refresh(userId);
-    }
+    // Signed out meanwhile: the counters were reset, and a reload would run for the next account.
+    if (gen === _gen) finishWrite(get);
+  }
+}
+
+/** A write finished: reload once if a count load landed while it was saving. */
+function finishWrite(get: () => ProteinPowderState) {
+  _pending = Math.max(0, _pending - 1);
+  // Bumped again on finishing, so a load that began during the write and lands after it
+  // (seeing nothing pending) still knows to load again.
+  _writeSeq++;
+  if (_pending === 0 && _reloadFor) {
+    const userId = _reloadFor;
+    _reloadFor = null;
+    get().refresh(userId);
   }
 }
 
@@ -370,6 +380,8 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
 
   resetForSignOut: () => {
     _gen++;
+    _pending = 0;
+    _reloadFor = null;
     _todayReq++;
     _dateReq++;
     set({ powders: [], powdersLoaded: false, lastPowderId: null, todayServings: 0, dateLogs: [], logsDate: null });

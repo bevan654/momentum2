@@ -46,7 +46,10 @@ export function NutritionGoalsEditor() {
     if (!userId) return;
     const val = parseInt(waterText, 10);
     // Unchanged (e.g. tapped through before the real goal loaded): saving would write the default.
-    if (val === waterGoal) return;
+    if (val === waterGoal) {
+      setWaterText(String(waterGoal));
+      return;
+    }
     if (!isNaN(val) && val > 0) {
       updateSupplementGoals(userId, { water_goal: val });
     } else {

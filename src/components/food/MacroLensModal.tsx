@@ -125,13 +125,13 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
 
   // Cycle status phrases while analyzing
   useEffect(() => {
-    if (mode !== 'analyzing') return;
+    if (mode !== 'analyzing' || !visible) return;
     setStatusIdx(0);
     const id = setInterval(() => {
       setStatusIdx((i) => (i + 1) % STATUS_PHRASES.length);
     }, 1600);
     return () => clearInterval(id);
-  }, [mode]);
+  }, [mode, visible]);
 
   const reticleStyle = useAnimatedStyle(() => ({
     transform: [{ scale: reticlePulse.value }],
@@ -164,6 +164,10 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
   }, [visible]);
 
   const handleClose = useCallback(() => {
+    // It stays mounted while closed, so a scan still running must be cancelled here, or its
+    // reply would land on the hidden screen (and use up nothing the user still wants).
+    scanRef.current?.abort();
+    scanRef.current = null;
     resetToCamera();
     onDismiss();
   }, [onDismiss, resetToCamera]);

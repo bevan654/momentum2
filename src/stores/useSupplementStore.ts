@@ -404,9 +404,9 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   },
 
   fetchSupplementGoals: async (userId: string) => {
+    const gen = _gen; // before any await, so a sign-out during the config load is caught too
     await get().loadSupplementConfigs(userId);
 
-    const gen = _gen;
     try {
       const raw = await readUserScoped(WATER_AMOUNTS_KEY, userId);
       const parsed = raw ? JSON.parse(raw) : null;
