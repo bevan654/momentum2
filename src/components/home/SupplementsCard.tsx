@@ -63,7 +63,9 @@ const SupplementCell = React.memo(function SupplementCell({
         {/* Value */}
         <View style={styles.cellValueRow}>
           <Text style={styles.cellCurrent}>{shown}</Text>
-          <Text style={styles.cellGoal}>/{config.dailyGoal}{config.unit}</Text>
+          <Text style={styles.cellGoal} numberOfLines={1}>
+            /{config.dailyGoal}{config.unit.length > 3 ? ` ${config.unit}` : config.unit}
+          </Text>
           {complete && (
             <Ionicons name="checkmark-circle" size={ms(14)} color={config.color} style={{ marginLeft: sw(4) }} />
           )}

@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, TextInput, StyleSheet, Pressable, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useColors, type ThemeColors } from '../../../theme/useColors';
-import { sw, ms } from '../../../theme/responsive';
-import { Fonts } from '../../../theme/typography';
-import { useAuthStore } from '../../../stores/useAuthStore';
-import { useThemeStore } from '../../../stores/useThemeStore';
-import { useProteinPowderStore, type ProteinPowder, type PowderInput } from '../../../stores/useProteinPowderStore';
-import { sanitizeDecimal } from '../../food/decimalInput';
+import { useColors, type ThemeColors } from '../../theme/useColors';
+import { sw, ms } from '../../theme/responsive';
+import { Fonts } from '../../theme/typography';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { useThemeStore } from '../../stores/useThemeStore';
+import { useProteinPowderStore, type ProteinPowder, type PowderInput } from '../../stores/useProteinPowderStore';
+import { sanitizeDecimal } from '../food/decimalInput';
 
 /** "120 kcal · P 24 · C 3 · F 1" for one serving. */
 export function powderMacros(p: Pick<ProteinPowder, 'calories' | 'protein' | 'carbs' | 'fat'>, servings = 1): string {
@@ -113,10 +113,12 @@ const PowderForm = React.memo(function PowderForm({ initial, onSave, onCancel, s
 interface Props {
   /** Opens straight into the add form (e.g. no powders yet in the Home picker). */
   startAdding?: boolean;
+  /** Called with a newly added powder (the Home picker goes back to its list with it selected). */
+  onAdded?: (powder: ProteinPowder) => void;
 }
 
 /** The user's protein powders: add, edit and delete (each with its macros per serving). */
-function ProteinPowderManager({ startAdding }: Props) {
+function ProteinPowderManager({ startAdding, onAdded }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const userId = useAuthStore((s) => s.user?.id);
@@ -130,13 +132,14 @@ function ProteinPowderManager({ startAdding }: Props) {
 
   const handleAdd = useCallback(async (input: PowderInput) => {
     if (!userId) return false;
-    const ok = !!(await useProteinPowderStore.getState().addPowder(userId, input));
-    if (ok) {
+    const powder = await useProteinPowderStore.getState().addPowder(userId, input);
+    if (powder) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setEditingId(null);
+      onAdded?.(powder);
     }
-    return ok;
-  }, [userId]);
+    return !!powder;
+  }, [userId, onAdded]);
 
   const handleUpdate = useCallback(async (input: PowderInput) => {
     if (!userId || !editingId || editingId === 'new') return false;

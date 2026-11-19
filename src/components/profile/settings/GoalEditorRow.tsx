@@ -42,7 +42,7 @@ function GoalEditorRow({ icon, color, label, unit, value, keyboardType, unitWidt
       <View style={[styles.rowIcon, { backgroundColor: color + '15' }]}>
         <Ionicons name={icon as any} size={ms(13)} color={color} />
       </View>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.label} numberOfLines={1}>{label}</Text>
       <View style={styles.goalInputWrap}>
         <TextInput
           style={styles.input}
@@ -52,7 +52,8 @@ function GoalEditorRow({ icon, color, label, unit, value, keyboardType, unitWidt
           keyboardType={keyboardType}
           placeholderTextColor={colors.textTertiary}
         />
-        <Text style={[styles.unitText, unitWidth != null && { width: unitWidth }]}>{unit}</Text>
+        {/* One line: a long unit ("servings") takes the room it needs and the name shortens. */}
+        <Text style={[styles.unitText, unitWidth != null && { minWidth: unitWidth }]} numberOfLines={1}>{unit}</Text>
       </View>
       <TouchableOpacity onPress={onRemove} hitSlop={8} style={styles.removeBtn}>
         <Ionicons name="close-circle" size={ms(18)} color={colors.textTertiary} />
@@ -107,7 +108,7 @@ export const createGoalEditorStyles = (colors: ThemeColors) => StyleSheet.create
     fontSize: ms(12),
     lineHeight: ms(16),
     fontFamily: Fonts.medium,
-    width: sw(24),
+    minWidth: sw(24),
   },
   removeBtn: {
     marginLeft: sw(2),

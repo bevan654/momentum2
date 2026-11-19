@@ -8,11 +8,11 @@ import { Fonts } from '../../theme/typography';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { useFoodLogStore } from '../../stores/useFoodLogStore';
-import { useProteinPowderStore } from '../../stores/useProteinPowderStore';
+import { useProteinPowderStore, type ProteinPowder } from '../../stores/useProteinPowderStore';
 import type { SupplementConfig } from '../../stores/useSupplementStore';
 import { findMealConfig } from '../food/groupEntriesByMeal';
 import { sanitizeDecimal } from '../food/decimalInput';
-import ProteinPowderManager, { powderMacros } from '../profile/settings/ProteinPowderManager';
+import ProteinPowderManager, { powderMacros } from './ProteinPowderManager';
 import CardDetailSheet, { CardDetailHero, CardDetailSectionLabel, CardDetailBar, CardDetailFooter } from './CardDetailSheet';
 
 interface Props {
@@ -49,6 +49,16 @@ function ProteinPowderContent({ config, onClose }: Omit<Props, 'visible'>) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [servings, setServings] = useState('1');
   const [managing, setManaging] = useState(false);
+  /** Manage was opened from "Add powder": the manager starts on its add form. */
+  const [addNew, setAddNew] = useState(false);
+  const openAdd = useCallback(() => { setAddNew(true); setManaging(true); }, []);
+  const toggleManage = useCallback(() => { setAddNew(false); setManaging((m) => !m); }, []);
+  // A powder just added goes straight back to the list, picked, ready to log.
+  const handleAdded = useCallback((powder: ProteinPowder) => {
+    setSelectedId(powder.id);
+    setAddNew(false);
+    setManaging(false);
+  }, []);
   const [adding, setAdding] = useState(false);
   // A ref, not just state: two taps before a re-render would both see adding = false.
   const addingRef = useRef(false);
@@ -115,14 +125,14 @@ function ProteinPowderContent({ config, onClose }: Omit<Props, 'visible'>) {
       <View style={styles.sectionHeader}>
         <CardDetailSectionLabel spaced>Powder</CardDetailSectionLabel>
         {!noPowders && (
-          <Pressable onPress={() => setManaging((m) => !m)} hitSlop={8} accessibilityRole="button">
+          <Pressable onPress={toggleManage} hitSlop={8} accessibilityRole="button">
             <Text style={styles.manage}>{managing ? 'Done' : 'Manage'}</Text>
           </Pressable>
         )}
       </View>
 
       {noPowders || managing ? (
-        <ProteinPowderManager startAdding={noPowders} />
+        <ProteinPowderManager startAdding={noPowders || addNew} onAdded={handleAdded} />
       ) : (
         <View style={styles.list} accessibilityRole="radiogroup">
           {powders.map((p) => {
@@ -143,6 +153,10 @@ function ProteinPowderContent({ config, onClose }: Omit<Props, 'visible'>) {
               </Pressable>
             );
           })}
+          <Pressable style={styles.addPowder} onPress={openAdd} accessibilityRole="button">
+            <Ionicons name="add-circle-outline" size={ms(17)} color={colors.accent} />
+            <Text style={styles.addPowderText}>Add powder</Text>
+          </Pressable>
         </View>
       )}
 
@@ -232,6 +246,19 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: ms(12),
       lineHeight: ms(16),
       fontFamily: Fonts.medium,
+    },
+    addPowder: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: sw(8),
+      paddingVertical: sw(8),
+      paddingHorizontal: sw(4),
+    },
+    addPowderText: {
+      color: colors.accent,
+      fontSize: ms(14),
+      lineHeight: ms(19),
+      fontFamily: Fonts.semiBold,
     },
     stepper: {
       flexDirection: 'row',
