@@ -97,8 +97,10 @@ interface ProteinPowderState {
   logServings: (userId: string, powder: ProteinPowder, servings: number, mealSlot: string) => Promise<boolean>;
   /** Removes one add and its diary snack. */
   deleteLog: (userId: string, log: PowderLog) => Promise<boolean>;
-  /** Removes today's most recent add. */
+  /** Removes today's most recent add (a second tap while one runs is ignored). */
   undoLast: (userId: string) => Promise<void>;
+  /** Re-links adds to their snacks after the diary's Undo put the snacks back (same ids). */
+  relink: (userId: string, links: { logId: string; foodEntryId: string }[]) => Promise<void>;
   resetForSignOut: () => void;
 }
 
@@ -106,6 +108,9 @@ interface ProteinPowderState {
 let _gen = 0;
 let _todayReq = 0;
 let _dateReq = 0;
+/** Bumped by every add or delete, so a count load that started before it doesn't overwrite it. */
+let _writeSeq = 0;
+let _undoing = false;
 
 const LOG_SELECT = 'id, powder_id, food_entry_id, amount, date, created_at, food_entries(name)';
 
@@ -196,29 +201,43 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
 
   fetchToday: async (userId) => {
     const req = ++_todayReq;
+    const seq = _writeSeq;
     const logs = await loadDay(userId, toLocalDateString());
     if (req !== _todayReq || !logs) return;
+    // An add or delete happened meanwhile: this count may not include it, so load again.
+    if (seq !== _writeSeq) {
+      get().fetchToday(userId);
+      return;
+    }
     set({ todayServings: sumServings(logs) });
   },
 
   fetchDate: async (userId, date) => {
     const req = ++_dateReq;
+    const seq = _writeSeq;
     // A different day: don't show the previous day's adds while this one loads.
     if (get().logsDate !== date) set({ dateLogs: [], logsDate: date });
     const logs = await loadDay(userId, date);
     if (req !== _dateReq || !logs) return;
+    if (seq !== _writeSeq) {
+      get().fetchDate(userId, date);
+      return;
+    }
     set({ dateLogs: logs, logsDate: date });
     if (date === toLocalDateString()) set({ todayServings: sumServings(logs) });
   },
 
   refresh: (userId) => {
-    get().fetchToday(userId);
     const date = get().logsDate;
+    // The day on the Nutrition tab; if that's today, its load also sets today's count.
     if (date) get().fetchDate(userId, date);
+    if (date !== toLocalDateString()) get().fetchToday(userId);
   },
 
   logServings: async (userId, powder, servings, mealSlot) => {
     if (!(servings > 0)) return false;
+    const gen = _gen;
+    _writeSeq++;
     // One clock reading for both rows, so the snack and the count land on the same day.
     const now = new Date();
     const createdAt = now.toISOString();
@@ -260,10 +279,13 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
       .insert({ user_id: userId, powder_id: powder.id, food_entry_id: food.id, amount: servings, date })
       .select(LOG_SELECT)
       .single();
+    if (gen !== _gen) return false; // signed out meanwhile
     if (logError || !log) {
-      // Don't leave a snack the count doesn't know about.
-      await supabase.from('food_entries').delete().eq('id', food.id);
+      // Don't leave a snack the count doesn't know about. If even that fails (offline), show
+      // the snack in the diary so it isn't hidden there while the user tries again.
+      const { error: cleanupError } = await supabase.from('food_entries').delete().eq('id', food.id);
       rollback();
+      if (cleanupError) useFoodLogStore.getState().syncExternalWrite(userId, createdAt);
       return false;
     }
 
@@ -273,13 +295,13 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
   },
 
   deleteLog: async (userId, log) => {
+    _writeSeq++;
     const isToday = log.date === toLocalDateString();
     set((s) => ({
       dateLogs: s.dateLogs.filter((l) => l.id !== log.id),
       todayServings: isToday ? Math.max(0, Math.round((s.todayServings - log.amount) * 100) / 100) : s.todayServings,
     }));
     // Deleting the snack is what takes it off the count (the link clears with it).
-    const { data: entry } = await supabase.from('food_entries').select('created_at').eq('id', log.food_entry_id).maybeSingle();
     const { error } = await supabase.from('food_entries').delete().eq('id', log.food_entry_id).eq('user_id', userId);
     if (error) {
       set((s) => ({
@@ -292,14 +314,33 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
     }
     // Tidy up the now-unlinked log row (it no longer counts either way).
     supabase.from('protein_powder_log').delete().eq('id', log.id).then(() => {}, () => {});
-    useFoodLogStore.getState().syncExternalWrite(userId, entry?.created_at ?? log.created_at);
+    // The snack was written at the same moment as its log row.
+    useFoodLogStore.getState().syncExternalWrite(userId, log.created_at);
     return true;
   },
 
   undoLast: async (userId) => {
-    const logs = await loadDay(userId, toLocalDateString());
-    const last = logs?.[logs.length - 1];
-    if (last) await get().deleteLog(userId, last);
+    // Two quick taps would otherwise both pick the same last add.
+    if (_undoing) return;
+    _undoing = true;
+    try {
+      const logs = await loadDay(userId, toLocalDateString());
+      const last = logs?.[logs.length - 1];
+      if (last) await get().deleteLog(userId, last);
+    } finally {
+      _undoing = false;
+    }
+  },
+
+  relink: async (userId, links) => {
+    if (links.length === 0) return;
+    _writeSeq++;
+    await Promise.all(links.map((l) => supabase
+      .from('protein_powder_log')
+      .update({ food_entry_id: l.foodEntryId })
+      .eq('id', l.logId)
+      .eq('user_id', userId)));
+    get().refresh(userId);
   },
 
   resetForSignOut: () => {

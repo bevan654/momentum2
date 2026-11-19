@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -22,6 +22,9 @@ interface Props {
 }
 
 const fmt = (v: number) => String(Math.round(v * 100) / 100);
+
+/** The account whose meal slots this session already loaded (Home may not load them itself). */
+let mealsLoadedFor: string | null = null;
 
 /** Protein powder: pick a powder and any number of servings, then add (also logged as a snack). */
 function ProteinPowderModal({ visible, onClose, config }: Props) {
@@ -47,13 +50,18 @@ function ProteinPowderContent({ config, onClose }: Omit<Props, 'visible'>) {
   const [servings, setServings] = useState('1');
   const [managing, setManaging] = useState(false);
   const [adding, setAdding] = useState(false);
+  // A ref, not just state: two taps before a re-render would both see adding = false.
+  const addingRef = useRef(false);
 
   useEffect(() => {
     if (!userId) return;
     if (!loaded) useProteinPowderStore.getState().loadPowders(userId);
     // The snack goes in the user's own snack meal: make sure their meals are known (Home may
-    // not have loaded them).
-    useFoodLogStore.getState().fetchMealConfigs(userId);
+    // not have loaded them), once per account per session.
+    if (mealsLoadedFor !== userId) {
+      mealsLoadedFor = userId;
+      useFoodLogStore.getState().fetchMealConfigs(userId);
+    }
   }, [userId, loaded]);
 
   // The last-used powder first, else the first one; a deleted pick falls back the same way.
@@ -70,15 +78,17 @@ function ProteinPowderContent({ config, onClose }: Omit<Props, 'visible'>) {
   };
 
   const handleAdd = useCallback(async () => {
-    if (!userId || !selected || !valid || adding) return;
+    if (!userId || !selected || !valid || addingRef.current) return;
+    addingRef.current = true;
     setAdding(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const slot = findMealConfig(useFoodLogStore.getState().mealConfigs, 'snack')?.slot ?? 'snack';
     const ok = await useProteinPowderStore.getState().logServings(userId, selected, amount, slot);
+    addingRef.current = false;
     setAdding(false);
     if (ok) onClose();
     else Alert.alert("Couldn't add that", 'Check your connection and try again.');
-  }, [userId, selected, valid, amount, adding, onClose]);
+  }, [userId, selected, valid, amount, onClose]);
 
   const handleUndo = useCallback(() => {
     if (userId) useProteinPowderStore.getState().undoLast(userId);

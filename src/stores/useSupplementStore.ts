@@ -99,8 +99,13 @@ async function cacheConfigs(userId: string, configs: SupplementConfig[]) {
 }
 
 export function nameToKey(name: string): string {
-  return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const key = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  // A custom supplement must never become the protein powder one (it works differently).
+  return key === PROTEIN_POWDER_KEY ? `${key}_custom` : key;
 }
+
+/** Supplements with an undo still running: a second quick tap would pick the same entry. */
+const _undoingKeys = new Set<string>();
 
 export function generateIncrements(goal: number): number[] {
   if (goal <= 1) return [1];
@@ -523,6 +528,8 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   },
 
   undoLastSupplement: async (userId: string, key: string) => {
+    if (_undoingKeys.has(key)) return;
+    _undoingKeys.add(key);
     beginTodayWrite();
     const { data: last } = await supabase
       .from('supplement_entries')
@@ -534,6 +541,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .limit(1)
       .maybeSingle();
     if (!last) {
+      _undoingKeys.delete(key);
       endTodayWrite(get);
       return;
     }
@@ -549,6 +557,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     } else {
       refreshDateEntriesIfToday(get, userId);
     }
+    _undoingKeys.delete(key);
     endTodayWrite(get);
   },
 

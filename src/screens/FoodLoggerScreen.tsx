@@ -10,9 +10,6 @@ import { useFoodLogStore } from '../stores/useFoodLogStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
 import { useProteinPowderStore, PROTEIN_POWDER_KEY } from '../stores/useProteinPowderStore';
-
-/** Protein powder's count follows its diary snacks: only users who track it load it. */
-const tracksPowder = () => useSupplementStore.getState().supplementConfigs.some((c) => c.key === PROTEIN_POWDER_KEY);
 import MealList from '../components/food/MealList';
 import { hourFromTimeStart, mealSlotForHour, OTHER_SLOT, type MealBucket } from '../components/food/groupEntriesByMeal';
 import AddFoodModal from '../components/food/AddFoodModal';
@@ -26,6 +23,9 @@ import UndoBanner, { type UndoOffer } from '../components/food/UndoBanner';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
 import { useToday } from '../hooks/useToday';
+
+/** Protein powder's count follows its diary snacks: only users who track it load it. */
+const tracksPowder = () => useSupplementStore.getState().supplementConfigs.some((c) => c.key === PROTEIN_POWDER_KEY);
 
 function FoodLoggerScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -86,8 +86,13 @@ function FoodLoggerScreen() {
     if (!userId) return;
     fetchDayEntries(userId, selectedDate);
     fetchDateSupplements(userId, selectedDate);
-    if (tracksPowder()) useProteinPowderStore.getState().fetchDate(userId, selectedDate);
   }, [userId, selectedDate]);
+
+  // Protein powder's adds for the day shown, also once it's turned on during the session.
+  const powderOn = useSupplementStore((s) => s.supplementConfigs.some((c) => c.key === PROTEIN_POWDER_KEY));
+  useEffect(() => {
+    if (userId && powderOn) useProteinPowderStore.getState().fetchDate(userId, selectedDate);
+  }, [userId, selectedDate, powderOn]);
 
   // No auto-scroll to the current hour: the day summary at the top should stay in view.
   const todayStr = useToday();
@@ -245,20 +250,33 @@ function FoodLoggerScreen() {
     if (userId && tracksPowder()) useProteinPowderStore.getState().refresh(userId);
   }, [userId]);
 
+  // Protein powder adds whose snacks were just deleted: Undo links them back to the snacks it
+  // restores (the delete cleared the link, which is what took them off the count).
+  const undoLinksRef = React.useRef<{ logId: string; foodEntryId: string }[]>([]);
   const offerUndo = useCallback((rows: FoodEntry[], message: string) => {
     if (rows.length === 0) return;
     undoRowsRef.current = rows;
+    const ids = new Set(rows.map((r) => r.id));
+    undoLinksRef.current = useProteinPowderStore.getState().dateLogs
+      .filter((l) => ids.has(l.food_entry_id))
+      .map((l) => ({ logId: l.id, foodEntryId: l.food_entry_id }));
     setUndoOffer((prev) => ({ message, id: (prev?.id ?? 0) + 1 }));
   }, []);
   const handleUndo = useCallback(() => {
     const rows = undoRowsRef.current;
+    const links = undoLinksRef.current;
     undoRowsRef.current = [];
+    undoLinksRef.current = [];
     setUndoOffer(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    restoreDeleted(rows).then(refreshPowder);
-  }, [restoreDeleted, refreshPowder]);
+    restoreDeleted(rows).then(() => {
+      if (userId && links.length > 0) useProteinPowderStore.getState().relink(userId, links);
+      else refreshPowder();
+    });
+  }, [restoreDeleted, refreshPowder, userId]);
   const handleUndoExpire = useCallback(() => {
     undoRowsRef.current = [];
+    undoLinksRef.current = [];
     setUndoOffer(null);
   }, []);
 

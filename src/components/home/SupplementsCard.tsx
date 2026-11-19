@@ -8,6 +8,7 @@ import { useSupplementStore, type SupplementConfig } from '../../stores/useSuppl
 import { useProteinPowderStore, PROTEIN_POWDER_KEY } from '../../stores/useProteinPowderStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { sw, ms } from '../../theme/responsive';
+import { useToday } from '../../hooks/useToday';
 import AddSupplementModal from './AddSupplementModal';
 import SupplementDetailModal, { formatIncrement } from './SupplementDetailModal';
 import ProteinPowderModal from './ProteinPowderModal';
@@ -124,7 +125,9 @@ function SupplementsCard() {
   const powderServings = useProteinPowderStore((s) => s.todayServings);
   const hasPowder = configs.some((c) => c.key === PROTEIN_POWDER_KEY);
 
-  // Protein powder's servings load only for users who track it: now, and when the app returns.
+  // Protein powder's servings load only for users who track it: now, at midnight, and when
+  // the app returns.
+  const today = useToday();
   useEffect(() => {
     if (!userId || !hasPowder) return;
     useProteinPowderStore.getState().fetchToday(userId);
@@ -132,7 +135,7 @@ function SupplementsCard() {
       if (state === 'active') useProteinPowderStore.getState().fetchToday(userId);
     });
     return () => sub.remove();
-  }, [userId, hasPowder]);
+  }, [userId, hasPowder, today]);
   const colors = useColors();
   const styles = useMemo(() => createCardStyles(colors), [colors]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -144,9 +147,7 @@ function SupplementsCard() {
 
   const handleReset = useCallback((key: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (!userId) return;
-    if (key === PROTEIN_POWDER_KEY) useProteinPowderStore.getState().undoLast(userId);
-    else undoLastSupplement(userId, key);
+    if (userId) undoLastSupplement(userId, key);
   }, [userId, undoLastSupplement]);
   // Protein powder's count comes from its own log (each add is also a diary snack).
   const totalFor = (key: string) => (key === PROTEIN_POWDER_KEY ? powderServings : totals[key] || 0);

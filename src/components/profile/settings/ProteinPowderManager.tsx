@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -34,6 +34,7 @@ const PowderForm = React.memo(function PowderForm({ initial, onSave, onCancel, s
   const [carbs, setCarbs] = useState(str(initial?.carbs));
   const [fat, setFat] = useState(str(initial?.fat));
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false); // two quick taps would otherwise both save
 
   const p = Number(protein) || 0;
   const c = Number(carbs) || 0;
@@ -43,9 +44,11 @@ const PowderForm = React.memo(function PowderForm({ initial, onSave, onCancel, s
   const canSave = name.trim().length > 0 && (kcal > 0 || p > 0) && !saving;
 
   const handleSave = useCallback(async () => {
-    if (!canSave) return;
+    if (!canSave || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     const ok = await onSave({ name: name.trim(), calories: kcal, protein: p, carbs: c, fat: f });
+    savingRef.current = false;
     setSaving(false);
     if (!ok) Alert.alert("Couldn't save that powder", 'Check your connection and try again.');
   }, [canSave, onSave, name, kcal, p, c, f]);
