@@ -150,13 +150,13 @@ Prefer Reanimated → Gesture Handler → FlashList → Skia → Zustand. No cus
 | `useRegionTargetsStore` | Supabase + AsyncStorage (24h) | Body-map region weights per catalog exercise (`exercise_region_targets`); empty while the table isn't deployed |
 | `useRoutineStore` | Supabase | Saved routines + exercises |
 | `useProgramStore` | Supabase | Multi-week training programs and progress |
-| `useFoodLogStore` | Supabase | Food entries CRUD, meal configs, goals, catalog search |
+| `useFoodLogStore` | Supabase + AsyncStorage (per account) | Food entries CRUD, meal configs (phone copy for a fast start), goals, catalog search; per-day cache and the food history behind Recent / "Your foods" in `stores/foodLog/` |
 | `useNutritionStore` | Supabase | Daily nutrition aggregation (synced with food store) |
 | `useNutrientGoalStore` | AsyncStorage (per account) | Which macros show + micronutrient targets (macro goal values live in `nutrition_goals`) |
 | `useSavedMealsStore` | AsyncStorage (per account) | User-saved meal templates (on this phone only) |
 | `useFavouritesStore` | AsyncStorage (per account) | Favourited foods (on this phone only) |
-| `useSupplementStore` | Supabase | Water + creatine entries/goals (optimistic) |
-| `useProteinPowderStore` | Supabase | Protein powder supplement: the user's powders and each add (servings), which also logs a Snacks entry; the count follows that diary row |
+| `useSupplementStore` | Supabase + AsyncStorage (per account) | Water and any supplement (presets + custom, `user_supplements`): entries, goals, quick amounts (water's on the phone only), optimistic |
+| `useProteinPowderStore` | Supabase (+ last-used powder on the phone) | Protein powder supplement: the user's powders and each add (servings), which also logs a Snacks entry; the count follows that diary row |
 | `useWeightStore` | Supabase | Weight entries + EMA trend |
 | `useBodyFatStore` | Supabase | Body-fat % entries |
 | `useMeasurementStore` | Supabase | Tape measurements (chest/arms/etc.) |
