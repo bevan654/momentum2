@@ -25,6 +25,9 @@ export function NutritionGoalsEditor() {
     setCal(String(goals.calorie_goal));
   }, [goals.calorie_goal]);
   const [waterText, setWaterText] = useState(String(waterGoal));
+  useEffect(() => {
+    setWaterText(String(waterGoal));
+  }, [waterGoal]);
 
   const handleCalBlur = useCallback(() => {
     if (!userId) return;
@@ -42,6 +45,8 @@ export function NutritionGoalsEditor() {
   const handleWaterBlur = useCallback(() => {
     if (!userId) return;
     const val = parseInt(waterText, 10);
+    // Unchanged (e.g. tapped through before the real goal loaded): saving would write the default.
+    if (val === waterGoal) return;
     if (!isNaN(val) && val > 0) {
       updateSupplementGoals(userId, { water_goal: val });
     } else {

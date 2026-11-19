@@ -284,9 +284,13 @@ function FoodLoggerScreen() {
     const removed = useFoodLogStore.getState().entries.filter((e) => e.id === id);
     offerUndo(removed, `Deleted ${removed[0]?.name ?? 'food'}`);
     setEditDetailVisible(false);
-    deleteEntry(id).then(refreshPowder);
+    deleteEntry(id).then((ok) => {
+      // It's back on screen: an Undo offer would now re-insert (or hide) a food that still exists.
+      if (!ok) handleUndoExpire();
+      refreshPowder();
+    });
     clearEditEntrySoon();
-  }, [deleteEntry, offerUndo, refreshPowder]);
+  }, [deleteEntry, offerUndo, refreshPowder, handleUndoExpire]);
 
   // Meal group handlers
   const handlePressMealGroup = useCallback((groupId: string, groupEntries: FoodEntry[]) => {

@@ -110,7 +110,26 @@ let _todayReq = 0;
 let _dateReq = 0;
 /** Bumped by every add or delete, so a count load that started before it doesn't overwrite it. */
 let _writeSeq = 0;
+/** Adds and deletes still saving. A load landing meanwhile may miss them: it reloads after. */
+let _pending = 0;
+let _reloadFor: string | null = null;
 let _undoing = false;
+
+/** Runs a write while counting it as pending, then reloads once if a load landed meanwhile. */
+async function trackedWrite<T>(get: () => ProteinPowderState, run: () => Promise<T>): Promise<T> {
+  _pending++;
+  _writeSeq++;
+  try {
+    return await run();
+  } finally {
+    _pending = Math.max(0, _pending - 1);
+    if (_pending === 0 && _reloadFor) {
+      const userId = _reloadFor;
+      _reloadFor = null;
+      get().refresh(userId);
+    }
+  }
+}
 
 const LOG_SELECT = 'id, powder_id, food_entry_id, amount, date, created_at, food_entries(name)';
 
@@ -204,7 +223,12 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
     const seq = _writeSeq;
     const logs = await loadDay(userId, toLocalDateString());
     if (req !== _todayReq || !logs) return;
-    // An add or delete happened meanwhile: this count may not include it, so load again.
+    // An add or delete is still saving: this count may not include it. Load again once it's done.
+    if (_pending > 0) {
+      _reloadFor = userId;
+      return;
+    }
+    // One started and finished meanwhile: load again now.
     if (seq !== _writeSeq) {
       get().fetchToday(userId);
       return;
@@ -219,6 +243,10 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
     if (get().logsDate !== date) set({ dateLogs: [], logsDate: date });
     const logs = await loadDay(userId, date);
     if (req !== _dateReq || !logs) return;
+    if (_pending > 0) {
+      _reloadFor = userId;
+      return;
+    }
     if (seq !== _writeSeq) {
       get().fetchDate(userId, date);
       return;
@@ -234,10 +262,9 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
     if (date !== toLocalDateString()) get().fetchToday(userId);
   },
 
-  logServings: async (userId, powder, servings, mealSlot) => {
+  logServings: (userId, powder, servings, mealSlot) => trackedWrite(get, async () => {
     if (!(servings > 0)) return false;
     const gen = _gen;
-    _writeSeq++;
     // One clock reading for both rows, so the snack and the count land on the same day.
     const now = new Date();
     const createdAt = now.toISOString();
@@ -292,10 +319,9 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
     if (get().logsDate === date) set((s) => ({ dateLogs: [...s.dateLogs, toLog(log)] }));
     useFoodLogStore.getState().syncExternalWrite(userId, createdAt);
     return true;
-  },
+  }),
 
-  deleteLog: async (userId, log) => {
-    _writeSeq++;
+  deleteLog: (userId, log) => trackedWrite(get, async () => {
     const isToday = log.date === toLocalDateString();
     set((s) => ({
       dateLogs: s.dateLogs.filter((l) => l.id !== log.id),
@@ -314,10 +340,10 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
     }
     // Tidy up the now-unlinked log row (it no longer counts either way).
     supabase.from('protein_powder_log').delete().eq('id', log.id).then(() => {}, () => {});
-    // The snack was written at the same moment as its log row.
-    useFoodLogStore.getState().syncExternalWrite(userId, log.created_at);
+    // The snack's day is the log's (local) date; the log row's own time comes from the server.
+    useFoodLogStore.getState().syncExternalWrite(userId, new Date(`${log.date}T12:00:00`).toISOString());
     return true;
-  },
+  }),
 
   undoLast: async (userId) => {
     // Two quick taps would otherwise both pick the same last add.
@@ -334,12 +360,11 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
 
   relink: async (userId, links) => {
     if (links.length === 0) return;
-    _writeSeq++;
-    await Promise.all(links.map((l) => supabase
+    await trackedWrite(get, () => Promise.all(links.map((l) => supabase
       .from('protein_powder_log')
       .update({ food_entry_id: l.foodEntryId })
       .eq('id', l.logId)
-      .eq('user_id', userId)));
+      .eq('user_id', userId))));
     get().refresh(userId);
   },
 

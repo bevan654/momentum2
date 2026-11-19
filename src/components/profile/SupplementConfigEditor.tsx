@@ -73,8 +73,12 @@ function SupplementConfigEditor() {
 
   const handleGoalChange = useCallback((key: string, value: number) => {
     if (!userId) return;
-    updateConfig(userId, key, { dailyGoal: value, increments: generateIncrements(value) });
-  }, [userId, updateConfig]);
+    const config = configs.find((c) => c.key === key);
+    if (!config || config.dailyGoal === value) return; // just tapped through: nothing to save
+    // Quick amounts the user set themselves stay; ones made from the old goal follow the new one.
+    const auto = String(config.increments) === String(generateIncrements(config.dailyGoal));
+    updateConfig(userId, key, auto ? { dailyGoal: value, increments: generateIncrements(value) } : { dailyGoal: value });
+  }, [userId, configs, updateConfig]);
 
   const handleRemove = useCallback((key: string) => {
     if (!userId) return;

@@ -22,6 +22,7 @@ import Animated, {
   withTiming,
   withSequence,
   Easing,
+  cancelAnimation,
 } from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
@@ -78,8 +79,14 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
   const shutterScale = useSharedValue(1);
   const [statusIdx, setStatusIdx] = useState(0);
 
-  // Reticle pulse loop while in camera mode
+  // Reticle pulse loop while the camera is showing (it stays mounted while closed, to keep
+  // leftover scan results, so stop the loop then).
   useEffect(() => {
+    if (!visible) {
+      cancelAnimation(reticlePulse);
+      cancelAnimation(reticleOpacity);
+      return;
+    }
     if (mode === 'camera') {
       reticlePulse.value = withRepeat(
         withSequence(
@@ -98,10 +105,14 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
         false,
       );
     }
-  }, [mode, reticlePulse, reticleOpacity]);
+  }, [mode, visible, reticlePulse, reticleOpacity]);
 
   // Sparkle rotates while analyzing
   useEffect(() => {
+    if (!visible) {
+      cancelAnimation(sparkleRotate);
+      return;
+    }
     if (mode === 'analyzing') {
       sparkleRotate.value = 0;
       sparkleRotate.value = withRepeat(
@@ -110,7 +121,7 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
         false,
       );
     }
-  }, [mode, sparkleRotate]);
+  }, [mode, visible, sparkleRotate]);
 
   // Cycle status phrases while analyzing
   useEffect(() => {

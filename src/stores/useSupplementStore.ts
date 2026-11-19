@@ -419,7 +419,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .eq('user_id', userId)
       .single();
 
-    if (data) {
+    if (data && gen === _gen) {
       set({ waterGoal: Number(data.water_goal) });
     }
   },
@@ -466,6 +466,9 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   },
 
   undoLastWater: async (userId: string) => {
+    // Two quick taps would otherwise both pick the same entry (and take it off twice).
+    if (_undoingKeys.has('water')) return;
+    _undoingKeys.add('water');
     const date = toLocalDateString();
     const { data } = await supabase
       .from('supplement_entries')
@@ -477,7 +480,10 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .limit(1)
       .single();
 
-    if (!data) return;
+    if (!data) {
+      _undoingKeys.delete('water');
+      return;
+    }
 
     const amount = Number(data.amount);
     set((s) => ({ water: Math.max(0, s.water - amount) }));
@@ -493,6 +499,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     } else {
       refreshDateEntriesIfToday(get, userId);
     }
+    _undoingKeys.delete('water');
     endTodayWrite(get);
   },
 

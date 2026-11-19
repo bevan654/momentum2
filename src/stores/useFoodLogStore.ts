@@ -239,7 +239,8 @@ interface FoodLogState {
   fetchGoals: (userId: string) => Promise<void>;
   addEntry: (userId: string, entry: Omit<FoodEntry, 'id' | 'user_id' | 'created_at'>, targetDate?: string, targetHour?: number) => Promise<void>;
   updateEntry: (entryId: string, updates: Partial<Omit<FoodEntry, 'id' | 'user_id' | 'created_at'>>) => Promise<void>;
-  deleteEntry: (entryId: string) => Promise<void>;
+  /** Resolves false if the delete failed (the entry is back on screen). */
+  deleteEntry: (entryId: string) => Promise<boolean>;
   togglePlanned: (entryId: string) => Promise<void>;
   /** Optimistic; rolls back and returns the error message if the save fails. */
   updateGoals: (userId: string, goals: Partial<NutritionGoals>) => Promise<{ error: string | null }>;
@@ -275,6 +276,9 @@ function keepLoadedDay(entries: FoodEntry[]) {
     rememberDay(loadedEntriesKey, entries, _pendingWrites > 0);
   }
 }
+
+/** Increments per Recent/Popular load (and sign-out), so a slow one can't land afterwards. */
+let _defaultsReq = 0;
 
 /** Increments per meal-slot load (and sign-out), so an older load can't land afterwards. */
 let _mealsRequestId = 0;
@@ -373,6 +377,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const key = `${userId}:${date}`;
     dayRequestId++; // a load of the old day still on its way must not land on this one
     loadedEntriesKey = key;
+    fetchedEntriesKey = null; // only the cached copy (or nothing) is showing for the new day
     set({ selectedDate: date, entries: cachedDay(key) ?? [], loading: true, loadError: false });
   },
 
@@ -389,6 +394,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     if (key !== loadedEntriesKey) {
       keepLoadedDay(get().entries);
       loadedEntriesKey = key;
+      fetchedEntriesKey = null;
       set({ entries: cachedDay(key) ?? [], loading: true, loadError: false });
     } else {
       set({ loading: true });
@@ -475,14 +481,19 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
 
   fetchGoals: async (userId: string) => {
     const requestId = ++_goalsRequestId;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('nutrition_goals')
       .select('calorie_goal, protein_goal, carbs_goal, fat_goal')
       .eq('user_id', userId)
       .maybeSingle();
     // A newer load, a save or a sign-out happened meanwhile: this answer may be out of date.
     if (requestId !== _goalsRequestId) return;
-    if (!data) return;
+    if (error) return; // offline: goals stay unknown, so the editors won't save defaults
+    if (!data) {
+      // Older accounts have no goals row: the defaults are their goals, and saving creates it.
+      set({ goalsLoaded: true });
+      return;
+    }
 
     const goals: NutritionGoals = {
       calorie_goal: Number(data.calorie_goal),
@@ -557,11 +568,19 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     beginWrite();
     let saved: FoodEntry | null = null;
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('food_entries')
         .insert(insertData)
         .select()
         .single();
+      // 23503: the catalog food it points at was deleted (a saved Recent copy keeps the old id).
+      if (error?.code === '23503' && insertData.food_catalog_id) {
+        ({ data, error } = await supabase
+          .from('food_entries')
+          .insert({ ...insertData, food_catalog_id: null })
+          .select()
+          .single());
+      }
       if (!error && data) saved = normalizeEntry(data);
     } catch {
       // handled below
@@ -610,7 +629,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   deleteEntry: async (entryId: string) => {
-    if (isTempId(entryId)) return;
+    if (isTempId(entryId)) return false;
     const removed = get().entries.find((e) => e.id === entryId);
     const dayKey = loadedEntriesKey;
     // Optimistic delete
@@ -632,6 +651,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       syncNutrition(removed.user_id, removed.created_at);
     }
     endWrite(get);
+    return !error;
   },
 
   togglePlanned: async (entryId: string) => {
@@ -734,6 +754,8 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const userId = rows[0].user_id;
     // Show them again only if their day is the one on screen.
     const day = toLocalDateString(new Date(rows[0].created_at));
+    // Rows already on screen (e.g. their delete failed and put them back) aren't this undo's to remove.
+    const alreadyShown = new Set(get().entries.map((e) => e.id));
     if (loadedEntriesKey === `${userId}:${day}`) {
       set((s) => ({ entries: restoreEntries(s.entries, rows) }));
     } else {
@@ -746,7 +768,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const { error } = await supabase.from('food_entries').insert(rows.map((r) => ({ ...r })));
     // 23505 = those rows still exist (the delete itself failed), which is what undo wants anyway.
     if (error && error.code !== '23505') {
-      const ids = new Set(rows.map((r) => r.id));
+      const ids = new Set(rows.map((r) => r.id).filter((id) => !alreadyShown.has(id)));
       set((s) => ({ entries: s.entries.filter((e) => !ids.has(e.id)) }));
       alertWriteFailed('undo that delete');
     } else {
@@ -863,6 +885,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   fetchDefaultFoods: async (userId: string) => {
+    const req = ++_defaultsReq;
     const [recentRes, popularRes, history] = await Promise.all([
       supabase
         .from('food_entries')
@@ -904,6 +927,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       serving_size: Number(d.serving_size || 100),
     }));
 
+    if (req !== _defaultsReq) return; // a newer load, or a sign-out, since
     set({ recentFoods, popularFoods });
   },
 
@@ -924,6 +948,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     fetchedEntriesKey = null;
     clearDayCache();
     resetFoodHistory();
+    _defaultsReq++;
     _mealsRequestId++;
     _reloadAfterWrites = null;
     _goalsRequestId++;

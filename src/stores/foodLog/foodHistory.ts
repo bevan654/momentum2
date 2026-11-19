@@ -43,7 +43,8 @@ export function loadFoodHistory(userId: string): Promise<HistoryFood[]> {
 
 /** Adds foods that were just logged (moved to the top if already there) and saves the list. */
 export async function rememberFoods(userId: string, foods: FoodCatalogItem[]): Promise<void> {
-  const named = foods.filter((f) => f.name?.trim());
+  // Unnamed Quick adds ("Quick add") are one-off numbers, not foods to pick again.
+  const named = foods.filter((f) => f.name?.trim() && nameKey(f.name) !== 'quick add');
   if (named.length === 0) return;
   await loadFoodHistory(userId);
   if (_userId !== userId) return; // signed out meanwhile

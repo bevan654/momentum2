@@ -79,6 +79,9 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const [detailVisible, setDetailVisible] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [macroLensVisible, setMacroLensVisible] = useState(false);
+  // Once opened, MacroLens stays mounted (hidden) so the items left from a scan can still be
+  // logged without another scan; it drops them itself after a while.
+  const [lensMounted, setLensMounted] = useState(false);
   const [scanNotFound, setScanNotFound] = useState<string | null>(null);
   const [createMealVisible, setCreateMealVisible] = useState(false);
   const [selectedSavedMeal, setSelectedSavedMeal] = useState<SavedMeal | null>(null);
@@ -196,7 +199,7 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
       : 'Product not found. Try searching for it instead.');
   }, []);
 
-  const handleOpenLens = useCallback(() => { setScanNotFound(null); setMacroLensVisible(true); }, []);
+  const handleOpenLens = useCallback(() => { setScanNotFound(null); setLensMounted(true); setMacroLensVisible(true); }, []);
   const handleLensDismiss = useCallback(() => setMacroLensVisible(false), []);
   const handleLensFound = useCallback((food: FoodDetailData) => { setMacroLensVisible(false); openDetail(food); }, [openDetail]);
 
@@ -359,7 +362,7 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
           onNotFound={handleScanNotFound}
         />
       )}
-      {macroLensVisible && (
+      {lensMounted && (
         <MacroLensModal visible={macroLensVisible} onDismiss={handleLensDismiss} onFoodFound={handleLensFound} />
       )}
       {createMealVisible && (

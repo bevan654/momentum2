@@ -87,7 +87,7 @@ const SupplementCell = React.memo(function SupplementCell({
           </View>
         ) : !complete && (
           <View style={styles.cellButtons}>
-            {config.increments.map((inc) => (
+            {config.increments.slice(0, 3).map((inc) => (
               <TouchableOpacity
                 key={inc}
                 style={styles.cellAddBtn}
@@ -149,7 +149,10 @@ function SupplementsCard() {
 
   const handleReset = useCallback((key: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (userId) undoLastSupplement(userId, key);
+    if (!userId) return;
+    // The cell's undo arrow: protein powder adds live in their own log (with a diary snack).
+    if (key === PROTEIN_POWDER_KEY) useProteinPowderStore.getState().undoLast(userId);
+    else undoLastSupplement(userId, key);
   }, [userId, undoLastSupplement]);
   // Protein powder's count comes from its own log (each add is also a diary snack).
   const totalFor = (key: string) => (key === PROTEIN_POWDER_KEY ? powderServings : totals[key] || 0);
