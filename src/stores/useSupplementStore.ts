@@ -303,12 +303,25 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
     let failed = false;
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('user_supplements')
         .update(dbUpdates)
         .eq('user_id', userId)
-        .eq('key', key);
+        .eq('key', key)
+        .select('key');
       failed = !!error;
+      // No row to update (its first upload never reached the server): an update "succeeds" while
+      // saving nothing, and the change is gone after a reinstall. Insert the whole config instead.
+      if (!error && (!data || data.length === 0)) {
+        const current = get().supplementConfigs;
+        const config = current.find((c) => c.key === key);
+        if (config) {
+          const { error: insertError } = await supabase
+            .from('user_supplements')
+            .insert(configToRow(userId, config, current.indexOf(config)));
+          failed = !!insertError;
+        }
+      }
     } catch { failed = true; }
     if (failed && previous) {
       // Restore the fields this call changed
@@ -578,10 +591,17 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
     if (goals.water_goal != null) set({ waterGoal: goals.water_goal });
 
-    const { error } = await supabase
+    // Update the account's row, or create it if there isn't one: an update alone "succeeds"
+    // while saving nothing for accounts without a row, so the goal was lost after a reinstall.
+    const res = await supabase
       .from('supplement_goals')
       .update(goals)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select('user_id');
+    let error = res.error;
+    if (!error && (!res.data || res.data.length === 0)) {
+      ({ error } = await supabase.from('supplement_goals').insert({ user_id: userId, ...goals }));
+    }
 
     if (error) {
       if (goals.water_goal != null) set({ waterGoal: prevWater });
