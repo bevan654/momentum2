@@ -242,7 +242,9 @@ function CreateMealModal({
       if (editingMealId) {
         await updateMeal(editingMealId, name, items);
       } else {
-        setEditingMealId(await saveMeal(name, items));
+        const id = await saveMeal(name, items);
+        if (!id) return; // not saved (signed out meanwhile): no "Saved", and Back still asks
+        setEditingMealId(id);
       }
       savedDraft.current = { name: mealName, items };
     } finally {

@@ -517,7 +517,8 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .limit(1)
       .single();
 
-    if (!data) {
+    if (!data || gen !== _gen) {
+      // Nothing to undo, or signed out meanwhile (don't touch the next account's total).
       _undoingKeys.delete('water');
       return;
     }
@@ -586,7 +587,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!last) {
+    if (!last || gen !== _gen) {
       _undoingKeys.delete(key);
       endTodayWrite(get);
       return;
