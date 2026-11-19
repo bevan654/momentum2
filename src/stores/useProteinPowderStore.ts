@@ -183,13 +183,14 @@ export const useProteinPowderStore = create<ProteinPowderState>((set, get) => ({
   },
 
   addPowder: async (userId, input) => {
+    const gen = _gen;
     const sortOrder = get().powders.reduce((m, p) => Math.max(m, p.sort_order), -1) + 1;
     const { data, error } = await supabase
       .from('protein_powders')
       .insert({ user_id: userId, ...input, sort_order: sortOrder })
       .select('*')
       .single();
-    if (error || !data) return null;
+    if (error || !data || gen !== _gen) return null;
     const powder = toPowder(data);
     set((s) => ({ powders: [...s.powders, powder] }));
     return powder;

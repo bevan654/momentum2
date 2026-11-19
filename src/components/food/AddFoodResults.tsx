@@ -102,7 +102,7 @@ function AddFoodResults({
         out.push({ kind: 'section', key: 'sec-mine', title: 'Your foods' }, ...foods('m', myResults));
       }
       if (results.length) {
-        out.push({ kind: 'section', key: 'sec-all', title: 'Popular foods' }, ...foods('s', results));
+        out.push({ kind: 'section', key: 'sec-all', title: 'More foods' }, ...foods('s', results));
       }
       return out;
     }

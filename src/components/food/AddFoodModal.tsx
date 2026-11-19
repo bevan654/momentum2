@@ -211,7 +211,12 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
 
   const handleOpenCreateMeal = useCallback(() => { setSelectedSavedMeal(null); setCreateMealVisible(true); }, []);
   const handleOpenSavedMeal = useCallback((meal: SavedMeal) => { setSelectedSavedMeal(meal); setCreateMealVisible(true); }, []);
-  const handleCreateMealDismiss = useCallback(() => { setCreateMealVisible(false); setSelectedSavedMeal(null); }, []);
+  const handleCreateMealDismiss = useCallback(() => {
+    setCreateMealVisible(false);
+    setSelectedSavedMeal(null);
+    // Make a meal's own searches replaced (and on close cleared) the shared results.
+    if (searchedQuery.trim().length >= 2) searchCatalog(searchedQuery);
+  }, [searchedQuery, searchCatalog]);
   const handleMealLogged = useCallback(() => {
     setCreateMealVisible(false);
     setSelectedSavedMeal(null);

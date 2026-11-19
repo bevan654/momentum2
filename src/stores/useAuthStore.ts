@@ -257,6 +257,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const prevUserId = get().user?.id;
       if (prevUserId && prevUserId !== session?.user?.id) {
         useActiveWorkoutStore.getState().resetForSignOut();
+        // The new account (or none) before the reset, so reloads it triggers read the right one.
+        setCurrentUserId(session?.user?.id ?? null);
         resetFoodStores();
       }
       if (session?.user && _pendingWelcome) {
@@ -487,6 +489,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     useWorkoutStore.getState().clearCaches();
     // Drop the active workout from memory; its saved copy only comes back for this account
     useActiveWorkoutStore.getState().resetForSignOut();
+    // Cleared first: a screen still showing reloads its settings when the reset empties them,
+    // and must not read this account's again (offline, signOut() can fail without an event).
+    setCurrentUserId(null);
     resetFoodStores();
     await supabase.auth.signOut();
     set({ user: null, session: null, profile: null, showWelcome: false, _pendingWelcome: false });
@@ -534,6 +539,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     stopPushToken();
     useWorkoutStore.getState().clearCaches();
     useActiveWorkoutStore.getState().resetForSignOut();
+    setCurrentUserId(null); // as in signOut: nothing reloads the deleted account's settings
     resetFoodStores();
     try {
       clearStoredWorkout();

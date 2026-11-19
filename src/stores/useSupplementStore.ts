@@ -482,6 +482,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   /* ─── Water actions ─────────────────────────────────── */
 
   addWater: async (userId: string, ml: number) => {
+    const gen = _gen;
     set((s) => ({ water: s.water + ml }));
 
     beginTodayWrite();
@@ -493,7 +494,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     }).select(ENTRY_COLUMNS).single();
 
     if (error) {
-      set((s) => ({ water: s.water - ml }));
+      if (gen === _gen) set((s) => ({ water: Math.max(0, s.water - ml) }));
     } else {
       addToDateEntries(get, set, userId, row as SupplementEntry | null);
     }
@@ -504,6 +505,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     // Two quick taps would otherwise both pick the same entry (and take it off twice).
     if (_undoingKeys.has('water')) return;
     _undoingKeys.add('water');
+    const gen = _gen;
     const date = toLocalDateString();
     const { data } = await supabase
       .from('supplement_entries')
@@ -530,7 +532,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .eq('id', data.id);
 
     if (error) {
-      set((s) => ({ water: s.water + amount }));
+      if (gen === _gen) set((s) => ({ water: s.water + amount }));
     } else {
       removeFromDateEntries(get, set, userId, data.id);
     }
@@ -541,6 +543,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   /* ─── Supplement entry actions ──────────────────────── */
 
   addSupplement: async (userId: string, key: string, amount: number) => {
+    const gen = _gen;
     set((s) => ({
       supplementTotals: {
         ...s.supplementTotals,
@@ -557,7 +560,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     }).select(ENTRY_COLUMNS).single();
 
     if (error) {
-      set((s) => ({
+      if (gen === _gen) set((s) => ({
         supplementTotals: {
           ...s.supplementTotals,
           [key]: Math.max(0, (s.supplementTotals[key] || 0) - amount),
@@ -572,6 +575,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   undoLastSupplement: async (userId: string, key: string) => {
     if (_undoingKeys.has(key)) return;
     _undoingKeys.add(key);
+    const gen = _gen;
     beginTodayWrite();
     const { data: last } = await supabase
       .from('supplement_entries')
@@ -593,7 +597,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
     const { error } = await supabase.from('supplement_entries').delete().eq('id', last.id);
     if (error) {
-      set((s) => ({
+      if (gen === _gen) set((s) => ({
         supplementTotals: { ...s.supplementTotals, [key]: Math.round(((s.supplementTotals[key] || 0) + amount) * 100) / 100 },
       }));
     } else {
@@ -604,6 +608,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   },
 
   deleteSupplementEntry: async (_userId: string, entry: SupplementEntry) => {
+    const gen = _gen;
     const shownDate = get().dateEntriesDate;
     // `water` / `supplementTotals` are today's totals: only touch them for today's entries.
     const isToday = get().dateEntriesDate === toLocalDateString();
@@ -625,8 +630,8 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .delete()
       .eq('id', entry.id);
 
-    if (error) {
-      // Put back only this entry, and only while the same day is showing.
+    if (error && gen === _gen) {
+      // Put back only this entry, and only while the same day is showing (and the same account).
       set((s) => ({
         ...(s.dateEntriesDate === shownDate && !s.dateEntries.some((e) => e.id === entry.id)
           ? { dateEntries: [...s.dateEntries, entry].sort((a, b) => a.created_at.localeCompare(b.created_at)) }

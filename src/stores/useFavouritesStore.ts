@@ -57,7 +57,10 @@ export const useFavouritesStore = create<FavouritesState>((set, get) => ({
 
   addFavourite: async (food: FoodCatalogItem) => {
     // Load first: writing a list that hasn't loaded yet would overwrite the stored favourites.
+    const gen = _gen;
     await get().loadFavourites();
+    // Signed out (or the list couldn't load) meanwhile: writing now would replace another list.
+    if (gen !== _gen || !get().loaded) return;
     const { favourites } = get();
     const key = foodKey(food);
     if (favourites.some((f) => foodKey(f) === key)) return;
@@ -67,7 +70,9 @@ export const useFavouritesStore = create<FavouritesState>((set, get) => ({
   },
 
   removeFavourite: async (food) => {
+    const gen = _gen;
     await get().loadFavourites();
+    if (gen !== _gen || !get().loaded) return;
     const key = foodKey(food);
     const updated = get().favourites.filter((f) => foodKey(f) !== key);
     set({ favourites: updated });

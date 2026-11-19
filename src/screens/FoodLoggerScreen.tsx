@@ -285,6 +285,10 @@ function FoodLoggerScreen() {
     undoLinksRef.current = [];
     setUndoOffer(null);
   }, []);
+  // Opening a sheet ends the Undo offer: it would otherwise come back (with a fresh timer) after it.
+  useEffect(() => {
+    if (sheetOpen && undoRowsRef.current.length > 0) handleUndoExpire();
+  }, [sheetOpen, handleUndoExpire]);
 
   const handleDeleteEntry = useCallback((id: string) => {
     const removed = useFoodLogStore.getState().entries.filter((e) => e.id === id);
@@ -399,7 +403,12 @@ function FoodLoggerScreen() {
         editMealGroupEntries={editGroupEntries}
         bottomInset={sw(12)}
       />
-      <UndoBanner offer={undoOffer} onUndo={handleUndo} onExpire={handleUndoExpire} />
+      {/* Hidden while a sheet is open, like the + button: it sat over the edit screens' buttons. */}
+      <UndoBanner
+        offer={sheetOpen ? null : undoOffer}
+        onUndo={handleUndo}
+        onExpire={handleUndoExpire}
+      />
       {!addModalVisible && !editDetailVisible && !editGroupModalVisible && (
         <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.8}>
           <Ionicons name="add" size={ms(26)} color={colors.textOnAccent} />

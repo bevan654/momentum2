@@ -85,7 +85,10 @@ export const useSavedMealsStore = create<SavedMealsState>((set, get) => ({
 
   saveMeal: async (name: string, items: MealItem[]) => {
     // Load first: saving into a list that hasn't loaded yet would overwrite the stored meals.
+    const gen = _gen;
     await get().loadMeals();
+    // Signed out (or the list couldn't load) meanwhile: writing now would replace another list.
+    if (gen !== _gen || !get().loaded) return '';
     const id = `meal-${Date.now()}`;
     const now = new Date().toISOString();
     const meal: SavedMeal = { id, name, items, created_at: now, updated_at: now };
@@ -96,7 +99,9 @@ export const useSavedMealsStore = create<SavedMealsState>((set, get) => ({
   },
 
   updateMeal: async (id: string, name: string, items: MealItem[]) => {
+    const gen = _gen;
     await get().loadMeals();
+    if (gen !== _gen || !get().loaded) return;
     const updated = get().meals.map((m) =>
       m.id === id ? { ...m, name, items, updated_at: new Date().toISOString() } : m,
     );
@@ -105,7 +110,9 @@ export const useSavedMealsStore = create<SavedMealsState>((set, get) => ({
   },
 
   deleteMeal: async (id: string) => {
+    const gen = _gen;
     await get().loadMeals();
+    if (gen !== _gen || !get().loaded) return;
     const updated = get().meals.filter((m) => m.id !== id);
     set({ meals: updated });
     persist(updated);
