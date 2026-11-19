@@ -14,11 +14,6 @@ interface NutritionState {
   /** Today's eaten micronutrients (and fiber, sugar), by food_entries column. */
   micros: Record<string, number>;
   fetchTodayNutrition: (userId: string) => Promise<void>;
-  /**
-   * Today's totals from rows the app already has (the diary showing today), instead of a request.
-   * Also makes a request still on its way ignore its answer, which may be older.
-   */
-  setTodayFromRows: (userId: string, rows: Record<string, unknown>[]) => void;
   /** Clears the previous account's totals and goals. */
   resetForSignOut: () => void;
 }
@@ -105,12 +100,6 @@ export const useNutritionStore = create<NutritionState>((set) => ({
     _loadedKey = key;
     // Same as the Nutrition tab: planned food doesn't count until it's eaten, whole numbers.
     set(totalsFrom(data as unknown as Record<string, unknown>[]));
-  },
-
-  setTodayFromRows: (userId: string, rows: Record<string, unknown>[]) => {
-    _requestId++;
-    _loadedKey = `${userId}:${todayRange().start}`;
-    set(totalsFrom(rows));
   },
 
   resetForSignOut: () => {

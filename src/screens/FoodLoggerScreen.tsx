@@ -248,8 +248,11 @@ function FoodLoggerScreen() {
   // A deleted (or restored) protein powder snack changes the serving count: reload it after.
   const refreshPowder = useCallback((ids?: string[]) => {
     if (!userId || !tracksPowder()) return;
-    // Only a protein snack changes the count: skip the reload for any other food.
-    if (ids && !useProteinPowderStore.getState().dateLogs.some((l) => ids.includes(l.food_entry_id))) return;
+    // Only a protein snack changes the count: skip the reload for any other food (once the day's
+    // adds are known; before that, reload to be safe).
+    const { dateLogs, logsDate } = useProteinPowderStore.getState();
+    const known = logsDate === useFoodLogStore.getState().selectedDate && dateLogs.length > 0;
+    if (ids && known && !dateLogs.some((l) => ids.includes(l.food_entry_id))) return;
     useProteinPowderStore.getState().refresh(userId);
   }, [userId]);
 

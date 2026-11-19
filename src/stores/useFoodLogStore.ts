@@ -206,16 +206,9 @@ async function saveUserCreatedFood(
  * today, so a change to another day (by its `created_at`) skips the request.
  */
 function syncNutrition(userId: string, createdAt?: string) {
-  const today = toLocalDateString();
-  if (createdAt && toLocalDateString(new Date(createdAt)) !== today) return;
-  // The diary is showing today's real (loaded) rows: add them up here instead of downloading
-  // the same rows again. Unsaved (temporary) rows are left out, as the server doesn't have them.
-  const key = `${userId}:${today}`;
-  if (loadedEntriesKey === key && fetchedEntriesKey === key) {
-    const rows = useFoodLogStore.getState().entries.filter((e) => !isTempId(e.id));
-    useNutritionStore.getState().setTodayFromRows(userId, rows as unknown as Record<string, unknown>[]);
-    return;
-  }
+  if (createdAt && toLocalDateString(new Date(createdAt)) !== toLocalDateString()) return;
+  // Downloaded, not added up from the diary's rows: those can be out of date (food logged on
+  // another phone, or a reload still waiting for other saves).
   useNutritionStore.getState().fetchTodayNutrition(userId);
 }
 
@@ -911,6 +904,8 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     if (_defaultsFor === userId && Date.now() - _defaultsAt < DEFAULTS_FRESH_MS && _defaultsWriteSeq === _writeSeq) return;
     const req = ++_defaultsReq;
     const seqAtStart = _writeSeq;
+    // A save still on its way may be missing from this answer: don't reuse it later.
+    const cacheable = _pendingWrites === 0;
     const [recentRes, popularRes, history] = await Promise.all([
       supabase
         .from('food_entries')
@@ -954,7 +949,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     }));
 
     if (req !== _defaultsReq) return; // a newer load, or a sign-out, since
-    if (!recentRes.error && !popularRes.error) {
+    if (cacheable && !recentRes.error && !popularRes.error) {
       _defaultsFor = userId;
       _defaultsAt = Date.now();
       _defaultsWriteSeq = seqAtStart;

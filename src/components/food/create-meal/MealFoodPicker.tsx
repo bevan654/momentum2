@@ -22,7 +22,8 @@ const TABS: SegmentOption<Tab>[] = [
   { key: 'meals', label: 'Meals', icon: 'restaurant-outline' },
 ];
 
-/** Rows drawn at once (they're inside the meal screen's ScrollView, not a virtualised list). */
+/** Rows drawn at once (they're inside the meal screen's ScrollView, not a virtualised list). Keys
+ *  keep the index: a renamed diary row and its saved Recent copy can share an id. */
 const MAX_RESULTS = 30;
 
 /** Searches need 2 characters (as in Log food); with 1, the normal lists stay. */
@@ -139,7 +140,7 @@ function MealFoodPicker({ onSelectFood, onAddSavedMeal, clearSignal }: Props) {
   if (searching) {
     if (searchedFor !== null && catalogResults.length > 0) {
       // Keep the previous results on screen while a refined search runs, instead of flickering.
-      body = catalogResults.slice(0, MAX_RESULTS).map((item) => <FoodPickRow key={item.id} item={item} onSelect={onSelectFood} />);
+      body = catalogResults.slice(0, MAX_RESULTS).map((item, i) => <FoodPickRow key={`${item.id}-${i}`} item={item} onSelect={onSelectFood} />);
     } else if (catalogLoading || searchedFor === null) {
       body = <FoodEmptyState loading title="Searching…" />;
     } else {
