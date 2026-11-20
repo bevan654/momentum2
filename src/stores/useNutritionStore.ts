@@ -35,13 +35,14 @@ export const useNutritionStore = create<NutritionState>((set) => ({
     const { start, end } = todayRange();
     const { data } = await supabase
       .from('food_entries')
-      .select('calories, protein, carbs, fat')
+      .select('calories, protein, carbs, fat, is_planned')
       .eq('user_id', userId)
       .gte('created_at', start)
       .lt('created_at', end);
 
     if (data && data.length > 0) {
-      const totals = data.reduce(
+      // Planned food isn't eaten yet: left out, as the food diary does (components/food/dayTotals.ts).
+      const totals = data.filter((entry) => !entry.is_planned).reduce(
         (acc, entry) => ({
           calories: acc.calories + Number(entry.calories || 0),
           protein: acc.protein + Number(entry.protein || 0),
