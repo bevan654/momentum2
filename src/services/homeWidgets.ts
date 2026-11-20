@@ -87,7 +87,7 @@ function _meals(userId: string, day: string, rows: TodayFoodRow[]): unknown {
   }
   const buckets = groupEntriesByMeal(rows as unknown as FoodEntry[], mealConfigs);
   return buckets
-    .filter((b) => b.slot !== OTHER_SLOT || b.totals.calories > 0)
+    .filter((b) => b.slot !== OTHER_SLOT || b.totals.calories > 0 || b.totals.protein > 0)
     .map((b) => ({
       name: b.label,
       protein: Math.round(b.totals.protein),
@@ -161,7 +161,15 @@ function _nutritionExtras(userId: string): unknown {
  * yesterday's; it shows today's from the live nutrition section).
  */
 function _proteinWeek(userId: string): unknown {
-  const earlier = _week?.userId === userId ? _week.days : _previousSection(userId, 'proteinWeek');
+  const stored = (_previousSection(userId, 'proteinWeek') ?? []) as { date: string; protein: number }[];
+  // A week fetched on an earlier day misses the days since: fill them from what the widgets show.
+  const fetched = _week?.userId === userId ? _week.days : [];
+  const oldest = parseLocalDate(toLocalDateString());
+  oldest.setDate(oldest.getDate() - 7);
+  const cutoff = toLocalDateString(oldest);
+  // Only the days the chart can show, so the list doesn't grow day after day.
+  const earlier = [...fetched, ...stored.filter((d) => !fetched.some((f) => f.date === d.date))]
+    .filter((d) => d.date >= cutoff);
   if (!_totals || _totals.userId !== userId) return earlier;
   const today = {
     date: _totals.day,

@@ -286,7 +286,7 @@ struct ProteinWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "MomentumProtein", provider: HomeWidgetProvider()) { ProteinWidgetView(entry: $0) }
       .configurationDisplayName("Protein")
-      .description("Protein eaten today, how much is left to your goal and, at medium size, per meal.")
+      .description("Protein eaten today and how much is left to your goal; per meal (medium and large) and the last 7 days (large).")
       .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
   }
 }

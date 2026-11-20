@@ -21,17 +21,19 @@ struct MacrosLargeView: View {
     let water = extras?.water
     let creatine = extras?.creatine
     let meals = n.meals ?? []
-    // Sized so every section fits the large widget on every iPhone (about 290 pt): 4 meals at most.
-    VStack(alignment: .leading, spacing: 7) {
-      MacrosMediumView(n: n, accent: accent).frame(height: 108)
+    // Sized to fit the large widget on every iPhone, the SE's (about 292 pt) included: with
+    // micronutrients or supplements below, 3 meals at most (then "+N more"), else 4.
+    let mealLimit = (!micros.isEmpty || water != nil || creatine != nil) ? 3 : 4
+    VStack(alignment: .leading, spacing: 5) {
+      MacrosMediumView(n: n, accent: accent).frame(height: 104)
       if !meals.isEmpty {
         Divider()
         VStack(spacing: 4) {
-          ForEach(Array(meals.prefix(4).enumerated()), id: \.offset) { item in
+          ForEach(Array(meals.prefix(mealLimit).enumerated()), id: \.offset) { item in
             MealMacrosRow(meal: item.element)
           }
-          if meals.count > 4 {
-            Text("+\(meals.count - 4) more").font(.caption2).foregroundColor(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+          if meals.count > mealLimit {
+            Text("+\(meals.count - mealLimit) more").font(.caption2).foregroundColor(.secondary).frame(maxWidth: .infinity, alignment: .leading)
           }
         }
       }
@@ -55,8 +57,8 @@ struct MacrosLargeView: View {
           Spacer(minLength: 0)
         }
       }
-      Spacer(minLength: 0)
     }
+    .frame(maxHeight: .infinity, alignment: .top)
   }
 
   private func litres(_ ml: Double) -> String {
@@ -196,6 +198,8 @@ private struct WeekChart: View {
             .stroke(Color.secondary, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
           }
         }
+        // Bars stand on the bottom even when none is tall enough to fill the height.
+        .frame(width: geo.size.width, height: geo.size.height, alignment: .bottom)
       }
       HStack(spacing: 8) {
         ForEach(Array(days.enumerated()), id: \.offset) { item in

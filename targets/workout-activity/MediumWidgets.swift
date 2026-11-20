@@ -308,7 +308,7 @@ struct LastWorkoutWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "MomentumLastWorkout", provider: HomeWidgetProvider()) { LastWorkoutWidgetView(entry: $0) }
       .configurationDisplayName("Last workout")
-      .description("Your latest workout's volume and PRs against the previous time you did it.")
+      .description("Your latest workout's volume and PRs against the previous time you did it; the large size adds each exercise's heaviest set.")
       .supportedFamilies([.systemMedium, .systemLarge])
   }
 }
