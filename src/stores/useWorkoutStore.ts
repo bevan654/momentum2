@@ -54,6 +54,9 @@ export interface WorkoutWithDetails {
   muscleGroups: string[];
   ghostUsername: string | null;
   programName: string | null;
+  /** The routine it was started from, and the program day's label ("Push"); null for quick workouts and old builds. */
+  routineId: string | null;
+  programDayLabel: string | null;
   coachHeadline: string | null;
   coachNotes: CoachExerciseNote[] | null;
 }
@@ -306,7 +309,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     try {
       const { data: workoutsData, error: workoutsErr } = await supabase
         .from('workouts')
-        .select('id, created_at, duration, total_exercises, total_sets, ghost_username, program_id, programs(name), coach_headline, coach_notes')
+        .select('id, created_at, duration, total_exercises, total_sets, ghost_username, program_id, routine_id, program_day_label, programs(name), coach_headline, coach_notes')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(30);
@@ -456,6 +459,8 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
           muscleGroups: Array.from(muscleGroupSet).slice(0, 4),
           ghostUsername: (w as any).ghost_username || null,
           programName: (w as any).programs?.name || null,
+          routineId: (w as any).routine_id || null,
+          programDayLabel: (w as any).program_day_label || null,
           coachHeadline: (w as any).coach_headline || null,
           coachNotes: (w as any).coach_notes || null,
         };

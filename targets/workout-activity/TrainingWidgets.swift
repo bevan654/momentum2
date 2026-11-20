@@ -8,56 +8,71 @@ import WidgetKit
 
 // MARK: - D · Streak
 
-private struct StreakDay {
+struct StreakDay {
   let letter: String
   let trained: Bool
   let isToday: Bool
 }
 
-private struct StreakState {
+struct StreakState {
   let days: Int
   /// The last workout was 3 days ago: no workout today breaks the streak.
   let lastSafeDay: Bool
   let recentWorkoutDays: Int
   let dots: [StreakDay]
+  /// The last 28 days, oldest first, ending today (the medium widget's calendar).
+  let calendar: [StreakDay]
+  /// Longest streak ever (the app's, or today's run if it has passed it since the app last wrote).
+  let best: Int
 
-  init(_ streak: HomeWidgetData.Streak?, now: Date) {
-    let calendar = Calendar.current
-    let recent = Set(streak?.recentDates ?? [])
-    dots = (0..<7).reversed().map { back in
-      let day = calendar.date(byAdding: .day, value: -back, to: now) ?? now
-      let weekday = calendar.component(.weekday, from: day)
+  /// The last `count` days, oldest first, ending on `now`.
+  private static func lastDays(_ count: Int, now: Date, trained: Set<String>) -> [StreakDay] {
+    let cal = Calendar.autoupdatingCurrent
+    return (0..<count).reversed().map { back in
+      let day = cal.date(byAdding: .day, value: -back, to: now) ?? now
+      let weekday = cal.component(.weekday, from: day)
       return StreakDay(
-        letter: calendar.veryShortStandaloneWeekdaySymbols[weekday - 1],
-        trained: recent.contains(HomeWidgetDay.key(day)),
+        letter: cal.veryShortStandaloneWeekdaySymbols[weekday - 1],
+        trained: trained.contains(HomeWidgetDay.key(day)),
         isToday: back == 0
       )
     }
+  }
+
+  init(_ streak: HomeWidgetData.Streak?, now: Date) {
+    let recent = Set(streak?.recentDates ?? [])
+    dots = StreakState.lastDays(7, now: now, trained: recent)
+    calendar = StreakState.lastDays(28, now: now, trained: recent)
     recentWorkoutDays = dots.filter(\.trained).count
 
     // The rule in src/utils/streakCalculator.ts: alive while the last workout was under 4 days ago.
-    guard
+    var current = 0
+    var safeDay = false
+    if
       let start = streak?.chainStart.flatMap(HomeWidgetDay.date),
       let last = streak?.lastWorkout.flatMap(HomeWidgetDay.date)
-    else {
-      days = 0
-      lastSafeDay = false
-      return
+    {
+      let sinceLast = HomeWidgetDay.days(from: last, to: now)
+      let alive = sinceLast >= 0 && sinceLast < 4
+      current = alive ? HomeWidgetDay.days(from: start, to: now) + 1 : 0
+      safeDay = alive && sinceLast == 3
     }
-    let sinceLast = HomeWidgetDay.days(from: last, to: now)
-    let alive = sinceLast >= 0 && sinceLast < 4
-    days = alive ? HomeWidgetDay.days(from: start, to: now) + 1 : 0
-    lastSafeDay = alive && sinceLast == 3
+    days = current
+    lastSafeDay = safeDay
+    best = max(streak?.best ?? 0, current)
   }
 }
 
 struct StreakWidgetView: View {
   let entry: HomeWidgetEntry
+  @Environment(\.widgetFamily) private var family
 
   var body: some View {
     Group {
       if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.streak != nil) {
         HomeWidgetMessage(symbol: "flame.fill", title: "Streak", tint: HomeWidgetColor.orange, message: message)
+      } else if family == .systemMedium {
+        StreakMediumView(s: StreakState(entry.data?.streak, now: entry.date))
       } else {
         content(StreakState(entry.data?.streak, now: entry.date))
       }
@@ -123,13 +138,13 @@ struct StreakWidget: Widget {
     StaticConfiguration(kind: "MomentumStreak", provider: HomeWidgetProvider()) { StreakWidgetView(entry: $0) }
       .configurationDisplayName("Streak")
       .description("Your workout streak and the last 7 days.")
-      .supportedFamilies([.systemSmall])
+      .supportedFamilies([.systemSmall, .systemMedium])
   }
 }
 
 // MARK: - F · Recovery
 
-private extension HomeWidgetData.RecoveryGroup {
+extension HomeWidgetData.RecoveryGroup {
   /// 0...100, as the app's recovery: hours since last trained over the group's recovery hours.
   func percent(at now: Date) -> Int {
     guard let trainedAt, hours > 0 else { return 100 }
@@ -140,7 +155,7 @@ private extension HomeWidgetData.RecoveryGroup {
 
 /// The app's recovery colours and thresholds (src/constants/muscleMap.ts): fatigued below 40,
 /// recovering below 70, else ready.
-private func recoveryColor(_ percent: Int) -> Color {
+func recoveryColor(_ percent: Int) -> Color {
   if percent < 40 { return HomeWidgetColor.red }
   if percent < 70 { return HomeWidgetColor.orange }
   return HomeWidgetColor.green
@@ -148,11 +163,14 @@ private func recoveryColor(_ percent: Int) -> Color {
 
 struct RecoveryWidgetView: View {
   let entry: HomeWidgetEntry
+  @Environment(\.widgetFamily) private var family
 
   var body: some View {
     Group {
       if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.recovery?.groups.isEmpty == false) {
         HomeWidgetMessage(symbol: "heart.text.square.fill", title: "Recovery", tint: HomeWidgetColor.green, message: message)
+      } else if family == .systemMedium {
+        RecoveryMediumView(groups: entry.data?.recovery?.groups ?? [], now: entry.date)
       } else {
         content(entry.data?.recovery)
       }
@@ -219,6 +237,6 @@ struct RecoveryWidget: Widget {
     StaticConfiguration(kind: "MomentumRecovery", provider: HomeWidgetProvider(hourly: true)) { RecoveryWidgetView(entry: $0) }
       .configurationDisplayName("Recovery")
       .description("The muscle groups still recovering, updated through the day.")
-      .supportedFamilies([.systemSmall])
+      .supportedFamilies([.systemSmall, .systemMedium])
   }
 }

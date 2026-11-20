@@ -20,6 +20,12 @@ export function showRecoveryOverlay() { _setRecoveryVisible?.(true); }
 export function hideRecoveryOverlay() { _setRecoveryVisible?.(false); }
 export function setRecoveryOverlayControl(fn: ((v: boolean) => void) | null) { _setRecoveryVisible = fn; }
 
+/* ─── One workout's summary (set by LinkedWorkoutSummary, in TabNavigator) ── */
+
+let _openWorkoutSummary: ((workoutId: string) => void) | null = null;
+export function openWorkoutSummary(workoutId: string) { _openWorkoutSummary?.(workoutId); }
+export function setOpenWorkoutSummary(fn: ((workoutId: string) => void) | null) { _openWorkoutSummary = fn; }
+
 /* ─── Workouts stack navigation (set by WorkoutsNavigator) ── */
 
 let _workoutsNavRef: any = null;

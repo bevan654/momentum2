@@ -24,6 +24,36 @@ struct HomeWidgetData: Codable {
     var goalProtein: Double?
     var goalCarbs: Double?
     var goalFat: Double?
+    /// Protein per meal, in the diary's meals and order (planned food left out).
+    var meals: [Meal]?
+  }
+
+  struct Meal: Codable {
+    var name: String
+    var protein: Double
+  }
+
+  struct WorkoutTotals: Codable {
+    /// Epoch ms the workout was saved.
+    var at: Double
+    /// kg × reps over completed sets, as the app's workout totals.
+    var volume: Double
+    var prs: Int
+  }
+
+  struct LastWorkout: Codable {
+    var id: String
+    var title: String
+    var at: Double
+    var volume: Double
+    var prs: Int
+    /// The earlier session of the same routine or program day; nil = first time.
+    var previous: WorkoutTotals?
+  }
+
+  /// Wrapped so "no workouts yet" (latest nil) differs from "not loaded" (the section missing).
+  struct LastWorkoutSection: Codable {
+    var latest: LastWorkout?
   }
 
   /// The streak rule (src/utils/streakCalculator.ts): every day counts, rest days too, and it breaks
@@ -34,8 +64,10 @@ struct HomeWidgetData: Codable {
     var chainStart: String?
     /// Latest workout day.
     var lastWorkout: String?
-    /// Workout days in the last 8 days (for the 7 dots).
+    /// Workout days in the last 29 days (the 7 dots, the 28-day calendar).
     var recentDates: [String]
+    /// Longest streak ever, as of the app's last write (the widget also counts today's run).
+    var best: Int?
   }
 
   struct RecoveryGroup: Codable {
@@ -58,6 +90,7 @@ struct HomeWidgetData: Codable {
   var nutrition: Nutrition?
   var streak: Streak?
   var recovery: Recovery?
+  var lastWorkout: LastWorkoutSection?
 
   static func load() -> HomeWidgetData? {
     guard
@@ -142,13 +175,20 @@ extension HomeWidgetData {
     return HomeWidgetData(
       signedIn: true,
       accentHex: nil,
-      nutrition: Nutrition(date: today, kcal: 1580, protein: 142, carbs: 160, fat: 48, goalKcal: 2500, goalProtein: 180, goalCarbs: 280, goalFat: 80),
-      streak: Streak(chainStart: dates.last, lastWorkout: dates.first, recentDates: dates),
+      nutrition: Nutrition(
+        date: today, kcal: 1580, protein: 142, carbs: 160, fat: 48, goalKcal: 2500, goalProtein: 180, goalCarbs: 280, goalFat: 80,
+        meals: [Meal(name: "Breakfast", protein: 38), Meal(name: "Lunch", protein: 52), Meal(name: "Dinner", protein: 0), Meal(name: "Snacks", protein: 52)]
+      ),
+      streak: Streak(chainStart: dates.last, lastWorkout: dates.first, recentDates: dates, best: 34),
       recovery: Recovery(groups: [
         RecoveryGroup(name: "Back", trainedAt: nil, hours: 48),
         RecoveryGroup(name: "Quads", trainedAt: (now.timeIntervalSince1970 - 40 * 3600) * 1000, hours: 72),
         RecoveryGroup(name: "Biceps", trainedAt: (now.timeIntervalSince1970 - 30 * 3600) * 1000, hours: 48),
-      ], body: "male")
+      ], body: "male"),
+      lastWorkout: LastWorkoutSection(latest: LastWorkout(
+        id: "preview", title: "Push day", at: (now.timeIntervalSince1970 - 86_400) * 1000, volume: 12450, prs: 2,
+        previous: WorkoutTotals(at: (now.timeIntervalSince1970 - 8 * 86_400) * 1000, volume: 11830, prs: 0)
+      ))
     )
   }
 }
@@ -163,6 +203,8 @@ enum HomeWidgetColor {
   static let orange = Color(red: 0xF5 / 255.0, green: 0x9E / 255.0, blue: 0x0B / 255.0)
   static let red = Color(red: 0xEF / 255.0, green: 0x44 / 255.0, blue: 0x44 / 255.0)
   static let green = Color(red: 0x34 / 255.0, green: 0xD3 / 255.0, blue: 0x99 / 255.0)
+  /// The PR crown (targets/workout-activity/WorkoutLockScreen.swift prGold).
+  static let gold = Color(red: 0xF5 / 255.0, green: 0xB7 / 255.0, blue: 0x00 / 255.0)
 
   static func accent(_ hex: String?) -> Color {
     guard var s = hex?.trimmingCharacters(in: .whitespaces), !s.isEmpty else { return .primary }
@@ -253,4 +295,6 @@ enum HomeWidgetLink {
   static let nutrition = URL(string: "momentum://nutrition")
   static let workouts = URL(string: "momentum://workouts")
   static let recovery = URL(string: "momentum://recovery")
+  /// One workout's summary (navigation/widgetLinks.ts).
+  static func workout(_ id: String) -> URL? { URL(string: "momentum://workout/" + id) }
 }
