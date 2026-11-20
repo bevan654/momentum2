@@ -93,6 +93,9 @@ export function generateIncrements(goal: number): number[] {
 
 /* ─── State ───────────────────────────────────────────── */
 
+/** The water goal a user without a supplement_goals row has. */
+const DEFAULT_WATER_GOAL_ML = 2500;
+
 interface SupplementState {
   water: number;
   waterGoal: number;
@@ -139,7 +142,7 @@ let loadedTodayKey: string | null = null;
 
 export const useSupplementStore = create<SupplementState>((set, get) => ({
   water: 0,
-  waterGoal: 2500,
+  waterGoal: DEFAULT_WATER_GOAL_ML,
   supplementConfigs: DEFAULT_CONFIGS,
   supplementTotals: {},
   todayFor: null,
@@ -331,8 +334,8 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     if (data) {
       set({ waterGoal: Number(data.water_goal), goalsFor: userId });
     } else if (error?.code === 'PGRST116') {
-      // No goals row: the default water goal is this user's.
-      set({ goalsFor: userId });
+      // No goals row: this user has the default water goal (set it: the store may still hold the last account's).
+      set({ waterGoal: DEFAULT_WATER_GOAL_ML, goalsFor: userId });
     }
   },
 

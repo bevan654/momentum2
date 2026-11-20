@@ -42,15 +42,15 @@ function todayRange() {
   return { start, end };
 }
 
+/** The goals a user without a nutrition_goals row has. */
+const DEFAULT_GOALS = { calorieGoal: 2000, proteinGoal: 150, carbsGoal: 250, fatGoal: 65 };
+
 export const useNutritionStore = create<NutritionState>((set) => ({
   calories: 0,
-  calorieGoal: 2000,
   protein: 0,
-  proteinGoal: 150,
   carbs: 0,
-  carbsGoal: 250,
   fat: 0,
-  fatGoal: 65,
+  ...DEFAULT_GOALS,
   totalsFor: null,
   todayEntries: [],
   goalsFor: null,
@@ -106,8 +106,8 @@ export const useNutritionStore = create<NutritionState>((set) => ({
         goalsFor: userId,
       });
     } else if (error?.code === 'PGRST116') {
-      // No goals row: the defaults are this user's goals.
-      set({ goalsFor: userId });
+      // No goals row: this user has the defaults (set them: the store may still hold the last account's).
+      set({ ...DEFAULT_GOALS, goalsFor: userId });
     }
   },
 }));
