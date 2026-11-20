@@ -3,7 +3,8 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
-// The Lock Screen (and banner) view of the workout Live Activity. Two states:
+// The Lock Screen (and banner) view of the workout Live Activity, also shown in the expanded
+// Dynamic Island (WorkoutIslandBody: no header row, the corners beside the camera show it). Two states:
 //  - between sets: header, exercise + set dots, big "80 kg × [−] 8 [+]  (✓)", last time / since last set
 //  - resting: rest countdown + End rest, bar, "Up next …", and how the set just done compares
 // The buttons (iOS 17+) run the intents in WorkoutActivityShared.swift. When a rest runs out while
@@ -174,15 +175,66 @@ private struct BigSetRow: View {
   }
 }
 
+// MARK: - Header pieces (Lock Screen header row; Dynamic Island top corners)
+
+/// Dumbbell + "Push day" (or "Workout").
+private struct WorkoutTitleLabel: View {
+  let state: WorkoutActivityAttributes.ContentState
+
+  var body: some View {
+    HStack(spacing: 6) {
+      Image(systemName: "dumbbell.fill")
+        .font(.subheadline.weight(.semibold))
+        .foregroundColor(state.tint)
+      Text(state.workoutTitle ?? "Workout")
+        .font(.subheadline.weight(.semibold))
+        .foregroundColor(secondaryText)
+        .lineLimit(1)
+    }
+  }
+}
+
+/// "3/12 sets · 24:10"; `short` drops the word "sets" for the Dynamic Island's narrow corner.
+private struct WorkoutProgressLabel: View {
+  let state: WorkoutActivityAttributes.ContentState
+  var short = false
+
+  var body: some View {
+    HStack(spacing: 4) {
+      if let total = state.workoutSets, total > 0 {
+        Text("\(min(state.completedSets ?? 0, total))/\(total)\(short ? "" : " sets") ·")
+          .font(.footnote.weight(.medium))
+          .monospacedDigit()
+          .foregroundColor(secondaryText)
+          .fixedSize()
+      }
+      Text(timerInterval: state.workoutStartedAt...Date.distantFuture, countsDown: false)
+        .font(.footnote.weight(.semibold))
+        .monospacedDigit()
+        .foregroundColor(secondaryText)
+        .multilineTextAlignment(.trailing)
+        .frame(width: 56, alignment: .trailing)
+    }
+  }
+}
+
 // MARK: - Between sets
 
 private struct BetweenSetsView: View {
   let state: WorkoutActivityAttributes.ContentState
   let tint: Color
+  /// Off in the Dynamic Island, whose top corners (beside the camera) show the header instead.
+  var showsHeader = true
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      header
+      if showsHeader {
+        HStack(spacing: 6) {
+          WorkoutTitleLabel(state: state)
+          Spacer(minLength: 6)
+          WorkoutProgressLabel(state: state)
+        }
+      }
       if let card = state.current {
         HStack(spacing: 8) {
           Text("\(card.exerciseName) · set \(card.setIndex) of \(card.setCount)")
@@ -207,32 +259,6 @@ private struct BetweenSetsView: View {
     if state.exerciseName.isEmpty { return "Add an exercise to get started" }
     if state.setsLeft { return "Open Momentum for your next set" }
     return "All sets done"
-  }
-
-  private var header: some View {
-    HStack(spacing: 6) {
-      Image(systemName: "dumbbell.fill")
-        .font(.subheadline.weight(.semibold))
-        .foregroundColor(tint)
-      Text(state.workoutTitle ?? "Workout")
-        .font(.subheadline.weight(.semibold))
-        .foregroundColor(secondaryText)
-        .lineLimit(1)
-      Spacer(minLength: 6)
-      if let total = state.workoutSets, total > 0 {
-        Text("\(min(state.completedSets ?? 0, total))/\(total) sets ·")
-          .font(.footnote.weight(.medium))
-          .monospacedDigit()
-          .foregroundColor(secondaryText)
-          .fixedSize()
-      }
-      Text(timerInterval: state.workoutStartedAt...Date.distantFuture, countsDown: false)
-        .font(.footnote.weight(.semibold))
-        .monospacedDigit()
-        .foregroundColor(secondaryText)
-        .multilineTextAlignment(.trailing)
-        .frame(width: 56, alignment: .trailing)
-    }
   }
 
   @ViewBuilder
@@ -271,6 +297,8 @@ private struct RestingView: View {
   let state: WorkoutActivityAttributes.ContentState
   let rest: ClosedRange<Date>
   let tint: Color
+  /// The Dynamic Island has its header on top, so the done-set stat drops its detail line to fit.
+  var showsStatDetail = true
 
   var body: some View {
     VStack(alignment: .leading, spacing: 7) {
@@ -302,7 +330,9 @@ private struct RestingView: View {
         .tint(tint)
         .background(trackColor.clipShape(Capsule()))
       upNext
-      if let done = state.justDone { DoneStat(done: done, sameExercise: done.exerciseName == state.current?.exerciseName) }
+      if let done = state.justDone {
+        DoneStat(done: done, sameExercise: done.exerciseName == state.current?.exerciseName, showsDetail: showsStatDetail)
+      }
     }
   }
 
@@ -323,6 +353,7 @@ private struct RestingView: View {
 private struct DoneStat: View {
   let done: WorkoutDoneSet
   let sameExercise: Bool
+  var showsDetail = true
 
   var body: some View {
     let text = WorkoutSetMath.setText(kind: done.kind, kg: done.kg, reps: done.reps) ?? "Done"
@@ -334,10 +365,12 @@ private struct DoneStat: View {
         if done.prLabel != nil { PRBadge() }
         Spacer(minLength: 0)
       }
-      Text(detailLine)
-        .font(.caption)
-        .foregroundColor(secondaryText)
-        .lineLimit(1)
+      if showsDetail {
+        Text(detailLine)
+          .font(.caption)
+          .foregroundColor(secondaryText)
+          .lineLimit(1)
+      }
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 7)
@@ -373,7 +406,52 @@ struct WorkoutLockScreenView: View {
   }
 }
 
+// MARK: - Dynamic Island (expanded) pieces
+
+/// Top-left corner of the expanded Dynamic Island: dumbbell + workout name.
+struct WorkoutIslandTitle: View {
+  let state: WorkoutActivityAttributes.ContentState
+
+  var body: some View {
+    WorkoutTitleLabel(state: state).padding(.leading, 4)
+  }
+}
+
+/// Top-right corner of the expanded Dynamic Island: "3/12 · 24:10".
+struct WorkoutIslandProgress: View {
+  let state: WorkoutActivityAttributes.ContentState
+
+  var body: some View {
+    WorkoutProgressLabel(state: state, short: true).padding(.trailing, 4)
+  }
+}
+
+/// Below the camera in the expanded Dynamic Island: the Lock Screen card without its header
+/// (the corners show it), with the same buttons.
+struct WorkoutIslandBody: View {
+  let state: WorkoutActivityAttributes.ContentState
+  let isStale: Bool
+
+  var body: some View {
+    let tint = state.tint
+    Group {
+      if let rest = state.lockRest, !isStale {
+        RestingView(state: state, rest: rest, tint: tint, showsStatDetail: false)
+      } else {
+        BetweenSetsView(state: state, tint: tint, showsHeader: false)
+      }
+    }
+    .padding(.horizontal, 4)
+  }
+}
+
 extension WorkoutActivityAttributes.ContentState {
-  /// The accent for the Lock Screen's system controls.
-  var lockScreenTint: Color { tint }
+  /// The user's accent, for the Lock Screen's system controls and the Dynamic Island.
+  var activityTint: Color { tint }
+
+  /// The current rest, or nil when not resting or when it ran out while the app was asleep
+  /// (the system marks the activity stale at the rest's end).
+  func liveRest(isStale: Bool) -> ClosedRange<Date>? {
+    isStale ? nil : lockRest
+  }
 }
