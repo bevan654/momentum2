@@ -167,7 +167,10 @@ function sendNative(snapshot: WorkoutActivitySnapshot): void {
   const queued = _pendingNativeState != null;
   _pendingNativeState = state;
   if (queued) return; // the update already in the queue sends this newer state instead
+  const gen = _gen;
   enqueueNative('update', () => {
+    // Stopped (and maybe restarted) since: the next workout's queued update sends its own state.
+    if (gen !== _gen) return Promise.resolve();
     const latest = _pendingNativeState;
     _pendingNativeState = null;
     return latest ? WorkoutLiveActivity.update(latest) : Promise.resolve();

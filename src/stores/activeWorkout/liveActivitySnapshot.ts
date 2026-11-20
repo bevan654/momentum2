@@ -1,6 +1,7 @@
 import type { WorkoutActivitySnapshot } from '../../services/liveActivityManager';
 import { getExerciseHistorySets, type RecordSet } from '../../services/exerciseRecords';
 import { suggestSets } from '../../utils/exerciseProgress';
+import { titleCase } from '../../utils/titleCase';
 import type {
   WorkoutLiveActivityDoneSet,
   WorkoutLiveActivitySetCard,
@@ -54,7 +55,7 @@ function _getExerciseInfo(exercises: ActiveExercise[]): ExerciseInfo {
   if (current === -1) {
     // Every set is done: show the last exercise worked on as complete.
     const last = exercises[anchor >= 0 ? anchor : n - 1];
-    return { name: last.name, currentSet: last.sets.length, totalSets: last.sets.length, nextName: null, exerciseIndex: null };
+    return { name: titleCase(last.name), currentSet: last.sets.length, totalSets: last.sets.length, nextName: null, exerciseIndex: null };
   }
 
   const ex = exercises[current];
@@ -65,10 +66,10 @@ function _getExerciseInfo(exercises: ActiveExercise[]): ExerciseInfo {
     ? partner
     : firstWithSetsLeft(current + 1, current);
   return {
-    name: ex.name,
+    name: titleCase(ex.name),
     currentSet: pos + 1,
     totalSets: ex.sets.length,
-    nextName: next === -1 ? null : exercises[next].name,
+    nextName: next === -1 ? null : titleCase(exercises[next].name),
     exerciseIndex: current,
   };
 }
@@ -186,7 +187,7 @@ function _setCard(
     : _prThresholds(_earlierSets(exercises, ex.name, workoutId, Infinity), kind, kg);
   return {
     exerciseId: ex.id,
-    exerciseName: ex.name,
+    exerciseName: titleCase(ex.name),
     setPosition: pos,
     setIndex: pos + 1,
     setCount: ex.sets.length,
@@ -235,7 +236,7 @@ function _justDone(exercises: ActiveExercise[], isGhost: boolean, workoutId: str
     ? { prKg: null, prReps: null }
     : _prThresholds(_earlierSets(exercises, ex.name, workoutId, at), kind, kg);
   return {
-    exerciseName: ex.name,
+    exerciseName: titleCase(ex.name),
     setIndex: pos + 1,
     kind,
     kg,

@@ -91,7 +91,7 @@ export const useNutritionStore = create<NutritionState>((set) => ({
   },
 
   fetchNutritionGoals: async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('nutrition_goals')
       .select('calorie_goal, protein_goal, carbs_goal, fat_goal')
       .eq('user_id', userId)
@@ -105,6 +105,9 @@ export const useNutritionStore = create<NutritionState>((set) => ({
         fatGoal: Number(data.fat_goal),
         goalsFor: userId,
       });
+    } else if (error?.code === 'PGRST116') {
+      // No goals row: the defaults are this user's goals.
+      set({ goalsFor: userId });
     }
   },
 }));

@@ -248,6 +248,25 @@ const checks = {
     const missing = keys.filter((k) => !new RegExp(`\\b${k}\\b`).test(nutrition));
     if (keys.length === 0) problems.push('MICRO_KEYS not found in src/stores/useFoodLogStore.ts (the check needs updating)');
     else if (missing.length) problems.push(`fetchTodayNutrition does not select micronutrient columns: ${missing.join(', ')}`);
+    // Widget links: every momentum:// host the widgets open is handled by navigation/widgetLinks.ts,
+    // and every tab it opens is a registered tab.
+    const links = read('src/navigation/widgetLinks.ts');
+    const tabsBlock = /const TABS[^=]*=\s*\{([^}]*)\}/.exec(links)?.[1] ?? '';
+    const tabKeys = [...tabsBlock.matchAll(/(\w+):/g)].map((m) => m[1]);
+    const tabNames = [...tabsBlock.matchAll(/:\s*'(\w+)'/g)].map((m) => m[1]);
+    const hosts = [...swift.matchAll(/"momentum:\/\/(\w+)/g)].map((m) => m[1]);
+    if (tabKeys.length === 0 || hosts.length === 0) problems.push('widget links: TABS in widgetLinks.ts or HomeWidgetLink URLs in HomeWidgetData.swift not found (the check needs updating)');
+    for (const host of hosts) {
+      if (host === 'workout') {
+        if (!links.includes('momentum:\\/\\/workout\\/')) problems.push('widget link momentum://workout/<id> is not handled by src/navigation/widgetLinks.ts');
+      } else if (!tabKeys.includes(host)) {
+        problems.push(`widget link momentum://${host} is not in TABS in src/navigation/widgetLinks.ts`);
+      }
+    }
+    const tabNavigator = read('src/navigation/TabNavigator.tsx');
+    for (const name of tabNames) {
+      if (!new RegExp(`name=["']${name}["']`).test(tabNavigator)) problems.push(`widgetLinks.ts opens tab '${name}', which TabNavigator.tsx doesn't register`);
+    }
     return problems;
   },
 

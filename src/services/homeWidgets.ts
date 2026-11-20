@@ -33,6 +33,7 @@ import { useWeightStore } from '../stores/useWeightStore';
 import { useWorkoutStore, type WorkoutWithDetails } from '../stores/useWorkoutStore';
 import { parseLocalDate, toLocalDateString } from '../utils/localDate';
 import { ownBodyweightKg } from '../utils/muscleLoad';
+import { titleCase } from '../utils/titleCase';
 
 const WRITE_DELAY_MS = 1000;
 /** fetchWorkoutHistory's limit; fewer loaded means the user's whole history is here. */
@@ -279,7 +280,7 @@ function _exerciseBests(latest: WorkoutWithDetails, previous: WorkoutWithDetails
     if (!best || best.kg < 0) continue;
     const last = before.get(e.name.toLowerCase()) ?? null;
     // Duration exercises keep seconds in reps; the widget shows them as time.
-    rows.push({ name: e.name, kind: e.exercise_type, kg: best.kg, reps: best.reps, previousKg: last?.kg ?? null, previousReps: last?.reps ?? null });
+    rows.push({ name: titleCase(e.name), kind: e.exercise_type, kg: best.kg, reps: best.reps, previousKg: last?.kg ?? null, previousReps: last?.reps ?? null });
   }
   return rows;
 }

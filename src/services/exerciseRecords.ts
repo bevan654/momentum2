@@ -13,6 +13,7 @@ import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
+import { isSupported as liveActivitiesSupported } from '../../modules/workout-live-activity';
 
 export interface RecordSet {
   kg: number;
@@ -45,8 +46,9 @@ export function onExerciseRecordsLoaded(listener: () => void): () => void {
  * saved) are left out, since the app counts its sets itself.
  */
 export function getExerciseHistorySets(name: string, workoutId: string | null): RecordSet[] | undefined {
-  // Only the iOS Lock Screen shows PRs: no requests elsewhere.
-  if (Platform.OS !== 'ios') return undefined;
+  // Only the iOS Lock Screen Live Activity shows PRs (not Android, nor the older notification on
+  // iOS < 16.2 or with Live Activities off): no requests elsewhere.
+  if (Platform.OS !== 'ios' || !liveActivitiesSupported()) return undefined;
   const userId = useAuthStore.getState().user?.id;
   if (!userId || !name) return undefined;
   const key = `${userId}|${workoutId ?? ''}`;
@@ -56,6 +58,8 @@ export function getExerciseHistorySets(name: string, workoutId: string | null): 
     _loading.clear();
     _queued.clear();
     _failedAt = 0;
+    // The previous workout's batch would load this one's names under its own key and drop them.
+    if (_batchTimer) { clearTimeout(_batchTimer); _batchTimer = null; }
   }
   const cached = _sets.get(name);
   if (cached) return cached;
@@ -74,8 +78,8 @@ async function _load(userId: string, workoutId: string | null, key: string): Pro
   names.forEach((n) => _loading.add(n));
   // One request per exercise, so a long-trained exercise can't crowd the others out of the limit.
   const results = await Promise.all(names.map((name) => _loadOne(userId, workoutId, name)));
+  if (key !== _key) return; // another workout started meanwhile (its own loads are tracked anew)
   names.forEach((n) => _loading.delete(n));
-  if (key !== _key) return; // another workout started meanwhile
   let loaded = false;
   results.forEach((sets, i) => {
     if (sets) { _sets.set(names[i], sets); loaded = true; }

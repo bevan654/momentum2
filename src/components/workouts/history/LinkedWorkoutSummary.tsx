@@ -2,34 +2,46 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import WorkoutSummaryModal from '../../workout-sheet/WorkoutSummaryModal';
 import Sheet from '../../ui/Sheet';
 import { setOpenWorkoutSummary } from '../../../lib/navigationBridge';
+import { useAuthStore } from '../../../stores/useAuthStore';
 import { useWorkoutStore, type WorkoutWithDetails } from '../../../stores/useWorkoutStore';
+
+/** How long a requested workout may wait for the history to load (a cold start on a slow network). */
+const WAIT_MS = 30_000;
 
 /**
  * A workout's summary opened from outside the history list: the home screen Last workout widget
  * (momentum://workout/<id>, through navigation/widgetLinks.ts and navigationBridge). Mounted once by
  * TabNavigator. Shown in the app's own sheet (like the just-finished summary), so it can open over
- * other screens; a workout that isn't in the loaded history (deleted, too old) isn't opened.
+ * other screens. If the history hasn't loaded yet it waits for it (up to WAIT_MS); a workout the
+ * loaded history doesn't have (deleted, too old) isn't opened.
  */
 function LinkedWorkoutSummary() {
-  const [workoutId, setWorkoutId] = useState<string | null>(null);
+  const [requested, setRequested] = useState<{ id: string; at: number } | null>(null);
+  const workoutId = requested?.id ?? null;
   const workout = useWorkoutStore((s) => (workoutId ? s.workouts.find((w) => w.id === workoutId) ?? null : null));
+  const historyLoaded = useWorkoutStore((s) => !s.loading && !!s.historyUserId && s.historyUserId === useAuthStore.getState().user?.id);
   const deleteWorkout = useWorkoutStore((s) => s.deleteWorkout);
-  const close = useCallback(() => setWorkoutId(null), []);
+  const close = useCallback(() => setRequested(null), []);
   // Kept while the sheet slides away, so it doesn't go blank as it closes.
   const shown = useRef<WorkoutWithDetails | null>(null);
   if (workout) shown.current = workout;
 
   useEffect(() => {
-    setOpenWorkoutSummary((id) => {
-      if (useWorkoutStore.getState().workouts.some((w) => w.id === id)) setWorkoutId(id);
-    });
+    setOpenWorkoutSummary((id) => setRequested({ id, at: Date.now() }));
     return () => setOpenWorkoutSummary(null);
   }, []);
 
-  // The workout went away (deleted here or elsewhere): forget it, so it can't pop up later.
+  // Not in the loaded history (deleted here or elsewhere, too old), or waited too long: forget it,
+  // so it can't pop up later.
   useEffect(() => {
-    if (workoutId && !workout) setWorkoutId(null);
-  }, [workoutId, workout]);
+    if (!requested || workout) return;
+    if (historyLoaded) {
+      setRequested(null);
+      return;
+    }
+    const timer = setTimeout(() => setRequested(null), Math.max(0, requested.at + WAIT_MS - Date.now()));
+    return () => clearTimeout(timer);
+  }, [requested, workout, historyLoaded]);
 
   const data = shown.current;
   return (

@@ -5,7 +5,7 @@ import WidgetKit
 struct WorkoutActivityBundle: WidgetBundle {
   var body: some Widget {
     WorkoutLiveActivity()
-    // Home screen widgets (small and medium); data from src/services/homeWidgets.ts.
+    // Home screen widgets (small, medium and large); data from src/services/homeWidgets.ts.
     CaloriesWidget()
     ProteinWidget()
     MacrosWidget()

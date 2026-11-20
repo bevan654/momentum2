@@ -16,6 +16,17 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.48',
+    date: '2026-11-20',
+    title: "What's New",
+    items: [
+      'Your workout on the Lock Screen: your next set, last time and PRs, with buttons to finish a set, change reps and end your rest (iOS 17+)',
+      'The Dynamic Island shows your workout and rest timer, and opens into the same controls (iPhone 14 Pro and newer)',
+      'Home screen widgets for calories, protein, macros, your streak, recovery and your last workout, in small, medium and large sizes',
+      'Fixed: planned meals no longer count as eaten on the Home screen',
+    ],
+  },
+  {
     version: '1.0.47',
     date: '2026-11-15',
     title: "What's New",
