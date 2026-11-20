@@ -22,6 +22,8 @@ struct StreakState {
   let dots: [StreakDay]
   /// The last 28 days, oldest first, ending today (the medium widget's calendar).
   let calendar: [StreakDay]
+  /// The last 84 days, oldest first, ending today (the large widget's 12-week grid).
+  let twelveWeeks: [StreakDay]
   /// Longest streak ever (the app's, or today's run if it has passed it since the app last wrote).
   let best: Int
 
@@ -43,6 +45,7 @@ struct StreakState {
     let recent = Set(streak?.recentDates ?? [])
     dots = StreakState.lastDays(7, now: now, trained: recent)
     calendar = StreakState.lastDays(28, now: now, trained: recent)
+    twelveWeeks = StreakState.lastDays(84, now: now, trained: recent)
     recentWorkoutDays = dots.filter(\.trained).count
 
     // The rule in src/utils/streakCalculator.ts: alive while the last workout was under 4 days ago.
@@ -75,6 +78,8 @@ struct StreakWidgetView: View {
     Group {
       if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.streak != nil) {
         HomeWidgetMessage(symbol: "flame.fill", title: "Streak", tint: HomeWidgetColor.orange, message: message)
+      } else if family == .systemLarge {
+        StreakLargeView(s: StreakState(entry.data?.streak, now: entry.date))
       } else if family == .systemMedium {
         StreakMediumView(s: StreakState(entry.data?.streak, now: entry.date))
       } else {
@@ -142,7 +147,7 @@ struct StreakWidget: Widget {
     StaticConfiguration(kind: "MomentumStreak", provider: HomeWidgetProvider()) { StreakWidgetView(entry: $0) }
       .configurationDisplayName("Streak")
       .description("Your workout streak, with the last 7 days (small) or 28 days (medium).")
-      .supportedFamilies([.systemSmall, .systemMedium])
+      .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
   }
 }
 
@@ -173,6 +178,8 @@ struct RecoveryWidgetView: View {
     Group {
       if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.recovery?.groups.isEmpty == false) {
         HomeWidgetMessage(symbol: "heart.text.square.fill", title: "Recovery", tint: HomeWidgetColor.green, message: message)
+      } else if family == .systemLarge {
+        RecoveryLargeView(groups: entry.data?.recovery?.groups ?? [], now: entry.date)
       } else if family == .systemMedium {
         RecoveryMediumView(groups: entry.data?.recovery?.groups ?? [], now: entry.date)
       } else {
@@ -241,6 +248,6 @@ struct RecoveryWidget: Widget {
     StaticConfiguration(kind: "MomentumRecovery", provider: HomeWidgetProvider(hourly: true)) { RecoveryWidgetView(entry: $0) }
       .configurationDisplayName("Recovery")
       .description("The muscle groups still recovering, updated through the day.")
-      .supportedFamilies([.systemSmall, .systemMedium])
+      .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
   }
 }

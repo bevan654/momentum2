@@ -12,6 +12,8 @@ export interface TodayFoodRow {
   is_planned: boolean;
   meal_group_id: string | null;
   created_at: string;
+  /** Micronutrient columns (fiber, sugar, MICRO_KEYS), for components/food/dayTotals.ts sumMicros. */
+  [micro: string]: number | string | boolean | null;
 }
 
 interface NutritionState {
@@ -58,7 +60,8 @@ export const useNutritionStore = create<NutritionState>((set) => ({
     const day = toLocalDateString();
     const { data, error } = await supabase
       .from('food_entries')
-      .select('calories, protein, carbs, fat, meal_type, is_planned, meal_group_id, created_at')
+      // The micronutrient columns are fiber, sugar and useFoodLogStore MICRO_KEYS (the widgets' micronutrients).
+      .select('calories, protein, carbs, fat, meal_type, is_planned, meal_group_id, created_at, fiber, sugar, vitamin_a, vitamin_c, vitamin_d, vitamin_e, vitamin_k, vitamin_b6, vitamin_b12, folate, calcium, iron, magnesium, potassium, zinc, sodium, caffeine')
       .eq('user_id', userId)
       .gte('created_at', start)
       .lt('created_at', end);

@@ -9,7 +9,7 @@ interface StreakState {
   /** First workout day of the current streak and the latest workout day (YYYY-MM-DD), for the home screen widget. */
   chainStart: string | null;
   lastWorkout: string | null;
-  /** Workout days in the last 29 days, newest first (the widgets' 7 dots and 28-day calendar). */
+  /** Workout days in the last 85 days, newest first (the widgets' 7 dots, 28-day calendar and 12-week grid). */
   recentDates: string[];
   /** Whose dates chainStart / lastWorkout / recentDates are (set by refreshStreak only). */
   computedFor: string | null;
@@ -57,7 +57,7 @@ export const useStreakStore = create<StreakState>((set, get) => ({
     upsertUserStreak(userId, result.currentStreak, result.longestStreak, lastWorkout);
 
     const windowStart = parseLocalDate(today);
-    windowStart.setDate(windowStart.getDate() - 28);
+    windowStart.setDate(windowStart.getDate() - 84);
     const recentStart = toLocalDateString(windowStart);
     set({
       currentStreak: result.currentStreak,

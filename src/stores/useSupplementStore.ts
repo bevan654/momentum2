@@ -98,6 +98,10 @@ interface SupplementState {
   waterGoal: number;
   supplementConfigs: SupplementConfig[];
   supplementTotals: Record<string, number>;
+  /** Whose and which local day's totals water / supplementTotals are; null until a fetch succeeds. */
+  todayFor: { userId: string; day: string } | null;
+  /** Whose water goal and supplement configs these are; null while they're the defaults. */
+  goalsFor: string | null;
   loading: boolean;
   dateEntries: SupplementEntry[];
   /** The date `dateEntries` belongs to (the day the Nutrition tab is showing). */
@@ -138,6 +142,8 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   waterGoal: 2500,
   supplementConfigs: DEFAULT_CONFIGS,
   supplementTotals: {},
+  todayFor: null,
+  goalsFor: null,
   loading: false,
   dateEntries: [],
   dateEntriesDate: null,
@@ -310,20 +316,23 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     }
 
     loadedTodayKey = key;
-    set({ water, supplementTotals: totals });
+    set({ water, supplementTotals: totals, todayFor: { userId, day: date } });
   },
 
   fetchSupplementGoals: async (userId: string) => {
     await get().loadSupplementConfigs(userId);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('supplement_goals')
       .select('water_goal')
       .eq('user_id', userId)
       .single();
 
     if (data) {
-      set({ waterGoal: Number(data.water_goal) });
+      set({ waterGoal: Number(data.water_goal), goalsFor: userId });
+    } else if (error?.code === 'PGRST116') {
+      // No goals row: the default water goal is this user's.
+      set({ goalsFor: userId });
     }
   },
 

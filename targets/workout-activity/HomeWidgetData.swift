@@ -31,6 +31,39 @@ struct HomeWidgetData: Codable {
   struct Meal: Codable {
     var name: String
     var protein: Double
+    /// The meal's calories, carbs and fat (the large Macros widget).
+    var kcal: Double?
+    var carbs: Double?
+    var fat: Double?
+  }
+
+  /// A micronutrient the user set a goal for, with today's intake.
+  struct Micro: Codable {
+    var name: String
+    var unit: String
+    var amount: Double
+    var goal: Double
+  }
+
+  /// Today's amount of water (ml) or creatine (g) against its daily goal.
+  struct Amount: Codable {
+    var amount: Double
+    var goal: Double
+  }
+
+  /// The large Macros widget's micronutrients and supplements, for one local day.
+  struct NutritionExtras: Codable {
+    var date: String
+    var micros: [Micro]?
+    var water: Amount?
+    /// Nil when creatine isn't tracked.
+    var creatine: Amount?
+  }
+
+  /// Protein eaten on one earlier day (the large Protein widget's 7 days; today comes from Nutrition).
+  struct DayProtein: Codable {
+    var date: String
+    var protein: Double
   }
 
   struct WorkoutTotals: Codable {
@@ -52,6 +85,18 @@ struct HomeWidgetData: Codable {
     var previous: WorkoutTotals?
     /// No earlier session, and the app has the whole history: it really is the first time.
     var firstTime: Bool?
+    /// Each exercise's heaviest working set, in workout order (the large size).
+    var exercises: [ExerciseBest]?
+  }
+
+  /// An exercise's heaviest completed working set (most reps at that weight), and the same
+  /// exercise's in the earlier session (nil = not done then).
+  struct ExerciseBest: Codable {
+    var name: String
+    var kg: Double
+    var reps: Int
+    var previousKg: Double?
+    var previousReps: Int?
   }
 
   /// Wrapped so "no workouts yet" (latest nil) differs from "not loaded" (the section missing).
@@ -94,6 +139,8 @@ struct HomeWidgetData: Codable {
   var streak: Streak?
   var recovery: Recovery?
   var lastWorkout: LastWorkoutSection?
+  var nutritionExtras: NutritionExtras?
+  var proteinWeek: [DayProtein]?
 
   static func load() -> HomeWidgetData? {
     guard

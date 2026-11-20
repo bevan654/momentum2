@@ -140,6 +140,8 @@ struct ProteinWidgetView: View {
     Group {
       if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.nutrition != nil) {
         HomeWidgetMessage(symbol: "fork.knife", title: "Protein", tint: HomeWidgetColor.protein, message: message)
+      } else if family == .systemLarge {
+        ProteinLargeView(n: nutritionOf(entry), week: entry.data?.proteinWeek ?? [], now: entry.date)
       } else if family == .systemMedium {
         ProteinMediumView(n: nutritionOf(entry))
       } else {
@@ -193,6 +195,8 @@ struct MacrosWidgetView: View {
     Group {
       if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.nutrition != nil) {
         HomeWidgetMessage(symbol: "chart.bar.fill", title: "Macros", tint: accent, message: message)
+      } else if family == .systemLarge {
+        MacrosLargeView(n: nutritionOf(entry), extras: entry.data?.nutritionExtras, accent: accent, now: entry.date)
       } else if family == .systemMedium {
         MacrosMediumView(n: nutritionOf(entry), accent: accent)
       } else {
@@ -283,7 +287,7 @@ struct ProteinWidget: Widget {
     StaticConfiguration(kind: "MomentumProtein", provider: HomeWidgetProvider()) { ProteinWidgetView(entry: $0) }
       .configurationDisplayName("Protein")
       .description("Protein eaten today, how much is left to your goal and, at medium size, per meal.")
-      .supportedFamilies([.systemSmall, .systemMedium])
+      .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
   }
 }
 
@@ -292,6 +296,6 @@ struct MacrosWidget: Widget {
     StaticConfiguration(kind: "MomentumMacros", provider: HomeWidgetProvider()) { MacrosWidgetView(entry: $0) }
       .configurationDisplayName("Macros")
       .description("Calories, protein, carbs and fat today against your goals.")
-      .supportedFamilies([.systemSmall, .systemMedium])
+      .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
   }
 }

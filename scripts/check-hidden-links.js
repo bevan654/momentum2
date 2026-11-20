@@ -242,6 +242,12 @@ const checks = {
     for (const f of fields) {
       if (!new RegExp(`\\b${f}:`).test(ts)) problems.push(`HomeWidgetData.${f} is never written by src/services/homeWidgets.ts`);
     }
+    // fetchTodayNutrition names the micronutrient columns in its select: the same as MICRO_KEYS.
+    const nutrition = read('src/stores/useNutritionStore.ts');
+    const keys = /MICRO_KEYS = \[([^\]]+)\]/.exec(read('src/stores/useFoodLogStore.ts'))?.[1].match(/\w+/g) ?? [];
+    const missing = keys.filter((k) => !new RegExp(`\\b${k}\\b`).test(nutrition));
+    if (keys.length === 0) problems.push('MICRO_KEYS not found in src/stores/useFoodLogStore.ts (the check needs updating)');
+    else if (missing.length) problems.push(`fetchTodayNutrition does not select micronutrient columns: ${missing.join(', ')}`);
     return problems;
   },
 

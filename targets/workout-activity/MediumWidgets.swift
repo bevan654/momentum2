@@ -226,6 +226,7 @@ private func kgText(_ value: Double) -> String { "\(kcalText(value)) kg" }
 
 struct LastWorkoutWidgetView: View {
   let entry: HomeWidgetEntry
+  @Environment(\.widgetFamily) private var family
 
   var body: some View {
     let section = entry.data?.lastWorkout
@@ -233,7 +234,14 @@ struct LastWorkoutWidgetView: View {
       if let message = homeWidgetBlocker(entry.data, hasSection: section != nil) {
         HomeWidgetMessage(symbol: "dumbbell.fill", title: "Last workout", tint: tint, message: message)
       } else if let w = section?.latest {
-        content(w)
+        if family == .systemLarge {
+          VStack(alignment: .leading, spacing: 10) {
+            content(w).frame(height: 118)
+            ExerciseBestsView(exercises: w.exercises ?? [], compared: w.previous != nil)
+          }
+        } else {
+          content(w)
+        }
       } else {
         HomeWidgetMessage(symbol: "dumbbell.fill", title: "Last workout", tint: tint, message: "Finish a workout to see it here")
       }
@@ -301,6 +309,6 @@ struct LastWorkoutWidget: Widget {
     StaticConfiguration(kind: "MomentumLastWorkout", provider: HomeWidgetProvider()) { LastWorkoutWidgetView(entry: $0) }
       .configurationDisplayName("Last workout")
       .description("Your latest workout's volume and PRs against the previous time you did it.")
-      .supportedFamilies([.systemMedium])
+      .supportedFamilies([.systemMedium, .systemLarge])
   }
 }
