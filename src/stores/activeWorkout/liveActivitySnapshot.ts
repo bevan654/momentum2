@@ -58,14 +58,15 @@ function _getExerciseInfo(exercises: ActiveExercise[]): ExerciseInfo {
   }
 
   const ex = exercises[current];
-  const done = ex.sets.filter((s) => s.completed).length;
+  // The first unticked set (sets can be ticked out of order), as the Lock Screen card numbers it.
+  const pos = ex.sets.findIndex((s) => !s.completed);
   const partner = ex.supersetWith;
   const next = partner !== null && exercises[partner] && _hasSetsLeft(exercises[partner])
     ? partner
     : firstWithSetsLeft(current + 1, current);
   return {
     name: ex.name,
-    currentSet: done + 1,
+    currentSet: pos + 1,
     totalSets: ex.sets.length,
     nextName: next === -1 ? null : exercises[next].name,
     exerciseIndex: current,

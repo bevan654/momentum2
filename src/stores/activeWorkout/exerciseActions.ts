@@ -375,11 +375,11 @@ export function createExerciseActions(
       if (!wasCompleted) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         set({ restAnchor: { exerciseIndex, setIndex } });
-        get().startRest();
+        get().startRest(); // sends the Lock Screen update: the ticked set and the rest together
       }
 
       get()._persist();
-      updateWorkoutActivity(_buildSnapshot(get()));
+      if (wasCompleted) updateWorkoutActivity(_buildSnapshot(get()));
     },
 
     cycleSetType: (exerciseIndex, setIndex) => {

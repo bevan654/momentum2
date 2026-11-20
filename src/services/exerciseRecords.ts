@@ -11,6 +11,7 @@
 
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useWorkoutStore } from '../stores/useWorkoutStore';
 
 export interface RecordSet {
   kg: number;
@@ -80,6 +81,20 @@ async function _load(userId: string, workoutId: string | null, key: string): Pro
   if (loaded) _listeners.forEach((l) => l());
 }
 
+/**
+ * Every name the exercise has been logged under: its own, its current catalog name, and the
+ * catalog's older names for it (exercise_aliases), so a renamed exercise keeps its history.
+ */
+function _loggedNames(name: string): string[] {
+  const { aliasMap } = useWorkoutStore.getState();
+  const canonical = aliasMap[name] ?? name;
+  const names = new Set([name, canonical]);
+  for (const [alias, target] of Object.entries(aliasMap)) {
+    if (target === canonical) names.add(alias);
+  }
+  return [...names];
+}
+
 /** The exercise's earlier working sets, newest sessions first; null if the request failed. */
 async function _loadOne(userId: string, workoutId: string | null, name: string): Promise<RecordSet[] | null> {
   try {
@@ -87,10 +102,12 @@ async function _loadOne(userId: string, workoutId: string | null, name: string):
       .from('exercises')
       .select('workout_id, sets(kg, reps, completed, set_type), workouts!inner(user_id, created_at)')
       .eq('workouts.user_id', userId)
-      .eq('name', name);
+      .in('name', _loggedNames(name));
     if (workoutId) query = query.neq('workout_id', workoutId);
+    // exercises.created_at is when the workout was saved; ordering on the embedded workout
+    // would only sort inside each row, so the limit wouldn't keep the newest sessions.
     const { data, error } = await query
-      .order('created_at', { referencedTable: 'workouts', ascending: false })
+      .order('created_at', { ascending: false })
       .limit(SESSION_LIMIT);
     if (error) throw error;
     const sets: RecordSet[] = [];

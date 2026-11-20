@@ -156,12 +156,22 @@ function enqueueNative(label: string, call: () => Promise<unknown>): void {
   });
 }
 
+/** The newest update not sent yet; updates queued behind a slow native call collapse into it. */
+let _pendingNativeState: WorkoutLiveActivityState | null = null;
+
 function sendNative(snapshot: WorkoutActivitySnapshot): void {
   const state = toNativeState(snapshot);
   const key = JSON.stringify(state);
   if (key === _lastNativeKey) return;
   _lastNativeKey = key;
-  enqueueNative('update', () => WorkoutLiveActivity.update(state));
+  const queued = _pendingNativeState != null;
+  _pendingNativeState = state;
+  if (queued) return; // the update already in the queue sends this newer state instead
+  enqueueNative('update', () => {
+    const latest = _pendingNativeState;
+    _pendingNativeState = null;
+    return latest ? WorkoutLiveActivity.update(latest) : Promise.resolve();
+  });
 }
 
 // ── Legacy path: notification content ─────────────────────
@@ -311,6 +321,8 @@ function dismissLegacy(): Promise<void> {
 function startNative(snapshot: WorkoutActivitySnapshot, gen: number): void {
   const state = toNativeState(snapshot);
   _lastNativeKey = JSON.stringify(state);
+  // An earlier workout's queued update mustn't pick up this workout's later state.
+  _pendingNativeState = null;
   _nativeQueue = _nativeQueue.then(async () => {
     let id: string | null = null;
     try {
@@ -473,6 +485,7 @@ export async function stopWorkoutActivity(): Promise<void> {
 
   if (mode === 'native') {
     _lastNativeKey = '';
+    _pendingNativeState = null;
     _snapshot = null;
     // Queued after the start, so a stop before the start resolved still ends it.
     enqueueNative('stop', () => WorkoutLiveActivity.end());
