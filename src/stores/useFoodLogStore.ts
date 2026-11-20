@@ -488,6 +488,11 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       });
       return { error: error.message };
     }
+    // All four saved: the nutrition store now holds this user's real goals (the home screen
+    // widgets wait for that), even if loading them at launch failed.
+    if (goals.calorie_goal != null && goals.protein_goal != null && goals.carbs_goal != null && goals.fat_goal != null) {
+      useNutritionStore.setState({ goalsFor: userId });
+    }
     return { error: null };
   },
 

@@ -71,7 +71,7 @@ struct HomeWidgetData: Codable {
 // MARK: - Dates (local, like the app)
 
 enum HomeWidgetDay {
-  private static let calendar = Calendar.current
+  private static var calendar: Calendar { Calendar.autoupdatingCurrent }
 
   static func key(_ date: Date) -> String {
     let c = calendar.dateComponents([.year, .month, .day], from: date)
@@ -241,10 +241,12 @@ struct HomeWidgetMessage: View {
   }
 }
 
-/// The message for a missing or signed-out snapshot; nil when there's data to show.
-func homeWidgetBlocker(_ data: HomeWidgetData?) -> String? {
+/// The message for a missing or signed-out snapshot, or when the app hasn't loaded this widget's
+/// section yet (`hasSection` false: showing zeros would look like real data); nil when there's data.
+func homeWidgetBlocker(_ data: HomeWidgetData?, hasSection: Bool) -> String? {
   guard let data else { return "Open Momentum to set up this widget" }
-  return data.signedIn ? nil : "Sign in to Momentum"
+  guard data.signedIn else { return "Sign in to Momentum" }
+  return hasSection ? nil : "Open Momentum to update"
 }
 
 enum HomeWidgetLink {

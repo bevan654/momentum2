@@ -55,7 +55,7 @@ struct StreakWidgetView: View {
 
   var body: some View {
     Group {
-      if let message = homeWidgetBlocker(entry.data) {
+      if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.streak != nil) {
         HomeWidgetMessage(symbol: "flame.fill", title: "Streak", tint: HomeWidgetColor.orange, message: message)
       } else {
         content(StreakState(entry.data?.streak, now: entry.date))
@@ -150,7 +150,7 @@ struct RecoveryWidgetView: View {
 
   var body: some View {
     Group {
-      if let message = homeWidgetBlocker(entry.data) {
+      if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.recovery?.groups.isEmpty == false) {
         HomeWidgetMessage(symbol: "heart.text.square.fill", title: "Recovery", tint: HomeWidgetColor.green, message: message)
       } else {
         content(entry.data?.recovery)

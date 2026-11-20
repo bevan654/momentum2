@@ -121,6 +121,11 @@ function _schedule(): void {
 }
 
 function _subscribe(): void {
+  // Totals that loaded before this subscription existed.
+  const loaded = useNutritionStore.getState();
+  if (loaded.totalsFor) {
+    _totals = { ...loaded.totalsFor, kcal: loaded.calories, protein: loaded.protein, carbs: loaded.carbs, fat: loaded.fat };
+  }
   useNutritionStore.subscribe((s, prev) => {
     // A new totalsFor means a fetch succeeded: these totals are real for that user and day.
     if (s.totalsFor && s.totalsFor !== prev.totalsFor) {

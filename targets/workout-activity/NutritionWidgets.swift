@@ -51,7 +51,7 @@ struct CaloriesWidgetView: View {
   var body: some View {
     let accent = HomeWidgetColor.accent(entry.data?.accentHex)
     Group {
-      if let message = homeWidgetBlocker(entry.data) {
+      if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.nutrition != nil) {
         HomeWidgetMessage(symbol: "flame.fill", title: "Calories", tint: accent, message: message)
       } else {
         content(nutritionOf(entry), accent: accent)
@@ -126,7 +126,7 @@ struct ProteinWidgetView: View {
 
   var body: some View {
     Group {
-      if let message = homeWidgetBlocker(entry.data) {
+      if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.nutrition != nil) {
         HomeWidgetMessage(symbol: "fork.knife", title: "Protein", tint: HomeWidgetColor.protein, message: message)
       } else {
         content(nutritionOf(entry))
@@ -176,7 +176,7 @@ struct MacrosWidgetView: View {
   var body: some View {
     let accent = HomeWidgetColor.accent(entry.data?.accentHex)
     Group {
-      if let message = homeWidgetBlocker(entry.data) {
+      if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.nutrition != nil) {
         HomeWidgetMessage(symbol: "chart.bar.fill", title: "Macros", tint: accent, message: message)
       } else {
         content(nutritionOf(entry), accent: accent)

@@ -18,7 +18,9 @@ const TABS: Record<string, string> = {
 
 let _started = false;
 let _tabsReady = false;
-let _pending: string | null = null;
+/** A link waiting for the tabs, and when it came; one older than PENDING_MS is dropped (the user went through sign-in). */
+let _pending: { tab: string; at: number } | null = null;
+const PENDING_MS = 30_000;
 
 function _tabFor(url: string | null): string | null {
   const host = url ? /^momentum:\/\/([a-z]+)\/?$/i.exec(url.trim())?.[1] : undefined;
@@ -34,7 +36,7 @@ function _handle(url: string | null): void {
   const tab = _tabFor(url);
   if (!tab) return;
   if (_tabsReady && navigationRef.isReady()) _open(tab);
-  else _pending = tab;
+  else _pending = { tab, at: Date.now() };
 }
 
 /** Call once at app start. */
@@ -49,8 +51,9 @@ export function startWidgetLinks(): void {
 export function setWidgetLinkTabsReady(ready: boolean): void {
   _tabsReady = ready;
   if (!ready || !_pending) return;
-  const tab = _pending;
+  const { tab, at } = _pending;
   _pending = null;
+  if (Date.now() - at > PENDING_MS) return;
   // After this render, so the tab navigator is registered with the container.
   setTimeout(() => { if (navigationRef.isReady()) _open(tab); }, 0);
 }
