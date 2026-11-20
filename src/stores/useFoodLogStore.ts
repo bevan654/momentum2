@@ -464,7 +464,10 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
           e.id === entryId ? { ...e, is_planned: !newPlanned } : e,
         ),
       }));
+      return;
     }
+    // Planned food doesn't count as eaten: today's totals (Home) change when it's marked eaten.
+    syncNutrition(entry.user_id);
   },
 
   updateGoals: async (userId: string, goals: Partial<NutritionGoals>) => {

@@ -64,7 +64,8 @@ export const useNutritionStore = create<NutritionState>((set) => ({
       .lt('created_at', end);
 
     if (data && data.length > 0) {
-      const totals = data.reduce(
+      // Planned food isn't eaten yet: left out, as the food diary does (components/food/dayTotals.ts).
+      const totals = data.filter((entry) => !entry.is_planned).reduce(
         (acc, entry) => ({
           calories: acc.calories + Number(entry.calories || 0),
           protein: acc.protein + Number(entry.protein || 0),
