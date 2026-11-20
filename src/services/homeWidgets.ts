@@ -128,8 +128,13 @@ function _nutrition(userId: string): unknown {
  * food left out) and water / creatine. Each part only from data loaded for this user and day.
  */
 function _nutritionExtras(userId: string): unknown {
-  const previous = _previousSection(userId, 'nutritionExtras') as Record<string, unknown> | null;
   const day = toLocalDateString();
+  // A part not loaded yet keeps what the widgets show, but another day's amounts count as 0 today.
+  const stored = _previousSection(userId, 'nutritionExtras') as Record<string, any> | null;
+  const zeroed = (list: any) => (Array.isArray(list) ? list.map((m) => ({ ...m, amount: 0 })) : list && { ...list, amount: 0 });
+  const previous = stored && stored.date !== day
+    ? { micros: zeroed(stored.micros), water: zeroed(stored.water), creatine: zeroed(stored.creatine) }
+    : stored;
   const goals = useNutrientGoalStore.getState();
   const microList = goals.loaded && _totals?.userId === userId && _totals.day === day
     ? (() => {
@@ -151,10 +156,19 @@ function _nutritionExtras(userId: string): unknown {
   };
 }
 
-/** Protein on the 6 days before today (the large Protein widget adds today's itself). */
+/**
+ * Protein on the 6 days before today, plus today's (so after midnight the widget still has
+ * yesterday's; it shows today's from the live nutrition section).
+ */
 function _proteinWeek(userId: string): unknown {
-  if (_week?.userId === userId && _week.day === toLocalDateString()) return _week.days;
-  return _previousSection(userId, 'proteinWeek');
+  const earlier = _week?.userId === userId ? _week.days : _previousSection(userId, 'proteinWeek');
+  if (!_totals || _totals.userId !== userId) return earlier;
+  const today = {
+    date: _totals.day,
+    protein: Math.round(sumMacros(_totals.rows as unknown as FoodEntry[]).protein),
+  };
+  const days = Array.isArray(earlier) ? (earlier as { date: string }[]).filter((d) => d.date !== today.date) : [];
+  return [...days, today];
 }
 
 /** Loads _week for this user and day (one small request a day), then writes again. */
@@ -230,6 +244,9 @@ function _sameBefore(latest: WorkoutWithDetails, older: WorkoutWithDetails[]): W
   return best;
 }
 
+/** Assisted machine or band exercises (the same test as utils/muscleLoad.ts isAssisted). */
+const ASSISTED = /\bassist(ed|ance)?\b/i;
+
 /** The heaviest completed working set (most reps at that weight); null when there's none. */
 function _heaviestSet(sets: WorkoutWithDetails['exercises'][number]['sets']): { kg: number; reps: number } | null {
   let best: { kg: number; reps: number } | null = null;
@@ -245,12 +262,16 @@ function _heaviestSet(sets: WorkoutWithDetails['exercises'][number]['sets']): { 
 function _exerciseBests(latest: WorkoutWithDetails, previous: WorkoutWithDetails | null) {
   const before = new Map<string, { kg: number; reps: number } | null>();
   for (const e of previous?.exercises ?? []) before.set(e.name.toLowerCase(), _heaviestSet(e.sets));
-  const rows: { name: string; kg: number; reps: number; previousKg: number | null; previousReps: number | null }[] = [];
+  const rows: { name: string; kind: string; kg: number; reps: number; previousKg: number | null; previousReps: number | null }[] = [];
   for (const e of latest.exercises) {
+    // Assisted exercises' kg is the assistance (utils/muscleLoad.ts), so "heaviest" would be the
+    // easiest set: left out rather than shown the wrong way round.
+    if (ASSISTED.test(e.name)) continue;
     const best = _heaviestSet(e.sets);
-    if (!best) continue;
+    if (!best || best.kg < 0) continue;
     const last = before.get(e.name.toLowerCase()) ?? null;
-    rows.push({ name: e.name, kg: best.kg, reps: best.reps, previousKg: last?.kg ?? null, previousReps: last?.reps ?? null });
+    // Duration exercises keep seconds in reps; the widget shows them as time.
+    rows.push({ name: e.name, kind: e.exercise_type, kg: best.kg, reps: best.reps, previousKg: last?.kg ?? null, previousReps: last?.reps ?? null });
   }
   return rows;
 }

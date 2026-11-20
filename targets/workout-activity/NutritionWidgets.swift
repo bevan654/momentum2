@@ -295,7 +295,7 @@ struct MacrosWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "MomentumMacros", provider: HomeWidgetProvider()) { MacrosWidgetView(entry: $0) }
       .configurationDisplayName("Macros")
-      .description("Calories, protein, carbs and fat today against your goals.")
+      .description("Calories and macros today against your goals; the large size adds meals, micronutrients and supplements.")
       .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
   }
 }

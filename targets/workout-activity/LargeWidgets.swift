@@ -21,13 +21,17 @@ struct MacrosLargeView: View {
     let water = extras?.water
     let creatine = extras?.creatine
     let meals = n.meals ?? []
-    VStack(alignment: .leading, spacing: 10) {
-      MacrosMediumView(n: n, accent: accent).frame(height: 116)
+    // Sized so every section fits the large widget on every iPhone (about 290 pt): 4 meals at most.
+    VStack(alignment: .leading, spacing: 7) {
+      MacrosMediumView(n: n, accent: accent).frame(height: 108)
       if !meals.isEmpty {
         Divider()
-        VStack(spacing: 6) {
-          ForEach(Array(meals.prefix(5).enumerated()), id: \.offset) { item in
+        VStack(spacing: 4) {
+          ForEach(Array(meals.prefix(4).enumerated()), id: \.offset) { item in
             MealMacrosRow(meal: item.element)
+          }
+          if meals.count > 4 {
+            Text("+\(meals.count - 4) more").font(.caption2).foregroundColor(.secondary).frame(maxWidth: .infinity, alignment: .leading)
           }
         }
       }
@@ -72,12 +76,12 @@ private struct MealMacrosRow: View {
       if (meal.kcal ?? 0) <= 0 && meal.protein <= 0 {
         Text("–").font(.caption).foregroundColor(.secondary)
       } else {
-        (Text("\(kcalText(meal.kcal ?? 0)) kcal · ").foregroundColor(.secondary)
-          + Text(grams(meal.protein)).foregroundColor(HomeWidgetColor.protein)
-          + Text(" · ").foregroundColor(.secondary)
-          + Text(grams(meal.carbs ?? 0)).foregroundColor(HomeWidgetColor.carbs)
-          + Text(" · ").foregroundColor(.secondary)
-          + Text(grams(meal.fat ?? 0)).foregroundColor(HomeWidgetColor.fat))
+        let dot: Text = Text(" · ").foregroundColor(.secondary)
+        let kcal: Text = Text("\(kcalText(meal.kcal ?? 0)) kcal").foregroundColor(.secondary)
+        let protein: Text = Text(grams(meal.protein)).foregroundColor(HomeWidgetColor.protein)
+        let carbs: Text = Text(grams(meal.carbs ?? 0)).foregroundColor(HomeWidgetColor.carbs)
+        let fat: Text = Text(grams(meal.fat ?? 0)).foregroundColor(HomeWidgetColor.fat)
+        (kcal + dot + protein + dot + carbs + dot + fat)
           .font(.caption2)
           .monospacedDigit()
           .lineLimit(1)
@@ -288,7 +292,7 @@ struct RecoveryLargeView: View {
     let rows = groups.enumerated()
       .map { (index: $0.offset, name: $0.element.name, percent: $0.element.percent(at: now)) }
       .sorted { $0.percent != $1.percent ? $0.percent < $1.percent : $0.index < $1.index }
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: 6) {
       HomeWidgetTitle(symbol: "heart.text.square.fill", text: "Recovery", tint: HomeWidgetColor.green)
       if rows.allSatisfy({ $0.percent >= 100 }) {
         Spacer(minLength: 0)
@@ -302,12 +306,13 @@ struct RecoveryLargeView: View {
         .frame(maxWidth: .infinity)
         Spacer(minLength: 0)
       } else {
-        // 11 rows of about 21 pt with 5 pt gaps: fits the large widget's height on every iPhone.
-        VStack(spacing: 5) {
+        // 11 rows of about 20 pt with 4 pt gaps, about 283 pt with the title: fits the large widget
+        // on every iPhone, the SE's (about 292 pt) included.
+        VStack(spacing: 4) {
           ForEach(rows, id: \.index) { g in
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
               HStack {
-                Text(g.name).font(.caption.weight(.semibold)).lineLimit(1)
+                Text(g.name).font(.caption2.weight(.semibold)).lineLimit(1)
                 Spacer(minLength: 4)
                 Text("\(g.percent)%").font(.caption2).monospacedDigit().foregroundColor(.secondary)
               }
@@ -342,8 +347,9 @@ struct ExerciseBestsView: View {
     }
   }
 
-  private func setText(_ kg: Double, _ reps: Int) -> String {
-    kg > 0 ? "\(WorkoutSetMath.kgText(kg)) × \(reps)" : "\(reps) reps"
+  private func setText(_ e: HomeWidgetData.ExerciseBest) -> String {
+    if e.kind == "duration" { return WorkoutSetMath.secondsText(e.reps) }
+    return e.kg > 0 ? "\(WorkoutSetMath.kgText(e.kg)) × \(e.reps)" : "\(e.reps) reps"
   }
 
   @ViewBuilder
@@ -351,7 +357,7 @@ struct ExerciseBestsView: View {
     HStack(spacing: 6) {
       Text(e.name).font(.caption.weight(.semibold)).lineLimit(1)
       Spacer(minLength: 4)
-      Text(setText(e.kg, e.reps)).font(.caption).monospacedDigit().lineLimit(1)
+      Text(setText(e)).font(.caption).monospacedDigit().lineLimit(1)
       if compared { change(e).font(.caption2.weight(.semibold)).monospacedDigit().lineLimit(1) }
     }
   }
@@ -365,7 +371,8 @@ struct ExerciseBestsView: View {
           .foregroundColor(kgChange > 0 ? HomeWidgetColor.green : HomeWidgetColor.red)
       } else if e.reps != lastReps {
         let d = e.reps - lastReps
-        Text("\(d > 0 ? "+" : "−")\(abs(d)) \(abs(d) == 1 ? "rep" : "reps")")
+        let unit = e.kind == "duration" ? "s" : (abs(d) == 1 ? "rep" : "reps")
+        Text("\(d > 0 ? "+" : "−")\(abs(d)) \(unit)")
           .foregroundColor(d > 0 ? HomeWidgetColor.green : HomeWidgetColor.red)
       } else {
         Text("same").foregroundColor(.secondary)

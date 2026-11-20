@@ -93,6 +93,8 @@ struct HomeWidgetData: Codable {
   /// exercise's in the earlier session (nil = not done then).
   struct ExerciseBest: Codable {
     var name: String
+    /// The exercise type ("duration" keeps seconds in reps).
+    var kind: String?
     var kg: Double
     var reps: Int
     var previousKg: Double?
@@ -112,7 +114,7 @@ struct HomeWidgetData: Codable {
     var chainStart: String?
     /// Latest workout day.
     var lastWorkout: String?
-    /// Workout days in the last 29 days (the 7 dots, the 28-day calendar).
+    /// Workout days in the last 85 days (the 7 dots, the 28-day calendar, the 12-week grid).
     var recentDates: [String]
     /// Longest streak ever, as of the app's last write (the widget also counts today's run).
     var best: Int?
@@ -227,7 +229,12 @@ extension HomeWidgetData {
       accentHex: nil,
       nutrition: Nutrition(
         date: today, kcal: 1580, protein: 142, carbs: 160, fat: 48, goalKcal: 2500, goalProtein: 180, goalCarbs: 280, goalFat: 80,
-        meals: [Meal(name: "Breakfast", protein: 38), Meal(name: "Lunch", protein: 52), Meal(name: "Dinner", protein: 0), Meal(name: "Snacks", protein: 52)]
+        meals: [
+          Meal(name: "Breakfast", protein: 38, kcal: 520, carbs: 62, fat: 14),
+          Meal(name: "Lunch", protein: 52, kcal: 710, carbs: 70, fat: 20),
+          Meal(name: "Dinner", protein: 0, kcal: 0, carbs: 0, fat: 0),
+          Meal(name: "Snacks", protein: 52, kcal: 350, carbs: 28, fat: 14),
+        ]
       ),
       streak: Streak(chainStart: dates.last, lastWorkout: dates.first, recentDates: dates, best: 34),
       recovery: Recovery(groups: [
@@ -237,8 +244,23 @@ extension HomeWidgetData {
       ], body: "male"),
       lastWorkout: LastWorkoutSection(latest: LastWorkout(
         id: "preview", title: "Push day", at: (now.timeIntervalSince1970 - 86_400) * 1000, volume: 12450, prs: 2,
-        previous: WorkoutTotals(at: (now.timeIntervalSince1970 - 8 * 86_400) * 1000, volume: 11830, prs: 0)
-      ))
+        previous: WorkoutTotals(at: (now.timeIntervalSince1970 - 8 * 86_400) * 1000, volume: 11830, prs: 0),
+        exercises: [
+          ExerciseBest(name: "Bench press", kind: "weighted", kg: 82.5, reps: 8, previousKg: 80, previousReps: 8),
+          ExerciseBest(name: "Incline dumbbell press", kind: "weighted", kg: 30, reps: 10, previousKg: 30, previousReps: 9),
+          ExerciseBest(name: "Shoulder press", kind: "weighted", kg: 50, reps: 8, previousKg: 50, previousReps: 8),
+          ExerciseBest(name: "Tricep pushdown", kind: "weighted", kg: 35, reps: 12, previousKg: 35, previousReps: 13),
+        ]
+      )),
+      nutritionExtras: NutritionExtras(
+        date: today,
+        micros: [Micro(name: "Fiber", unit: "g", amount: 18, goal: 30), Micro(name: "Sodium", unit: "mg", amount: 1650, goal: 2300)],
+        water: Amount(amount: 1800, goal: 3000),
+        creatine: Amount(amount: 5, goal: 5)
+      ),
+      proteinWeek: [1, 2, 3, 4, 5, 6].compactMap { back in
+        Calendar.current.date(byAdding: .day, value: -back, to: now).map { DayProtein(date: HomeWidgetDay.key($0), protein: Double([182, 175, 140, 190, 120, 185][back - 1])) }
+      }
     )
   }
 }

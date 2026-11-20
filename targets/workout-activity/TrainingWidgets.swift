@@ -146,7 +146,7 @@ struct StreakWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "MomentumStreak", provider: HomeWidgetProvider()) { StreakWidgetView(entry: $0) }
       .configurationDisplayName("Streak")
-      .description("Your workout streak, with the last 7 days (small) or 28 days (medium).")
+      .description("Your workout streak, with the last 7 days (small), 28 days (medium) or 12 weeks (large).")
       .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
   }
 }

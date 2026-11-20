@@ -2,7 +2,7 @@ import SwiftUI
 import WidgetKit
 
 // The medium sizes of the home screen widgets (Macros, Protein, Streak, Recovery) and the
-// medium-only Last workout widget. The small layouts and the shared pieces live in
+// Last workout widget (medium; its large size is in LargeWidgets.swift). The small layouts and the shared pieces live in
 // NutritionWidgets.swift, TrainingWidgets.swift and HomeWidgetData.swift.
 
 // MARK: - Macros (medium)
@@ -208,7 +208,7 @@ struct RecoveryMediumView: View {
   }
 }
 
-// MARK: - Last workout (medium only)
+// MARK: - Last workout (medium and large)
 
 private func dayText(_ ms: Double, now: Date) -> String {
   let date = Date(timeIntervalSince1970: ms / 1000)
