@@ -138,6 +138,7 @@ export function createExerciseActions(
         return { exercises };
       });
       get()._persist();
+      updateWorkoutActivity(_buildSnapshot(get())); // the Lock Screen shows kg or not by type
     },
 
     setExerciseNotes: (index, notes) => {
@@ -419,7 +420,7 @@ export function createExerciseActions(
         return { exercises };
       });
       get()._persist();
-      updateWorkoutActivity(_buildSnapshot(get())); // set-type label on the Lock Screen
+      updateWorkoutActivity(_buildSnapshot(get())); // warm-ups change the Lock Screen's PR thresholds
     },
 
     // ── Superset ──────────────────────────────────────

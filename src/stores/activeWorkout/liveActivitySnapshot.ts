@@ -131,7 +131,8 @@ function _earlierSets(
     if (ex.name !== name) continue;
     for (const s of ex.sets) {
       if (!_isWork(s) || (s.completedAt ?? 0) >= before) continue;
-      const reps = _num(s.reps) ?? 0;
+      // Whole reps: the native side stores them as Int, and a fraction there fails every update.
+      const reps = Math.round(_num(s.reps) ?? 0);
       if (reps > 0) today.push({ kg: _num(s.kg) ?? 0, reps });
     }
   }
@@ -179,7 +180,10 @@ function _setCard(
   if (!ex || pos < 0) return null;
   const kind = KINDS[ex.exercise_type] ?? 'weighted';
   const { kg, reps } = _plannedValues(ex, pos, isGhost);
-  const { prKg, prReps } = _prThresholds(_earlierSets(exercises, ex.name, workoutId, Infinity), kind, kg);
+  // A warm-up is never a PR (as in _justDone): no thresholds, so a Lock Screen Done can't claim one.
+  const { prKg, prReps } = ex.sets[pos].set_type === 'warmup'
+    ? { prKg: null, prReps: null }
+    : _prThresholds(_earlierSets(exercises, ex.name, workoutId, Infinity), kind, kg);
   return {
     exerciseId: ex.id,
     exerciseName: ex.name,

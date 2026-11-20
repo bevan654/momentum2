@@ -221,6 +221,47 @@ const checks = {
     else if (a !== b) problems.push(`${app}/${attrs} and ${ext}/${attrs} differ from the struct line down`);
     return problems;
   },
+
+  /**
+   * The state JS sends the Live Activity has the same field names in all three places: the TS types,
+   * the Expo module's Records (a key they don't know is dropped silently) and the ActivityKit
+   * ContentState structs (Codable keys).
+   */
+  liveActivityStateShape() {
+    const ts = read('modules/workout-live-activity/index.ts');
+    const mod = read('modules/workout-live-activity/ios/WorkoutLiveActivityModule.swift');
+    const attrs = read('targets/workout-activity/WorkoutActivityAttributes.swift');
+    /** The text between the `{` after `header` and its matching `}`; null if `header` isn't there. */
+    const block = (text, header) => {
+      const i = text.indexOf(header);
+      if (i < 0) return null;
+      const open = text.indexOf('{', i);
+      let depth = 0;
+      for (let j = open; j < text.length; j++) {
+        if (text[j] === '{') depth++;
+        else if (text[j] === '}' && --depth === 0) return text.slice(open + 1, j);
+      }
+      return null;
+    };
+    const names = (body, re) => (body == null ? null : [...body.matchAll(re)].map((m) => m[1]).sort().join(', '));
+    const groups = [
+      ['WorkoutLiveActivityState', 'WorkoutLiveActivityState: Record', 'public struct ContentState'],
+      ['WorkoutLiveActivitySetCard', 'WorkoutSetCardRecord: Record', 'struct WorkoutSetCard:'],
+      ['WorkoutLiveActivityDoneSet', 'WorkoutDoneSetRecord: Record', 'struct WorkoutDoneSet:'],
+    ];
+    const problems = [];
+    for (const [tsName, recordHeader, structHeader] of groups) {
+      const fromTs = names(block(ts, `export interface ${tsName} `), /^\s+(\w+)\??:/gm);
+      const fromRecord = names(block(mod, `struct ${recordHeader}`), /@Field var (\w+)/g);
+      const fromStruct = names(block(attrs, structHeader), /^\s+var (\w+)/gm);
+      if (!fromTs || !fromRecord || !fromStruct) {
+        problems.push(`${tsName}: a type wasn't found in index.ts, WorkoutLiveActivityModule.swift or WorkoutActivityAttributes.swift (the check needs updating)`);
+      } else if (fromTs !== fromRecord || fromRecord !== fromStruct) {
+        problems.push(`${tsName} fields differ: TS [${fromTs}] / Record [${fromRecord}] / ActivityKit [${fromStruct}]`);
+      }
+    }
+    return problems;
+  },
 };
 
 /* ── --touched: which hidden links and structure this branch changes ─── */

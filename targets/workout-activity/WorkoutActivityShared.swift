@@ -93,28 +93,52 @@ extension WorkoutSetCard {
 
 // MARK: - Outbox (taps the app hasn't applied yet)
 
+/// Each tap is its own key ("<prefix><time>.<uuid>"), so a tap the extension writes while the app is
+/// taking the others isn't lost: taking removes only the keys it read. Keys sort by time.
 enum WorkoutActivityOutbox {
   static let appGroup = "group.com.momentum.fitnessapp"
   static let darwinName = "com.momentum.fitnessapp.workoutLiveActivity.action"
-  private static let key = "workoutLiveActivity.outbox"
+  private static let prefix = "workoutLiveActivity.tap."
   private static let maxEntries = 100
+  /// Within one process; across processes the per-tap keys keep writers apart.
+  private static let lock = NSLock()
 
   private static var defaults: UserDefaults { UserDefaults(suiteName: appGroup) ?? .standard }
 
+  private static func keys() -> [String] {
+    defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix(prefix) }.sorted()
+  }
+
   static func append(_ entry: [String: Any]) {
-    var list = defaults.array(forKey: key) as? [[String: Any]] ?? []
-    list.append(entry)
-    if list.count > maxEntries { list.removeFirst(list.count - maxEntries) }
-    defaults.set(list, forKey: key)
+    lock.lock()
+    defer { lock.unlock() }
+    let time = String(format: "%016.0f", (Date().timeIntervalSince1970 * 1000).rounded())
+    defaults.set(entry, forKey: "\(prefix)\(time).\(UUID().uuidString)")
+    let all = keys()
+    if all.count > maxEntries {
+      for old in all.prefix(all.count - maxEntries) { defaults.removeObject(forKey: old) }
+    }
   }
 
   static func takeAll() -> [[String: Any]] {
-    let list = defaults.array(forKey: key) as? [[String: Any]] ?? []
-    defaults.removeObject(forKey: key)
+    lock.lock()
+    defer { lock.unlock() }
+    var list: [[String: Any]] = []
+    for key in keys() {
+      if let entry = defaults.dictionary(forKey: key) { list.append(entry) }
+      defaults.removeObject(forKey: key)
+    }
     return list
   }
 
-  static func clear() { defaults.removeObject(forKey: key) }
+  /// Taps the app hasn't applied yet.
+  static var hasPending: Bool { !keys().isEmpty }
+
+  static func clear() {
+    lock.lock()
+    defer { lock.unlock() }
+    for key in keys() { defaults.removeObject(forKey: key) }
+  }
 
   /// Tells the app (if it's running) to apply the outbox now.
   static func notifyApp() {
@@ -251,6 +275,24 @@ enum WorkoutActivityActions {
   }
 }
 
+/// Runs the buttons' actions one at a time: each reads the activity's state and writes it back, so two
+/// quick taps running together would both start from the same state and one would be lost.
+@available(iOS 17.0, *)
+actor WorkoutActionQueue {
+  static let shared = WorkoutActionQueue()
+  private var tail: Task<Void, Never>?
+
+  func run(_ action: @escaping @Sendable () async -> Void) async {
+    let previous = tail
+    let task = Task {
+      await previous?.value
+      await action()
+    }
+    tail = task
+    await task.value
+  }
+}
+
 // MARK: - The intents (parameters are set in init: widgets don't resolve them)
 
 @available(iOS 17.0, *)
@@ -264,7 +306,8 @@ struct CompleteWorkoutSetIntent: LiveActivityIntent {
   init(setKey: String) { self.setKey = setKey }
 
   func perform() async throws -> some IntentResult {
-    await WorkoutActivityActions.completeSet(setKey: setKey)
+    let key = setKey
+    await WorkoutActionQueue.shared.run { await WorkoutActivityActions.completeSet(setKey: key) }
     return .result()
   }
 }
@@ -284,7 +327,9 @@ struct AdjustWorkoutRepsIntent: LiveActivityIntent {
   }
 
   func perform() async throws -> some IntentResult {
-    await WorkoutActivityActions.adjustReps(setKey: setKey, delta: delta)
+    let key = setKey
+    let change = delta
+    await WorkoutActionQueue.shared.run { await WorkoutActivityActions.adjustReps(setKey: key, delta: change) }
     return .result()
   }
 }
@@ -297,7 +342,7 @@ struct EndWorkoutRestIntent: LiveActivityIntent {
   init() {}
 
   func perform() async throws -> some IntentResult {
-    await WorkoutActivityActions.endRest()
+    await WorkoutActionQueue.shared.run { await WorkoutActivityActions.endRest() }
     return .result()
   }
 }

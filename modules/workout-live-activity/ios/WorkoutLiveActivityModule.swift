@@ -213,7 +213,11 @@ private enum WorkoutActivityController {
       for extra in existing.dropFirst() {
         await extra.end(nil, dismissalPolicy: .immediate)
       }
-      await current.update(content)
+      // Taps not applied yet (iOS may have launched the app just to run one): the activity already
+      // shows them and this restored state predates them. JS sends the state with them applied next.
+      if !WorkoutActivityOutbox.hasPending {
+        await current.update(content)
+      }
       return current.id
     }
     guard ActivityAuthorizationInfo().areActivitiesEnabled else { return nil }

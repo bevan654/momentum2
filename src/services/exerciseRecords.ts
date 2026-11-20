@@ -9,6 +9,7 @@
  * Lock Screen can be refreshed. Plain module, no React state.
  */
 
+import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
@@ -44,6 +45,8 @@ export function onExerciseRecordsLoaded(listener: () => void): () => void {
  * saved) are left out, since the app counts its sets itself.
  */
 export function getExerciseHistorySets(name: string, workoutId: string | null): RecordSet[] | undefined {
+  // Only the iOS Lock Screen shows PRs: no requests elsewhere.
+  if (Platform.OS !== 'ios') return undefined;
   const userId = useAuthStore.getState().user?.id;
   if (!userId || !name) return undefined;
   const key = `${userId}|${workoutId ?? ''}`;

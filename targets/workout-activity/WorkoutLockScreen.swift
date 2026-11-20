@@ -21,20 +21,25 @@ private let downColor = Color(red: 1.0, green: 107.0 / 255.0, blue: 107.0 / 255.
 private let prGold = Color(red: 245.0 / 255.0, green: 183.0 / 255.0, blue: 0.0)
 private let prInk = Color(red: 26.0 / 255.0, green: 19.0 / 255.0, blue: 0.0)
 
-/// "#RRGGBB" → Color; nil if it doesn't parse.
-private func color(hex: String?) -> Color? {
+/// "#RRGGBB" → its red, green and blue (0...1); nil if it doesn't parse.
+private func rgb(hex: String?) -> (r: Double, g: Double, b: Double)? {
   guard var s = hex?.trimmingCharacters(in: .whitespaces), !s.isEmpty else { return nil }
   if s.hasPrefix("#") { s.removeFirst() }
   guard s.count == 6, let v = UInt32(s, radix: 16) else { return nil }
-  return Color(
-    red: Double((v >> 16) & 0xFF) / 255.0,
-    green: Double((v >> 8) & 0xFF) / 255.0,
-    blue: Double(v & 0xFF) / 255.0
-  )
+  return (Double((v >> 16) & 0xFF) / 255.0, Double((v >> 8) & 0xFF) / 255.0, Double(v & 0xFF) / 255.0)
 }
 
 private extension WorkoutActivityAttributes.ContentState {
-  var tint: Color { color(hex: accentHex) ?? defaultAccent }
+  var tint: Color {
+    guard let c = rgb(hex: accentHex) else { return defaultAccent }
+    return Color(red: c.r, green: c.g, blue: c.b)
+  }
+
+  /// A light accent (Mono is white): white on it can't be read, so it gets dark ink instead.
+  var tintIsLight: Bool {
+    guard let c = rgb(hex: accentHex) else { return false }
+    return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b > 0.6
+  }
 
   var lockRest: ClosedRange<Date>? {
     guard let start = restStartedAt, let end = restEndsAt, end > start else { return nil }
@@ -88,12 +93,14 @@ private struct PRBadge: View {
 private struct SetDots: View {
   let states: String
   let tint: Color
+  /// The current set's dot is white, so with a light accent done sets are grey instead.
+  let lightTint: Bool
 
   var body: some View {
     HStack(spacing: 4) {
       ForEach(Array(states.prefix(10).enumerated()), id: \.offset) { item in
         Capsule()
-          .fill(item.element == "d" ? tint : item.element == "c" ? Color.white : trackColor)
+          .fill(item.element == "d" ? (lightTint ? secondaryText : tint) : item.element == "c" ? Color.white : trackColor)
           .frame(width: 14, height: 5)
       }
     }
@@ -107,11 +114,12 @@ private struct CircleIcon: View {
   let size: CGFloat
   let fill: Color
   var font: Font = .subheadline.weight(.bold)
+  var ink: Color = .white
 
   var body: some View {
     Image(systemName: symbol)
       .font(font)
-      .foregroundColor(.white)
+      .foregroundColor(ink)
       .frame(width: size, height: size)
       .background(fill.clipShape(Circle()))
   }
@@ -121,6 +129,7 @@ private struct CircleIcon: View {
 private struct BigSetRow: View {
   let card: WorkoutSetCard
   let tint: Color
+  let lightTint: Bool
 
   var body: some View {
     let adjustable = buttonsAvailable && card.kind != "duration" && card.reps != nil
@@ -158,7 +167,7 @@ private struct BigSetRow: View {
   private var doneButton: some View {
     if #available(iOS 17.0, *) {
       Button(intent: CompleteWorkoutSetIntent(setKey: card.key)) {
-        CircleIcon(symbol: "checkmark", size: 44, fill: tint, font: .title3.weight(.bold))
+        CircleIcon(symbol: "checkmark", size: 44, fill: tint, font: .title3.weight(.bold), ink: lightTint ? .black : .white)
       }
       .buttonStyle(.plain)
     }
@@ -242,9 +251,9 @@ private struct BetweenSetsView: View {
             .foregroundColor(.white)
             .lineLimit(1)
           Spacer(minLength: 4)
-          SetDots(states: card.setStates, tint: tint)
+          SetDots(states: card.setStates, tint: tint, lightTint: state.tintIsLight)
         }
-        BigSetRow(card: card, tint: tint)
+        BigSetRow(card: card, tint: tint, lightTint: state.tintIsLight)
         footer(card)
       } else {
         Text(message)

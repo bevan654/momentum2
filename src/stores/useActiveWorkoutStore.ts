@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import * as Haptics from 'expo-haptics';
-import * as Notifications from 'expo-notifications';
 import { supabase } from '../lib/supabase';
 import { saveWorkout, loadWorkoutAsync, clearWorkout, saveRestPreference, loadRestPreference, addPendingWorkoutDelete, loadPendingWorkoutDeletes, removePendingWorkoutDeletes } from '../utils/workoutStorage';
 import { buildWorkoutPayload } from '../utils/workoutPayload';
@@ -11,13 +10,13 @@ import { useRankStore } from './useRankStore';
 import { useAuthStore } from './useAuthStore';
 import { useWeightStore } from './useWeightStore';
 import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity, clearStaleWorkoutActivity } from '../services/liveActivityManager';
-import { REST_NOTIF_ID, EMPTY_SET } from './activeWorkout/constants';
+import { EMPTY_SET } from './activeWorkout/constants';
 import { runWithRecovery } from './activeWorkout/supabaseRecovery';
 import { type ActiveSet, type ActiveExercise, type ActiveWorkoutState, type FinishResult, type UndoSnapshot } from './activeWorkout/types';
 import { createExerciseActions } from './activeWorkout/exerciseActions';
 import { _buildSnapshot, setLiveActivityRestSeconds } from './activeWorkout/liveActivitySnapshot';
 import { connectLockScreen } from './activeWorkout/lockScreenTaps';
-import { _scheduleRestNotification } from './activeWorkout/restNotification';
+import { _scheduleRestNotification, _cancelRestNotification } from './activeWorkout/restNotification';
 import { programDayOf, buildFeedPayload, toRankExercises, buildSummary } from './activeWorkout/finishHelpers';
 export { type ActiveSet, type ActiveExercise, type SummaryExercise, type WorkoutSummary } from './activeWorkout/types';
 
@@ -98,7 +97,7 @@ async function _restoreSavedWorkout(
     // abandoned empty one): its sticky notification and any scheduled rest alert
     // are still pending.
     clearStaleWorkoutActivity();
-    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+    _cancelRestNotification();
     return;
   }
 
@@ -183,7 +182,7 @@ const SESSION_CLEARED = {
 /** Stop what a running session keeps going: the Live Activity, the rest notification, the 1 s tick and a pending save. */
 function _stopSessionEffects() {
   stopWorkoutActivity();
-  Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+  _cancelRestNotification();
   if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
   if (_persistTimeout) { clearTimeout(_persistTimeout); _persistTimeout = null; }
   _workoutRestored = false;
@@ -642,7 +641,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
   stopRest: () => {
     set({ isResting: false, restRemaining: 0, restStartedAt: null });
     updateWorkoutActivity(_buildSnapshot(get()));
-    Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+    _cancelRestNotification();
     get()._persist();
   },
 
