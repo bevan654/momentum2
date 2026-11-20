@@ -11,6 +11,8 @@ interface StreakState {
   lastWorkout: string | null;
   /** Workout days in the last 8 days, newest first (the widget's 7 dots). */
   recentDates: string[];
+  /** Whose dates chainStart / lastWorkout / recentDates are (set by refreshStreak only). */
+  computedFor: string | null;
   loaded: boolean;
   initStreak: (userId: string) => Promise<void>;
   refreshStreak: (userId: string) => Promise<void>;
@@ -22,6 +24,7 @@ export const useStreakStore = create<StreakState>((set, get) => ({
   chainStart: null,
   lastWorkout: null,
   recentDates: [],
+  computedFor: null,
   loaded: false,
 
   initStreak: async (userId: string) => {
@@ -62,6 +65,7 @@ export const useStreakStore = create<StreakState>((set, get) => ({
       chainStart: result.chainStart,
       lastWorkout: result.lastWorkout,
       recentDates: dates.filter((d) => d >= recentStart && d <= today),
+      computedFor: userId,
       loaded: true,
     });
   },

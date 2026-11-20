@@ -85,6 +85,8 @@ interface CreateUserExerciseParams {
 
 interface WorkoutState {
   workouts: WorkoutWithDetails[];
+  /** Whose history `workouts` is, once a fetch has succeeded (null before, and after sign-out). */
+  historyUserId: string | null;
   loading: boolean;
   catalogMap: Record<string, CatalogEntry>;
   aliasMap: Record<string, string>; // alias → canonical_name
@@ -109,6 +111,7 @@ let _catalogGen = 0;
 
 export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   workouts: [],
+  historyUserId: null,
   loading: false,
   catalogMap: {},
   aliasMap: {},
@@ -315,7 +318,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         return;
       }
       if (workoutsData.length === 0) {
-        set({ workouts: [], loading: false });
+        set({ workouts: [], historyUserId: userId, loading: false });
         return;
       }
 
@@ -458,7 +461,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         };
       });
 
-      set({ workouts });
+      set({ workouts, historyUserId: userId });
     } catch (e) {
       // Keep the workouts already shown; the next fetch retries.
       if (__DEV__) console.warn('[fetchWorkoutHistory] failed:', e);
@@ -520,7 +523,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   clearCaches: () => {
     _catalogLoaded = null;
     _catalogGen++;
-    set({ catalogMap: {}, aliasMap: {}, prevMap: {}, prevNoteMap: {}, sessionHistoryMap: {}, workouts: [] });
+    set({ catalogMap: {}, aliasMap: {}, prevMap: {}, prevNoteMap: {}, sessionHistoryMap: {}, workouts: [], historyUserId: null });
     AsyncStorage.removeItem(CATALOG_CACHE_KEY).catch(() => {});
   },
 

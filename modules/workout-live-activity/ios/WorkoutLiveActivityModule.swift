@@ -126,6 +126,11 @@ public class WorkoutLiveActivityModule: Module {
     AsyncFunction("setHomeWidgetData") { (json: String?) in
       HomeWidgetStore.write(json)
     }
+
+    /// What the widgets show now (written by an earlier run), or nil.
+    AsyncFunction("getHomeWidgetData") { () -> String? in
+      HomeWidgetStore.read()
+    }
   }
 }
 
@@ -134,8 +139,11 @@ enum HomeWidgetStore {
   /// Same key as HomeWidgetData.swift in targets/workout-activity (npm run check:links checks).
   static let key = "momentum.homeWidgets.v1"
 
+  private static var defaults: UserDefaults { UserDefaults(suiteName: WorkoutActivityOutbox.appGroup) ?? .standard }
+
+  static func read() -> String? { defaults.string(forKey: key) }
+
   static func write(_ json: String?) {
-    let defaults = UserDefaults(suiteName: WorkoutActivityOutbox.appGroup) ?? .standard
     if defaults.string(forKey: key) == json { return }
     if let json { defaults.set(json, forKey: key) } else { defaults.removeObject(forKey: key) }
     if #available(iOS 14.0, *) { WidgetCenter.shared.reloadAllTimelines() }

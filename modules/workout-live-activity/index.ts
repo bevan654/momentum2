@@ -108,6 +108,7 @@ interface WorkoutLiveActivityNative {
   clearPendingActions?(): Promise<void>;
   addListener?(event: 'onAction', listener: () => void): EventSubscription;
   setHomeWidgetData?(json: string | null): Promise<void>;
+  getHomeWidgetData?(): Promise<string | null>;
 }
 
 const Native = requireOptionalNativeModule<WorkoutLiveActivityNative>('WorkoutLiveActivity');
@@ -185,5 +186,15 @@ export async function setHomeWidgetData(json: string | null): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/** What the home screen widgets show now (JSON from an earlier write), or null. */
+export async function getHomeWidgetData(): Promise<string | null> {
+  if (!Native?.getHomeWidgetData) return null;
+  try {
+    return (await Native.getHomeWidgetData()) ?? null;
+  } catch {
+    return null;
   }
 }

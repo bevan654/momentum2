@@ -223,11 +223,6 @@ const checks = {
   },
 
   /**
-   * The state JS sends the Live Activity has the same field names in all three places: the TS types,
-   * the Expo module's Records (a key they don't know is dropped silently) and the ActivityKit
-   * ContentState structs (Codable keys).
-   */
-  /**
    * The home screen widgets read what src/services/homeWidgets.ts writes: the same App Group key
    * in the module and the widget, and every field the Swift HomeWidgetData decodes is written by JS
    * (a missing or renamed one decodes as nil, or fails the whole snapshot if it isn't optional).
@@ -250,6 +245,11 @@ const checks = {
     return problems;
   },
 
+  /**
+   * The state JS sends the Live Activity has the same field names in all three places: the TS types,
+   * the Expo module's Records (a key they don't know is dropped silently) and the ActivityKit
+   * ContentState structs (Codable keys).
+   */
   liveActivityStateShape() {
     const ts = read('modules/workout-live-activity/index.ts');
     const mod = read('modules/workout-live-activity/ios/WorkoutLiveActivityModule.swift');

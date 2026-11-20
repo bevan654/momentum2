@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Writes the body silhouettes the home screen Recovery widget shows when everything is recovered
+ * Writes the widget extension's asset catalog: the two colours apple-targets expects ($accent,
+ * $widgetBackground) and the body silhouettes the home screen Recovery widget shows when everything is recovered
  * (targets/workout-activity/Assets.xcassets/BodyMale, BodyFemale) from the front-view outline of
  * the pinned momentum-muscle-map. Vector, template-rendered: the widget tints them green.
  * Re-run after updating momentum-muscle-map:  node scripts/widget-body-outlines.js
@@ -45,8 +46,22 @@ function writeImageSet(name, file) {
   );
 }
 
+function writeColorSet(name, light, dark) {
+  const dir = path.join(out, `${name}.colorset`);
+  fs.mkdirSync(dir, { recursive: true });
+  const color = (c) => ({ 'color-space': 'srgb', components: { ...c, alpha: '1.000' } });
+  const colors = [{ idiom: 'universal', color: color(light) }];
+  if (dark) colors.push({ idiom: 'universal', appearances: [{ appearance: 'luminosity', value: 'dark' }], color: color(dark) });
+  fs.writeFileSync(path.join(dir, 'Contents.json'), `${JSON.stringify({ colors, info: { author: 'xcode', version: 1 } }, null, 2)}
+`);
+}
+
 fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(path.join(out, 'Contents.json'), `${JSON.stringify({ info: { author: 'xcode', version: 1 } }, null, 2)}\n`);
+// apple-targets names these two colours in the widget's build settings: the app's default accent
+// and the widget background the widgets also draw themselves (HomeWidgetBackground).
+writeColorSet('$accent', { red: '0xFF', green: '0x32', blue: '0x32' });
+writeColorSet('$widgetBackground', { red: '0xFF', green: '0xFF', blue: '0xFF' }, { red: '0x12', green: '0x12', blue: '0x13' });
 writeImageSet('BodyMale', 'male-front.js');
 writeImageSet('BodyFemale', 'female-front.js');
 console.log(`Wrote BodyMale and BodyFemale to ${path.relative(root, out)}`);
