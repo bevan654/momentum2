@@ -104,41 +104,14 @@ private struct ExerciseLines: View {
   }
 }
 
-// MARK: - Lock Screen / banner
-
-private struct LockScreenView: View {
-  let state: WorkoutActivityAttributes.ContentState
-  let isStale: Bool
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(spacing: 6) {
-        Image(systemName: "dumbbell.fill")
-          .font(.subheadline.weight(.semibold))
-          .foregroundColor(accent)
-        Text("Momentum")
-          .font(.subheadline.weight(.semibold))
-          .foregroundColor(secondaryText)
-        Spacer(minLength: 8)
-        ElapsedTimer(state: state, color: secondaryText)
-      }
-      ExerciseLines(state: state)
-      if let rest = state.restInterval {
-        RestRow(rest: rest, isStale: isStale)
-      }
-    }
-    .padding(16)
-  }
-}
-
 // MARK: - Widget
 
 struct WorkoutLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: WorkoutActivityAttributes.self) { context in
-      LockScreenView(state: context.state, isStale: context.isStale)
+      WorkoutLockScreenView(state: context.state, isStale: context.isStale)
         .activityBackgroundTint(Color.black.opacity(0.92))
-        .activitySystemActionForegroundColor(accent)
+        .activitySystemActionForegroundColor(context.state.lockScreenTint)
         .widgetURL(appURL)
     } dynamicIsland: { context in
       let state = context.state

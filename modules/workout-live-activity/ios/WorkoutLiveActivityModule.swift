@@ -1,6 +1,50 @@
 import ActivityKit
 import ExpoModulesCore
 
+/// One set on the Lock Screen. Mirrors `WorkoutLiveActivitySetCard` in index.ts.
+struct WorkoutSetCardRecord: Record {
+  @Field var exerciseId: String = ""
+  @Field var exerciseName: String = ""
+  @Field var setPosition: Int = 0
+  @Field var setIndex: Int = 0
+  @Field var setCount: Int = 0
+  @Field var kind: String = "weighted"
+  @Field var kg: Double? = nil
+  @Field var reps: Int? = nil
+  @Field var lastKg: Double? = nil
+  @Field var lastReps: Int? = nil
+  @Field var prKg: Double? = nil
+  @Field var prReps: Int? = nil
+  @Field var setStates: String = ""
+
+  var card: WorkoutSetCard {
+    WorkoutSetCard(
+      exerciseId: exerciseId, exerciseName: exerciseName, setPosition: setPosition,
+      setIndex: setIndex, setCount: setCount, kind: kind, kg: kg, reps: reps,
+      lastKg: lastKg, lastReps: lastReps, prKg: prKg, prReps: prReps, setStates: setStates
+    )
+  }
+}
+
+/// The set just ticked off. Mirrors `WorkoutLiveActivityDoneSet` in index.ts.
+struct WorkoutDoneSetRecord: Record {
+  @Field var exerciseName: String = ""
+  @Field var setIndex: Int = 0
+  @Field var kind: String = "weighted"
+  @Field var kg: Double? = nil
+  @Field var reps: Int? = nil
+  @Field var lastKg: Double? = nil
+  @Field var lastReps: Int? = nil
+  @Field var prLabel: String? = nil
+
+  var doneSet: WorkoutDoneSet {
+    WorkoutDoneSet(
+      exerciseName: exerciseName, setIndex: setIndex, kind: kind, kg: kg, reps: reps,
+      lastKg: lastKg, lastReps: lastReps, prLabel: prLabel
+    )
+  }
+}
+
 /// What JS sends; times are epoch milliseconds. Mirrors `WorkoutLiveActivityState` in index.ts.
 struct WorkoutLiveActivityState: Record {
   @Field var workoutStartedAt: Double = 0
@@ -10,11 +54,35 @@ struct WorkoutLiveActivityState: Record {
   @Field var nextExerciseName: String? = nil
   @Field var restStartedAt: Double? = nil
   @Field var restEndsAt: Double? = nil
+  // Lock Screen (1.0.38+).
+  @Field var workoutId: String? = nil
+  @Field var workoutTitle: String? = nil
+  @Field var completedSets: Int = 0
+  @Field var workoutSets: Int = 0
+  @Field var accentHex: String? = nil
+  @Field var restSeconds: Int = 0
+  @Field var lastCompletedAt: Double? = nil
+  @Field var current: WorkoutSetCardRecord? = nil
+  @Field var after: WorkoutSetCardRecord? = nil
+  @Field var justDone: WorkoutDoneSetRecord? = nil
 }
 
 public class WorkoutLiveActivityModule: Module {
   public func definition() -> ModuleDefinition {
     Name("WorkoutLiveActivity")
+
+    // A Lock Screen button was tapped; JS reads the taps with takePendingActions.
+    Events("onAction")
+
+    OnCreate {
+      WorkoutActivityTapObserver.shared.start { [weak self] in
+        self?.sendEvent("onAction", [:])
+      }
+    }
+
+    OnDestroy {
+      WorkoutActivityTapObserver.shared.stop()
+    }
 
     Function("isSupported") { () -> Bool in
       guard #available(iOS 16.2, *) else { return false }
@@ -41,6 +109,53 @@ public class WorkoutLiveActivityModule: Module {
       guard #available(iOS 16.2, *) else { return }
       await WorkoutActivityController.endAll()
     }
+
+    /// Lock Screen taps the app hasn't applied yet, oldest first; reading them clears them.
+    AsyncFunction("takePendingActions") { () -> [[String: Any]] in
+      WorkoutActivityOutbox.takeAll()
+    }
+
+    /// Drops taps that belong to no running workout.
+    AsyncFunction("clearPendingActions") { () in
+      WorkoutActivityOutbox.clear()
+    }
+  }
+}
+
+/// Listens for the Darwin notification a Lock Screen tap posts (from the app or the extension).
+final class WorkoutActivityTapObserver {
+  static let shared = WorkoutActivityTapObserver()
+  private var handler: (() -> Void)?
+  private var observing = false
+
+  func start(_ handler: @escaping () -> Void) {
+    self.handler = handler
+    guard !observing else { return }
+    observing = true
+    CFNotificationCenterAddObserver(
+      CFNotificationCenterGetDarwinNotifyCenter(),
+      Unmanaged.passUnretained(self).toOpaque(),
+      { _, observer, _, _, _ in
+        guard let observer else { return }
+        let me = Unmanaged<WorkoutActivityTapObserver>.fromOpaque(observer).takeUnretainedValue()
+        DispatchQueue.main.async { me.handler?() }
+      },
+      WorkoutActivityOutbox.darwinName as CFString,
+      nil,
+      .deliverImmediately
+    )
+  }
+
+  func stop() {
+    handler = nil
+    guard observing else { return }
+    observing = false
+    CFNotificationCenterRemoveObserver(
+      CFNotificationCenterGetDarwinNotifyCenter(),
+      Unmanaged.passUnretained(self).toOpaque(),
+      CFNotificationName(WorkoutActivityOutbox.darwinName as CFString),
+      nil
+    )
   }
 }
 
@@ -58,6 +173,11 @@ private enum WorkoutActivityController {
     return Date(timeIntervalSince1970: ms / 1000)
   }
 
+  static func nonEmpty(_ s: String?) -> String? {
+    guard let s, !s.isEmpty else { return nil }
+    return s
+  }
+
   static func content(_ s: WorkoutLiveActivityState) -> ActivityContent<Attributes.ContentState> {
     let restEndsAt = date(s.restEndsAt)
     let state = Attributes.ContentState(
@@ -67,10 +187,20 @@ private enum WorkoutActivityController {
       setCount: s.setCount,
       nextExerciseName: s.nextExerciseName,
       restStartedAt: restEndsAt == nil ? nil : date(s.restStartedAt),
-      restEndsAt: restEndsAt
+      restEndsAt: restEndsAt,
+      workoutId: nonEmpty(s.workoutId),
+      workoutTitle: nonEmpty(s.workoutTitle),
+      completedSets: s.completedSets,
+      workoutSets: s.workoutSets,
+      accentHex: nonEmpty(s.accentHex),
+      restSeconds: s.restSeconds,
+      lastCompletedAt: date(s.lastCompletedAt),
+      current: s.current?.card,
+      after: s.after?.card,
+      justDone: s.justDone?.doneSet
     )
-    // Stale at the rest's end, so the widget can say "Rest over" if the system
-    // re-renders it then (JS can't update it from the background).
+    // Stale at the rest's end: the Lock Screen then shows the between-sets view again
+    // (JS can't update it from the background).
     return ActivityContent(state: state, staleDate: restEndsAt)
   }
 

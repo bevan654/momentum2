@@ -11,6 +11,9 @@
  * (1s while resting, 30s idle). After a failed native start, the native start is
  * retried when the app comes back to the foreground.
  *
+ * Lock Screen buttons (iOS 17+, 1.0.38+): the native side updates the activity itself and
+ * queues the tap; liveActivityTaps hands queued taps to the store to apply.
+ *
  * Plain module, no React state.
  */
 
@@ -18,18 +21,38 @@ import { AppState, Platform } from 'react-native';
 import type { NativeEventSubscription } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as WorkoutLiveActivity from '../../modules/workout-live-activity';
-import type { WorkoutLiveActivityState } from '../../modules/workout-live-activity';
+import type {
+  WorkoutLiveActivityDoneSet,
+  WorkoutLiveActivitySetCard,
+  WorkoutLiveActivityState,
+} from '../../modules/workout-live-activity';
 import { formatClock } from '../utils/formatDuration';
+import { useThemeStore } from '../stores/useThemeStore';
+import { watchLockScreenTaps, stopWatchingLockScreenTaps, dropLockScreenTaps } from './liveActivityTaps';
 
 // ── Types ──────────────────────────────────────────────────
 
 export interface WorkoutActivitySnapshot {
   startTime: number;
+  workoutId: string | null;
+  /** Routine / program-day name; null for a plain workout. */
+  workoutTitle: string | null;
   exerciseName: string;
   currentSet: number;
   totalSets: number;
   /** The exercise after the current one, if any. */
   nextExerciseName: string | null;
+  /** Sets ticked off across the whole workout, and the workout's set count. */
+  completedSets: number;
+  workoutSets: number;
+  /** The user's rest length (a set ticked off on the Lock Screen starts a rest this long). */
+  restSeconds: number;
+  /** Epoch ms of the latest ticked-off set. */
+  lastCompletedAt: number | null;
+  /** The set to do now (while resting: the one coming up), the one after it, and the one just done. */
+  current: WorkoutLiveActivitySetCard | null;
+  after: WorkoutLiveActivitySetCard | null;
+  justDone: WorkoutLiveActivityDoneSet | null;
   isResting: boolean;
   restStartedAt: number | null;
   /** Seconds from restStartedAt to the rest's end (the store re-anchors on adjustments). */
@@ -99,8 +122,33 @@ function toNativeState(snapshot: WorkoutActivitySnapshot): WorkoutLiveActivitySt
     nextExerciseName: snapshot.nextExerciseName,
     restStartedAt,
     restEndsAt,
+    workoutId: snapshot.workoutId,
+    workoutTitle: snapshot.workoutTitle,
+    completedSets: snapshot.completedSets,
+    workoutSets: snapshot.workoutSets,
+    // Mono (null) is white on the Lock Screen's dark background.
+    accentHex: useThemeStore.getState().accent ?? '#FFFFFF',
+    restSeconds: snapshot.restSeconds,
+    lastCompletedAt: snapshot.lastCompletedAt,
+    current: snapshot.current,
+    after: snapshot.after,
+    justDone: snapshot.justDone,
   };
 }
+
+/**
+ * The Lock Screen buttons change the activity natively, so after applying taps the next
+ * update must go out even if JS's own state ended up where it was (a tap that was skipped).
+ */
+export function forceNextWorkoutActivityUpdate(): void {
+  _lastNativeKey = '';
+}
+
+// The Lock Screen uses the app's accent colour: re-send it when it changes mid-workout.
+useThemeStore.subscribe((s, prev) => {
+  if (s.accent === prev.accent) return;
+  if (_active && _mode === 'native' && _snapshot) sendNative(_snapshot);
+});
 
 function enqueueNative(label: string, call: () => Promise<unknown>): void {
   _nativeQueue = _nativeQueue.then(call).catch((e) => {
@@ -322,6 +370,7 @@ function retryNative(): void {
       stopWatchingForNativeRetry();
       _mode = 'native';
       _legacyStarting = false;
+      watchLockScreenTaps();
       _lastNativeKey = JSON.stringify(state);
       const latest = _snapshot;
       // Ends the fallback notification; a post in flight dismisses again when it lands.
@@ -377,6 +426,8 @@ export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): P
     _active = true;
     _snapshot = snapshot;
     startNative(snapshot, gen);
+    // Lock Screen buttons (iOS 17+, 1.0.38+); also applies taps made while the app wasn't running.
+    if (Platform.OS === 'ios') watchLockScreenTaps();
     return;
   }
 
@@ -418,6 +469,7 @@ export async function stopWorkoutActivity(): Promise<void> {
   _mode = null;
   _legacyStarting = false;
   stopWatchingForNativeRetry();
+  stopWatchingLockScreenTaps();
 
   if (mode === 'native') {
     _lastNativeKey = '';
@@ -448,5 +500,9 @@ export function clearStaleWorkoutActivity(): void {
     if (gen === _gen) await WorkoutLiveActivity.endAll();
   });
   // A sticky notification from the legacy path (or from the build before this one).
-  if (Platform.OS === 'ios') dismissLegacy();
+  if (Platform.OS === 'ios') {
+    dismissLegacy();
+    // Lock Screen taps for that workout have nothing left to apply to.
+    dropLockScreenTaps();
+  }
 }

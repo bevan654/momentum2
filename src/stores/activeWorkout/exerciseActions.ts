@@ -24,6 +24,10 @@ export function createExerciseActions(
     newExerciseId: () => string;
   },
 ): Pick<ActiveWorkoutState, ExerciseActionKeys> {
+  /** Typing a weight or reps commits each keystroke; the Lock Screen catches up once typing pauses. */
+  let setEditTimer: ReturnType<typeof setTimeout> | null = null;
+  const SET_EDIT_ACTIVITY_DELAY_MS = 600;
+
   return {
     // ── Exercise management ───────────────────────────
 
@@ -325,6 +329,13 @@ export function createExerciseActions(
         return { exercises };
       });
       get()._persist();
+      // Weight × reps on the Lock Screen, once typing pauses. An edit that doesn't change
+      // what's shown is skipped before it reaches native.
+      if (setEditTimer) clearTimeout(setEditTimer);
+      setEditTimer = setTimeout(() => {
+        setEditTimer = null;
+        if (get().isActive) updateWorkoutActivity(_buildSnapshot(get()));
+      }, SET_EDIT_ACTIVITY_DELAY_MS);
     },
 
     toggleSetComplete: (exerciseIndex, setIndex) => {
@@ -408,6 +419,7 @@ export function createExerciseActions(
         return { exercises };
       });
       get()._persist();
+      updateWorkoutActivity(_buildSnapshot(get())); // set-type label on the Lock Screen
     },
 
     // ── Superset ──────────────────────────────────────

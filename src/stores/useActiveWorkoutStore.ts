@@ -15,7 +15,8 @@ import { REST_NOTIF_ID, EMPTY_SET } from './activeWorkout/constants';
 import { runWithRecovery } from './activeWorkout/supabaseRecovery';
 import { type ActiveSet, type ActiveExercise, type ActiveWorkoutState, type FinishResult, type UndoSnapshot } from './activeWorkout/types';
 import { createExerciseActions } from './activeWorkout/exerciseActions';
-import { _buildSnapshot } from './activeWorkout/liveActivitySnapshot';
+import { _buildSnapshot, setLiveActivityRestSeconds } from './activeWorkout/liveActivitySnapshot';
+import { connectLockScreen } from './activeWorkout/lockScreenTaps';
 import { _scheduleRestNotification } from './activeWorkout/restNotification';
 import { programDayOf, buildFeedPayload, toRankExercises, buildSummary } from './activeWorkout/finishHelpers';
 export { type ActiveSet, type ActiveExercise, type SummaryExercise, type WorkoutSummary } from './activeWorkout/types';
@@ -40,7 +41,10 @@ let _undoSnapshot: UndoSnapshot | null = null; // The finished workout as it was
 
 let _preferredRestDuration = 90; // Loaded from AsyncStorage at module init
 
-loadRestPreference().then((d) => { _preferredRestDuration = d; });
+loadRestPreference().then((d) => {
+  _preferredRestDuration = d;
+  setLiveActivityRestSeconds(d);
+});
 
 export function getPreferredRestDuration(): number {
   return _preferredRestDuration;
@@ -592,6 +596,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     // delta must come from the previous preference, not restDuration.
     const prevPreferred = _preferredRestDuration;
     _preferredRestDuration = seconds;
+    setLiveActivityRestSeconds(seconds);
     saveRestPreference(seconds);
 
     const { isResting, restRemaining: prevRemaining, restTotal: prevTotal } = get();
@@ -695,3 +700,6 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     }, 500);
   },
 }));
+
+// Lock Screen buttons and PR history (activeWorkout/lockScreenTaps).
+connectLockScreen(useActiveWorkoutStore.getState, useActiveWorkoutStore.setState);

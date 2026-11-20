@@ -6,7 +6,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: 'momentum',
   scheme: 'momentum',
   owner: 'shajanbevan',
-  version: '1.0.37',
+  version: '1.0.38',
   orientation: 'portrait',
   icon: './assets/logo.png',
   userInterfaceStyle: 'dark',
@@ -35,6 +35,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       ITSAppUsesNonExemptEncryption: false,
       // Active-workout Live Activity (targets/workout-activity, iOS 16.2+)
       NSSupportsLiveActivities: true,
+    },
+    // Shared with the Live Activity extension (targets/workout-activity): the Lock Screen
+    // buttons leave their taps there for the app to apply.
+    entitlements: {
+      'com.apple.security.application-groups': ['group.com.momentum.fitnessapp'],
     },
   },
   android: {

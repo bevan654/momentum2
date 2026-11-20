@@ -14,8 +14,8 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
-  # ActivityKit doesn't exist on iOS 15: weak-link it so the app still launches there.
-  s.weak_frameworks = 'ActivityKit'
+  # ActivityKit and AppIntents don't exist on iOS 15: weak-link them so the app still launches there.
+  s.weak_frameworks = 'ActivityKit', 'AppIntents'
 
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',

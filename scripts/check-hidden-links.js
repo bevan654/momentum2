@@ -195,6 +195,32 @@ const checks = {
       .filter((r) => !auth.includes(`${r.replace('.', '.getState().')}()`))
       .map((r) => `${r} is never called from useAuthStore`);
   },
+
+  /**
+   * The Live Activity's Swift files that exist twice, in the app module and the extension, match:
+   * ActivityKit pairs the two WorkoutActivityAttributes by Codable shape, and the button intents
+   * must be the same type in both.
+   */
+  liveActivitySwiftCopies() {
+    const app = 'modules/workout-live-activity/ios';
+    const ext = 'targets/workout-activity';
+    const norm = (s) => s.replace(/\r\n/g, '\n');
+    const problems = [];
+    const shared = 'WorkoutActivityShared.swift';
+    if (!exists(`${app}/${shared}`) || !exists(`${ext}/${shared}`)) problems.push(`${shared} is missing from ${app} or ${ext}`);
+    else if (norm(read(`${app}/${shared}`)) !== norm(read(`${ext}/${shared}`))) problems.push(`${app}/${shared} and ${ext}/${shared} differ (they must be identical)`);
+    const attrs = 'WorkoutActivityAttributes.swift';
+    const body = (rel) => {
+      const t = norm(read(rel));
+      const i = t.indexOf('struct WorkoutActivityAttributes');
+      return i < 0 ? null : t.slice(i);
+    };
+    const a = body(`${app}/${attrs}`);
+    const b = body(`${ext}/${attrs}`);
+    if (!a || !b) problems.push(`${attrs}: 'struct WorkoutActivityAttributes' not found in both copies (the check needs updating)`);
+    else if (a !== b) problems.push(`${app}/${attrs} and ${ext}/${attrs} differ from the struct line down`);
+    return problems;
+  },
 };
 
 /* ── --touched: which hidden links and structure this branch changes ─── */
