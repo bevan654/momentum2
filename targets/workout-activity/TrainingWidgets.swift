@@ -62,8 +62,8 @@ struct StreakState {
     }
     days = current
     lastSafeDay = safeDay
-    // So it never goes down when the streak ends.
-    best = max(streak?.best ?? 0, run)
+    // Never below today's streak, and never going down when the streak ends.
+    best = max(streak?.best ?? 0, run, current)
   }
 }
 

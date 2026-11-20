@@ -68,10 +68,13 @@ function _captureTotals(n: ReturnType<typeof useNutritionStore.getState>): void 
  * Protein per meal, in the diary's meals and order (planned food left out, as in the diary); the
  * meals on the widgets until this user's meal sections have loaded.
  */
-function _meals(userId: string, rows: TodayFoodRow[]): unknown {
+function _meals(userId: string, day: string, rows: TodayFoodRow[]): unknown {
   const { mealConfigs, mealConfigsFor } = useFoodLogStore.getState();
   if (mealConfigsFor !== userId) {
-    return (_previousSection(userId, 'nutrition') as Record<string, unknown> | null)?.meals ?? null;
+    const previous = _previousSection(userId, 'nutrition') as { date?: string; meals?: { name: string; protein: number }[] } | null;
+    const meals = previous?.meals ?? null;
+    // Another day's columns: keep the meal names, not what was eaten then.
+    return meals && previous?.date !== day ? meals.map((m) => ({ name: m.name, protein: 0 })) : meals;
   }
   const buckets = groupEntriesByMeal(rows as unknown as FoodEntry[], mealConfigs);
   return buckets
@@ -101,7 +104,7 @@ function _nutrition(userId: string): unknown {
     carbs: Math.round(eaten.carbs * 10) / 10,
     fat: Math.round(eaten.fat * 10) / 10,
     ...goals,
-    meals: _meals(userId, _totals.rows),
+    meals: _meals(userId, _totals.day, _totals.rows),
   };
 }
 
@@ -161,7 +164,9 @@ function _lastWorkout(userId: string): unknown {
   // prCount only looks back through the loaded history, so for a workout near its oldest end it
   // counts lifts as PRs that weren't: leave that one out.
   const previousIndex = previous ? workouts.indexOf(previous) : -1;
-  const previousPrsReliable = previousIndex >= 0 && workouts.length - previousIndex > PR_LOOKBACK;
+  // (With fewer than HISTORY_LIMIT loaded, that's the whole history and every count is exact.)
+  const previousPrsReliable = previousIndex >= 0
+    && (workouts.length < HISTORY_LIMIT || workouts.length - previousIndex > PR_LOOKBACK);
   return {
     latest: {
       id: latest.id,

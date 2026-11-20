@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import WorkoutSummaryModal from '../../workout-sheet/WorkoutSummaryModal';
 import Sheet from '../../ui/Sheet';
 import { setOpenWorkoutSummary } from '../../../lib/navigationBridge';
-import { useWorkoutStore } from '../../../stores/useWorkoutStore';
+import { useWorkoutStore, type WorkoutWithDetails } from '../../../stores/useWorkoutStore';
 
 /**
  * A workout's summary opened from outside the history list: the home screen Last workout widget
@@ -15,6 +15,9 @@ function LinkedWorkoutSummary() {
   const workout = useWorkoutStore((s) => (workoutId ? s.workouts.find((w) => w.id === workoutId) ?? null : null));
   const deleteWorkout = useWorkoutStore((s) => s.deleteWorkout);
   const close = useCallback(() => setWorkoutId(null), []);
+  // Kept while the sheet slides away, so it doesn't go blank as it closes.
+  const shown = useRef<WorkoutWithDetails | null>(null);
+  if (workout) shown.current = workout;
 
   useEffect(() => {
     setOpenWorkoutSummary((id) => {
@@ -28,15 +31,16 @@ function LinkedWorkoutSummary() {
     if (workoutId && !workout) setWorkoutId(null);
   }, [workoutId, workout]);
 
+  const data = shown.current;
   return (
     <Sheet visible={!!workout} onClose={close} height="92%">
-      {workout && (
+      {data && (
         <WorkoutSummaryModal
           mode="historical"
-          data={workout}
+          data={data}
           onDismiss={close}
           onDelete={async () => {
-            const id = workout.id;
+            const id = data.id;
             close();
             await deleteWorkout(id);
           }}

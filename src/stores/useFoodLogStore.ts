@@ -279,20 +279,18 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       set({ mealConfigs: DEFAULT_MEALS, mealConfigsFor: userId });
       return;
     }
-    {
-      set({
-        mealConfigs: data.map((d) => ({
-          id: d.id,
-          slot: d.slot,
-          label: d.label,
-          icon: d.icon,
-          time_start: d.time_start,
-          enabled: d.enabled,
-          sort_order: d.sort_order,
-        })),
-        mealConfigsFor: userId,
-      });
-    }
+    set({
+      mealConfigs: data.map((d) => ({
+        id: d.id,
+        slot: d.slot,
+        label: d.label,
+        icon: d.icon,
+        time_start: d.time_start,
+        enabled: d.enabled,
+        sort_order: d.sort_order,
+      })),
+      mealConfigsFor: userId,
+    });
   },
 
   fetchGoals: async (userId: string) => {
