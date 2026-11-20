@@ -1,7 +1,8 @@
 import SwiftUI
 import WidgetKit
 
-// Small home screen widgets for training: Streak (opens Workouts) and Recovery (opens Recovery).
+// Small home screen widgets for training: Streak (opens Workouts) and Recovery (opens Recovery; the
+// three least recovered groups, or a green body when everything is recovered).
 // Both are worked out from dates at the time each entry shows, so they move on without the app:
 // the streak counts up at midnight and warns on the last safe day; recovery climbs each hour.
 
@@ -164,8 +165,8 @@ struct RecoveryWidgetView: View {
   private func content(_ recovery: HomeWidgetData.Recovery?) -> some View {
     let groups = (recovery?.groups ?? []).enumerated()
       .map { (index: $0.offset, name: $0.element.name, percent: $0.element.percent(at: entry.date)) }
-    // Most recovered first; ties keep the app's group order.
-    let top = groups.sorted { $0.percent != $1.percent ? $0.percent > $1.percent : $0.index < $1.index }.prefix(3)
+    // Least recovered first (what still needs rest); ties keep the app's group order.
+    let top = groups.sorted { $0.percent != $1.percent ? $0.percent < $1.percent : $0.index < $1.index }.prefix(3)
     VStack(alignment: .leading, spacing: 0) {
       HomeWidgetTitle(symbol: "heart.text.square.fill", text: "Recovery", tint: HomeWidgetColor.green)
       if groups.allSatisfy({ $0.percent >= 100 }) {
@@ -217,7 +218,7 @@ struct RecoveryWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "MomentumRecovery", provider: HomeWidgetProvider(hourly: true)) { RecoveryWidgetView(entry: $0) }
       .configurationDisplayName("Recovery")
-      .description("Your most recovered muscle groups, updated through the day.")
+      .description("The muscle groups still recovering, updated through the day.")
       .supportedFamilies([.systemSmall])
   }
 }
