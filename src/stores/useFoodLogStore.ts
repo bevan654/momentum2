@@ -170,6 +170,8 @@ interface FoodLogState {
   // Data
   entries: FoodEntry[];
   mealConfigs: MealConfig[];
+  /** Whose meal sections mealConfigs are, once a fetch succeeded (null while they're the defaults). */
+  mealConfigsFor: string | null;
   goals: NutritionGoals;
   loading: boolean;
   // Search
@@ -206,6 +208,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   selectedDate: toLocalDateString(),
   entries: [],
   mealConfigs: DEFAULT_MEALS,
+  mealConfigsFor: null,
   goals: { calorie_goal: 2000, protein_goal: 150, carbs_goal: 250, fat_goal: 65 },
   loading: false,
   catalogResults: [],
@@ -264,13 +267,19 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   },
 
   fetchMealConfigs: async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('meal_config')
       .select('*')
       .eq('user_id', userId)
       .order('sort_order', { ascending: true });
 
-    if (data && data.length > 0) {
+    if (error || !data) return;
+    if (data.length === 0) {
+      // No meal sections saved: the defaults (not the last account's sections).
+      set({ mealConfigs: DEFAULT_MEALS, mealConfigsFor: userId });
+      return;
+    }
+    {
       set({
         mealConfigs: data.map((d) => ({
           id: d.id,
@@ -281,6 +290,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
           enabled: d.enabled,
           sort_order: d.sort_order,
         })),
+        mealConfigsFor: userId,
       });
     }
   },

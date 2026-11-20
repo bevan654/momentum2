@@ -16,6 +16,7 @@
 
 import { Platform } from 'react-native';
 import { getHomeWidgetData, setHomeWidgetData } from '../../modules/workout-live-activity';
+import { sumMacros } from '../components/food/dayTotals';
 import { groupEntriesByMeal, OTHER_SLOT } from '../components/food/groupEntriesByMeal';
 import { RECOVERY_HOURS } from '../constants/muscles';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -30,6 +31,10 @@ import { useWorkoutStore, type WorkoutWithDetails } from '../stores/useWorkoutSt
 import { ownBodyweightKg } from '../utils/muscleLoad';
 
 const WRITE_DELAY_MS = 1000;
+/** fetchWorkoutHistory's limit; fewer loaded means the user's whole history is here. */
+const HISTORY_LIMIT = 30;
+/** Older workouts a PR count needs behind it to be trusted (see _lastWorkout). */
+const PR_LOOKBACK = 10;
 
 const GROUPS = ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms', 'abs', 'quads', 'hamstrings', 'glutes', 'calves'] as const;
 const GROUP_HOURS = RECOVERY_HOURS as Record<(typeof GROUPS)[number], number>;
@@ -49,19 +54,26 @@ let _timer: ReturnType<typeof setTimeout> | null = null;
 let _lastJson: string | null = null;
 /** What the widgets showed when the app started; its sections stand in until ours load. */
 let _previous: Snapshot | null = null;
-/** Today's totals, captured when a fetch succeeds (a failed one also zeroes the store). */
-let _totals: { userId: string; day: string; kcal: number; protein: number; carbs: number; fat: number; rows: TodayFoodRow[] } | null = null;
+/** Today's food rows, captured when a fetch succeeds (a failed one also zeroes the store). */
+let _totals: { userId: string; day: string; rows: TodayFoodRow[] } | null = null;
 /** The user whose meal sections were requested (they're only fetched when the diary opens otherwise). */
 let _mealsFetchedFor: string | null = null;
 
 function _captureTotals(n: ReturnType<typeof useNutritionStore.getState>): void {
   if (!n.totalsFor) return;
-  _totals = { ...n.totalsFor, kcal: n.calories, protein: n.protein, carbs: n.carbs, fat: n.fat, rows: n.todayEntries };
+  _totals = { ...n.totalsFor, rows: n.todayEntries };
 }
 
-/** Protein per meal, in the diary's meals and order (planned food left out, as in the diary). */
-function _meals(rows: TodayFoodRow[]): { name: string; protein: number }[] {
-  const buckets = groupEntriesByMeal(rows as unknown as FoodEntry[], useFoodLogStore.getState().mealConfigs);
+/**
+ * Protein per meal, in the diary's meals and order (planned food left out, as in the diary); the
+ * meals on the widgets until this user's meal sections have loaded.
+ */
+function _meals(userId: string, rows: TodayFoodRow[]): unknown {
+  const { mealConfigs, mealConfigsFor } = useFoodLogStore.getState();
+  if (mealConfigsFor !== userId) {
+    return (_previousSection(userId, 'nutrition') as Record<string, unknown> | null)?.meals ?? null;
+  }
+  const buckets = groupEntriesByMeal(rows as unknown as FoodEntry[], mealConfigs);
   return buckets
     .filter((b) => b.slot !== OTHER_SLOT || b.totals.protein > 0)
     .map((b) => ({ name: b.label, protein: Math.round(b.totals.protein) }));
@@ -80,14 +92,16 @@ function _nutrition(userId: string): unknown {
         goalCarbs: previous?.goalCarbs ?? null,
         goalFat: previous?.goalFat ?? null,
       };
+  // Eaten = the diary's sums (planned food left out), so the header matches the meal columns.
+  const eaten = sumMacros(_totals.rows as unknown as FoodEntry[]);
   return {
     date: _totals.day,
-    kcal: _totals.kcal,
-    protein: _totals.protein,
-    carbs: _totals.carbs,
-    fat: _totals.fat,
+    kcal: Math.round(eaten.calories),
+    protein: Math.round(eaten.protein * 10) / 10,
+    carbs: Math.round(eaten.carbs * 10) / 10,
+    fat: Math.round(eaten.fat * 10) / 10,
     ...goals,
-    meals: _meals(_totals.rows),
+    meals: _meals(userId, _totals.rows),
   };
 }
 
@@ -108,18 +122,17 @@ function _recovery(userId: string, gender: string | null | undefined, startingWe
   };
 }
 
-const _cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
 /** What the app would call this workout: program day, routine, program, else its main muscles. */
 function _title(w: WorkoutWithDetails): string {
   const routine = w.routineId ? useRoutineStore.getState().routines.find((r) => r.id === w.routineId)?.name : undefined;
-  const muscles = w.muscleGroups.slice(0, 2).map(_cap).join(' & ');
+  const muscles = w.muscleGroups.slice(0, 2).map(groupName).join(' & ');
   return w.programDayLabel || routine || w.programName || muscles || 'Workout';
 }
 
 /**
  * The earlier session of the same workout: same routine, or same program day; a workout from
- * neither compares with the earlier one sharing the most exercises. Null = first time.
+ * neither compares with the earlier one sharing the most exercises, at least half of its own.
+ * Null = not in the loaded history.
  */
 function _sameBefore(latest: WorkoutWithDetails, older: WorkoutWithDetails[]): WorkoutWithDetails | null {
   if (latest.routineId) return older.find((w) => w.routineId === latest.routineId) ?? null;
@@ -128,7 +141,7 @@ function _sameBefore(latest: WorkoutWithDetails, older: WorkoutWithDetails[]): W
   }
   const names = new Set(latest.exercises.map((e) => e.name.toLowerCase()));
   let best: WorkoutWithDetails | null = null;
-  let bestShared = 0;
+  let bestShared = Math.max(1, Math.ceil(names.size / 2)) - 1;
   for (const w of older) {
     const shared = new Set(w.exercises.map((e) => e.name.toLowerCase()).filter((n) => names.has(n))).size;
     if (shared > bestShared) { best = w; bestShared = shared; }
@@ -141,15 +154,26 @@ function _lastWorkout(userId: string): unknown {
   if (historyUserId !== userId) return _previousSection(userId, 'lastWorkout');
   const [latest, ...older] = workouts;
   if (!latest) return { latest: null };
+  const at = Date.parse(latest.created_at);
+  if (!Number.isFinite(at)) return _previousSection(userId, 'lastWorkout');
   const previous = _sameBefore(latest, older);
+  const previousAt = previous ? Date.parse(previous.created_at) : NaN;
+  // prCount only looks back through the loaded history, so for a workout near its oldest end it
+  // counts lifts as PRs that weren't: leave that one out.
+  const previousIndex = previous ? workouts.indexOf(previous) : -1;
+  const previousPrsReliable = previousIndex >= 0 && workouts.length - previousIndex > PR_LOOKBACK;
   return {
     latest: {
       id: latest.id,
       title: _title(latest),
-      at: Date.parse(latest.created_at),
+      at,
       volume: latest.totalVolume,
       prs: latest.prCount,
-      previous: previous ? { at: Date.parse(previous.created_at), volume: previous.totalVolume, prs: previous.prCount } : null,
+      previous: previous && Number.isFinite(previousAt)
+        ? { at: previousAt, volume: previous.totalVolume, prs: previousPrsReliable ? previous.prCount : null }
+        : null,
+      // No earlier session in the whole loaded history: really the first time only if that's all of it.
+      firstTime: !previous && workouts.length < HISTORY_LIMIT,
     },
   };
 }
@@ -180,7 +204,12 @@ async function _write(): Promise<void> {
   const userId = useAuthStore.getState().user?.id;
   if (userId && _mealsFetchedFor !== userId) {
     _mealsFetchedFor = userId;
-    useFoodLogStore.getState().fetchMealConfigs(userId).catch(() => {});
+    useFoodLogStore.getState().fetchMealConfigs(userId)
+      .catch(() => {})
+      .finally(() => {
+        // Failed (offline): ask again on a later write.
+        if (useFoodLogStore.getState().mealConfigsFor !== userId) _mealsFetchedFor = null;
+      });
   }
   const json = _buildJson();
   if (json == null || json === _lastJson) return;
@@ -207,7 +236,9 @@ function _subscribe(): void {
   useWorkoutStore.subscribe((s, prev) => {
     if (s.workouts !== prev.workouts || s.catalogMap !== prev.catalogMap || s.historyUserId !== prev.historyUserId) _schedule();
   });
-  useFoodLogStore.subscribe((s, prev) => { if (s.mealConfigs !== prev.mealConfigs) _schedule(); });
+  useFoodLogStore.subscribe((s, prev) => {
+    if (s.mealConfigs !== prev.mealConfigs || s.mealConfigsFor !== prev.mealConfigsFor) _schedule();
+  });
   useRoutineStore.subscribe((s, prev) => { if (s.routines !== prev.routines) _schedule(); });
   useWeightStore.subscribe((s, prev) => { if (s.current !== prev.current) _schedule(); });
   useThemeStore.subscribe((s, prev) => { if (s.accent !== prev.accent) _schedule(); });

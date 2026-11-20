@@ -168,7 +168,7 @@ struct RecoveryMediumView: View {
     let rows = groups.enumerated()
       .map { (index: $0.offset, name: $0.element.name, percent: $0.element.percent(at: now)) }
       .sorted { $0.percent != $1.percent ? $0.percent < $1.percent : $0.index < $1.index }
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: 6) {
       HomeWidgetTitle(symbol: "heart.text.square.fill", text: "Recovery", tint: HomeWidgetColor.green)
       if rows.allSatisfy({ $0.percent >= 100 }) {
         Spacer(minLength: 0)
@@ -192,7 +192,7 @@ struct RecoveryMediumView: View {
   }
 
   private func column(_ items: [(index: Int, name: String, percent: Int)]) -> some View {
-    VStack(spacing: 8) {
+    VStack(spacing: 5) {
       ForEach(items, id: \.index) { g in
         VStack(spacing: 3) {
           HStack {
@@ -268,13 +268,14 @@ struct LastWorkoutWidgetView: View {
             .font(.title3.weight(.bold))
             .foregroundColor(w.prs > 0 ? HomeWidgetColor.gold : .primary)
             .monospacedDigit()
-          if let previous = w.previous {
-            Text("last time \(previous.prs)").font(.caption2).foregroundColor(.secondary)
+          if let prs = w.previous?.prs {
+            Text("last time \(prs)").font(.caption2).foregroundColor(.secondary)
           }
         }
       }
       if w.previous == nil {
-        Text("First time · nothing to compare yet").font(.caption2).foregroundColor(.secondary).lineLimit(1).padding(.top, 2)
+        Text(w.firstTime == true ? "First time · nothing to compare yet" : "Nothing recent to compare with")
+          .font(.caption2).foregroundColor(.secondary).lineLimit(1).padding(.top, 2)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)

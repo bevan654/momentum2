@@ -48,6 +48,8 @@ struct StreakState {
     // The rule in src/utils/streakCalculator.ts: alive while the last workout was under 4 days ago.
     var current = 0
     var safeDay = false
+    /// The run counted as the app counts its best: first to last workout, rest days after it left out.
+    var run = 0
     if
       let start = streak?.chainStart.flatMap(HomeWidgetDay.date),
       let last = streak?.lastWorkout.flatMap(HomeWidgetDay.date)
@@ -56,10 +58,12 @@ struct StreakState {
       let alive = sinceLast >= 0 && sinceLast < 4
       current = alive ? HomeWidgetDay.days(from: start, to: now) + 1 : 0
       safeDay = alive && sinceLast == 3
+      run = HomeWidgetDay.days(from: start, to: last) + 1
     }
     days = current
     lastSafeDay = safeDay
-    best = max(streak?.best ?? 0, current)
+    // So it never goes down when the streak ends.
+    best = max(streak?.best ?? 0, run)
   }
 }
 
@@ -137,7 +141,7 @@ struct StreakWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "MomentumStreak", provider: HomeWidgetProvider()) { StreakWidgetView(entry: $0) }
       .configurationDisplayName("Streak")
-      .description("Your workout streak and the last 7 days.")
+      .description("Your workout streak, with the last 7 days (small) or 28 days (medium).")
       .supportedFamilies([.systemSmall, .systemMedium])
   }
 }

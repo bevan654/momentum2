@@ -14,6 +14,7 @@ private extension HomeWidgetData.Nutrition {
     n.protein = 0
     n.carbs = 0
     n.fat = 0
+    n.meals = n.meals?.map { HomeWidgetData.Meal(name: $0.name, protein: 0) }
     return n
   }
 }
@@ -185,7 +186,7 @@ struct ProteinWidgetView: View {
 
 struct MacrosWidgetView: View {
   let entry: HomeWidgetEntry
-  @Environment(.widgetFamily) private var family
+  @Environment(\.widgetFamily) private var family
 
   var body: some View {
     let accent = HomeWidgetColor.accent(entry.data?.accentHex)
@@ -253,7 +254,7 @@ struct MacroRow: View {
   @ViewBuilder
   private var detail: some View {
     if let goal, showsTotal {
-      Text("(Int(eaten.rounded())) / (grams(goal))").foregroundColor(eaten > goal ? HomeWidgetColor.red : .secondary)
+      Text("\(Int(eaten.rounded())) / \(grams(goal))").foregroundColor(eaten > goal ? HomeWidgetColor.red : .secondary)
     } else if let goal {
       if eaten > goal {
         Text("\(grams(eaten - goal)) over").foregroundColor(HomeWidgetColor.red)

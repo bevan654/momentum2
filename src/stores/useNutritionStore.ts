@@ -4,9 +4,6 @@ import { toLocalDateString } from '../utils/localDate';
 
 /** One of today's food rows as fetchTodayNutrition selects it (enough for groupEntriesByMeal's totals). */
 export interface TodayFoodRow {
-  id: string;
-  name: string;
-  quantity: number;
   calories: number;
   protein: number;
   carbs: number;
@@ -61,7 +58,7 @@ export const useNutritionStore = create<NutritionState>((set) => ({
     const day = toLocalDateString();
     const { data, error } = await supabase
       .from('food_entries')
-      .select('id, name, quantity, calories, protein, carbs, fat, meal_type, is_planned, meal_group_id, created_at')
+      .select('calories, protein, carbs, fat, meal_type, is_planned, meal_group_id, created_at')
       .eq('user_id', userId)
       .gte('created_at', start)
       .lt('created_at', end);

@@ -38,7 +38,8 @@ struct HomeWidgetData: Codable {
     var at: Double
     /// kg × reps over completed sets, as the app's workout totals.
     var volume: Double
-    var prs: Int
+    /// Nil when the app can't count it reliably (too near the oldest loaded workout).
+    var prs: Int?
   }
 
   struct LastWorkout: Codable {
@@ -47,8 +48,10 @@ struct HomeWidgetData: Codable {
     var at: Double
     var volume: Double
     var prs: Int
-    /// The earlier session of the same routine or program day; nil = first time.
+    /// The earlier session of the same routine or program day; nil = none in the loaded history.
     var previous: WorkoutTotals?
+    /// No earlier session, and the app has the whole history: it really is the first time.
+    var firstTime: Bool?
   }
 
   /// Wrapped so "no workouts yet" (latest nil) differs from "not loaded" (the section missing).
