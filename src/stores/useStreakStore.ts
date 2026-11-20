@@ -1,11 +1,16 @@
 import { create } from 'zustand';
 import { fetchWorkoutDates, getUserStreak, upsertUserStreak } from '../lib/friendsDatabase';
 import { calculateStreak } from '../utils/streakCalculator';
-import { toLocalDateString } from '../utils/localDate';
+import { parseLocalDate, toLocalDateString } from '../utils/localDate';
 
 interface StreakState {
   currentStreak: number;
   longestStreak: number;
+  /** First workout day of the current streak and the latest workout day (YYYY-MM-DD), for the home screen widget. */
+  chainStart: string | null;
+  lastWorkout: string | null;
+  /** Workout days in the last 8 days, newest first (the widget's 7 dots). */
+  recentDates: string[];
   loaded: boolean;
   initStreak: (userId: string) => Promise<void>;
   refreshStreak: (userId: string) => Promise<void>;
@@ -14,6 +19,9 @@ interface StreakState {
 export const useStreakStore = create<StreakState>((set, get) => ({
   currentStreak: 0,
   longestStreak: 0,
+  chainStart: null,
+  lastWorkout: null,
+  recentDates: [],
   loaded: false,
 
   initStreak: async (userId: string) => {
@@ -45,9 +53,15 @@ export const useStreakStore = create<StreakState>((set, get) => ({
     const lastWorkout = dates.length > 0 ? dates[0] : null;
     upsertUserStreak(userId, result.currentStreak, result.longestStreak, lastWorkout);
 
+    const weekAgo = parseLocalDate(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const recentStart = toLocalDateString(weekAgo);
     set({
       currentStreak: result.currentStreak,
       longestStreak: result.longestStreak,
+      chainStart: result.chainStart,
+      lastWorkout: result.lastWorkout,
+      recentDates: dates.filter((d) => d >= recentStart && d <= today),
       loaded: true,
     });
   },

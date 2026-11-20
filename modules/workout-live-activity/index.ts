@@ -107,6 +107,7 @@ interface WorkoutLiveActivityNative {
   takePendingActions?(): Promise<WorkoutLiveActivityAction[]>;
   clearPendingActions?(): Promise<void>;
   addListener?(event: 'onAction', listener: () => void): EventSubscription;
+  setHomeWidgetData?(json: string | null): Promise<void>;
 }
 
 const Native = requireOptionalNativeModule<WorkoutLiveActivityNative>('WorkoutLiveActivity');
@@ -170,5 +171,19 @@ export function addActionListener(listener: () => void): EventSubscription | nul
     return Native.addListener('onAction', listener);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Hands the home screen widgets their data (a JSON string; null clears it) and redraws them if it
+ * changed. Returns false where the binary has no widgets (Android, iOS builds before 1.0.38).
+ */
+export async function setHomeWidgetData(json: string | null): Promise<boolean> {
+  if (!Native?.setHomeWidgetData) return false;
+  try {
+    await Native.setHomeWidgetData(json);
+    return true;
+  } catch {
+    return false;
   }
 }

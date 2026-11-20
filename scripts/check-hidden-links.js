@@ -227,6 +227,29 @@ const checks = {
    * the Expo module's Records (a key they don't know is dropped silently) and the ActivityKit
    * ContentState structs (Codable keys).
    */
+  /**
+   * The home screen widgets read what src/services/homeWidgets.ts writes: the same App Group key
+   * in the module and the widget, and every field the Swift HomeWidgetData decodes is written by JS
+   * (a missing or renamed one decodes as nil, or fails the whole snapshot if it isn't optional).
+   */
+  homeWidgetData() {
+    const swift = read('targets/workout-activity/HomeWidgetData.swift');
+    const mod = read('modules/workout-live-activity/ios/WorkoutLiveActivityModule.swift');
+    const ts = read('src/services/homeWidgets.ts');
+    const problems = [];
+    const widgetKey = /homeWidgetDataKey = "([^"]+)"/.exec(swift)?.[1];
+    const moduleKey = /static let key = "([^"]+)"/.exec(mod)?.[1];
+    if (!widgetKey || !moduleKey) problems.push('the home widget data key was not found in HomeWidgetData.swift or WorkoutLiveActivityModule.swift (the check needs updating)');
+    else if (widgetKey !== moduleKey) problems.push(`home widget data key differs: widget '${widgetKey}', module '${moduleKey}'`);
+    const model = swift.slice(swift.indexOf('struct HomeWidgetData: Codable'), swift.indexOf('static func load()'));
+    const fields = [...model.matchAll(/^\s+var (\w+):/gm)].map((m) => m[1]);
+    if (fields.length === 0) problems.push('no HomeWidgetData fields found (the check needs updating)');
+    for (const f of fields) {
+      if (!new RegExp(`\\b${f}:`).test(ts)) problems.push(`HomeWidgetData.${f} is never written by src/services/homeWidgets.ts`);
+    }
+    return problems;
+  },
+
   liveActivityStateShape() {
     const ts = read('modules/workout-live-activity/index.ts');
     const mod = read('modules/workout-live-activity/ios/WorkoutLiveActivityModule.swift');

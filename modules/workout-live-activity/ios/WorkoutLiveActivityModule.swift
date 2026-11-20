@@ -1,5 +1,6 @@
 import ActivityKit
 import ExpoModulesCore
+import WidgetKit
 
 /// One set on the Lock Screen. Mirrors `WorkoutLiveActivitySetCard` in index.ts.
 struct WorkoutSetCardRecord: Record {
@@ -119,6 +120,25 @@ public class WorkoutLiveActivityModule: Module {
     AsyncFunction("clearPendingActions") { () in
       WorkoutActivityOutbox.clear()
     }
+
+    /// The home screen widgets' data (JSON, see HomeWidgetData.swift in targets/workout-activity),
+    /// or nil to clear it (signed out). Redraws the widgets only when it changed.
+    AsyncFunction("setHomeWidgetData") { (json: String?) in
+      HomeWidgetStore.write(json)
+    }
+  }
+}
+
+/// Where the app leaves the home screen widgets' data: the shared App Group, read by the extension.
+enum HomeWidgetStore {
+  /// Same key as HomeWidgetData.swift in targets/workout-activity (npm run check:links checks).
+  static let key = "momentum.homeWidgets.v1"
+
+  static func write(_ json: String?) {
+    let defaults = UserDefaults(suiteName: WorkoutActivityOutbox.appGroup) ?? .standard
+    if defaults.string(forKey: key) == json { return }
+    if let json { defaults.set(json, forKey: key) } else { defaults.removeObject(forKey: key) }
+    if #available(iOS 14.0, *) { WidgetCenter.shared.reloadAllTimelines() }
   }
 }
 

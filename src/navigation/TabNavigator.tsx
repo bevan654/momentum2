@@ -32,6 +32,7 @@ import { useRoutineStore } from '../stores/useRoutineStore';
 const Tab = createMaterialTopTabNavigator();
 
 import { setOpenProfileSheet, showRecoveryOverlay } from '../lib/navigationBridge';
+import { setWidgetLinkTabsReady } from './widgetLinks';
 import { initPushToken } from '../services/notificationService';
 import { withFreezeWhenFar } from './freezeFarTabs';
 
@@ -245,6 +246,12 @@ export default function TabNavigator() {
   const [profileVisible, setProfileVisible] = useState(false);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  // A home screen widget link that came in before the tabs existed opens now.
+  useEffect(() => {
+    setWidgetLinkTabsReady(true);
+    return () => setWidgetLinkTabsReady(false);
+  }, []);
 
   useEffect(() => {
     if (!userId) return;

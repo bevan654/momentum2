@@ -29,6 +29,10 @@ function diffDays(a: string, b: string): number {
 interface StreakResult {
   currentStreak: number;
   longestStreak: number;
+  /** First workout day of the current streak (null when there's none), so a day count can be extended to later days. */
+  chainStart: string | null;
+  /** Latest workout day (null when there are none). */
+  lastWorkout: string | null;
 }
 
 /**
@@ -39,7 +43,7 @@ export function calculateStreak(
   workoutDates: string[],
   today: string,
 ): StreakResult {
-  if (workoutDates.length === 0) return { currentStreak: 0, longestStreak: 0 };
+  if (workoutDates.length === 0) return { currentStreak: 0, longestStreak: 0, chainStart: null, lastWorkout: null };
 
   // Deduplicate and sort descending (most recent first)
   const unique = [...new Set(workoutDates)].sort((a, b) =>
@@ -79,14 +83,16 @@ export function calculateStreak(
   const daysSinceLast = diffDays(today, unique[0]);
 
   let currentStreak = 0;
+  let currentChainStart: string | null = null;
   if (daysSinceLast >= 0 && daysSinceLast < 4) {
     // Streak is alive — the most recent chain (chains[0]) is the current one
     const [, oldest] = chains[0];
+    currentChainStart = oldest;
     currentStreak = diffDays(today, oldest) + 1;
 
     // Update longest if the current living streak (extended to today) beats it
     if (currentStreak > longestStreak) longestStreak = currentStreak;
   }
 
-  return { currentStreak, longestStreak };
+  return { currentStreak, longestStreak, chainStart: currentChainStart, lastWorkout: unique[0] };
 }
