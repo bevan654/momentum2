@@ -92,7 +92,9 @@ function ProteinPowderContent({ config, onClose }: Omit<Props, 'visible'>) {
     addingRef.current = true;
     setAdding(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const slot = findMealConfig(useFoodLogStore.getState().mealConfigs, 'snack')?.slot ?? 'snack';
+    // Enabled meals only: a hidden "Snacks" meal would put the snack under Other.
+    const meals = useFoodLogStore.getState().mealConfigs.filter((c) => c.enabled);
+    const slot = findMealConfig(meals, 'snack')?.slot ?? 'snack';
     const ok = await useProteinPowderStore.getState().logServings(userId, selected, amount, slot);
     addingRef.current = false;
     setAdding(false);

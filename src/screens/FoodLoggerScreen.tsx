@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { sw, ms } from '../theme/responsive';
 import { Fonts } from '../theme/typography';
-import { useFoodLogStore } from '../stores/useFoodLogStore';
+import { useFoodLogStore, whenWritesIdle } from '../stores/useFoodLogStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
 import { useProteinPowderStore, PROTEIN_POWDER_KEY } from '../stores/useProteinPowderStore';
@@ -236,12 +236,6 @@ function FoodLoggerScreen() {
     clearEditEntrySoon();
   }, []);
 
-  // When edit detail saves, update the existing entry instead of creating new
-  const handleEditSaved = useCallback(() => {
-    setEditDetailVisible(false);
-    clearEditEntrySoon();
-  }, []);
-
   // The last delete, offered for a few seconds as "Deleted … · Undo".
   const [undoOffer, setUndoOffer] = useState<UndoOffer | null>(null);
   const undoRowsRef = React.useRef<FoodEntry[]>([]); // React.useRef: the redesign drops the named import
@@ -255,6 +249,15 @@ function FoodLoggerScreen() {
     if (ids && known && !dateLogs.some((l) => ids.includes(l.food_entry_id))) return;
     useProteinPowderStore.getState().refresh(userId);
   }, [userId]);
+
+  // When edit detail saves, update the existing entry instead of creating new. Editing a protein
+  // powder snack's servings changes the count, which follows the snack: reload it once saved.
+  const handleEditSaved = useCallback(() => {
+    const id = editEntry?.id;
+    setEditDetailVisible(false);
+    clearEditEntrySoon();
+    if (id) whenWritesIdle().then(() => refreshPowder([id]));
+  }, [editEntry?.id, refreshPowder]);
 
   // Protein powder adds whose snacks were just deleted: Undo links them back to the snacks it
   // restores (the delete cleared the link, which is what took them off the count).

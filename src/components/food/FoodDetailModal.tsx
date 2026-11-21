@@ -19,6 +19,7 @@ import FoodNameCard from './FoodNameCard';
 import MicroEditor from './MicroEditor';
 import { findMealConfig } from './groupEntriesByMeal';
 import { sanitizeDecimal } from './decimalInput';
+import { scaleTyped, type TypedBases } from './scaleTyped';
 
 import { MICROS, type FoodDetailData, type MealItemData } from './foodDetailTypes';
 import RevealTextInput from './ui/RevealTextInput';
@@ -44,13 +45,6 @@ interface Props {
   onFoodSwap?: (food: FoodDetailData) => void;
   /** When set, "Add" button adds to meal instead of logging. Hides meal/date selectors. */
   onAddToMeal?: (item: MealItemData) => void;
-}
-
-/** A typed number string scaled by `ratio` (one decimal); blank stays blank. */
-function rescale(value: string, ratio: number): string {
-  if (value === '') return value;
-  const n = Number(value);
-  return Number.isFinite(n) ? String(Math.round(n * ratio * 10) / 10) : value;
 }
 
 /* ─── Main component ───────────────────────────────────── */
@@ -198,20 +192,30 @@ function FoodDetailModal({
   // Update the fields when quantity or serving changes. Values typed by hand are kept but scaled
   // by the same ratio, so correcting the label's numbers and then logging 2 servings doubles them.
   const prevScaleRef = useRef(scale);
+  // What each hand-typed field was typed as (and at which scale): scaled from that, not from the
+  // last rounded value, so values don't drift to 0 while the serving is retyped.
+  const typedBasesRef = useRef<TypedBases>({});
+  const typedBasesFoodRef = useRef(food);
   useEffect(() => {
     const prevScale = prevScaleRef.current;
     prevScaleRef.current = scale;
+    if (typedBasesFoodRef.current !== food) {
+      typedBasesFoodRef.current = food;
+      typedBasesRef.current = {};
+    }
     if (!food) return;
-    const ratio = prevScale > 0 ? scale / prevScale : 1;
+    const bases = typedBasesRef.current;
+    const changed = prevScale > 0 && scale !== prevScale;
 
     let kcal: number | null = null;
     if (macroManualRef.current) {
-      if (ratio !== 1) {
-        kcal = Number(customCal) > 0 ? Math.round(Number(customCal) * ratio) : null;
-        if (kcal != null) setCustomCal(String(kcal));
-        setCustomPro((v) => rescale(v, ratio));
-        setCustomCarb((v) => rescale(v, ratio));
-        setCustomFat((v) => rescale(v, ratio));
+      if (changed) {
+        const cal = scaleTyped(bases, 'cal', customCal, prevScale, scale, 0);
+        kcal = cal === '' ? null : Number(cal);
+        setCustomCal(cal);
+        setCustomPro(scaleTyped(bases, 'pro', customPro, prevScale, scale, 1));
+        setCustomCarb(scaleTyped(bases, 'carb', customCarb, prevScale, scale, 1));
+        setCustomFat(scaleTyped(bases, 'fat', customFat, prevScale, scale, 1));
       }
     } else {
       kcal = Math.round(food.calories * scale);
@@ -223,12 +227,12 @@ function FoodDetailModal({
     if (kcal != null && energyUnit === 'kj') setDisplayEnergy(String(Math.round(kcal * 4.184)));
 
     if (microManualRef.current) {
-      if (ratio !== 1) {
-        setCustomMicros((prev) => {
-          const next: Record<string, string> = {};
-          for (const k of Object.keys(prev)) next[k] = rescale(prev[k], ratio);
-          return next;
-        });
+      if (changed) {
+        const next: Record<string, string> = {};
+        for (const k of Object.keys(customMicros)) {
+          next[k] = scaleTyped(bases, `micro:${k}`, customMicros[k], prevScale, scale, 1);
+        }
+        setCustomMicros(next);
       }
     } else {
       const updated: Record<string, string> = {};

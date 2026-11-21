@@ -317,9 +317,12 @@ function beginWrite() {
   _writeSeq++;
 }
 
-/** Resolved when no write is pending (used by undo, which must run after the delete it undoes). */
+/**
+ * Resolved when no write is pending (used by undo, which must run after the delete it undoes,
+ * and by the diary to reload the protein powder count after an edit has saved).
+ */
 let _idleWaiters: (() => void)[] = [];
-function whenWritesIdle(): Promise<void> {
+export function whenWritesIdle(): Promise<void> {
   if (_pendingWrites === 0) return Promise.resolve();
   return new Promise((resolve) => _idleWaiters.push(resolve));
 }
@@ -722,6 +725,8 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     const { error } = await supabase
       .from('nutrition_goals')
       .upsert({ user_id: userId, ...goals, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    // A load that started while this was saving may have read the old row.
+    _goalsRequestId++;
 
     if (error) {
       // Undo only the fields this call changed.

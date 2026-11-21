@@ -59,13 +59,25 @@ function toPowder(row: any): ProteinPowder {
   };
 }
 
+/**
+ * Servings counted for an add: the diary snack's own servings while it is still in servings
+ * (an edit in the diary changes those, not the log row), else the amount logged.
+ */
+function servingsOf(row: any, entry: any): number {
+  if (entry && entry.serving_unit === 'serving' && entry.quantity != null) {
+    const n = Number(entry.quantity) * (Number(entry.serving_size) || 1);
+    if (Number.isFinite(n) && n >= 0) return Math.round(n * 100) / 100;
+  }
+  return Number(row.amount) || 0;
+}
+
 function toLog(row: any): PowderLog {
   const entry = Array.isArray(row.food_entries) ? row.food_entries[0] : row.food_entries;
   return {
     id: row.id,
     powder_id: row.powder_id,
     food_entry_id: row.food_entry_id,
-    amount: Number(row.amount) || 0,
+    amount: servingsOf(row, entry),
     date: row.date,
     created_at: row.created_at,
     name: entry?.name || 'Protein powder',
@@ -141,7 +153,7 @@ function finishWrite(get: () => ProteinPowderState) {
   }
 }
 
-const LOG_SELECT = 'id, powder_id, food_entry_id, amount, date, created_at, food_entries(name)';
+const LOG_SELECT = 'id, powder_id, food_entry_id, amount, date, created_at, food_entries(name, quantity, serving_size, serving_unit)';
 
 async function loadDay(userId: string, date: string): Promise<PowderLog[] | null> {
   const { data, error } = await supabase
