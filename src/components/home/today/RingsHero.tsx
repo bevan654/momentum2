@@ -12,11 +12,10 @@ import { useToday } from '../../../hooks/useToday';
 import NutritionDetailModal from '../NutritionDetailModal';
 import AddSupplementModal from '../AddSupplementModal';
 import ProteinPowderModal from '../ProteinPowderModal';
-import { formatIncrement } from '../SupplementDetailModal';
 import ActivityRings, { type RingItem } from './ActivityRings';
 import WeightGraph from './WeightGraph';
 import SectionLabel from './SectionLabel';
-import type { NutritionTotals } from './useTodayGlance';
+import type { NutritionTotals } from './useTodayData';
 
 const RING_SIZE = sw(132);
 
@@ -40,6 +39,7 @@ interface Props {
 
 const ratio = (v: number, g: number) => (g > 0 ? v / g : 0);
 const litres = (ml: number) => (ml / 1000).toFixed(ml % 1000 === 0 ? 0 : 1);
+const formatIncrement = (value: number) => value >= 1000 && value % 1000 === 0 ? `${value / 1000}k` : String(value);
 
 /**
  * Home, Today section (no card), swipeable: page 1 is macros (calories, protein, carbs, fat rings with
@@ -106,10 +106,11 @@ function RingsHero({ nutrition, water, waterGoal, onOpenWeight }: Props) {
     },
     ...configs.map((c) => {
       const inc = c.increments[0] ?? c.dailyGoal;
+      const unit = c.unit.length > 3 ? ` ${c.unit}` : c.unit;
       return {
         key: c.key, label: c.name, color: c.color,
-        value: formatIncrement(c.key === PROTEIN_POWDER_KEY ? powderServings : totals[c.key] || 0), goal: `${formatIncrement(c.dailyGoal)}${c.unit}`,
-        add: `+${formatIncrement(inc)}${c.unit}`, onPress: () => tapSupp(c.key, inc),
+        value: formatIncrement(c.key === PROTEIN_POWDER_KEY ? powderServings : totals[c.key] || 0), goal: `${formatIncrement(c.dailyGoal)}${unit}`,
+        add: c.key === PROTEIN_POWDER_KEY ? '+ Add' : `+${formatIncrement(inc)}${unit}`, onPress: () => tapSupp(c.key, inc),
       };
     }),
   ], [water, waterGoal, waterQuickAdd, configs, totals, powderServings, colors, tapWater, tapSupp]);

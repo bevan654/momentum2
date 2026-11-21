@@ -74,8 +74,12 @@ function WeekBalance({ onOpen }: Props) {
   const load = useMuscleLoad();
   const { bodyValues, sessions } = useMemo(() => {
     const recent = workouts.filter((w) => new Date(w.created_at).getTime() >= cutoff);
+    const workingExercises = recent.flatMap((w) => w.exercises.map((ex) => ({
+      ...ex,
+      sets: ex.sets.filter((set) => set.completed && set.set_type !== 'warmup'),
+    })).filter((ex) => ex.sets.length > 0));
     return {
-      bodyValues: relativeValues(regionVolume(recent.flatMap((w) => w.exercises), lookup, load)),
+      bodyValues: relativeValues(regionVolume(workingExercises, lookup, load)),
       sessions: recent.length,
     };
   }, [workouts, lookup, load, cutoff]);

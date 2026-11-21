@@ -6,13 +6,16 @@ import { sw, ms } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
 import WeekDots from './WeekDots';
 import SectionLabel from './SectionLabel';
-import { useTodayGlance } from './useTodayGlance';
+import { useWorkoutWeek } from './useTodayData';
+import { useStreakStore } from '../../../stores/useStreakStore';
 
 /** Home streak section (no card): current and best streak, days trained, and the last 7 days with sets per day. */
 function StreakWeek() {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
-  const { currentStreak, longestStreak, week } = useTodayGlance();
+  const currentStreak = useStreakStore((st) => st.currentStreak);
+  const longestStreak = useStreakStore((st) => st.longestStreak);
+  const { week } = useWorkoutWeek();
   const trainedDays = week.filter((d) => d.trained).length;
 
   return (

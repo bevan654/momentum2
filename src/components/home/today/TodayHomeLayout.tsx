@@ -5,7 +5,7 @@ import { sw } from '../../../theme/responsive';
 import RingsHero from './RingsHero';
 import WeekBalance from './WeekBalance';
 import StreakWeek from './StreakWeek';
-import { useTodayGlance } from './useTodayGlance';
+import { useTodayIntake } from './useTodayData';
 
 interface Props {
   onTraining: () => void;
@@ -19,7 +19,7 @@ interface Props {
 function TodayHomeLayout({ onTraining }: Props) {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
-  const { nutrition, water, waterGoal } = useTodayGlance();
+  const { nutrition, water, waterGoal } = useTodayIntake();
 
 
   return (
