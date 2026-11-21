@@ -106,10 +106,11 @@ function RingsHero({ nutrition, water, waterGoal, onOpenWeight }: Props) {
     },
     ...configs.map((c) => {
       const inc = c.increments[0] ?? c.dailyGoal;
+      const unit = c.unit.length > 3 ? ` ${c.unit}` : c.unit;
       return {
         key: c.key, label: c.name, color: c.color,
-        value: formatIncrement(c.key === PROTEIN_POWDER_KEY ? powderServings : totals[c.key] || 0), goal: `${formatIncrement(c.dailyGoal)}${c.unit}`,
-        add: `+${formatIncrement(inc)}${c.unit}`, onPress: () => tapSupp(c.key, inc),
+        value: formatIncrement(c.key === PROTEIN_POWDER_KEY ? powderServings : totals[c.key] || 0), goal: `${formatIncrement(c.dailyGoal)}${unit}`,
+        add: c.key === PROTEIN_POWDER_KEY ? '+ Add' : `+${formatIncrement(inc)}${unit}`, onPress: () => tapSupp(c.key, inc),
       };
     }),
   ], [water, waterGoal, waterQuickAdd, configs, totals, powderServings, colors, tapWater, tapSupp]);
