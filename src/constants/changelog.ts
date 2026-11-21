@@ -20,9 +20,9 @@ const changelog: ChangelogEntry[] = [
     date: '2026-11-21',
     title: "What's New",
     items: [
-      'Your Lock Screen workout now shows your next set, last time and PRs, and on iOS 17+ has buttons to finish a set, change reps and end your rest',
-      'The Dynamic Island shows your workout and rest timer, and opens into the same controls (iPhone 14 Pro and newer)',
-      'Home screen widgets for calories, protein, macros, your streak, recovery and your last workout, in small, medium and large sizes',
+      'iPhone: your Lock Screen workout now shows your next set, last time and PRs, and on iOS 17+ has buttons to finish a set, change reps and end your rest',
+      'iPhone: the Dynamic Island shows your workout and rest timer, and opens into the same controls (iPhones with a Dynamic Island)',
+      'iPhone: home screen widgets for calories, protein, macros, your streak, recovery and your last workout, in small, medium and large sizes',
     ],
   },
   {

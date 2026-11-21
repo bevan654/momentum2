@@ -63,7 +63,7 @@ See `CODEBASE_MAP.md`: where every folder and module lives, entry points, load-b
 - **`TabNavigator`** uses `MaterialTopTabNavigator` rendered with a **custom bottom tab bar** (animated indicator, central elevated Home button, Community badge). Tabs: **Recovery, Workouts, Home, Nutrition, Community**. Options: `lazy: true`, `lazyPreloadDistance: 1`. material-top-tabs has no `freezeOnBlur`; instead each tab is wrapped in `withFreezeWhenFar` (`navigation/freezeFarTabs.tsx`, `react-freeze`), so tabs more than one away from the current tab don't re-render.
 - **`WorkoutsNavigator`** (native stack) hosts: `StartWorkout` (renders nothing; registers the nav ref), `Plans` (`PlansScreen`) and the plan editors (`CreateRoutine`, `RoutineSummary`, `CreateProgram`, `ProgramSummary`, `ProgramDayEditor`, `ProgramProgress`). Re-pressing the Workouts tab triggers `showRecoveryOverlay()` via `navigationBridge`.
 - **Community tab** renders `FriendsScreen` directly (no nested navigator). Chat was removed.
-- **`navigationBridge`** exposes imperative entry points (open profile sheet, recovery overlay, workouts nav ref) to non-navigator components.
+- **`navigationBridge`** exposes imperative entry points (open profile sheet, recovery overlay, workouts nav ref, `openWorkoutSummary`) to non-navigator components. Home screen widget links (`momentum://nutrition` / `workouts` / `recovery` / `workout/<id>`) come in through `navigation/widgetLinks.ts`.
 - **`ProfileScreen`** is mounted as a 92%-height bottom sheet, opened by long-pressing the Home tab or tapping the avatar.
 
 ---

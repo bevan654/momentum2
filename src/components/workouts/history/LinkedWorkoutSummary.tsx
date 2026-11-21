@@ -18,7 +18,10 @@ const WAIT_MS = 30_000;
 function LinkedWorkoutSummary() {
   const [requested, setRequested] = useState<{ id: string; at: number } | null>(null);
   const workoutId = requested?.id ?? null;
-  const workout = useWorkoutStore((s) => (workoutId ? s.workouts.find((w) => w.id === workoutId) ?? null : null));
+  // Only from the signed-in account's history (after an account switch the last one's can linger).
+  const workout = useWorkoutStore((s) => (workoutId && s.historyUserId === useAuthStore.getState().user?.id
+    ? s.workouts.find((w) => w.id === workoutId) ?? null
+    : null));
   const historyLoaded = useWorkoutStore((s) => !s.loading && !!s.historyUserId && s.historyUserId === useAuthStore.getState().user?.id);
   const deleteWorkout = useWorkoutStore((s) => s.deleteWorkout);
   const close = useCallback(() => setRequested(null), []);

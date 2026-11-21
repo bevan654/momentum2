@@ -189,6 +189,11 @@ export async function setHomeWidgetData(json: string | null): Promise<boolean> {
   }
 }
 
+/** Whether this binary has home screen widgets (iOS 1.0.38+). */
+export function supportsHomeWidgets(): boolean {
+  return !!Native?.setHomeWidgetData && !!Native?.getHomeWidgetData;
+}
+
 /** What the home screen widgets show now (JSON from an earlier write), or null. */
 export async function getHomeWidgetData(): Promise<string | null> {
   if (!Native?.getHomeWidgetData) return null;
