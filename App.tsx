@@ -3,6 +3,8 @@ import { ActivityIndicator, Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './src/navigation/navigationRef';
+import { startWidgetLinks } from './src/navigation/widgetLinks';
+import { startHomeWidgets } from './src/services/homeWidgets';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PortalHost } from './src/components/ui/Portal';
@@ -150,6 +152,9 @@ function App() {
     initialize();
     useThemeStore.getState().loadTheme();
     useChangelogStore.getState().check();
+    // Home screen widgets (iOS): their links, and keeping their data current.
+    startWidgetLinks();
+    startHomeWidgets();
   }, []);
 
   if (!fontsLoaded || !initialized || !themeReady) {

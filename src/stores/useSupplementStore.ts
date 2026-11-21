@@ -50,15 +50,20 @@ export const SUPPLEMENT_PRESETS: SupplementPreset[] = [
 
 export const CUSTOM_COLORS = ['#F472B6', '#A78BFA', '#38BDF8', '#FB923C', '#4ADE80', '#F87171', '#FACC15', '#2DD4BF'];
 
+/** The water goal a user without a supplement_goals row has. */
+const DEFAULT_WATER_GOAL_ML = 2500;
+
 const INITIAL_STATE = () => ({
   water: 0,
-  waterGoal: 2500,
+  waterGoal: DEFAULT_WATER_GOAL_ML,
   waterIncrements: DEFAULT_WATER_AMOUNTS,
   supplementConfigs: DEFAULT_CONFIGS,
   supplementTotals: {} as Record<string, number>,
   loading: false,
   dateEntries: [] as SupplementEntry[],
   dateEntriesDate: null as string | null,
+  todayFor: null as { userId: string; day: string } | null,
+  goalsFor: null as string | null,
 });
 
 const DEFAULT_CONFIGS: SupplementConfig[] = [
@@ -122,6 +127,10 @@ interface SupplementState {
   waterIncrements: number[];
   supplementConfigs: SupplementConfig[];
   supplementTotals: Record<string, number>;
+  /** Whose and which local day's totals water / supplementTotals are; null until a fetch succeeds. */
+  todayFor: { userId: string; day: string } | null;
+  /** Whose water goal and supplement configs these are; null while they're the defaults. */
+  goalsFor: string | null;
   loading: boolean;
   dateEntries: SupplementEntry[];
   /** The date `dateEntries` belongs to (the day the Nutrition tab is showing). */
@@ -438,13 +447,13 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     }
 
     loadedTodayKey = key;
-    set({ water, supplementTotals: totals });
+    set({ water, supplementTotals: totals, todayFor: { userId, day: date } });
   },
 
   fetchSupplementGoals: async (userId: string) => {
     const gen = _gen; // before any await, so a sign-out during the loads is caught too
     // All three at once: the water card used to show the defaults for an extra round trip.
-    const [, raw, { data }] = await Promise.all([
+    const [, raw, { data, error }] = await Promise.all([
       get().loadSupplementConfigs(userId),
       readUserScoped(WATER_AMOUNTS_KEY, userId).catch(() => null),
       supabase.from('supplement_goals').select('water_goal').eq('user_id', userId).single(),
@@ -454,7 +463,12 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       const parsed = raw ? JSON.parse(raw) : null;
       if (Array.isArray(parsed) && parsed.length > 0) set({ waterIncrements: parsed });
     } catch {}
-    if (data) set({ waterGoal: Number(data.water_goal) });
+    if (data) {
+      set({ waterGoal: Number(data.water_goal), goalsFor: userId });
+    } else if (error?.code === 'PGRST116') {
+      // No goals row: this user has the default water goal (the home widgets wait for goalsFor).
+      set({ waterGoal: DEFAULT_WATER_GOAL_ML, goalsFor: userId });
+    }
   },
 
   fetchDateSupplements: async (userId: string, date: string) => {

@@ -220,6 +220,8 @@ interface FoodLogState {
   // Data
   entries: FoodEntry[];
   mealConfigs: MealConfig[];
+  /** Whose meal sections mealConfigs are, once a fetch succeeded (null while they're the defaults). */
+  mealConfigsFor: string | null;
   goals: NutritionGoals;
   /** False until the account's goals have loaded: `goals` holds defaults, not the user's values. */
   goalsLoaded: boolean;
@@ -372,6 +374,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
   selectedDate: toLocalDateString(),
   entries: [],
   mealConfigs: DEFAULT_MEALS,
+  mealConfigsFor: null,
   goals: DEFAULT_GOALS,
   goalsLoaded: false,
   loading: false,
@@ -476,6 +479,8 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     // A newer load or a sign-out happened meanwhile.
     if (requestId !== _mealsRequestId) return;
     if (error || !data) return;
+    // Loaded from the server: these are this account's meals (the home widgets wait for that).
+    if (get().mealConfigsFor !== userId) set({ mealConfigsFor: userId });
     if (data.length === 0) {
       // The account has no meals of its own (any more): back to the defaults, and forget the copy.
       showMeals(DEFAULT_MEALS);
@@ -509,6 +514,14 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
     if (!data) {
       // Older accounts have no goals row: the defaults are their goals, and saving creates it.
       set({ goalsLoaded: true });
+      const d = get().goals;
+      useNutritionStore.setState({
+        calorieGoal: d.calorie_goal,
+        proteinGoal: d.protein_goal,
+        carbsGoal: d.carbs_goal,
+        fatGoal: d.fat_goal,
+        goalsFor: userId,
+      });
       return;
     }
 
@@ -525,6 +538,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       proteinGoal: goals.protein_goal,
       carbsGoal: goals.carbs_goal,
       fatGoal: goals.fat_goal,
+      goalsFor: userId,
     });
   },
 
@@ -742,6 +756,11 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       return { error: error.message };
     }
     set({ goalsLoaded: true });
+    // All four saved: the nutrition store now holds this user's real goals (the home screen
+    // widgets wait for that), even if loading them at launch failed.
+    if (goals.calorie_goal != null && goals.protein_goal != null && goals.carbs_goal != null && goals.fat_goal != null) {
+      useNutritionStore.setState({ goalsFor: userId });
+    }
     return { error: null };
   },
 
@@ -993,6 +1012,7 @@ export const useFoodLogStore = create<FoodLogState>((set, get) => ({
       selectedDate: toLocalDateString(),
       entries: [],
       mealConfigs: DEFAULT_MEALS,
+      mealConfigsFor: null,
       goals: DEFAULT_GOALS,
       goalsLoaded: false,
       loading: false,

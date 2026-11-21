@@ -1,11 +1,18 @@
 import { create } from 'zustand';
 import { fetchWorkoutDates, getUserStreak, upsertUserStreak } from '../lib/friendsDatabase';
 import { calculateStreak } from '../utils/streakCalculator';
-import { toLocalDateString } from '../utils/localDate';
+import { parseLocalDate, toLocalDateString } from '../utils/localDate';
 
 interface StreakState {
   currentStreak: number;
   longestStreak: number;
+  /** First workout day of the current streak and the latest workout day (YYYY-MM-DD), for the home screen widget. */
+  chainStart: string | null;
+  lastWorkout: string | null;
+  /** Workout days in the last 85 days, newest first (the widgets' 7 dots, 28-day calendar and 12-week grid). */
+  recentDates: string[];
+  /** Whose dates chainStart / lastWorkout / recentDates are (set by refreshStreak only). */
+  computedFor: string | null;
   loaded: boolean;
   initStreak: (userId: string) => Promise<void>;
   refreshStreak: (userId: string) => Promise<void>;
@@ -14,6 +21,10 @@ interface StreakState {
 export const useStreakStore = create<StreakState>((set, get) => ({
   currentStreak: 0,
   longestStreak: 0,
+  chainStart: null,
+  lastWorkout: null,
+  recentDates: [],
+  computedFor: null,
   loaded: false,
 
   initStreak: async (userId: string) => {
@@ -45,9 +56,16 @@ export const useStreakStore = create<StreakState>((set, get) => ({
     const lastWorkout = dates.length > 0 ? dates[0] : null;
     upsertUserStreak(userId, result.currentStreak, result.longestStreak, lastWorkout);
 
+    const windowStart = parseLocalDate(today);
+    windowStart.setDate(windowStart.getDate() - 84);
+    const recentStart = toLocalDateString(windowStart);
     set({
       currentStreak: result.currentStreak,
       longestStreak: result.longestStreak,
+      chainStart: result.chainStart,
+      lastWorkout: result.lastWorkout,
+      recentDates: dates.filter((d) => d >= recentStart && d <= today),
+      computedFor: userId,
       loaded: true,
     });
   },

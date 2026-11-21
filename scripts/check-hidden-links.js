@@ -195,6 +195,121 @@ const checks = {
       .filter((r) => !auth.includes(`${r.replace('.', '.getState().')}()`))
       .map((r) => `${r} is never called from useAuthStore`);
   },
+
+  /**
+   * The Live Activity's Swift files that exist twice, in the app module and the extension, match:
+   * ActivityKit pairs the two WorkoutActivityAttributes by Codable shape, and the button intents
+   * must be the same type in both.
+   */
+  liveActivitySwiftCopies() {
+    const app = 'modules/workout-live-activity/ios';
+    const ext = 'targets/workout-activity';
+    const norm = (s) => s.replace(/\r\n/g, '\n');
+    const problems = [];
+    const shared = 'WorkoutActivityShared.swift';
+    if (!exists(`${app}/${shared}`) || !exists(`${ext}/${shared}`)) problems.push(`${shared} is missing from ${app} or ${ext}`);
+    else if (norm(read(`${app}/${shared}`)) !== norm(read(`${ext}/${shared}`))) problems.push(`${app}/${shared} and ${ext}/${shared} differ (they must be identical)`);
+    const attrs = 'WorkoutActivityAttributes.swift';
+    const body = (rel) => {
+      const t = norm(read(rel));
+      const i = t.indexOf('struct WorkoutActivityAttributes');
+      return i < 0 ? null : t.slice(i);
+    };
+    const a = body(`${app}/${attrs}`);
+    const b = body(`${ext}/${attrs}`);
+    if (!a || !b) problems.push(`${attrs}: 'struct WorkoutActivityAttributes' not found in both copies (the check needs updating)`);
+    else if (a !== b) problems.push(`${app}/${attrs} and ${ext}/${attrs} differ from the struct line down`);
+    return problems;
+  },
+
+  /**
+   * The home screen widgets read what src/services/homeWidgets.ts writes: the same App Group key
+   * in the module and the widget, and every field the Swift HomeWidgetData decodes is written by JS
+   * (a missing or renamed one decodes as nil, or fails the whole snapshot if it isn't optional).
+   */
+  homeWidgetData() {
+    const swift = read('targets/workout-activity/HomeWidgetData.swift');
+    const mod = read('modules/workout-live-activity/ios/WorkoutLiveActivityModule.swift');
+    const ts = read('src/services/homeWidgets.ts');
+    const problems = [];
+    const widgetKey = /homeWidgetDataKey = "([^"]+)"/.exec(swift)?.[1];
+    const moduleKey = /static let key = "([^"]+)"/.exec(mod)?.[1];
+    if (!widgetKey || !moduleKey) problems.push('the home widget data key was not found in HomeWidgetData.swift or WorkoutLiveActivityModule.swift (the check needs updating)');
+    else if (widgetKey !== moduleKey) problems.push(`home widget data key differs: widget '${widgetKey}', module '${moduleKey}'`);
+    const model = swift.slice(swift.indexOf('struct HomeWidgetData: Codable'), swift.indexOf('static func load()'));
+    const fields = [...model.matchAll(/^\s+var (\w+):/gm)].map((m) => m[1]);
+    if (fields.length === 0) problems.push('no HomeWidgetData fields found (the check needs updating)');
+    for (const f of fields) {
+      if (!new RegExp(`\\b${f}:`).test(ts)) problems.push(`HomeWidgetData.${f} is never written by src/services/homeWidgets.ts`);
+    }
+    // fetchTodayNutrition names the micronutrient columns in its select: the same as MICRO_KEYS.
+    const nutrition = read('src/stores/useNutritionStore.ts');
+    const keys = /MICRO_KEYS = \[([^\]]+)\]/.exec(read('src/stores/useFoodLogStore.ts'))?.[1].match(/\w+/g) ?? [];
+    const missing = keys.filter((k) => !new RegExp(`\\b${k}\\b`).test(nutrition));
+    if (keys.length === 0) problems.push('MICRO_KEYS not found in src/stores/useFoodLogStore.ts (the check needs updating)');
+    else if (missing.length) problems.push(`fetchTodayNutrition does not select micronutrient columns: ${missing.join(', ')}`);
+    // Widget links: every momentum:// host the widgets open is handled by navigation/widgetLinks.ts,
+    // and every tab it opens is a registered tab.
+    const links = read('src/navigation/widgetLinks.ts');
+    const tabsBlock = /const TABS[^=]*=\s*\{([^}]*)\}/.exec(links)?.[1] ?? '';
+    const tabKeys = [...tabsBlock.matchAll(/(\w+):/g)].map((m) => m[1]);
+    const tabNames = [...tabsBlock.matchAll(/:\s*'(\w+)'/g)].map((m) => m[1]);
+    const hosts = [...swift.matchAll(/"momentum:\/\/(\w+)/g)].map((m) => m[1]);
+    if (tabKeys.length === 0 || hosts.length === 0) problems.push('widget links: TABS in widgetLinks.ts or HomeWidgetLink URLs in HomeWidgetData.swift not found (the check needs updating)');
+    for (const host of hosts) {
+      if (host === 'workout') {
+        if (!links.includes('momentum:\\/\\/workout\\/')) problems.push('widget link momentum://workout/<id> is not handled by src/navigation/widgetLinks.ts');
+      } else if (!tabKeys.includes(host)) {
+        problems.push(`widget link momentum://${host} is not in TABS in src/navigation/widgetLinks.ts`);
+      }
+    }
+    const tabNavigator = read('src/navigation/TabNavigator.tsx');
+    for (const name of tabNames) {
+      if (!new RegExp(`name=["']${name}["']`).test(tabNavigator)) problems.push(`widgetLinks.ts opens tab '${name}', which TabNavigator.tsx doesn't register`);
+    }
+    return problems;
+  },
+
+  /**
+   * The state JS sends the Live Activity has the same field names in all three places: the TS types,
+   * the Expo module's Records (a key they don't know is dropped silently) and the ActivityKit
+   * ContentState structs (Codable keys).
+   */
+  liveActivityStateShape() {
+    const ts = read('modules/workout-live-activity/index.ts');
+    const mod = read('modules/workout-live-activity/ios/WorkoutLiveActivityModule.swift');
+    const attrs = read('targets/workout-activity/WorkoutActivityAttributes.swift');
+    /** The text between the `{` after `header` and its matching `}`; null if `header` isn't there. */
+    const block = (text, header) => {
+      const i = text.indexOf(header);
+      if (i < 0) return null;
+      const open = text.indexOf('{', i);
+      let depth = 0;
+      for (let j = open; j < text.length; j++) {
+        if (text[j] === '{') depth++;
+        else if (text[j] === '}' && --depth === 0) return text.slice(open + 1, j);
+      }
+      return null;
+    };
+    const names = (body, re) => (body == null ? null : [...body.matchAll(re)].map((m) => m[1]).sort().join(', '));
+    const groups = [
+      ['WorkoutLiveActivityState', 'WorkoutLiveActivityState: Record', 'public struct ContentState'],
+      ['WorkoutLiveActivitySetCard', 'WorkoutSetCardRecord: Record', 'struct WorkoutSetCard:'],
+      ['WorkoutLiveActivityDoneSet', 'WorkoutDoneSetRecord: Record', 'struct WorkoutDoneSet:'],
+    ];
+    const problems = [];
+    for (const [tsName, recordHeader, structHeader] of groups) {
+      const fromTs = names(block(ts, `export interface ${tsName} `), /^\s+(\w+)\??:/gm);
+      const fromRecord = names(block(mod, `struct ${recordHeader}`), /@Field var (\w+)/g);
+      const fromStruct = names(block(attrs, structHeader), /^\s+var (\w+)/gm);
+      if (!fromTs || !fromRecord || !fromStruct) {
+        problems.push(`${tsName}: a type wasn't found in index.ts, WorkoutLiveActivityModule.swift or WorkoutActivityAttributes.swift (the check needs updating)`);
+      } else if (fromTs !== fromRecord || fromRecord !== fromStruct) {
+        problems.push(`${tsName} fields differ: TS [${fromTs}] / Record [${fromRecord}] / ActivityKit [${fromStruct}]`);
+      }
+    }
+    return problems;
+  },
 };
 
 /* ── --touched: which hidden links and structure this branch changes ─── */

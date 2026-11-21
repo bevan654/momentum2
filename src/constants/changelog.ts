@@ -16,6 +16,16 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.49',
+    date: '2026-11-21',
+    title: "What's New",
+    items: [
+      'iPhone: your Lock Screen workout now shows your next set, last time and PRs, and on iOS 17+ has buttons to finish a set, change reps and end your rest',
+      'iPhone: the Dynamic Island shows your workout and rest timer, and opens into the same controls (iPhones with a Dynamic Island)',
+      'iPhone: home screen widgets for calories, protein, macros, your streak, recovery and your last workout, in small, medium and large sizes',
+    ],
+  },
+  {
     version: '1.0.48',
     date: '2026-11-20',
     title: "What's New",
@@ -34,6 +44,7 @@ const changelog: ChangelogEntry[] = [
       "Fixed: changing goals didn't save on some older accounts",
       "Fixed: Home's nutrient popup showed the day open in the diary instead of today",
       'Fixed: MacroLens forgot the other foods in a photo after you logged one',
+      'Fixed: planned meals no longer count as eaten on the Home screen',
     ],
     cta: { label: 'Open Nutrition', target: 'Nutrition' },
   },

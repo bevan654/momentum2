@@ -81,12 +81,17 @@ function primaryGroupsOf(
   return groups;
 }
 
-function computeRecovery(
+/**
+ * When each body group was last trained as a primary muscle (epoch ms, the workout's created_at)
+ * within the recovery window; a group missing from the result is fully recovered. Also feeds the
+ * home screen Recovery widget, which works the percentages out over time itself.
+ */
+export function lastTrainedByGroup(
   workouts: WorkoutWithDetails[],
   catalogMap: Record<string, CatalogEntry>,
   bodyweightKg: number,
-): MuscleRecovery {
-  const now = new Date();
+  now: Date,
+): Partial<Record<MuscleGroup, number>> {
   // Effective volume, so bodyweight sets mark a muscle trained like loaded ones
   const load = makeMuscleLoad(catalogMap, bodyweightKg);
   const { start, end } = recoveryWindow(now);
@@ -103,6 +108,16 @@ function computeRecovery(
       }
     }
   }
+  return lastTrained;
+}
+
+function computeRecovery(
+  workouts: WorkoutWithDetails[],
+  catalogMap: Record<string, CatalogEntry>,
+  bodyweightKg: number,
+): MuscleRecovery {
+  const now = new Date();
+  const lastTrained = lastTrainedByGroup(workouts, catalogMap, bodyweightKg, now);
 
   const groups = {} as MuscleRecovery['groups'];
   for (const g of ALL_GROUPS) {

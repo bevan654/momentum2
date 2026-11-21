@@ -1,5 +1,20 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { toLocalDateString } from '../utils/localDate';
+
+/** One of today's food rows as fetchTodayNutrition selects it (enough for groupEntriesByMeal's totals). */
+export interface TodayFoodRow {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  meal_type: string;
+  is_planned: boolean;
+  meal_group_id: string | null;
+  created_at: string;
+  /** Micronutrient columns (MICRO_COLUMNS), for components/food/dayTotals.ts sumMicros. */
+  [micro: string]: number | string | boolean | null;
+}
 
 /** Today's eaten totals for Home. The goals are loaded (and saved) by useFoodLogStore, which writes them here. */
 interface NutritionState {
@@ -13,6 +28,12 @@ interface NutritionState {
   fatGoal: number;
   /** Today's eaten micronutrients (and fiber, sugar), by food_entries column. */
   micros: Record<string, number>;
+  /** Whose totals these are and the local day they were fetched for; null until a fetch succeeds. */
+  totalsFor: { userId: string; day: string } | null;
+  /** Today's food rows behind the totals (macros, meal, planned flag), set with totalsFor; for per-meal sums (home widgets). */
+  todayEntries: TodayFoodRow[];
+  /** Whose goals these are (set by useFoodLogStore once they loaded or saved); null while they're the defaults. */
+  goalsFor: string | null;
   fetchTodayNutrition: (userId: string) => Promise<void>;
   /** Clears the previous account's totals and goals. */
   resetForSignOut: () => void;
@@ -28,6 +49,9 @@ const INITIAL = {
   fat: 0,
   fatGoal: 65,
   micros: {} as Record<string, number>,
+  totalsFor: null as { userId: string; day: string } | null,
+  todayEntries: [] as TodayFoodRow[],
+  goalsFor: null as string | null,
 };
 
 /** food_entries columns summed into `micros` (the nutrients a user can track on Home). */
@@ -78,9 +102,11 @@ export const useNutritionStore = create<NutritionState>((set) => ({
   fetchTodayNutrition: async (userId: string) => {
     const requestId = ++_requestId;
     const { start, end } = todayRange();
+    const day = toLocalDateString();
     const { data, error } = await supabase
       .from('food_entries')
-      .select(`calories, protein, carbs, fat, is_planned, ${MICRO_COLUMNS.join(', ')}`)
+      // meal_type, meal_group_id and created_at: the home widgets' protein per meal.
+      .select(`calories, protein, carbs, fat, is_planned, meal_type, meal_group_id, created_at, ${MICRO_COLUMNS.join(', ')}`)
       .eq('user_id', userId)
       .gte('created_at', start)
       .lt('created_at', end);
@@ -99,7 +125,11 @@ export const useNutritionStore = create<NutritionState>((set) => ({
     }
     _loadedKey = key;
     // Same as the Nutrition tab: planned food doesn't count until it's eaten, whole numbers.
-    set(totalsFrom(data as unknown as Record<string, unknown>[]));
+    set({
+      ...totalsFrom(data as unknown as Record<string, unknown>[]),
+      totalsFor: { userId, day },
+      todayEntries: data as unknown as TodayFoodRow[],
+    });
   },
 
   resetForSignOut: () => {

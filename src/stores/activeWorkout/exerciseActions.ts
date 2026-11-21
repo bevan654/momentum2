@@ -24,6 +24,10 @@ export function createExerciseActions(
     newExerciseId: () => string;
   },
 ): Pick<ActiveWorkoutState, ExerciseActionKeys> {
+  /** Typing a weight or reps commits each keystroke; the Lock Screen catches up once typing pauses. */
+  let setEditTimer: ReturnType<typeof setTimeout> | null = null;
+  const SET_EDIT_ACTIVITY_DELAY_MS = 600;
+
   return {
     // ── Exercise management ───────────────────────────
 
@@ -134,6 +138,7 @@ export function createExerciseActions(
         return { exercises };
       });
       get()._persist();
+      updateWorkoutActivity(_buildSnapshot(get())); // the Lock Screen shows kg or not by type
     },
 
     setExerciseNotes: (index, notes) => {
@@ -325,6 +330,13 @@ export function createExerciseActions(
         return { exercises };
       });
       get()._persist();
+      // Weight × reps on the Lock Screen, once typing pauses. An edit that doesn't change
+      // what's shown is skipped before it reaches native.
+      if (setEditTimer) clearTimeout(setEditTimer);
+      setEditTimer = setTimeout(() => {
+        setEditTimer = null;
+        if (get().isActive) updateWorkoutActivity(_buildSnapshot(get()));
+      }, SET_EDIT_ACTIVITY_DELAY_MS);
     },
 
     toggleSetComplete: (exerciseIndex, setIndex) => {
@@ -364,11 +376,11 @@ export function createExerciseActions(
       if (!wasCompleted) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         set({ restAnchor: { exerciseIndex, setIndex } });
-        get().startRest();
+        get().startRest(); // sends the Lock Screen update: the ticked set and the rest together
       }
 
       get()._persist();
-      updateWorkoutActivity(_buildSnapshot(get()));
+      if (wasCompleted) updateWorkoutActivity(_buildSnapshot(get()));
     },
 
     cycleSetType: (exerciseIndex, setIndex) => {
@@ -408,6 +420,7 @@ export function createExerciseActions(
         return { exercises };
       });
       get()._persist();
+      updateWorkoutActivity(_buildSnapshot(get())); // warm-ups change the Lock Screen's PR thresholds
     },
 
     // ── Superset ──────────────────────────────────────
