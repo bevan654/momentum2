@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../theme/useColors';
@@ -11,6 +11,7 @@ import FoodRow from './ui/FoodRow';
 import FavouriteButton from './ui/FavouriteButton';
 import FoodEmptyState from './ui/FoodEmptyState';
 import { foodSubtitle, savedMealTotals } from './foodMapping';
+import { confirmDeleteMeal } from './create-meal/confirmDeleteMeal';
 
 export type AddFoodTab = 'home' | 'favourites' | 'meals';
 
@@ -25,7 +26,9 @@ interface Props {
   searching: boolean;
   tab: AddFoodTab;
   loading: boolean;
-  /** Search results to show (catalog + cached AI, or the Deep Search answer). */
+  /** The user's own matches (favourites and foods they've logged), shown first under "Your foods". */
+  myResults: FoodCatalogItem[];
+  /** Everything else that matches (catalog, other users' foods, cached AI), or the Deep Search answer. */
   results: FoodCatalogItem[];
   /** Results are a Deep Search answer: long-press reports an item. */
   aiMode: boolean;
@@ -76,7 +79,7 @@ const FoodListRow = React.memo(function FoodListRow({ item, reportable, onSelect
 
 /** Everything under the search bar, as one virtualised list (search results or a default tab). */
 function AddFoodResults({
-  searching, tab, loading, results, aiMode, recentFoods, popularFoods, favourites, savedMeals,
+  searching, tab, loading, myResults, results, aiMode, recentFoods, popularFoods, favourites, savedMeals,
   header, onSelectFood, onReportAi, onOpenSavedMeal, bottomPadding,
 }: Props) {
   const colors = useColors();
@@ -88,11 +91,20 @@ function AddFoodResults({
 
     if (searching) {
       // Keep current results on screen while a refined search loads; spinner only when empty.
-      if (loading && results.length === 0) return [{ kind: 'empty', key: 'loading', icon: 'search-outline', title: 'Searching…', loading: true }];
-      if (results.length === 0) {
+      const total = myResults.length + results.length;
+      if (loading && total === 0) return [{ kind: 'empty', key: 'loading', icon: 'search-outline', title: 'Searching…', loading: true }];
+      if (total === 0) {
         return [{ kind: 'empty', key: 'none', icon: 'search-outline', title: 'No results found', subtitle: 'Try another name, scan the barcode, or use Quick add.' }];
       }
-      return foods('s', results, aiMode);
+      if (aiMode) return foods('s', results, true);
+      const out: ListItem[] = [];
+      if (myResults.length) {
+        out.push({ kind: 'section', key: 'sec-mine', title: 'Your foods' }, ...foods('m', myResults));
+      }
+      if (results.length) {
+        out.push({ kind: 'section', key: 'sec-all', title: 'More foods' }, ...foods('s', results));
+      }
+      return out;
     }
     if (tab === 'favourites') {
       return favourites.length
@@ -115,7 +127,7 @@ function AddFoodResults({
       out.push({ kind: 'empty', key: 'nohome', icon: 'nutrition-outline', title: 'Search for a food to add', subtitle: 'Your recent and popular foods will show here.' });
     }
     return out;
-  }, [searching, loading, results, aiMode, tab, recentFoods, popularFoods, favourites, savedMeals]);
+  }, [searching, loading, myResults, results, aiMode, tab, recentFoods, popularFoods, favourites, savedMeals]);
 
   const renderItem = useCallback(({ item }: { item: ListItem }) => {
     switch (item.kind) {
@@ -135,7 +147,17 @@ function AddFoodResults({
               carbs={t.carbs}
               fat={t.fat}
               onPress={() => onOpenSavedMeal(item.meal)}
-              trailing={<Ionicons name="chevron-forward" size={ms(16)} color={colors.textTertiary} style={styles.chevron} />}
+              trailing={(
+                <Pressable
+                  onPress={() => confirmDeleteMeal(item.meal)}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.deleteBtn, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${item.meal.name}`}
+                >
+                  <Ionicons name="trash-outline" size={ms(17)} color={colors.textTertiary} />
+                </Pressable>
+              )}
             />
           </View>
         );
@@ -186,7 +208,14 @@ const createStyles = (colors: ThemeColors) =>
     gap: {
       paddingBottom: sw(8),
     },
-    chevron: {
-      paddingHorizontal: sw(8),
+    deleteBtn: {
+      width: sw(36),
+      height: sw(36),
+      borderRadius: sw(18),
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pressed: {
+      opacity: 0.5,
     },
   });

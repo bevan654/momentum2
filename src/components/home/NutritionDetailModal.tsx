@@ -2,19 +2,11 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
-import { useFoodLogStore } from '../../stores/useFoodLogStore';
+import { useNutritionStore } from '../../stores/useNutritionStore';
 import { useNutrientGoalStore } from '../../stores/useNutrientGoalStore';
 import { sw, ms } from '../../theme/responsive';
 import { formatMicroValue } from '../food/dayTotals';
 import CardDetailSheet, { CardDetailHero, CardDetailSectionLabel, CardDetailFooter } from './CardDetailSheet';
-
-/* ─── Micro keys that exist on FoodEntry ─────────────── */
-
-const ENTRY_MICRO_KEYS = new Set([
-  'caffeine', 'sodium', 'fiber', 'sugar', 'calcium', 'iron', 'potassium', 'magnesium', 'zinc',
-  'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k',
-  'vitamin_b6', 'vitamin_b12', 'folate',
-]);
 
 interface NutritionTotals {
   calories: number;
@@ -43,7 +35,7 @@ function NutritionDetailModal({ visible, onClose, totals }: Props) {
 }
 
 /**
- * Mounted only while the popup is, so food entries and nutrient goals are
+ * Mounted only while the popup is, so today's micronutrients and the nutrient goals are
  * subscribed to here instead of on the always-mounted Home card.
  */
 function NutritionDetailContent({ totals, onClose }: { totals: NutritionTotals; onClose: () => void }) {
@@ -55,7 +47,8 @@ function NutritionDetailContent({ totals, onClose }: { totals: NutritionTotals; 
   const remaining = Math.max(0, calorieGoal - calories);
   const over = Math.max(0, calories - calorieGoal);
 
-  const entries = useFoodLogStore((s) => s.entries);
+  // Today's, like the rest of Home (the diary's entries are whichever day the Nutrition tab shows).
+  const microTotals = useNutritionStore((s) => s.micros);
   const enabledMacros = useNutrientGoalStore((s) => s.enabledMacros);
   const microGoals = useNutrientGoalStore((s) => s.microGoals);
 
@@ -69,22 +62,6 @@ function NutritionDetailContent({ totals, onClose }: { totals: NutritionTotals; 
     ];
     return all.filter((m) => enabledSet.has(m.key));
   }, [protein, proteinGoal, carbs, carbsGoal, fat, fatGoal, colors, enabledSet]);
-
-  const microTotals = useMemo(() => {
-    if (microGoals.length === 0) return {};
-    const sums: Record<string, number> = {};
-    for (const e of entries) {
-      if (e.is_planned) continue;
-      for (const g of microGoals) {
-        if (!ENTRY_MICRO_KEYS.has(g.key)) continue;
-        const val = (e as any)[g.key];
-        if (val != null) {
-          sums[g.key] = (sums[g.key] || 0) + Number(val);
-        }
-      }
-    }
-    return sums;
-  }, [entries, microGoals]);
 
   return (
     <>

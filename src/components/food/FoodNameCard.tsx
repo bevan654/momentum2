@@ -5,6 +5,7 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useThemeStore } from '../../stores/useThemeStore';
+import { useRevealOnFocus } from './ui/FoodSubScreen';
 
 interface Props {
   name: string;
@@ -30,12 +31,14 @@ function FoodNameCard({ name, onNameChange, brand, onBrandChange, confidence, al
     : confidence === 'ai_estimated' ? { icon: 'sparkles' as const, text: 'AI estimate', color: colors.accent }
     : null;
 
+  const reveal = useRevealOnFocus();
   return (
     <View style={styles.card}>
       <TextInput
         style={styles.name}
         value={name}
         onChangeText={onNameChange}
+        onFocus={reveal}
         placeholder="Food name"
         placeholderTextColor={colors.textTertiary}
         keyboardAppearance={keyboard}
@@ -46,6 +49,7 @@ function FoodNameCard({ name, onNameChange, brand, onBrandChange, confidence, al
         style={styles.brand}
         value={brand}
         onChangeText={onBrandChange}
+        onFocus={reveal}
         placeholder="Brand (optional)"
         placeholderTextColor={colors.textTertiary}
         keyboardAppearance={keyboard}

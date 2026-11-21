@@ -12,10 +12,11 @@ export interface TodayFoodRow {
   is_planned: boolean;
   meal_group_id: string | null;
   created_at: string;
-  /** Micronutrient columns (fiber, sugar, MICRO_KEYS), for components/food/dayTotals.ts sumMicros. */
+  /** Micronutrient columns (MICRO_COLUMNS), for components/food/dayTotals.ts sumMicros. */
   [micro: string]: number | string | boolean | null;
 }
 
+/** Today's eaten totals for Home. The goals are loaded (and saved) by useFoodLogStore, which writes them here. */
 interface NutritionState {
   calories: number;
   calorieGoal: number;
@@ -25,15 +26,39 @@ interface NutritionState {
   carbsGoal: number;
   fat: number;
   fatGoal: number;
+  /** Today's eaten micronutrients (and fiber, sugar), by food_entries column. */
+  micros: Record<string, number>;
   /** Whose totals these are and the local day they were fetched for; null until a fetch succeeds. */
   totalsFor: { userId: string; day: string } | null;
-  /** Today's food rows behind the totals (macros, meal, planned flag), set with totalsFor; for per-meal sums. */
+  /** Today's food rows behind the totals (macros, meal, planned flag), set with totalsFor; for per-meal sums (home widgets). */
   todayEntries: TodayFoodRow[];
-  /** Whose goals these are; null while they're still the defaults. */
+  /** Whose goals these are (set by useFoodLogStore once they loaded or saved); null while they're the defaults. */
   goalsFor: string | null;
   fetchTodayNutrition: (userId: string) => Promise<void>;
-  fetchNutritionGoals: (userId: string) => Promise<void>;
+  /** Clears the previous account's totals and goals. */
+  resetForSignOut: () => void;
 }
+
+const INITIAL = {
+  calories: 0,
+  calorieGoal: 2000,
+  protein: 0,
+  proteinGoal: 150,
+  carbs: 0,
+  carbsGoal: 250,
+  fat: 0,
+  fatGoal: 65,
+  micros: {} as Record<string, number>,
+  totalsFor: null as { userId: string; day: string } | null,
+  todayEntries: [] as TodayFoodRow[],
+  goalsFor: null as string | null,
+};
+
+/** food_entries columns summed into `micros` (the nutrients a user can track on Home). */
+const MICRO_COLUMNS = [
+  'fiber', 'sugar', 'caffeine', 'sodium', 'calcium', 'iron', 'potassium', 'magnesium', 'zinc',
+  'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k', 'vitamin_b6', 'vitamin_b12', 'folate',
+] as const;
 
 function todayRange() {
   const now = new Date();
@@ -42,72 +67,74 @@ function todayRange() {
   return { start, end };
 }
 
-/** The goals a user without a nutrition_goals row has. */
-const DEFAULT_GOALS = { calorieGoal: 2000, proteinGoal: 150, carbsGoal: 250, fatGoal: 65 };
+/** Eaten totals and micros of today's rows (planned food doesn't count until it's eaten). */
+function totalsFrom(rows: Record<string, unknown>[]) {
+  let calories = 0, protein = 0, carbs = 0, fat = 0;
+  const micros: Record<string, number> = {};
+  for (const entry of rows) {
+    if (entry.is_planned) continue;
+    calories += Number(entry.calories || 0);
+    protein += Number(entry.protein || 0);
+    carbs += Number(entry.carbs || 0);
+    fat += Number(entry.fat || 0);
+    for (const key of MICRO_COLUMNS) {
+      const v = entry[key];
+      if (v != null) micros[key] = (micros[key] || 0) + Number(v);
+    }
+  }
+  return {
+    calories: Math.round(calories),
+    protein: Math.round(protein),
+    carbs: Math.round(carbs),
+    fat: Math.round(fat),
+    micros,
+  };
+}
+
+/** Increments per totals request, so an older response can't overwrite newer totals. */
+let _requestId = 0;
+/** The user and day (`userId:start`) whose totals are on screen. */
+let _loadedKey: string | null = null;
 
 export const useNutritionStore = create<NutritionState>((set) => ({
-  calories: 0,
-  protein: 0,
-  carbs: 0,
-  fat: 0,
-  ...DEFAULT_GOALS,
-  totalsFor: null,
-  todayEntries: [],
-  goalsFor: null,
+  ...INITIAL,
 
   fetchTodayNutrition: async (userId: string) => {
+    const requestId = ++_requestId;
     const { start, end } = todayRange();
     const day = toLocalDateString();
     const { data, error } = await supabase
       .from('food_entries')
-      // The micronutrient columns are fiber, sugar and useFoodLogStore MICRO_KEYS (the widgets' micronutrients).
-      .select('calories, protein, carbs, fat, meal_type, is_planned, meal_group_id, created_at, fiber, sugar, vitamin_a, vitamin_c, vitamin_d, vitamin_e, vitamin_k, vitamin_b6, vitamin_b12, folate, calcium, iron, magnesium, potassium, zinc, sodium, caffeine')
+      // meal_type, meal_group_id and created_at: the home widgets' protein per meal.
+      .select(`calories, protein, carbs, fat, is_planned, meal_type, meal_group_id, created_at, ${MICRO_COLUMNS.join(', ')}`)
       .eq('user_id', userId)
       .gte('created_at', start)
       .lt('created_at', end);
 
-    if (data && data.length > 0) {
-      // Planned food isn't eaten yet: left out, as the food diary does (components/food/dayTotals.ts).
-      const totals = data.filter((entry) => !entry.is_planned).reduce(
-        (acc, entry) => ({
-          calories: acc.calories + Number(entry.calories || 0),
-          protein: acc.protein + Number(entry.protein || 0),
-          carbs: acc.carbs + Number(entry.carbs || 0),
-          fat: acc.fat + Number(entry.fat || 0),
-        }),
-        { calories: 0, protein: 0, carbs: 0, fat: 0 }
-      );
-      set({
-        calories: Math.round(totals.calories),
-        protein: Math.round(totals.protein * 10) / 10,
-        carbs: Math.round(totals.carbs * 10) / 10,
-        fat: Math.round(totals.fat * 10) / 10,
-        totalsFor: { userId, day },
-        todayEntries: data as TodayFoodRow[],
-      });
-    } else {
-      set({ calories: 0, protein: 0, carbs: 0, fat: 0, ...(error ? {} : { totalsFor: { userId, day }, todayEntries: [] }) });
+    // A newer request started (e.g. two foods added quickly): its totals are the current ones.
+    if (requestId !== _requestId) return;
+    // Offline or failed: keep what's on screen instead of showing 0 eaten, unless it's another
+    // day's (or account's) totals.
+    const key = `${userId}:${start}`;
+    if (error || !data) {
+      if (_loadedKey !== key) {
+        _loadedKey = key;
+        set({ calories: 0, protein: 0, carbs: 0, fat: 0, micros: {} });
+      }
+      return;
     }
+    _loadedKey = key;
+    // Same as the Nutrition tab: planned food doesn't count until it's eaten, whole numbers.
+    set({
+      ...totalsFrom(data as unknown as Record<string, unknown>[]),
+      totalsFor: { userId, day },
+      todayEntries: data as unknown as TodayFoodRow[],
+    });
   },
 
-  fetchNutritionGoals: async (userId: string) => {
-    const { data, error } = await supabase
-      .from('nutrition_goals')
-      .select('calorie_goal, protein_goal, carbs_goal, fat_goal')
-      .eq('user_id', userId)
-      .single();
-
-    if (data) {
-      set({
-        calorieGoal: Number(data.calorie_goal),
-        proteinGoal: Number(data.protein_goal),
-        carbsGoal: Number(data.carbs_goal),
-        fatGoal: Number(data.fat_goal),
-        goalsFor: userId,
-      });
-    } else if (error?.code === 'PGRST116') {
-      // No goals row: this user has the defaults (set them: the store may still hold the last account's).
-      set({ ...DEFAULT_GOALS, goalsFor: userId });
-    }
+  resetForSignOut: () => {
+    _requestId++;
+    _loadedKey = null;
+    set(INITIAL);
   },
 }));

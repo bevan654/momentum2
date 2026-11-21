@@ -96,6 +96,37 @@ function makeBucket(slot: string, label: string, icon: string, timeStart: string
   };
 }
 
+const sameEntries = (a: FoodEntry[], b: FoodEntry[]) =>
+  a.length === b.length && a.every((e, i) => e === b[i]);
+
+function sameItem(a: MealItem, b: MealItem): boolean {
+  if (a.type === 'entry') return b.type === 'entry' && a.entry === b.entry;
+  return b.type === 'group' && a.groupId === b.groupId && a.groupName === b.groupName && sameEntries(a.entries, b.entries);
+}
+
+/**
+ * Keeps last render's bucket (and group) objects wherever nothing in them changed, so adding or
+ * deleting one food re-renders only its meal card instead of every card and logged meal.
+ */
+export function reuseBuckets(prev: MealBucket[], next: MealBucket[]): MealBucket[] {
+  const prevBySlot = new Map(prev.map((b) => [b.slot, b]));
+  return next.map((b) => {
+    const old = prevBySlot.get(b.slot);
+    if (!old) return b;
+    const oldGroups = new Map<string, MealItem>();
+    for (const it of old.items) if (it.type === 'group') oldGroups.set(it.groupId, it);
+    // A group whose entries didn't change keeps its array, so its row skips re-rendering.
+    const items = b.items.map((it) => {
+      if (it.type !== 'group') return it;
+      const o = oldGroups.get(it.groupId);
+      return o && sameItem(o, it) ? o : it;
+    });
+    const unchanged = old.label === b.label && old.icon === b.icon && old.timeStart === b.timeStart
+      && old.items.length === items.length && old.items.every((it, i) => it === items[i] || sameItem(it, items[i]));
+    return unchanged ? old : { ...b, items };
+  });
+}
+
 /** Hour (0–23) from a meal's "HH:MM" start time; falls back to noon. */
 export function hourFromTimeStart(timeStart: string): number {
   const h = parseInt(timeStart.split(':')[0], 10);

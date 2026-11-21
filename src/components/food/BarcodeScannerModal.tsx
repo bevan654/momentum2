@@ -21,7 +21,8 @@ interface Props {
   visible: boolean;
   onDismiss: () => void;
   onFoodFound: (food: FoodDetailData) => void;
-  onNotFound: (barcode: string) => void;
+  /** `failed`: the lookup couldn't run (offline, timeout), so the product may still exist. */
+  onNotFound: (barcode: string, failed?: boolean) => void;
 }
 
 const SCAN_AREA = sw(260);
@@ -59,7 +60,7 @@ function BarcodeScannerModal({
       setScanning(true);
 
       try {
-        const { found, food } = await lookupBarcode(code);
+        const { found, food, error } = await lookupBarcode(code);
         if (!mountedRef.current) return; // closed while looking up
         if (found && food) {
           // Fire-and-forget: save to shared barcode_foods table
@@ -69,10 +70,10 @@ function BarcodeScannerModal({
           }
           onFoodFound(food);
         } else {
-          onNotFound(code);
+          onNotFound(code, error);
         }
       } catch {
-        if (mountedRef.current) onNotFound(code);
+        if (mountedRef.current) onNotFound(code, true);
       } finally {
         busyRef.current = false;
         setScanning(false);

@@ -4,6 +4,8 @@ import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
 import { Fonts } from '../../theme/typography';
 import { useThemeStore } from '../../stores/useThemeStore';
+import { sanitizeDecimal } from './decimalInput';
+import { useRevealOnFocus } from './ui/FoodSubScreen';
 
 interface MicroEditorRow {
   key: string;
@@ -27,13 +29,15 @@ const MicroInputRow = React.memo(function MicroInputRow({
   placeholderColor: string;
   keyboard: 'dark' | 'light';
 }) {
+  const reveal = useRevealOnFocus();
   return (
     <View style={[styles.row, !first && styles.divider]}>
       <Text style={styles.label}>{row.label}</Text>
       <TextInput
         style={styles.input}
         value={row.value}
-        onChangeText={(v) => onChange(row.key, v.replace(',', '.'))}
+        onChangeText={(v) => onChange(row.key, sanitizeDecimal(v))}
+        onFocus={reveal}
         keyboardType="numeric"
         keyboardAppearance={keyboard}
         placeholder="0"

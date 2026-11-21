@@ -16,6 +16,7 @@ interface Props {
   onAdd: (meal: MealBucket) => void;
   onPressEntry: (entry: FoodEntry) => void;
   onTogglePlanned: (id: string) => void;
+  onDeleteEntry: (id: string) => void;
   onPressGroup: (groupId: string, entries: FoodEntry[]) => void;
   onDeleteGroup: (groupId: string) => void;
 }
@@ -24,7 +25,7 @@ interface Props {
  * One meal of the day. With food: header (icon, name, kcal), the items, then "Add food".
  * Empty: a single slim row that adds to this meal.
  */
-function MealCard({ meal, onAdd, onPressEntry, onTogglePlanned, onPressGroup, onDeleteGroup }: Props) {
+function MealCard({ meal, onAdd, onPressEntry, onTogglePlanned, onDeleteEntry, onPressGroup, onDeleteGroup }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const handleAdd = useCallback(() => onAdd(meal), [meal, onAdd]);
@@ -68,7 +69,7 @@ function MealCard({ meal, onAdd, onPressEntry, onTogglePlanned, onPressGroup, on
         {meal.items.map((item, i) => (
           <View key={item.type === 'entry' ? item.entry.id : item.groupId} style={i > 0 && styles.divider}>
             {item.type === 'entry' ? (
-              <MealEntryRow entry={item.entry} onPress={onPressEntry} onTogglePlanned={onTogglePlanned} />
+              <MealEntryRow entry={item.entry} onPress={onPressEntry} onTogglePlanned={onTogglePlanned} onDelete={onDeleteEntry} />
             ) : (
               <MealGroupRow
                 groupId={item.groupId}

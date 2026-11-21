@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { sw } from '../../theme/responsive';
 import { useFoodLogStore, type FoodEntry } from '../../stores/useFoodLogStore';
-import { groupEntriesByMeal, type MealBucket } from './groupEntriesByMeal';
+import { groupEntriesByMeal, reuseBuckets, type MealBucket } from './groupEntriesByMeal';
 import MealCard from './MealCard';
 
 interface Props {
@@ -10,14 +10,20 @@ interface Props {
   onAdd: (meal: MealBucket) => void;
   onPressEntry: (entry: FoodEntry) => void;
   onTogglePlanned: (id: string) => void;
+  onDeleteEntry: (id: string) => void;
   onPressGroup: (groupId: string, entries: FoodEntry[]) => void;
   onDeleteGroup: (groupId: string) => void;
 }
 
 /** The day's food as one card per meal, in the user's meal order. */
-function MealList({ entries, onAdd, onPressEntry, onTogglePlanned, onPressGroup, onDeleteGroup }: Props) {
+function MealList({ entries, onAdd, onPressEntry, onTogglePlanned, onDeleteEntry, onPressGroup, onDeleteGroup }: Props) {
   const mealConfigs = useFoodLogStore((s) => s.mealConfigs);
-  const meals = useMemo(() => groupEntriesByMeal(entries, mealConfigs), [entries, mealConfigs]);
+  const prevMeals = useRef<MealBucket[]>([]);
+  const meals = useMemo(() => {
+    const next = reuseBuckets(prevMeals.current, groupEntriesByMeal(entries, mealConfigs));
+    prevMeals.current = next;
+    return next;
+  }, [entries, mealConfigs]);
 
   return (
     <View style={styles.list}>
@@ -28,6 +34,7 @@ function MealList({ entries, onAdd, onPressEntry, onTogglePlanned, onPressGroup,
           onAdd={onAdd}
           onPressEntry={onPressEntry}
           onTogglePlanned={onTogglePlanned}
+          onDeleteEntry={onDeleteEntry}
           onPressGroup={onPressGroup}
           onDeleteGroup={onDeleteGroup}
         />
