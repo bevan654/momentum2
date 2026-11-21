@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView,
-  type StyleProp, type ViewStyle,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -12,9 +11,8 @@ import { Fonts } from '../../theme/typography';
 import { sw, ms } from '../../theme/responsive';
 
 /*
- * Shared chrome of the Home cards' detail popups (Nutrition, Water, Supplements):
- * centred sheet over a dimmed backdrop, hero row, section label, progress bar,
- * quick-add grid styles and the Undo / Done footer.
+ * Shared chrome of the Home nutrition detail popup: centred sheet over a
+ * dimmed backdrop, hero row, section label, progress bar, and Undo / Done footer.
  */
 
 /* ─── Styles (one sheet per palette) ──────────────────── */
@@ -109,30 +107,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   barFill: {
     height: '100%',
     borderRadius: sw(3),
-  },
-
-  /* Quick add grid */
-  quickGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: sw(8),
-    justifyContent: 'center',
-  },
-  quickBtn: {
-    flex: 1,
-    minWidth: '28%',
-    backgroundColor: colors.surface,
-    borderRadius: sw(10),
-    paddingVertical: sw(12),
-    alignItems: 'center',
-  },
-  quickBtnText: {
-    fontSize: ms(14),
-    lineHeight: ms(18),
-    fontFamily: Fonts.bold,
-  },
-  quickBtnIcon: {
-    marginRight: sw(4),
   },
 
   /* Footer */
@@ -298,34 +272,6 @@ export function CardDetailBar({ pct, color, trackColor }: { pct: number; color: 
     <View style={[styles.barTrack, { backgroundColor: trackColor }]}>
       <View style={[styles.barFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: color }]} />
     </View>
-  );
-}
-
-/* ─── Quick add grid ──────────────────────────────────── */
-
-/** Wrapping row of quick-add buttons (three per line). */
-export function QuickAddGrid({ children }: { children: React.ReactNode }) {
-  const styles = useCardDetailStyles();
-  return <View style={styles.quickGrid}>{children}</View>;
-}
-
-interface QuickAddButtonProps {
-  label: string;
-  /** Text (and icon) colour. */
-  color: string;
-  onPress: () => void;
-  /** Optional leading icon. */
-  icon?: React.ComponentProps<typeof Ionicons>['name'];
-  style?: StyleProp<ViewStyle>;
-}
-
-export function QuickAddButton({ label, color, onPress, icon, style }: QuickAddButtonProps) {
-  const styles = useCardDetailStyles();
-  return (
-    <TouchableOpacity style={[styles.quickBtn, style]} onPress={onPress} activeOpacity={0.7}>
-      {icon != null && <Ionicons name={icon} size={ms(13)} color={color} style={styles.quickBtnIcon} />}
-      <Text style={[styles.quickBtnText, { color }]}>{label}</Text>
-    </TouchableOpacity>
   );
 }
 
