@@ -245,6 +245,9 @@ function BottomTabBar({
 export default function TabNavigator() {
   const userId = useAuthStore((s) => s.user?.id);
   const [profileVisible, setProfileVisible] = useState(false);
+  const [homeFocused, setHomeFocused] = useState(true);
+  const onHomeFocus = useCallback(() => setHomeFocused(true), []);
+  const onHomeBlur = useCallback(() => setHomeFocused(false), []);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -308,7 +311,7 @@ export default function TabNavigator() {
 
   return (
     <View style={styles.root}>
-      <Header />
+      <Header homeDesign={homeFocused} />
       <View style={{ flex: 1, overflow: 'hidden', backgroundColor: colors.background }}>
         <Tab.Navigator
           tabBar={renderTabBar}
@@ -324,7 +327,7 @@ export default function TabNavigator() {
         >
           <Tab.Screen name="Recovery" component={RecoveryTab} />
           <Tab.Screen name="Workouts" component={WorkoutsTab} />
-          <Tab.Screen name="Home" component={HomeTab} />
+          <Tab.Screen name="Home" component={HomeTab} listeners={{ focus: onHomeFocus, blur: onHomeBlur }} />
           <Tab.Screen name="Nutrition" component={NutritionTab} />
           <Tab.Screen name="Community" component={CommunityTab} />
         </Tab.Navigator>

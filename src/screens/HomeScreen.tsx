@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo } from 'react';
-import { View, ScrollView, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native';
+import { View, ScrollView, StyleSheet, AppState } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
-import { Fonts } from '../theme/typography';
-import { sw, ms } from '../theme/responsive';
+import { sw } from '../theme/responsive';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNutritionStore } from '../stores/useNutritionStore';
 import { useFoodLogStore } from '../stores/useFoodLogStore';
@@ -13,12 +11,11 @@ import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useWeightStore } from '../stores/useWeightStore';
 import { useStreakStore } from '../stores/useStreakStore';
-import NutritionCard from '../components/home/NutritionCard';
-import WaterCard from '../components/home/WaterCard';
-import MotivationCard from '../components/home/MotivationCard';
-import SupplementsCard from '../components/home/SupplementsCard';
-import ActivityCard from '../components/home/ActivityCard';
+import { useToday } from '../hooks/useToday';
 import { useNavigation } from '@react-navigation/native';
+import TodayHomeLayout from '../components/home/today/TodayHomeLayout';
+import StartWorkoutButton, { START_WORKOUT_CLEARANCE } from '../components/home/today/StartWorkoutButton';
+import GrainBackground from '../components/home/today/GrainBackground';
 
 function HomeScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -32,6 +29,7 @@ function HomeScreen() {
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const showSheet = useActiveWorkoutStore((s) => s.showSheet);
   const navigation = useNavigation<any>();
+  const today = useToday();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -45,7 +43,7 @@ function HomeScreen() {
       fetchWeightData(userId);
       initStreak(userId);
     }
-  }, [userId]);
+  }, [userId, today]);
 
   const goalsCheckedAt = React.useRef(Date.now());
   useEffect(() => {
@@ -73,124 +71,41 @@ function HomeScreen() {
     }
   };
 
-  const handleLogFood = () => {
+  const handleOpenTraining = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.navigate('Nutrition');
+    navigation.navigate('Recovery');
   };
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      bounces
-    >
-      {/* Quick actions */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={handleLogWorkout}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.actionIconWrap, { backgroundColor: colors.accentGreen + '15' }]}>
-            <Ionicons name="barbell-outline" size={ms(18)} color={colors.accentGreen} />
-          </View>
-          <Text style={styles.actionLabel}>
-            {isActive ? 'Resume' : 'Log Workout'}
-          </Text>
-          <Ionicons name="chevron-forward" size={ms(14)} color={colors.textTertiary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={handleLogFood}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.actionIconWrap, { backgroundColor: colors.accentOrange + '15' }]}>
-            <Ionicons name="restaurant-outline" size={ms(18)} color={colors.accentOrange} />
-          </View>
-          <Text style={styles.actionLabel}>Log Food</Text>
-          <Ionicons name="chevron-forward" size={ms(14)} color={colors.textTertiary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Nutrition + Water + Streak */}
-      <View style={styles.nutritionRow}>
-        <NutritionCard />
-        <View style={styles.supplementCol}>
-          <WaterCard />
-          <MotivationCard />
-        </View>
-      </View>
-
-      {/* Supplements */}
-      <SupplementsCard />
-
-      {/* Activity Calendar */}
-      <View style={styles.activityWrap}>
-        <ActivityCard />
-      </View>
-    </ScrollView>
+    <View style={styles.root}>
+      <GrainBackground />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        bounces
+      >
+        <TodayHomeLayout onTraining={handleOpenTraining} />
+      </ScrollView>
+      <StartWorkoutButton isActive={isActive} onPress={handleLogWorkout} />
+    </View>
   );
 }
 
 export default React.memo(HomeScreen);
 
-const NUTRITION_ROW_H = sw(295);
-const ACTIVITY_H = sw(370);
-
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  scroll: {
+  root: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: sw(16),
     paddingTop: sw(8),
-    paddingBottom: sw(24),
-    gap: sw(8),
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: sw(8),
-  },
-  actionCard: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderRadius: 0,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: sw(10),
-    paddingHorizontal: sw(10),
-    gap: sw(8),
-  },
-  actionIconWrap: {
-    width: sw(30),
-    height: sw(30),
-    borderRadius: sw(8),
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionLabel: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: ms(13),
-    lineHeight: ms(18),
-    fontFamily: Fonts.bold,
-    letterSpacing: -0.1,
-  },
-  nutritionRow: {
-    height: NUTRITION_ROW_H,
-    flexDirection: 'row',
-    gap: sw(8),
-  },
-  supplementCol: {
-    flex: 1,
-    gap: sw(8),
-  },
-  activityWrap: {
-    height: ACTIVITY_H,
+    paddingBottom: START_WORKOUT_CLEARANCE,
+    flexGrow: 1,
   },
 });

@@ -16,6 +16,18 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.50',
+    date: '2026-11-21',
+    title: "What's New",
+    items: [
+      'A new Home layout puts your calories, macros, weight trend, weekly training balance and streak in one glance',
+      'Swipe the Today section to see water and supplements, with quick add buttons',
+      'Start or resume a workout from the button above the tab bar',
+      'Try the Ask Claude preview on Home; Momentum data connection is coming soon',
+    ],
+    cta: { label: 'Open Home', target: 'Home' },
+  },
+  {
     version: '1.0.49',
     date: '2026-11-21',
     title: "What's New",
