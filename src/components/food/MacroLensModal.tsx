@@ -22,6 +22,7 @@ import Animated, {
   withTiming,
   withSequence,
   Easing,
+  cancelAnimation,
 } from 'react-native-reanimated';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
@@ -42,6 +43,16 @@ interface Props {
   onFoodFound: (food: FoodDetailData) => void;
 }
 
+/** How long leftover scan results are offered again when the scanner reopens. */
+const RESULTS_KEEP_MS = 15 * 60 * 1000;
+
+/** An AI value as a number, or null when it's missing or not a number (it can arrive as text). */
+function optNumber(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -56,6 +67,10 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
   const [errorText, setErrorText] = useState<string>('');
   const [pendingScan, setPendingScan] = useState<{ base64: string; mime: string } | null>(null);
   const [contextText, setContextText] = useState<string>('');
+  /** When the current results arrived. Leftover items stay for a while so the next one can be
+   *  logged without another scan (each scan uses one of the day's limited AI scans). */
+  const resultsAtRef = useRef(0);
+  const capturingRef = useRef(false);
 
   /* ── Animations ────────────────────────────────────────── */
   const reticlePulse = useSharedValue(1);
@@ -64,8 +79,14 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
   const shutterScale = useSharedValue(1);
   const [statusIdx, setStatusIdx] = useState(0);
 
-  // Reticle pulse loop while in camera mode
+  // Reticle pulse loop while the camera is showing (it stays mounted while closed, to keep
+  // leftover scan results, so stop the loop then).
   useEffect(() => {
+    if (!visible) {
+      cancelAnimation(reticlePulse);
+      cancelAnimation(reticleOpacity);
+      return;
+    }
     if (mode === 'camera') {
       reticlePulse.value = withRepeat(
         withSequence(
@@ -84,10 +105,14 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
         false,
       );
     }
-  }, [mode, reticlePulse, reticleOpacity]);
+  }, [mode, visible, reticlePulse, reticleOpacity]);
 
   // Sparkle rotates while analyzing
   useEffect(() => {
+    if (!visible) {
+      cancelAnimation(sparkleRotate);
+      return;
+    }
     if (mode === 'analyzing') {
       sparkleRotate.value = 0;
       sparkleRotate.value = withRepeat(
@@ -96,17 +121,17 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
         false,
       );
     }
-  }, [mode, sparkleRotate]);
+  }, [mode, visible, sparkleRotate]);
 
   // Cycle status phrases while analyzing
   useEffect(() => {
-    if (mode !== 'analyzing') return;
+    if (mode !== 'analyzing' || !visible) return;
     setStatusIdx(0);
     const id = setInterval(() => {
       setStatusIdx((i) => (i + 1) % STATUS_PHRASES.length);
     }, 1600);
     return () => clearInterval(id);
-  }, [mode]);
+  }, [mode, visible]);
 
   const reticleStyle = useAnimatedStyle(() => ({
     transform: [{ scale: reticlePulse.value }],
@@ -131,7 +156,18 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
     setContextText('');
   }, []);
 
+  // Reopened later with leftover items from an old photo: start fresh instead.
+  useEffect(() => {
+    if (visible && mode === 'results' && Date.now() - resultsAtRef.current > RESULTS_KEEP_MS) resetToCamera();
+    // Only when the screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
   const handleClose = useCallback(() => {
+    // It stays mounted while closed, so a scan still running must be cancelled here, or its
+    // reply would land on the hidden screen (and use up nothing the user still wants).
+    scanRef.current?.abort();
+    scanRef.current = null;
     resetToCamera();
     onDismiss();
   }, [onDismiss, resetToCamera]);
@@ -143,6 +179,14 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
     scanRef.current = null;
     c?.abort();
   }, []);
+  // Hidden some other way than its own close (e.g. the whole Log food sheet closed) while a scan
+  // runs: cancel it too, and start from the camera next time.
+  useEffect(() => {
+    if (visible || !scanRef.current) return;
+    scanRef.current.abort();
+    scanRef.current = null;
+    resetToCamera();
+  }, [visible, resetToCamera]);
 
   const analyze = useCallback(async (base64: string, mimeType: string, context?: string) => {
     scanRef.current?.abort();
@@ -190,7 +234,11 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
         const errText = await res.text().catch(() => '');
         if (__DEV__) console.log('[MacroLens] HTTP', res.status, errText.slice(0, 200));
         if (!isCurrent()) return;
-        setErrorText("Couldn't analyze that photo. Try again.");
+        setErrorText(
+          res.status === 429 ? "You've used today's photo scans. They reset tomorrow."
+            : res.status === 413 ? 'That photo is too large. Try another one.'
+              : "Couldn't analyze that photo. Try again.",
+        );
         setMode('error');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
         return;
@@ -210,13 +258,13 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
         sugar: r?.sugar != null ? Number(r.sugar) : null,
         serving_size: Number(r?.serving_size) || 100,
         serving_unit: typeof r?.serving_unit === 'string' ? r.serving_unit : 'g',
-        vitamin_a: r?.vitamin_a ?? null, vitamin_c: r?.vitamin_c ?? null,
-        vitamin_d: r?.vitamin_d ?? null, vitamin_e: r?.vitamin_e ?? null,
-        vitamin_k: r?.vitamin_k ?? null, vitamin_b6: r?.vitamin_b6 ?? null,
-        vitamin_b12: r?.vitamin_b12 ?? null, folate: r?.folate ?? null,
-        calcium: r?.calcium ?? null, iron: r?.iron ?? null,
-        magnesium: r?.magnesium ?? null, potassium: r?.potassium ?? null,
-        zinc: r?.zinc ?? null, sodium: r?.sodium ?? null,
+        vitamin_a: optNumber(r?.vitamin_a), vitamin_c: optNumber(r?.vitamin_c),
+        vitamin_d: optNumber(r?.vitamin_d), vitamin_e: optNumber(r?.vitamin_e),
+        vitamin_k: optNumber(r?.vitamin_k), vitamin_b6: optNumber(r?.vitamin_b6),
+        vitamin_b12: optNumber(r?.vitamin_b12), folate: optNumber(r?.folate),
+        calcium: optNumber(r?.calcium), iron: optNumber(r?.iron),
+        magnesium: optNumber(r?.magnesium), potassium: optNumber(r?.potassium),
+        zinc: optNumber(r?.zinc), sodium: optNumber(r?.sodium),
       }));
 
       if (mapped.length === 0) {
@@ -225,6 +273,7 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
         return;
       }
       setItems(mapped);
+      resultsAtRef.current = Date.now();
       setMode('results');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (err: any) {
@@ -242,7 +291,9 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
   }, []);
 
   const handleShutter = useCallback(async () => {
-    if (!cameraRef.current) return;
+    // One photo at a time: a second tap while capturing would start another scan.
+    if (!cameraRef.current || capturingRef.current) return;
+    capturingRef.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     shutterScale.value = withSequence(
       withTiming(0.88, { duration: 90 }),
@@ -268,6 +319,8 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
       if (__DEV__) console.log('[MacroLens] capture error:', err?.message || err);
       setErrorText("Couldn't capture photo.");
       setMode('error');
+    } finally {
+      capturingRef.current = false;
     }
   }, [shutterScale]);
 
@@ -275,7 +328,11 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
     Haptics.selectionAsync().catch(() => {});
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) return;
+      if (!perm.granted) {
+        setErrorText('Allow photo access in Settings to pick a photo.');
+        setMode('error');
+        return;
+      }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -308,10 +365,11 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
   }, []);
 
   const handleScanWithContext = useCallback(() => {
-    if (!pendingScan) return;
+    // Already analyzing: a second tap would send (and pay for) the same photo again.
+    if (!pendingScan || mode === 'analyzing') return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     analyze(pendingScan.base64, pendingScan.mime, contextText);
-  }, [analyze, pendingScan, contextText]);
+  }, [analyze, pendingScan, contextText, mode]);
 
   const handleRetake = useCallback(() => {
     Haptics.selectionAsync().catch(() => {});
@@ -343,8 +401,11 @@ function MacroLensModal({ visible, onDismiss, onFoodFound }: Props) {
       zinc: item.zinc, sodium: item.sodium,
     };
     onFoodFound(food);
-    resetToCamera();
-  }, [onFoodFound, resetToCamera]);
+    // Keep the other items from this photo for the next one; reset once they're all used.
+    const rest = items.filter((i) => i !== item);
+    if (rest.length > 0) setItems(rest);
+    else resetToCamera();
+  }, [onFoodFound, resetToCamera, items]);
 
   /* ── Totals for hero card ──────────────────────────────── */
   const totals = useMemo(() => {

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
+import { getCurrentUserId } from '../lib/currentUser';
 
 const STORAGE_KEY = 'momentum_saved_meals';
 
@@ -10,16 +11,18 @@ export interface MealItem {
   name: string;
   brand?: string | null;
   food_catalog_id?: string | null;
-  /** Macros are per base_serving_size (the original catalog serving) */
+  /** Per one serving of serving_size + serving_unit; the meal multiplies them by quantity. */
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
   fiber?: number | null;
   sugar?: number | null;
+  /** Vitamins, minerals, sodium and caffeine per serving, like the macros (missing on meals saved before they were kept). */
+  micros?: Record<string, number | null>;
   /** User-editable serving size */
   serving_size: number;
-  /** Original catalog serving size (defaults to serving_size for backward compat) */
+  /** Unused: only on meals saved by old builds. */
   base_serving_size?: number;
   serving_unit: string;
   quantity: number;
@@ -41,33 +44,51 @@ interface SavedMealsState {
   loadMeals: () => Promise<void>;
   saveMeal: (name: string, items: MealItem[]) => Promise<string>;
   updateMeal: (id: string, name: string, items: MealItem[]) => Promise<void>;
+  deleteMeal: (id: string) => Promise<void>;
+  /** Clears this account's meals from memory (they stay saved on the phone for when it signs in again). */
+  resetForSignOut: () => void;
 }
 
-async function persist(meals: SavedMeal[]) {
-  try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(meals));
-  } catch { /* silent */ }
+/** Bumped on sign-out, so a load still running for the previous account is ignored. */
+let _gen = 0;
+let _loading: Promise<void> | null = null;
+
+function persist(meals: SavedMeal[]) {
+  const userId = getCurrentUserId();
+  if (!userId) return;
+  writeUserScoped(STORAGE_KEY, userId, JSON.stringify(meals)).catch(() => {});
 }
 
 export const useSavedMealsStore = create<SavedMealsState>((set, get) => ({
   meals: [],
   loaded: false,
 
-  loadMeals: async () => {
-    if (get().loaded) return;
-    try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        set({ meals: JSON.parse(raw), loaded: true });
-      } else {
-        set({ loaded: true });
-      }
-    } catch {
-      set({ loaded: true });
-    }
+  loadMeals: () => {
+    if (get().loaded) return Promise.resolve();
+    if (_loading) return _loading;
+    const userId = getCurrentUserId();
+    if (!userId) return Promise.resolve();
+    const gen = _gen;
+    const run = (async () => {
+      let meals: SavedMeal[] = [];
+      try {
+        const raw = await readUserScoped(STORAGE_KEY, userId);
+        if (raw) meals = JSON.parse(raw);
+      } catch { /* silent */ }
+      if (gen === _gen) set({ meals, loaded: true });
+    })().finally(() => {
+      if (_loading === run) _loading = null;
+    });
+    _loading = run;
+    return run;
   },
 
   saveMeal: async (name: string, items: MealItem[]) => {
+    // Load first: saving into a list that hasn't loaded yet would overwrite the stored meals.
+    const gen = _gen;
+    await get().loadMeals();
+    // Signed out (or the list couldn't load) meanwhile: writing now would replace another list.
+    if (gen !== _gen || !get().loaded) return '';
     const id = `meal-${Date.now()}`;
     const now = new Date().toISOString();
     const meal: SavedMeal = { id, name, items, created_at: now, updated_at: now };
@@ -78,10 +99,28 @@ export const useSavedMealsStore = create<SavedMealsState>((set, get) => ({
   },
 
   updateMeal: async (id: string, name: string, items: MealItem[]) => {
+    const gen = _gen;
+    await get().loadMeals();
+    if (gen !== _gen || !get().loaded) return;
     const updated = get().meals.map((m) =>
       m.id === id ? { ...m, name, items, updated_at: new Date().toISOString() } : m,
     );
     set({ meals: updated });
     persist(updated);
+  },
+
+  deleteMeal: async (id: string) => {
+    const gen = _gen;
+    await get().loadMeals();
+    if (gen !== _gen || !get().loaded) return;
+    const updated = get().meals.filter((m) => m.id !== id);
+    set({ meals: updated });
+    persist(updated);
+  },
+
+  resetForSignOut: () => {
+    _gen++;
+    _loading = null;
+    set({ meals: [], loaded: false });
   },
 }));

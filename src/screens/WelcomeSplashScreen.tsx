@@ -18,6 +18,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { useActiveWorkoutStore } from '../stores/useActiveWorkoutStore';
 import { useNutritionStore } from '../stores/useNutritionStore';
+import { useFoodLogStore } from '../stores/useFoodLogStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
 import { useWeightStore } from '../stores/useWeightStore';
 import { useStreakStore } from '../stores/useStreakStore';
@@ -85,7 +86,7 @@ export default function WelcomeSplashScreen() {
           useWorkoutStore.getState().fetchPrevData(userId),
           useWorkoutStore.getState().fetchWorkoutHistory(userId),
           useNutritionStore.getState().fetchTodayNutrition(userId),
-          useNutritionStore.getState().fetchNutritionGoals(userId),
+          useFoodLogStore.getState().fetchGoals(userId),
           useSupplementStore.getState().fetchTodaySupplements(userId),
           useSupplementStore.getState().fetchSupplementGoals(userId),
           useStreakStore.getState().initStreak(userId),

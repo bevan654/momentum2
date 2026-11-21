@@ -1,9 +1,13 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { readUserScoped, writeUserScoped } from '../lib/userScopedStorage';
 import { toLocalDateString } from '../utils/localDate';
+import { PROTEIN_POWDER_KEY } from './useProteinPowderStore';
 
 const CONFIGS_KEY = '@momentum_supplement_configs';
+/** Water's quick amounts (ml). Stored on the phone per account until the database has a column for them. */
+const WATER_AMOUNTS_KEY = '@momentum_water_amounts';
+const DEFAULT_WATER_AMOUNTS = [250, 500];
 
 export interface SupplementEntry {
   id: string;
@@ -39,11 +43,23 @@ export const SUPPLEMENT_PRESETS: SupplementPreset[] = [
   { key: 'magnesium', name: 'Magnesium', defaultGoal: 400, unit: 'mg', icon: 'sparkles-outline', color: '#8B5CF6', increments: [200, 400] },
   { key: 'zinc', name: 'Zinc', defaultGoal: 15, unit: 'mg', icon: 'shield-outline', color: '#64748B', increments: [15] },
   { key: 'caffeine', name: 'Caffeine', defaultGoal: 200, unit: 'mg', icon: 'cafe-outline', color: '#92400E', increments: [100, 200] },
-  { key: 'protein_powder', name: 'Protein', defaultGoal: 30, unit: 'g', icon: 'nutrition-outline', color: '#86EFAC', increments: [25, 30] },
+  // Counted in servings of the user's own powders; each add also logs a snack (useProteinPowderStore).
+  { key: PROTEIN_POWDER_KEY, name: 'Protein powder', defaultGoal: 1, unit: 'servings', icon: 'nutrition-outline', color: '#86EFAC', increments: [1] },
   { key: 'ashwagandha', name: 'Ashwagandha', defaultGoal: 600, unit: 'mg', icon: 'leaf-outline', color: '#22C55E', increments: [300, 600] },
 ];
 
 export const CUSTOM_COLORS = ['#F472B6', '#A78BFA', '#38BDF8', '#FB923C', '#4ADE80', '#F87171', '#FACC15', '#2DD4BF'];
+
+const INITIAL_STATE = () => ({
+  water: 0,
+  waterGoal: 2500,
+  waterIncrements: DEFAULT_WATER_AMOUNTS,
+  supplementConfigs: DEFAULT_CONFIGS,
+  supplementTotals: {} as Record<string, number>,
+  loading: false,
+  dateEntries: [] as SupplementEntry[],
+  dateEntriesDate: null as string | null,
+});
 
 const DEFAULT_CONFIGS: SupplementConfig[] = [
   { key: 'creatine', name: 'Creatine', dailyGoal: 5, unit: 'g', icon: 'flash-outline', color: '#FBBF24', increments: [5, 1] },
@@ -77,13 +93,19 @@ function configToRow(userId: string, config: SupplementConfig, sortOrder: number
   };
 }
 
-async function cacheConfigs(configs: SupplementConfig[]) {
-  try { await AsyncStorage.setItem(CONFIGS_KEY, JSON.stringify(configs)); } catch {}
+/** Per-account copy of the configs, used when the database can't be reached. */
+async function cacheConfigs(userId: string, configs: SupplementConfig[]) {
+  try { await writeUserScoped(CONFIGS_KEY, userId, JSON.stringify(configs)); } catch {}
 }
 
 export function nameToKey(name: string): string {
-  return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const key = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  // A custom supplement must never become the protein powder one (it works differently).
+  return key === PROTEIN_POWDER_KEY ? `${key}_custom` : key;
 }
+
+/** Supplements with an undo still running: a second quick tap would pick the same entry. */
+const _undoingKeys = new Set<string>();
 
 export function generateIncrements(goal: number): number[] {
   if (goal <= 1) return [1];
@@ -96,6 +118,8 @@ export function generateIncrements(goal: number): number[] {
 interface SupplementState {
   water: number;
   waterGoal: number;
+  /** Water's quick amounts in ml; the first is what one tap adds. */
+  waterIncrements: number[];
   supplementConfigs: SupplementConfig[];
   supplementTotals: Record<string, number>;
   loading: boolean;
@@ -109,14 +133,18 @@ interface SupplementState {
   updateSupplementConfig: (userId: string, key: string, updates: Partial<SupplementConfig>) => Promise<void>;
   fetchTodaySupplements: (userId: string) => Promise<void>;
   fetchSupplementGoals: (userId: string) => Promise<void>;
+  setWaterIncrements: (userId: string, amounts: number[]) => Promise<void>;
   fetchDateSupplements: (userId: string, date: string) => Promise<void>;
   addWater: (userId: string, ml: number) => Promise<void>;
   addSupplement: (userId: string, key: string, amount: number) => Promise<void>;
-  resetSupplement: (userId: string, key: string) => Promise<void>;
+  /** Removes today's most recent entry of this supplement (not the whole day). */
+  undoLastSupplement: (userId: string, key: string) => Promise<void>;
   deleteSupplementEntry: (userId: string, entry: SupplementEntry) => Promise<void>;
   undoLastWater: (userId: string) => Promise<void>;
   /** Optimistic; rolls back and returns the error message if the save fails. */
   updateSupplementGoals: (userId: string, goals: { water_goal?: number; creatine_goal?: number }) => Promise<{ error: string | null }>;
+  /** Clears the previous account's supplements and totals from memory. */
+  resetForSignOut: () => void;
 }
 
 /** After a today-only write, reload the day list only if the Nutrition tab is showing today. */
@@ -124,6 +152,47 @@ function refreshDateEntriesIfToday(get: () => SupplementState, userId: string) {
   const today = toLocalDateString();
   if (latestDateRequest === today) get().fetchDateSupplements(userId, today);
 }
+
+/**
+ * A tap just saved `row` for today: add it to the Nutrition tab's day list locally when that list
+ * is today's and loaded (saves a reload of the whole day on the app's most frequent tap).
+ */
+function addToDateEntries(
+  get: () => SupplementState,
+  set: (fn: (s: SupplementState) => Partial<SupplementState>) => void,
+  userId: string,
+  row: SupplementEntry | null,
+) {
+  const today = toLocalDateString();
+  if (row && !dateLoadInFlight && get().dateEntriesDate === today && loadedDateKey === `${userId}:${today}`) {
+    set((s) => (s.dateEntries.some((e) => e.id === row.id) ? {} : { dateEntries: [...s.dateEntries, row] }));
+  } else {
+    refreshDateEntriesIfToday(get, userId);
+  }
+}
+
+/** A today entry was deleted (undo): drop it from the day list locally, same idea. */
+function removeFromDateEntries(
+  get: () => SupplementState,
+  set: (fn: (s: SupplementState) => Partial<SupplementState>) => void,
+  userId: string,
+  id: string,
+) {
+  const today = toLocalDateString();
+  if (!dateLoadInFlight && get().dateEntriesDate === today && loadedDateKey === `${userId}:${today}`) {
+    set((s) => ({ dateEntries: s.dateEntries.filter((e) => e.id !== id) }));
+  } else {
+    refreshDateEntriesIfToday(get, userId);
+  }
+}
+
+const ENTRY_COLUMNS = 'id, type, amount, created_at';
+
+/** Bumped on sign-out, so a config load still running for the previous account is ignored. */
+let _gen = 0;
+
+/** A day-list load is still on its way: a local change could be overwritten by it, so reload instead. */
+let dateLoadInFlight = false;
 
 /** Latest date asked for by fetchDateSupplements, and a counter so older responses are ignored. */
 let latestDateRequest: string | null = null;
@@ -133,18 +202,35 @@ let loadedDateKey: string | null = null;
 /** The user and day (`userId:date`) whose totals are in `water` / `supplementTotals`. */
 let loadedTodayKey: string | null = null;
 
+/** Increments per today-totals load, so an older load can't overwrite a newer one. */
+let _todayRequestId = 0;
+/** Water/supplement taps still saving. A totals load that lands meanwhile may not include them. */
+let _todayPending = 0;
+/** Bumped when a tap starts, so a load that began before it knows its totals may be missing it. */
+let _todayWriteSeq = 0;
+/** A totals load that landed during a save; it runs again once the saves finish. */
+let _reloadTodayFor: string | null = null;
+
+function beginTodayWrite() {
+  _todayPending++;
+  _todayWriteSeq++;
+}
+
+function endTodayWrite(get: () => SupplementState) {
+  _todayPending = Math.max(0, _todayPending - 1);
+  if (_todayPending > 0 || !_reloadTodayFor) return;
+  const userId = _reloadTodayFor;
+  _reloadTodayFor = null;
+  get().fetchTodaySupplements(userId);
+}
+
 export const useSupplementStore = create<SupplementState>((set, get) => ({
-  water: 0,
-  waterGoal: 2500,
-  supplementConfigs: DEFAULT_CONFIGS,
-  supplementTotals: {},
-  loading: false,
-  dateEntries: [],
-  dateEntriesDate: null,
+  ...INITIAL_STATE(),
 
   /* ─── Config management (Supabase-synced) ───────────── */
 
   loadSupplementConfigs: async (userId: string) => {
+    const gen = _gen;
     try {
       // 1. Try Supabase user_supplements table
       const { data: supaData, error: supaError } = await supabase
@@ -153,17 +239,19 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
         .eq('user_id', userId)
         .order('sort_order');
 
+      if (gen !== _gen) return; // signed out meanwhile
       if (!supaError && supaData) {
         if (supaData.length > 0) {
           const configs = supaData.map(mapRowToConfig);
           set({ supplementConfigs: configs });
-          await cacheConfigs(configs);
+          await cacheConfigs(userId, configs);
           return;
         }
         // Table exists but empty — seed from AsyncStorage or legacy
-        const json = await AsyncStorage.getItem(CONFIGS_KEY);
+        const json = await readUserScoped(CONFIGS_KEY, userId);
         if (json) {
           const cached = JSON.parse(json) as SupplementConfig[];
+          if (gen !== _gen) return;
           if (cached.length > 0) {
             set({ supplementConfigs: cached });
             const rows = cached.map((c, i) => configToRow(userId, c, i));
@@ -177,16 +265,18 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
           .select('creatine_goal')
           .eq('user_id', userId)
           .single();
+        if (gen !== _gen) return;
         const goal = legacy ? Number(legacy.creatine_goal) : 5;
         const defaults = [{ ...DEFAULT_CONFIGS[0], dailyGoal: goal }];
         set({ supplementConfigs: defaults });
         await supabase.from('user_supplements').insert(defaults.map((c, i) => configToRow(userId, c, i)));
-        await cacheConfigs(defaults);
+        await cacheConfigs(userId, defaults);
         return;
       }
 
-      // 2. Supabase table doesn't exist or errored — fall back to AsyncStorage
-      const json = await AsyncStorage.getItem(CONFIGS_KEY);
+      // 2. Supabase table doesn't exist or errored — fall back to this account's cached copy
+      const json = await readUserScoped(CONFIGS_KEY, userId);
+      if (gen !== _gen) return;
       if (json) {
         set({ supplementConfigs: JSON.parse(json) });
         return;
@@ -194,14 +284,15 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     } catch {}
 
     // 3. Nothing found — use defaults
+    if (gen !== _gen) return;
     set({ supplementConfigs: DEFAULT_CONFIGS });
-    await cacheConfigs(DEFAULT_CONFIGS);
+    await cacheConfigs(userId, DEFAULT_CONFIGS);
   },
 
   addSupplementConfig: async (userId: string, config: SupplementConfig) => {
     const configs = [...get().supplementConfigs, config];
     set({ supplementConfigs: configs });
-    await cacheConfigs(configs);
+    await cacheConfigs(userId, configs);
     let failed = false;
     try {
       const { error } = await supabase.from('user_supplements').insert(configToRow(userId, config, configs.length - 1));
@@ -211,7 +302,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       // Roll back only this config, keeping any other change made meanwhile
       const rolledBack = get().supplementConfigs.filter((c) => c.key !== config.key);
       set({ supplementConfigs: rolledBack });
-      await cacheConfigs(rolledBack);
+      await cacheConfigs(userId, rolledBack);
     }
   },
 
@@ -221,7 +312,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     const removed = index >= 0 ? prevConfigs[index] : null;
     const configs = prevConfigs.filter((c) => c.key !== key);
     set({ supplementConfigs: configs });
-    await cacheConfigs(configs);
+    await cacheConfigs(userId, configs);
     let failed = false;
     try {
       const { error } = await supabase
@@ -238,7 +329,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       const rolledBack = [...current];
       rolledBack.splice(Math.min(index, rolledBack.length), 0, removed);
       set({ supplementConfigs: rolledBack });
-      await cacheConfigs(rolledBack);
+      await cacheConfigs(userId, rolledBack);
     }
   },
 
@@ -246,7 +337,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
     const previous = get().supplementConfigs.find((c) => c.key === key);
     const configs = get().supplementConfigs.map((c) => (c.key === key ? { ...c, ...updates } : c));
     set({ supplementConfigs: configs });
-    await cacheConfigs(configs);
+    await cacheConfigs(userId, configs);
 
     const dbUpdates: Record<string, any> = {};
     if (updates.dailyGoal != null) dbUpdates.daily_goal = updates.dailyGoal;
@@ -258,12 +349,25 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
     let failed = false;
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('user_supplements')
         .update(dbUpdates)
         .eq('user_id', userId)
-        .eq('key', key);
+        .eq('key', key)
+        .select('key');
       failed = !!error;
+      // No row to update (its first upload never reached the server): an update "succeeds" while
+      // saving nothing, and the change is gone after a reinstall. Insert the whole config instead.
+      if (!error && (!data || data.length === 0)) {
+        const current = get().supplementConfigs;
+        const config = current.find((c) => c.key === key);
+        if (config) {
+          const { error: insertError } = await supabase
+            .from('user_supplements')
+            .insert(configToRow(userId, config, current.indexOf(config)));
+          failed = !!insertError;
+        }
+      }
     } catch { failed = true; }
     if (failed && previous) {
       // Restore the fields this call changed
@@ -273,8 +377,14 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       }
       const rolledBack = get().supplementConfigs.map((c) => (c.key === key ? { ...c, ...restore } : c));
       set({ supplementConfigs: rolledBack });
-      await cacheConfigs(rolledBack);
+      await cacheConfigs(userId, rolledBack);
     }
+  },
+
+  setWaterIncrements: async (userId: string, amounts: number[]) => {
+    if (amounts.length === 0) return;
+    set({ waterIncrements: amounts });
+    try { await writeUserScoped(WATER_AMOUNTS_KEY, userId, JSON.stringify(amounts)); } catch {}
   },
 
   /* ─── Data fetching ─────────────────────────────────── */
@@ -282,11 +392,29 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   fetchTodaySupplements: async (userId: string) => {
     const date = toLocalDateString();
     const key = `${userId}:${date}`;
+    const gen = _gen;
+    const requestId = ++_todayRequestId;
+    const writeSeq = _todayWriteSeq;
     const { data, error } = await supabase
       .from('supplement_entries')
       .select('type, amount')
       .eq('user_id', userId)
       .eq('date', date);
+    if (gen !== _gen) return; // signed out meanwhile
+    if (requestId !== _todayRequestId) return; // a newer load has started
+
+    // A tap (e.g. +250 ml) started while this loaded: these totals may not include it and would
+    // briefly undo it on screen. Keep the tapped totals and load again once the saves finish.
+    if (!error && data) {
+      if (_todayPending > 0) {
+        _reloadTodayFor = userId;
+        return;
+      }
+      if (writeSeq !== _todayWriteSeq) {
+        get().fetchTodaySupplements(userId);
+        return;
+      }
+    }
 
     if (error || !data) {
       // Offline or failed: keep today's progress on screen. Only clear it when what is shown
@@ -314,22 +442,25 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
   },
 
   fetchSupplementGoals: async (userId: string) => {
-    await get().loadSupplementConfigs(userId);
-
-    const { data } = await supabase
-      .from('supplement_goals')
-      .select('water_goal')
-      .eq('user_id', userId)
-      .single();
-
-    if (data) {
-      set({ waterGoal: Number(data.water_goal) });
-    }
+    const gen = _gen; // before any await, so a sign-out during the loads is caught too
+    // All three at once: the water card used to show the defaults for an extra round trip.
+    const [, raw, { data }] = await Promise.all([
+      get().loadSupplementConfigs(userId),
+      readUserScoped(WATER_AMOUNTS_KEY, userId).catch(() => null),
+      supabase.from('supplement_goals').select('water_goal').eq('user_id', userId).single(),
+    ]);
+    if (gen !== _gen) return;
+    try {
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed) && parsed.length > 0) set({ waterIncrements: parsed });
+    } catch {}
+    if (data) set({ waterGoal: Number(data.water_goal) });
   },
 
   fetchDateSupplements: async (userId: string, date: string) => {
     latestDateRequest = date;
     const requestId = ++dateRequestId;
+    dateLoadInFlight = true;
     // Switching day (or account): drop the old list so it never shows under the new date.
     const key = `${userId}:${date}`;
     if (key !== loadedDateKey) {
@@ -344,29 +475,37 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .order('created_at', { ascending: true });
 
     if (requestId !== dateRequestId) return;
+    dateLoadInFlight = false;
     set({ dateEntries: (data as SupplementEntry[]) || [], dateEntriesDate: date });
   },
 
   /* ─── Water actions ─────────────────────────────────── */
 
   addWater: async (userId: string, ml: number) => {
+    const gen = _gen;
     set((s) => ({ water: s.water + ml }));
 
-    const { error } = await supabase.from('supplement_entries').insert({
+    beginTodayWrite();
+    const { data: row, error } = await supabase.from('supplement_entries').insert({
       user_id: userId,
       type: 'water',
       amount: ml,
       date: toLocalDateString(),
-    });
+    }).select(ENTRY_COLUMNS).single();
 
     if (error) {
-      set((s) => ({ water: s.water - ml }));
+      if (gen === _gen) set((s) => ({ water: Math.max(0, s.water - ml) }));
     } else {
-      refreshDateEntriesIfToday(get, userId);
+      addToDateEntries(get, set, userId, row as SupplementEntry | null);
     }
+    endTodayWrite(get);
   },
 
   undoLastWater: async (userId: string) => {
+    // Two quick taps would otherwise both pick the same entry (and take it off twice).
+    if (_undoingKeys.has('water')) return;
+    _undoingKeys.add('water');
+    const gen = _gen;
     const date = toLocalDateString();
     const { data } = await supabase
       .from('supplement_entries')
@@ -378,26 +517,34 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       .limit(1)
       .single();
 
-    if (!data) return;
+    if (!data || gen !== _gen) {
+      // Nothing to undo, or signed out meanwhile (don't touch the next account's total).
+      _undoingKeys.delete('water');
+      return;
+    }
 
     const amount = Number(data.amount);
     set((s) => ({ water: Math.max(0, s.water - amount) }));
 
+    beginTodayWrite();
     const { error } = await supabase
       .from('supplement_entries')
       .delete()
       .eq('id', data.id);
 
     if (error) {
-      set((s) => ({ water: s.water + amount }));
+      if (gen === _gen) set((s) => ({ water: s.water + amount }));
     } else {
-      refreshDateEntriesIfToday(get, userId);
+      removeFromDateEntries(get, set, userId, data.id);
     }
+    _undoingKeys.delete('water');
+    endTodayWrite(get);
   },
 
   /* ─── Supplement entry actions ──────────────────────── */
 
   addSupplement: async (userId: string, key: string, amount: number) => {
+    const gen = _gen;
     set((s) => ({
       supplementTotals: {
         ...s.supplementTotals,
@@ -405,49 +552,65 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
       },
     }));
 
-    const { error } = await supabase.from('supplement_entries').insert({
+    beginTodayWrite();
+    const { data: row, error } = await supabase.from('supplement_entries').insert({
       user_id: userId,
       type: key,
       amount,
       date: toLocalDateString(),
-    });
+    }).select(ENTRY_COLUMNS).single();
 
     if (error) {
-      set((s) => ({
+      if (gen === _gen) set((s) => ({
         supplementTotals: {
           ...s.supplementTotals,
           [key]: Math.max(0, (s.supplementTotals[key] || 0) - amount),
         },
       }));
     } else {
-      refreshDateEntriesIfToday(get, userId);
+      addToDateEntries(get, set, userId, row as SupplementEntry | null);
     }
+    endTodayWrite(get);
   },
 
-  resetSupplement: async (userId: string, key: string) => {
-    const prev = get().supplementTotals[key] || 0;
-    set((s) => ({
-      supplementTotals: { ...s.supplementTotals, [key]: 0 },
-    }));
-
-    const { error } = await supabase
+  undoLastSupplement: async (userId: string, key: string) => {
+    if (_undoingKeys.has(key)) return;
+    _undoingKeys.add(key);
+    const gen = _gen;
+    beginTodayWrite();
+    const { data: last } = await supabase
       .from('supplement_entries')
-      .delete()
+      .select('id, amount')
       .eq('user_id', userId)
       .eq('date', toLocalDateString())
-      .eq('type', key);
+      .eq('type', key)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!last || gen !== _gen) {
+      _undoingKeys.delete(key);
+      endTodayWrite(get);
+      return;
+    }
+    const amount = Number(last.amount) || 0;
+    const sub = (v: number) => Math.max(0, Math.round((v - amount) * 100) / 100);
+    set((s) => ({ supplementTotals: { ...s.supplementTotals, [key]: sub(s.supplementTotals[key] || 0) } }));
 
+    const { error } = await supabase.from('supplement_entries').delete().eq('id', last.id);
     if (error) {
-      set((s) => ({
-        supplementTotals: { ...s.supplementTotals, [key]: prev },
+      if (gen === _gen) set((s) => ({
+        supplementTotals: { ...s.supplementTotals, [key]: Math.round(((s.supplementTotals[key] || 0) + amount) * 100) / 100 },
       }));
     } else {
-      refreshDateEntriesIfToday(get, userId);
+      removeFromDateEntries(get, set, userId, last.id);
     }
+    _undoingKeys.delete(key);
+    endTodayWrite(get);
   },
 
   deleteSupplementEntry: async (_userId: string, entry: SupplementEntry) => {
-    const prev = get().dateEntries;
+    const gen = _gen;
+    const shownDate = get().dateEntriesDate;
     // `water` / `supplementTotals` are today's totals: only touch them for today's entries.
     const isToday = get().dateEntriesDate === toLocalDateString();
     set((s) => ({
@@ -462,14 +625,18 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
           }),
     }));
 
+    if (isToday) beginTodayWrite();
     const { error } = await supabase
       .from('supplement_entries')
       .delete()
       .eq('id', entry.id);
 
-    if (error) {
+    if (error && gen === _gen) {
+      // Put back only this entry, and only while the same day is showing (and the same account).
       set((s) => ({
-        dateEntries: prev,
+        ...(s.dateEntriesDate === shownDate && !s.dateEntries.some((e) => e.id === entry.id)
+          ? { dateEntries: [...s.dateEntries, entry].sort((a, b) => a.created_at.localeCompare(b.created_at)) }
+          : {}),
         ...(!isToday ? {} : entry.type === 'water'
           ? { water: s.water + entry.amount }
           : {
@@ -480,6 +647,7 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
             }),
       }));
     }
+    if (isToday) endTodayWrite(get);
   },
 
   /* ─── Legacy goals (water) ──────────────────────────── */
@@ -489,15 +657,34 @@ export const useSupplementStore = create<SupplementState>((set, get) => ({
 
     if (goals.water_goal != null) set({ waterGoal: goals.water_goal });
 
-    const { error } = await supabase
+    // Update the account's row, or create it if there isn't one: an update alone "succeeds"
+    // while saving nothing for accounts without a row, so the goal was lost after a reinstall.
+    const res = await supabase
       .from('supplement_goals')
       .update(goals)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select('user_id');
+    let error = res.error;
+    if (!error && (!res.data || res.data.length === 0)) {
+      ({ error } = await supabase.from('supplement_goals').insert({ user_id: userId, ...goals }));
+    }
 
     if (error) {
       if (goals.water_goal != null) set({ waterGoal: prevWater });
       return { error: error.message };
     }
     return { error: null };
+  },
+
+  resetForSignOut: () => {
+    _gen++;
+    dateRequestId++;
+    dateLoadInFlight = false;
+    _todayRequestId++;
+    _reloadTodayFor = null;
+    latestDateRequest = null;
+    loadedDateKey = null;
+    loadedTodayKey = null;
+    set(INITIAL_STATE());
   },
 }));

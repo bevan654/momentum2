@@ -1,19 +1,20 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { Fonts } from '../../theme/typography';
 import { useSupplementStore, type SupplementConfig } from '../../stores/useSupplementStore';
+import { useProteinPowderStore, PROTEIN_POWDER_KEY } from '../../stores/useProteinPowderStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { sw, ms, SCREEN_WIDTH } from '../../theme/responsive';
+import { sw, ms } from '../../theme/responsive';
+import { useToday } from '../../hooks/useToday';
 import AddSupplementModal from './AddSupplementModal';
 import SupplementDetailModal, { formatIncrement } from './SupplementDetailModal';
+import ProteinPowderModal from './ProteinPowderModal';
 
 const GRID_GAP = sw(10);
-const GRID_PADDING = sw(16);
-const CELL_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
-const FULL_WIDTH = SCREEN_WIDTH - GRID_PADDING * 2;
+const COLUMNS = 2;
 
 /* ─── Supplement Cell (half-width card) ───────────────── */
 
@@ -21,6 +22,7 @@ interface CellProps {
   config: SupplementConfig;
   total: number;
   onAdd: (key: string, amount: number) => void;
+  /** Removes the most recent add (not the whole day). */
   onReset: (key: string) => void;
   /** When true, renders without own bg/shadow/width (used inside splitCard) */
   embedded?: boolean;
@@ -35,6 +37,9 @@ const SupplementCell = React.memo(function SupplementCell({
   const complete = total >= config.dailyGoal;
   const [expanded, setExpanded] = useState(false);
   const handleClose = useCallback(() => setExpanded(false), []);
+  // Protein powder always opens its picker (choose the powder and servings).
+  const isPowder = config.key === PROTEIN_POWDER_KEY;
+  const shown = Math.round(total * 100) / 100;
 
   return (
       <TouchableOpacity
@@ -57,8 +62,10 @@ const SupplementCell = React.memo(function SupplementCell({
 
         {/* Value */}
         <View style={styles.cellValueRow}>
-          <Text style={styles.cellCurrent}>{total}</Text>
-          <Text style={styles.cellGoal}>/{config.dailyGoal}{config.unit}</Text>
+          <Text style={styles.cellCurrent}>{shown}</Text>
+          <Text style={styles.cellGoal} numberOfLines={1}>
+            /{config.dailyGoal}{config.unit.length > 3 ? ` ${config.unit}` : config.unit}
+          </Text>
           {complete && (
             <Ionicons name="checkmark-circle" size={ms(14)} color={config.color} style={{ marginLeft: sw(4) }} />
           )}
@@ -72,9 +79,15 @@ const SupplementCell = React.memo(function SupplementCell({
         </View>
 
         {/* Buttons */}
-        {!complete && (
+        {isPowder ? (
           <View style={styles.cellButtons}>
-            {config.increments.map((inc) => (
+            <TouchableOpacity style={styles.cellAddBtn} onPress={() => setExpanded(true)} activeOpacity={0.7}>
+              <Text style={styles.cellAddBtnText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !complete && (
+          <View style={styles.cellButtons}>
+            {config.increments.slice(0, 3).map((inc) => (
               <TouchableOpacity
                 key={inc}
                 style={styles.cellAddBtn}
@@ -87,14 +100,18 @@ const SupplementCell = React.memo(function SupplementCell({
           </View>
         )}
         {/* Detail modal (portalled; builds nothing while closed) */}
-        <SupplementDetailModal
-          visible={expanded}
-          onClose={handleClose}
-          config={config}
-          total={total}
-          onAdd={onAdd}
-          onReset={onReset}
-        />
+        {isPowder ? (
+          <ProteinPowderModal visible={expanded} onClose={handleClose} config={config} />
+        ) : (
+          <SupplementDetailModal
+            visible={expanded}
+            onClose={handleClose}
+            config={config}
+            total={total}
+            onAdd={onAdd}
+            onReset={onReset}
+          />
+        )}
       </TouchableOpacity>
     );
 });
@@ -105,8 +122,22 @@ function SupplementsCard() {
   const configs = useSupplementStore((s) => s.supplementConfigs);
   const totals = useSupplementStore((s) => s.supplementTotals);
   const addSupplement = useSupplementStore((s) => s.addSupplement);
-  const resetSupplement = useSupplementStore((s) => s.resetSupplement);
+  const undoLastSupplement = useSupplementStore((s) => s.undoLastSupplement);
   const userId = useAuthStore((s) => s.user?.id);
+  const powderServings = useProteinPowderStore((s) => s.todayServings);
+  const hasPowder = configs.some((c) => c.key === PROTEIN_POWDER_KEY);
+
+  // Protein powder's servings load only for users who track it: now, at midnight, and when
+  // the app returns.
+  const today = useToday();
+  useEffect(() => {
+    if (!userId || !hasPowder) return;
+    useProteinPowderStore.getState().fetchToday(userId);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') useProteinPowderStore.getState().fetchToday(userId);
+    });
+    return () => sub.remove();
+  }, [userId, hasPowder, today]);
   const colors = useColors();
   const styles = useMemo(() => createCardStyles(colors), [colors]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -118,8 +149,13 @@ function SupplementsCard() {
 
   const handleReset = useCallback((key: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (userId) resetSupplement(userId, key);
-  }, [userId, resetSupplement]);
+    if (!userId) return;
+    // The cell's undo arrow: protein powder adds live in their own log (with a diary snack).
+    if (key === PROTEIN_POWDER_KEY) useProteinPowderStore.getState().undoLast(userId);
+    else undoLastSupplement(userId, key);
+  }, [userId, undoLastSupplement]);
+  // Protein powder's count comes from its own log (each add is also a diary snack).
+  const totalFor = (key: string) => (key === PROTEIN_POWDER_KEY ? powderServings : totals[key] || 0);
 
   let body: React.ReactNode;
 
@@ -145,7 +181,7 @@ function SupplementsCard() {
         <View style={styles.splitLeft}>
           <SupplementCell
             config={config}
-            total={totals[config.key] || 0}
+            total={totalFor(config.key)}
             onAdd={handleAdd}
             onReset={handleReset}
             embedded
@@ -165,17 +201,25 @@ function SupplementsCard() {
       </View>
     );
   } else {
-    // 2+ supplements → normal grid, no add button
+    // 2+ supplements → two per row, as many rows as needed. The rows share the card's real width
+    // (fixed widths from the screen size could add up to a hair too wide and wrap to one column),
+    // and an odd one out on the last row stretches to the full width.
+    const rows: SupplementConfig[][] = [];
+    for (let i = 0; i < configs.length; i += COLUMNS) rows.push(configs.slice(i, i + COLUMNS));
     body = (
       <View style={gridStyles.grid}>
-        {configs.map((config) => (
-          <View key={config.key} style={{ width: CELL_WIDTH }}>
-            <SupplementCell
-              config={config}
-              total={totals[config.key] || 0}
-              onAdd={handleAdd}
-              onReset={handleReset}
-            />
+        {rows.map((row) => (
+          <View key={row[0].key} style={gridStyles.row}>
+            {row.map((config) => (
+              <View key={config.key} style={gridStyles.item}>
+                <SupplementCell
+                  config={config}
+                  total={totalFor(config.key)}
+                  onAdd={handleAdd}
+                  onReset={handleReset}
+                />
+              </View>
+            ))}
           </View>
         ))}
       </View>
@@ -198,9 +242,15 @@ function SupplementsCard() {
 
 const gridStyles = StyleSheet.create({
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: GRID_GAP,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: GRID_GAP,
+  },
+  item: {
+    flex: 1,
+    minWidth: 0,
   },
 });
 
@@ -209,7 +259,7 @@ const gridStyles = StyleSheet.create({
 const createCardStyles = (colors: ThemeColors) => StyleSheet.create({
   /* Empty state (0 supplements) */
   emptyCard: {
-    width: FULL_WIDTH,
+    alignSelf: 'stretch',
     backgroundColor: colors.card,
     borderRadius: 0,
     borderWidth: 1,
@@ -228,7 +278,7 @@ const createCardStyles = (colors: ThemeColors) => StyleSheet.create({
 
   /* Split card (full-width, 1 supplement + add) */
   splitCard: {
-    width: FULL_WIDTH,
+    alignSelf: 'stretch',
     flexDirection: 'row',
     backgroundColor: colors.card,
     borderRadius: 0,

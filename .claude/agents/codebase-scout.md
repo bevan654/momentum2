@@ -24,7 +24,7 @@ You are the codebase scout for Momentum, a React Native (Expo SDK 54) fitness ap
 - Imperative calls through `src/lib/navigationBridge.ts`.
 - Supabase table, column and RPC names in strings (`.from('workouts')`, `.rpc('upsert_workout')`), plus SQL in `supabase/migrations/`.
 - Zustand store usage through selectors (`useXStore((s) => s.field)`): find the field name as text as well.
-- Asset `require()` paths, the dynamic `import()` in `components/food/FoodDetailModal.tsx`, and `scripts/stamp-build.js`'s hardcoded path to `src/constants/buildInfo.ts`.
+- Asset `require()` paths and `scripts/stamp-build.js`'s hardcoded path to `src/constants/buildInfo.ts`.
 - Native code in `modules/` and `targets/` (Swift/Kotlin); changes there need a store build.
 
 ## Report format

@@ -1,13 +1,15 @@
 import React, { useEffect, useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ActivityIndicator } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../theme/useColors';
 import { sw, ms } from '../theme/responsive';
-import { useFoodLogStore } from '../stores/useFoodLogStore';
+import { Fonts } from '../theme/typography';
+import { useFoodLogStore, whenWritesIdle } from '../stores/useFoodLogStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
+import { useProteinPowderStore, PROTEIN_POWDER_KEY } from '../stores/useProteinPowderStore';
 import MealList from '../components/food/MealList';
 import { hourFromTimeStart, mealSlotForHour, OTHER_SLOT, type MealBucket } from '../components/food/groupEntriesByMeal';
 import AddFoodModal from '../components/food/AddFoodModal';
@@ -16,9 +18,14 @@ import CreateMealModal from '../components/food/CreateMealModal';
 import NutritionHero from '../components/food/NutritionHero';
 import HydrationStrip from '../components/food/HydrationStrip';
 import DateNavigator from '../components/food/DateNavigator';
+import RefreshBanner, { type RefreshResult } from '../components/food/RefreshBanner';
+import UndoBanner, { type UndoOffer } from '../components/food/UndoBanner';
 import type { FoodDetailData } from '../components/food/FoodDetailModal';
 import type { FoodEntry } from '../stores/useFoodLogStore';
 import { useToday } from '../hooks/useToday';
+
+/** Protein powder's count follows its diary snacks: only users who track it load it. */
+const tracksPowder = () => useSupplementStore.getState().supplementConfigs.some((c) => c.key === PROTEIN_POWDER_KEY);
 
 function FoodLoggerScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -26,6 +33,7 @@ function FoodLoggerScreen() {
   const entries = useFoodLogStore((s) => s.entries);
   const goals = useFoodLogStore((s) => s.goals);
   const loading = useFoodLogStore((s) => s.loading);
+  const loadError = useFoodLogStore((s) => s.loadError);
 
   const setDate = useFoodLogStore((s) => s.setDate);
   const fetchDayEntries = useFoodLogStore((s) => s.fetchDayEntries);
@@ -34,6 +42,7 @@ function FoodLoggerScreen() {
   const deleteEntry = useFoodLogStore((s) => s.deleteEntry);
   const togglePlanned = useFoodLogStore((s) => s.togglePlanned);
   const deleteMealGroup = useFoodLogStore((s) => s.deleteMealGroup);
+  const restoreDeleted = useFoodLogStore((s) => s.restoreDeleted);
 
   const fetchDateSupplements = useSupplementStore((s) => s.fetchDateSupplements);
 
@@ -79,6 +88,12 @@ function FoodLoggerScreen() {
     fetchDateSupplements(userId, selectedDate);
   }, [userId, selectedDate]);
 
+  // Protein powder's adds for the day shown, also once it's turned on during the session.
+  const powderOn = useSupplementStore((s) => s.supplementConfigs.some((c) => c.key === PROTEIN_POWDER_KEY));
+  useEffect(() => {
+    if (userId && powderOn) useProteinPowderStore.getState().fetchDate(userId, selectedDate);
+  }, [userId, selectedDate, powderOn]);
+
   // No auto-scroll to the current hour: the day summary at the top should stay in view.
   const todayStr = useToday();
   const isToday = selectedDate === todayStr;
@@ -106,6 +121,7 @@ function FoodLoggerScreen() {
     if (!userId || totalsDayRef.current === todayStr) return;
     totalsDayRef.current = todayStr;
     useSupplementStore.getState().fetchTodaySupplements(userId);
+    if (tracksPowder()) useProteinPowderStore.getState().fetchToday(userId);
   }, [userId, todayStr]);
 
   // Always pass an hour so food lands on the day being viewed: now for today,
@@ -119,24 +135,49 @@ function FoodLoggerScreen() {
     setAddModalVisible(true);
   }, [isToday]);
 
+  // The meal for the current time; on another day, logged at that meal's usual start time
+  // (like the meal "+" buttons), not at this hour of that day.
   const handleFabPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const h = new Date().getHours();
-    setAddMealSlot(mealSlotForHour(useFoodLogStore.getState().mealConfigs, h));
-    setAddHour(h);
+    const configs = useFoodLogStore.getState().mealConfigs;
+    const nowHour = new Date().getHours();
+    const slot = mealSlotForHour(configs, nowHour);
+    const meal = configs.find((c) => c.slot === slot);
+    setAddMealSlot(slot);
+    setAddHour(isToday || !meal ? nowHour : hourFromTimeStart(meal.time_start));
     setAddModalVisible(true);
-  }, []);
+  }, [isToday]);
 
   const handleDismissModal = useCallback(() => {
     setAddModalVisible(false);
   }, []);
 
-  const handleRefresh = useCallback(() => {
+  // Only a pull shows the refresh spinner; switching days has its own loading row below.
+  const [refreshing, setRefreshing] = useState(false);
+  // Shown in a small banner once the pull finishes, so it's clear the refresh did something.
+  const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
+  const handleRefresh = useCallback(async () => {
     if (!userId) return;
-    fetchDayEntries(userId, selectedDate);
-    fetchDateSupplements(userId, selectedDate);
-    if (isToday) useSupplementStore.getState().fetchTodaySupplements(userId);
+    setRefreshing(true);
+    let ok = false;
+    try {
+      await Promise.all([
+        fetchDayEntries(userId, selectedDate),
+        fetchDateSupplements(userId, selectedDate),
+        tracksPowder() ? useProteinPowderStore.getState().fetchDate(userId, selectedDate) : null,
+        fetchMealConfigs(userId),
+        isToday ? useSupplementStore.getState().fetchTodaySupplements(userId) : null,
+      ]);
+      ok = !useFoodLogStore.getState().loadError;
+    } finally {
+      setRefreshing(false);
+      setRefreshResult((prev) => ({ ok, id: (prev?.id ?? 0) + 1 }));
+    }
   }, [userId, selectedDate, isToday]);
+
+  const handleRetry = useCallback(() => {
+    if (userId) fetchDayEntries(userId, selectedDate);
+  }, [userId, selectedDate]);
 
   // Tap entry → open detail modal
   // Clear the edited entry after the close animation; cancel that if another entry opens first,
@@ -149,6 +190,8 @@ function FoodLoggerScreen() {
   useEffect(() => () => { if (clearEditTimer.current) clearTimeout(clearEditTimer.current); }, []);
 
   const handlePressEntry = useCallback((entry: FoodEntry) => {
+    // Still saving (temporary id): nothing to edit yet.
+    if (entry.id.startsWith('temp-')) return;
     if (clearEditTimer.current) clearTimeout(clearEditTimer.current);
     setEditEntry(entry);
     setEditDetailVisible(true);
@@ -193,17 +236,75 @@ function FoodLoggerScreen() {
     clearEditEntrySoon();
   }, []);
 
-  // When edit detail saves, update the existing entry instead of creating new
+  // The last delete, offered for a few seconds as "Deleted … · Undo".
+  const [undoOffer, setUndoOffer] = useState<UndoOffer | null>(null);
+  const undoRowsRef = React.useRef<FoodEntry[]>([]); // React.useRef: the redesign drops the named import
+  // A deleted (or restored) protein powder snack changes the serving count: reload it after.
+  const refreshPowder = useCallback((ids?: string[]) => {
+    if (!userId || !tracksPowder()) return;
+    // Only a protein snack changes the count: skip the reload for any other food (once the day's
+    // adds are known; before that, reload to be safe).
+    const { dateLogs, logsDate } = useProteinPowderStore.getState();
+    const known = logsDate === useFoodLogStore.getState().selectedDate && dateLogs.length > 0;
+    if (ids && known && !dateLogs.some((l) => ids.includes(l.food_entry_id))) return;
+    useProteinPowderStore.getState().refresh(userId);
+  }, [userId]);
+
+  // When edit detail saves, update the existing entry instead of creating new. Editing a protein
+  // powder snack's servings changes the count, which follows the snack: reload it once saved.
   const handleEditSaved = useCallback(() => {
+    const id = editEntry?.id;
     setEditDetailVisible(false);
     clearEditEntrySoon();
+    if (id) whenWritesIdle().then(() => refreshPowder([id]));
+  }, [editEntry?.id, refreshPowder]);
+
+  // Protein powder adds whose snacks were just deleted: Undo links them back to the snacks it
+  // restores (the delete cleared the link, which is what took them off the count).
+  const undoLinksRef = React.useRef<{ logId: string; foodEntryId: string }[]>([]);
+  const offerUndo = useCallback((rows: FoodEntry[], message: string) => {
+    if (rows.length === 0) return;
+    undoRowsRef.current = rows;
+    const ids = new Set(rows.map((r) => r.id));
+    undoLinksRef.current = useProteinPowderStore.getState().dateLogs
+      .filter((l) => ids.has(l.food_entry_id))
+      .map((l) => ({ logId: l.id, foodEntryId: l.food_entry_id }));
+    setUndoOffer((prev) => ({ message, id: (prev?.id ?? 0) + 1 }));
   }, []);
+  const handleUndo = useCallback(() => {
+    const rows = undoRowsRef.current;
+    const links = undoLinksRef.current;
+    undoRowsRef.current = [];
+    undoLinksRef.current = [];
+    setUndoOffer(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    restoreDeleted(rows).then(() => {
+      if (userId && links.length > 0) useProteinPowderStore.getState().relink(userId, links);
+      else refreshPowder(rows.map((r) => r.id));
+    });
+  }, [restoreDeleted, refreshPowder, userId]);
+  const handleUndoExpire = useCallback(() => {
+    undoRowsRef.current = [];
+    undoLinksRef.current = [];
+    setUndoOffer(null);
+  }, []);
+  // Opening a sheet ends the Undo offer: it would otherwise come back (with a fresh timer) after it.
+  useEffect(() => {
+    if (sheetOpen && undoRowsRef.current.length > 0) handleUndoExpire();
+  }, [sheetOpen, handleUndoExpire]);
 
   const handleDeleteEntry = useCallback((id: string) => {
+    const removed = useFoodLogStore.getState().entries.filter((e) => e.id === id);
+    offerUndo(removed, `Deleted ${removed[0]?.name ?? 'food'}`);
     setEditDetailVisible(false);
-    deleteEntry(id);
+    deleteEntry(id).then((ok) => {
+      // It's back on screen: its Undo would now re-insert (or hide) a food that still exists.
+      // Only withdraw it if it's still this food's offer (not a later delete's).
+      if (!ok && undoRowsRef.current.some((r) => r.id === id)) handleUndoExpire();
+      refreshPowder([id]);
+    });
     clearEditEntrySoon();
-  }, [deleteEntry]);
+  }, [deleteEntry, offerUndo, refreshPowder, handleUndoExpire]);
 
   // Meal group handlers
   const handlePressMealGroup = useCallback((groupId: string, groupEntries: FoodEntry[]) => {
@@ -216,8 +317,10 @@ function FoodLoggerScreen() {
   }, []);
 
   const handleDeleteMealGroup = useCallback((groupId: string) => {
-    deleteMealGroup(groupId);
-  }, [deleteMealGroup]);
+    const removed = useFoodLogStore.getState().entries.filter((e) => e.meal_group_id === groupId);
+    offerUndo(removed, `Deleted ${removed[0]?.meal_group_name || 'meal'}`);
+    deleteMealGroup(groupId).then(() => refreshPowder(removed.map((r) => r.id)));
+  }, [deleteMealGroup, offerUndo, refreshPowder]);
 
   const handleDismissGroupEdit = useCallback(() => {
     setEditGroupModalVisible(false);
@@ -234,17 +337,29 @@ function FoodLoggerScreen() {
   return (
     <View style={styles.screen}>
       <DateNavigator selectedDate={selectedDate} today={todayStr} onDateSelect={setDate} />
+      <View style={styles.diaryPage}>
       <ScrollView
         style={styles.diaryPage}
         showsVerticalScrollIndicator={false}
-        bounces={false}
-        overScrollMode="never"
+        // Bounce (iOS) and stretch (Android) at the ends instead of stopping dead; iOS also
+        // needs the bounce to start pull-to-refresh.
         removeClippedSubviews
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={handleRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
         <View>
+          {loadError ? (
+            <TouchableOpacity style={styles.statusRow} onPress={handleRetry} activeOpacity={0.7} accessibilityRole="button">
+              <Ionicons name="cloud-offline-outline" size={ms(15)} color={colors.accentOrange} />
+              <Text style={styles.statusText}>Couldn't load this day. Tap to try again.</Text>
+            </TouchableOpacity>
+          ) : loading && entries.length === 0 && !refreshing ? (
+            <View style={styles.statusRow}>
+              <ActivityIndicator size="small" color={colors.textTertiary} />
+              <Text style={styles.statusText}>Loading…</Text>
+            </View>
+          ) : null}
           <NutritionHero entries={entries} goals={goals} />
           <HydrationStrip isToday={isToday} />
           <View style={styles.mealsGap} />
@@ -253,11 +368,14 @@ function FoodLoggerScreen() {
             onAdd={handleAddToMeal}
             onPressEntry={handlePressEntry}
             onTogglePlanned={togglePlanned}
+            onDeleteEntry={handleDeleteEntry}
             onPressGroup={handlePressMealGroup}
             onDeleteGroup={handleDeleteMealGroup}
           />
         </View>
       </ScrollView>
+      <RefreshBanner result={refreshResult} />
+      </View>
       <AddFoodModal
         visible={addModalVisible}
         mealSlot={addMealSlot}
@@ -286,6 +404,13 @@ function FoodLoggerScreen() {
         onLogged={handleGroupEditLogged}
         editMealGroupId={editGroupId}
         editMealGroupEntries={editGroupEntries}
+        bottomInset={sw(12)}
+      />
+      {/* Hidden while a sheet is open, like the + button: it sat over the edit screens' buttons. */}
+      <UndoBanner
+        offer={sheetOpen ? null : undoOffer}
+        onUndo={handleUndo}
+        onExpire={handleUndoExpire}
       />
       {!addModalVisible && !editDetailVisible && !editGroupModalVisible && (
         <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.8}>
@@ -302,6 +427,25 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sw(8),
+    marginHorizontal: sw(16),
+    marginTop: sw(8),
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(10),
+    borderRadius: sw(12),
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  statusText: {
+    flex: 1,
+    color: colors.textSecondary,
+    fontSize: ms(12),
+    fontFamily: Fonts.medium,
   },
   mealsGap: {
     height: sw(12),

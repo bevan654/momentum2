@@ -67,9 +67,14 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const loadFavourites = useFavouritesStore((st) => st.loadFavourites);
 
   const [query, setQuery] = useState('');
+  /** The text the last search ran for (set after the debounce): the results are grouped by it,
+   *  so typing doesn't rebuild the whole list on every keystroke. */
+  const [searchedQuery, setSearchedQuery] = useState('');
   const [tab, setTab] = useState<AddFoodTab>('home');
   const [deepSearchEnabled, setDeepSearchEnabled] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True while the 300 ms debounce waits, so "No results" doesn't flash before the search starts.
+  const [searchPending, setSearchPending] = useState(false);
   const ai = useAiFoodSearch(query);
 
   // Child screens
@@ -77,6 +82,9 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const [detailVisible, setDetailVisible] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [macroLensVisible, setMacroLensVisible] = useState(false);
+  // Once opened, MacroLens stays mounted (hidden) so the items left from a scan can still be
+  // logged without another scan; it drops them itself after a while.
+  const [lensMounted, setLensMounted] = useState(false);
   const [scanNotFound, setScanNotFound] = useState<string | null>(null);
   const [createMealVisible, setCreateMealVisible] = useState(false);
   const [selectedSavedMeal, setSelectedSavedMeal] = useState<SavedMeal | null>(null);
@@ -114,7 +122,9 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   useEffect(() => {
     if (visible) return;
     if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null; }
+    setSearchPending(false);
     setQuery('');
+    setSearchedQuery('');
     clearSearch();
     ai.clearCache();
     setDetailFood(null);
@@ -133,7 +143,10 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const handleSearch = useCallback((text: string) => {
     setQuery(text);
     if (searchTimer.current) clearTimeout(searchTimer.current);
+    setSearchPending(text.trim().length >= 2);
     searchTimer.current = setTimeout(() => {
+      setSearchPending(false);
+      setSearchedQuery(text);
       searchCatalog(text);
       searchCache(text);
     }, 300);
@@ -141,18 +154,40 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
 
   const handleClearSearch = useCallback(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
+    setSearchPending(false);
     setQuery('');
+    setSearchedQuery('');
     clearSearch();
     clearCache();
   }, [clearSearch, clearCache]);
 
-  // Catalog first, then earlier AI estimates not already in the catalog (by name).
-  const results = useMemo(() => {
-    if (ai.showAiResults) return ai.aiResults;
-    if (ai.cachedResults.length === 0) return catalogResults;
-    const seen = new Set(catalogResults.map((r) => r.name.toLowerCase()));
-    return [...catalogResults, ...ai.cachedResults.filter((r) => !seen.has(r.name.toLowerCase()))];
-  }, [ai.showAiResults, ai.aiResults, ai.cachedResults, catalogResults]);
+  // Search results in two groups: the user's own foods (favourites and foods they've logged
+  // that match), then everything else (catalog, other users' foods, earlier AI estimates).
+  // A Deep Search answer is shown on its own.
+  const { myResults, results } = useMemo(() => {
+    if (ai.showAiResults) return { myResults: [] as FoodCatalogItem[], results: ai.aiResults };
+    const q = searchedQuery.trim().toLowerCase();
+    const seen = new Set<string>();
+    const mine: FoodCatalogItem[] = [];
+    for (const f of favourites) {
+      const key = f.name.toLowerCase();
+      if (q.length >= 2 && key.includes(q) && !seen.has(key)) { seen.add(key); mine.push(f); }
+    }
+    const others: FoodCatalogItem[] = [];
+    for (const r of catalogResults) {
+      const key = r.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      (r.confidence === 'user' ? mine : others).push(r);
+    }
+    for (const r of ai.cachedResults) {
+      const key = r.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      others.push(r);
+    }
+    return { myResults: mine, results: others };
+  }, [ai.showAiResults, ai.aiResults, ai.cachedResults, catalogResults, favourites, searchedQuery]);
 
   /* ── Child screens ────────────────────────────────── */
   const openDetail = useCallback((food: FoodDetailData) => { setDetailFood(food); setDetailVisible(true); }, []);
@@ -163,18 +198,27 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const handleOpenScanner = useCallback(() => { setScanNotFound(null); setScannerVisible(true); }, []);
   const handleScanDismiss = useCallback(() => setScannerVisible(false), []);
   const handleScanFound = useCallback((food: FoodDetailData) => { setScannerVisible(false); openDetail(food); }, [openDetail]);
-  const handleScanNotFound = useCallback(() => {
+  const handleScanNotFound = useCallback((_barcode: string, failed?: boolean) => {
     setScannerVisible(false);
-    setScanNotFound('Product not found. Try searching for it instead.');
+    setScanNotFound(failed
+      ? "Couldn't look up that barcode. Check your connection and try again."
+      : 'Product not found. Try searching for it instead.');
   }, []);
 
-  const handleOpenLens = useCallback(() => { setScanNotFound(null); setMacroLensVisible(true); }, []);
+  const handleOpenLens = useCallback(() => { setScanNotFound(null); setLensMounted(true); setMacroLensVisible(true); }, []);
   const handleLensDismiss = useCallback(() => setMacroLensVisible(false), []);
   const handleLensFound = useCallback((food: FoodDetailData) => { setMacroLensVisible(false); openDetail(food); }, [openDetail]);
 
   const handleOpenCreateMeal = useCallback(() => { setSelectedSavedMeal(null); setCreateMealVisible(true); }, []);
   const handleOpenSavedMeal = useCallback((meal: SavedMeal) => { setSelectedSavedMeal(meal); setCreateMealVisible(true); }, []);
-  const handleCreateMealDismiss = useCallback(() => { setCreateMealVisible(false); setSelectedSavedMeal(null); }, []);
+  const handleCreateMealDismiss = useCallback(() => {
+    setCreateMealVisible(false);
+    setSelectedSavedMeal(null);
+    // Make a meal's own searches replaced (and on close cleared) the shared results. Searched
+    // again after it has unmounted: its clear-on-unmount would otherwise cancel this search.
+    const q = searchedQuery;
+    if (q.trim().length >= 2) setTimeout(() => searchCatalog(q), 0);
+  }, [searchedQuery, searchCatalog]);
   const handleMealLogged = useCallback(() => {
     setCreateMealVisible(false);
     setSelectedSavedMeal(null);
@@ -208,7 +252,8 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
   const handleCloseReport = useCallback(() => setReportTarget(null), []);
 
   /* ── List header: actions, tabs, banners ──────────── */
-  const searching = query.length > 0;
+  // Searches need 2 characters; with 1, keep showing the normal lists instead of "No results".
+  const searching = query.trim().length >= 2;
   const { showAiResults, hideAiResults, aiError } = ai;
   const listHeader = useMemo(() => (
     <View style={s.listHeader}>
@@ -273,9 +318,10 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
         />
         <View style={s.flex}>
           <AddFoodResults
-            searching={query.length > 0}
+            searching={searching}
             tab={tab}
-            loading={catalogLoading || ai.aiSearching}
+            loading={catalogLoading || ai.aiSearching || searchPending}
+            myResults={myResults}
             results={results}
             aiMode={ai.showAiResults}
             recentFoods={recentFoods}
@@ -329,7 +375,7 @@ function AddFoodModal({ visible, mealSlot, targetHour, onDismiss }: Props) {
           onNotFound={handleScanNotFound}
         />
       )}
-      {macroLensVisible && (
+      {lensMounted && (
         <MacroLensModal visible={macroLensVisible} onDismiss={handleLensDismiss} onFoodFound={handleLensFound} />
       )}
       {createMealVisible && (

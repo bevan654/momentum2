@@ -61,28 +61,38 @@ function FoodLogOptions({ meals, mealSlot, onMealSelect, isPlanned, onPlannedCha
       .sort((a, b) => a.sort_order - b.sort_order),
     [meals, mealSlot],
   );
+  // Two per row so every meal is on screen (no sideways scrolling); an odd one out stretches.
+  const mealRows = useMemo(() => {
+    const rows: MealConfig[][] = [];
+    for (let i = 0; i < enabled.length; i += 2) rows.push(enabled.slice(i, i + 2));
+    return rows;
+  }, [enabled]);
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>Meal</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        {enabled.map((m) => {
-          const active = m.slot === mealSlot;
-          return (
-            <Pressable
-              key={m.slot}
-              onPress={() => onMealSelect(m.slot)}
-              style={[styles.chip, active && styles.chipActive]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={m.label}
-            >
-              <Ionicons name={(m.icon || 'restaurant-outline') as IconName} size={ms(14)} color={active ? colors.textOnAccent : colors.textSecondary} />
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{m.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <View style={styles.mealGrid}>
+        {mealRows.map((row) => (
+          <View key={row[0].slot} style={styles.mealRow}>
+            {row.map((m) => {
+              const active = m.slot === mealSlot;
+              return (
+                <Pressable
+                  key={m.slot}
+                  onPress={() => onMealSelect(m.slot)}
+                  style={[styles.chip, styles.mealChip, active && styles.chipActive]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={m.label}
+                >
+                  <Ionicons name={(m.icon || 'restaurant-outline') as IconName} size={ms(14)} color={active ? colors.textOnAccent : colors.textSecondary} />
+                  <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{m.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
+      </View>
 
       <Text style={styles.label}>When</Text>
       <View style={styles.segment}>
@@ -143,6 +153,18 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.card,
       borderWidth: 1,
       borderColor: colors.cardBorder,
+    },
+    mealGrid: {
+      gap: sw(8),
+    },
+    mealRow: {
+      flexDirection: 'row',
+      gap: sw(8),
+    },
+    mealChip: {
+      flex: 1,
+      minWidth: 0,
+      justifyContent: 'center',
     },
     chipActive: {
       backgroundColor: colors.accent,

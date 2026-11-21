@@ -1,11 +1,9 @@
-import type { FoodCatalogItem } from '../../stores/useFoodLogStore';
+import { MICRO_KEYS, type FoodCatalogItem } from '../../stores/useFoodLogStore';
 import type { SavedMeal } from '../../stores/useSavedMealsStore';
 import type { FoodDetailData } from './FoodDetailModal';
 
-const MICRO_KEYS = [
-  'vitamin_a', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'vitamin_k', 'vitamin_b6', 'vitamin_b12',
-  'folate', 'calcium', 'iron', 'magnesium', 'potassium', 'zinc', 'sodium',
-] as const;
+/** The micronutrient columns ai_food_cache has: everything but caffeine, which it has no column for. */
+const CACHE_MICRO_KEYS = MICRO_KEYS.filter((k) => k !== 'caffeine');
 
 type Row = Record<string, unknown>;
 
@@ -49,7 +47,7 @@ export function aiItemsToCacheRows(items: Row[], searchQuery: string, fallbackNa
       serving_size: item.serving_size ?? 100,
       serving_unit: item.serving_unit ?? 'g',
     };
-    for (const k of MICRO_KEYS) row[k] = item[k] ?? null;
+    for (const k of CACHE_MICRO_KEYS) row[k] = item[k] ?? null;
     return row;
   });
 }
@@ -69,7 +67,6 @@ export function catalogToDetail(item: FoodCatalogItem): FoodDetailData {
     serving_size: item.serving_size,
     serving_unit: item.serving_unit,
     confidence: item.confidence,
-    caffeine: item.caffeine,
   };
   for (const k of MICRO_KEYS) (data as unknown as Row)[k] = item[k];
   return data;

@@ -57,6 +57,7 @@ function MacroGoalEditor() {
   const userId = useAuthStore((s) => s.user?.id);
   const goals = useFoodLogStore((s) => s.goals);
   const updateGoals = useFoodLogStore((s) => s.updateGoals);
+  const goalsLoaded = useFoodLogStore((s) => s.goalsLoaded);
   const enabledMacros = useNutrientGoalStore((s) => s.enabledMacros);
   const setEnabledMacros = useNutrientGoalStore((s) => s.setEnabledMacros);
   const loadConfigs = useNutrientGoalStore((s) => s.loadConfigs);
@@ -68,6 +69,11 @@ function MacroGoalEditor() {
   useEffect(() => {
     if (!loaded) loadConfigs();
   }, [loaded, loadConfigs]);
+
+  // Until the account's goals load, the rows show defaults: load them now.
+  useEffect(() => {
+    if (userId && !goalsLoaded) useFoodLogStore.getState().fetchGoals(userId);
+  }, [userId, goalsLoaded]);
 
   const enabledSet = useMemo(() => new Set(enabledMacros), [enabledMacros]);
   const activePresets = useMemo(() => MACRO_PRESETS.filter((p) => enabledSet.has(p.key)), [enabledSet]);
@@ -83,9 +89,11 @@ function MacroGoalEditor() {
   }, [goals]);
 
   const handleGoalChange = useCallback((field: string, value: number) => {
-    if (!userId) return;
+    // Not loaded yet: saving would replace the account's goal with the default on screen.
+    if (!userId || !goalsLoaded) return;
+    if (goals[field as keyof typeof goals] === value) return;
     updateGoals(userId, { [field]: value });
-  }, [userId, updateGoals]);
+  }, [userId, goalsLoaded, goals, updateGoals]);
 
   const handleRemove = useCallback((key: string) => {
     setEnabledMacros(enabledMacros.filter((k) => k !== key));
