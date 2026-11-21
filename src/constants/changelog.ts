@@ -16,15 +16,37 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.49',
+    date: '2026-11-21',
+    title: "What's New",
+    items: [
+      'iPhone: your Lock Screen workout now shows your next set, last time and PRs, and on iOS 17+ has buttons to finish a set, change reps and end your rest',
+      'iPhone: the Dynamic Island shows your workout and rest timer, and opens into the same controls (iPhones with a Dynamic Island)',
+      'iPhone: home screen widgets for calories, protein, macros, your streak, recovery and your last workout, in small, medium and large sizes',
+    ],
+  },
+  {
     version: '1.0.48',
     date: '2026-11-20',
     title: "What's New",
     items: [
-      'Your Lock Screen workout now shows your next set, last time and PRs, and on iOS 17+ has buttons to finish a set, change reps and end your rest',
-      'The Dynamic Island shows your workout and rest timer, and opens into the same controls (iPhone 14 Pro and newer)',
-      'Home screen widgets for calories, protein, macros, your streak, recovery and your last workout, in small, medium and large sizes',
+      'Protein powder is a supplement now: save each powder with its macros, then pick one and any number of servings on Home. It is added to Snacks in your food diary for you',
+      'Make a meal: scan a barcode or quick add calories and macros straight into the meal, no need to log a food on its own first',
+      'Delete saved meals with the bin on each meal, and leaving an unsaved meal now asks first',
+      'Foods you logged stay in Recent and in search even after you delete them from the diary',
+      'Set your own quick amounts for water and each supplement (long-press its tile in the diary)',
+      'Undo on a supplement now removes only the last add, and you can track more than two supplements on Home',
+      'Delete a food right from the diary with the bin on its row, and undo it for a few seconds after',
+      'Quick add lets you pick a unit (servings, g, ml, oz, cup) and how many',
+      'Smoother diary: switching days shows days you have already seen straight away, and adding or deleting food only redraws that meal',
+      'Calorie, macro and water goals and your supplement changes now save reliably to your account',
+      "Barcode scanning tells you when it couldn't look a product up (no connection) instead of saying it wasn't found",
+      "Fixed: changing goals didn't save on some older accounts",
+      "Fixed: Home's nutrient popup showed the day open in the diary instead of today",
+      'Fixed: MacroLens forgot the other foods in a photo after you logged one',
       'Fixed: planned meals no longer count as eaten on the Home screen',
     ],
+    cta: { label: 'Open Nutrition', target: 'Nutrition' },
   },
   {
     version: '1.0.47',

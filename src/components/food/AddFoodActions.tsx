@@ -9,21 +9,23 @@ type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface Props {
   onScan: () => void;
-  onLens: () => void;
   onQuickAdd: () => void;
-  onMeal: () => void;
+  /** Leave out to hide the tile (Make a meal shows only Scan and Quick add). */
+  onLens?: () => void;
+  onMeal?: () => void;
 }
 
-/** The four ways to log besides search: barcode, AI photo, quick numbers, build a meal. */
+/** The ways to log besides search: barcode, AI photo, quick numbers, build a meal. */
 function AddFoodActions({ onScan, onLens, onQuickAdd, onMeal }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const tiles: { key: string; icon: IconName; label: string; onPress: () => void }[] = [
+  const tiles = ([
     { key: 'scan', icon: 'barcode-outline', label: 'Scan', onPress: onScan },
     { key: 'lens', icon: 'aperture-outline', label: 'MacroLens', onPress: onLens },
     { key: 'quick', icon: 'flash-outline', label: 'Quick add', onPress: onQuickAdd },
     { key: 'meal', icon: 'restaurant-outline', label: 'Make a meal', onPress: onMeal },
-  ];
+  ] as { key: string; icon: IconName; label: string; onPress?: () => void }[])
+    .filter((t): t is { key: string; icon: IconName; label: string; onPress: () => void } => !!t.onPress);
   return (
     <View style={styles.row}>
       {tiles.map((t) => (

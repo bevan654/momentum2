@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useColors, type ThemeColors } from '../../theme/useColors';
 import { sw, ms } from '../../theme/responsive';
@@ -13,6 +13,9 @@ import PrimaryActionBar from './ui/PrimaryActionBar';
 import NumberField from './ui/NumberField';
 import MacroSplitBar from './MacroSplitBar';
 import { findMealConfig } from './groupEntriesByMeal';
+import { sanitizeDecimal } from './decimalInput';
+import RevealTextInput from './ui/RevealTextInput';
+import type { MealItemData } from './foodDetailTypes';
 
 interface Props {
   visible: boolean;
@@ -20,15 +23,31 @@ interface Props {
   targetHour?: number;
   onDismiss: () => void;
   onAdded: () => void;
+  /**
+   * Make a meal: return the food as a meal item (values for one serving, plus how many)
+   * instead of logging it to the diary.
+   */
+  onSubmitItem?: (item: MealItemData) => void;
+  /** Overrides the "to Breakfast" subtitle (e.g. "to your meal"). */
+  subtitle?: string;
+  /** Screen-level use: Android back only closes this while it returns true (e.g. tab focused). */
+  isBackActive?: () => boolean;
+  /** Space under the button when the keyboard is closed (pass a small value above a tab bar). */
+  bottomInset?: number;
 }
 
 const KJ_PER_KCAL = 4.184;
+
+/** Units a quick add can be logged in. "serving" counts servings; the rest are an amount. */
+const SERVING_UNITS = ['serving', 'g', 'ml', 'oz', 'cup'] as const;
+type ServingUnit = (typeof SERVING_UNITS)[number];
+const DEFAULT_AMOUNT: Record<ServingUnit, string> = { serving: '1', g: '100', ml: '250', oz: '1', cup: '1' };
 
 /**
  * Quick add: log calories and macros without picking a food. Calories left blank are
  * worked out from the macros (P and C 4 kcal/g, F 9 kcal/g). Only tracked micros are shown.
  */
-function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Props) {
+function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded, onSubmitItem, subtitle, isBackActive, bottomInset }: Props) {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
   const isDark = useThemeStore((st) => st.mode) === 'dark';
@@ -46,6 +65,10 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
   }, [loaded, loadConfigs]);
 
   const [name, setName] = useState('');
+  const [servingUnit, setServingUnit] = useState<ServingUnit>('serving');
+  const [amount, setAmount] = useState(DEFAULT_AMOUNT.serving);
+  /** How many servings to log in one go (typed, so any number works). */
+  const [count, setCount] = useState('1');
   const [calories, setCalories] = useState('');
   const [kj, setKj] = useState('');
   const [protein, setProtein] = useState('');
@@ -73,6 +96,9 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
   useEffect(() => {
     if (visible) return;
     setName('');
+    setServingUnit('serving');
+    setAmount(DEFAULT_AMOUNT.serving);
+    setCount('1');
     setCalories('');
     setKj('');
     setProtein('');
@@ -80,6 +106,13 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
     setFat('');
     setMicroValues({});
   }, [visible]);
+
+  // Switching unit starts from a typical amount (1 serving, 100 g, 250 ml...).
+  const handleUnitChange = useCallback((unit: ServingUnit) => {
+    Haptics.selectionAsync();
+    setServingUnit(unit);
+    setAmount(DEFAULT_AMOUNT[unit]);
+  }, []);
 
   const handleMicroChange = useCallback((key: string, value: string) => {
     setMicroValues((prev) => ({ ...prev, [key]: value }));
@@ -90,48 +123,90 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
   const f = Number(fat) || 0;
   const fromMacros = Math.round(p * 4 + c * 4 + f * 9);
   const entered = Number(calories) || 0;
-  // What the screen shows and what gets saved: typed calories, else worked out from macros.
-  const previewCal = entered > 0 ? entered : fromMacros;
+  // One serving: typed calories, else worked out from macros.
+  const perServingCal = entered > 0 ? entered : fromMacros;
   const autoCalc = entered <= 0 && fromMacros > 0;
+  const multiplier = Number(count) > 0 ? Number(count) : 1;
+  // What the screen shows and what gets saved: one serving × how many.
+  const previewCal = Math.round(perServingCal * multiplier);
+  const round1 = (v: number) => Math.round(v * 10) / 10;
+  // A "serving" is one serving; other units have a size (250 ml, 100 g...).
+  const amountNum = servingUnit === 'serving' ? 1 : Number(amount) > 0 ? Number(amount) : 1;
   const canSubmit = entered > 0 || p > 0 || c > 0 || f > 0;
 
   const handleAdd = useCallback(() => {
-    if (!userId || !canSubmit) return;
+    if (!canSubmit) return;
+    if (onSubmitItem) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // A meal item holds one serving's values and a quantity; the meal multiplies them out.
+      // Fiber and sugar have their own fields; the rest of the tracked nutrients go in micros.
+      const micros: Record<string, number | null> = {};
+      let fiber: number | null = null;
+      let sugar: number | null = null;
+      for (const g of microGoals) {
+        const val = Number(microValues[g.key]);
+        const v = val > 0 ? round1(val) : null;
+        if (g.key === 'fiber') fiber = v;
+        else if (g.key === 'sugar') sugar = v;
+        else micros[g.key] = v;
+      }
+      onSubmitItem({
+        name: name.trim() || 'Quick add',
+        brand: null,
+        food_catalog_id: null,
+        calories: perServingCal,
+        protein: round1(p),
+        carbs: round1(c),
+        fat: round1(f),
+        fiber,
+        sugar,
+        micros,
+        serving_size: amountNum,
+        serving_unit: servingUnit,
+        quantity: multiplier,
+      });
+      return;
+    }
+    if (!userId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const microFields: Record<string, number | null> = {};
     for (const g of microGoals) {
       const val = Number(microValues[g.key]);
-      microFields[g.key] = val > 0 ? val : null;
+      microFields[g.key] = val > 0 ? round1(val * multiplier) : null;
     }
 
     addEntry(userId, {
       name: name.trim() || 'Quick Add',
       brand: null,
+      // The values typed are for one serving; the entry holds the totals for all of them.
       calories: previewCal,
-      protein: p,
-      carbs: c,
-      fat: f,
+      protein: round1(p * multiplier),
+      carbs: round1(c * multiplier),
+      fat: round1(f * multiplier),
       meal_type: mealSlot,
-      quantity: 1,
-      serving_size: 1,
-      serving_unit: 'serving',
+      // e.g. 2 × 250 ml = quantity 2 of a 250 ml serving; 3 servings = quantity 3 of "1 serving".
+      quantity: multiplier,
+      serving_size: amountNum,
+      serving_unit: servingUnit,
       is_planned: false,
       ...microFields,
     }, targetHour != null ? selectedDate : undefined, targetHour);
 
     onAdded();
-  }, [userId, canSubmit, name, previewCal, p, c, f, mealSlot, targetHour, selectedDate, addEntry, onAdded, microGoals, microValues]);
+  }, [userId, canSubmit, name, previewCal, perServingCal, p, c, f, mealSlot, targetHour, selectedDate, addEntry, onAdded, onSubmitItem, microGoals, microValues, servingUnit, amountNum, multiplier]);
 
   return (
     <FoodSubScreen
       visible={visible}
       title="Quick add"
-      subtitle={mealLabel ? `to ${mealLabel}` : undefined}
+      subtitle={subtitle ?? (mealLabel ? `to ${mealLabel}` : undefined)}
       onBack={onDismiss}
+      isBackActive={isBackActive}
+      bottomInset={bottomInset}
       footer={
         <PrimaryActionBar
-          label="Add"
+          label={onSubmitItem ? 'Add to meal' : 'Add'}
           sublabel={previewCal > 0 ? `${previewCal} kcal` : undefined}
           icon="flash"
           onPress={handleAdd}
@@ -145,16 +220,20 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
           {previewCal.toLocaleString()}
           <Text style={s.heroUnit}> kcal</Text>
         </Text>
-        <Text style={s.heroHint}>{autoCalc ? 'Worked out from your macros' : 'Enter calories, macros, or both'}</Text>
+        <Text style={s.heroHint}>
+          {multiplier > 1 && perServingCal > 0
+            ? `${multiplier} × ${perServingCal.toLocaleString()} kcal${autoCalc ? ', from your macros' : ''}`
+            : autoCalc ? 'Worked out from your macros' : 'Enter calories, macros, or both'}
+        </Text>
         <View style={s.heroBar}>
-          <MacroSplitBar protein={p} carbs={c} fat={f} showGrams={false} />
+          <MacroSplitBar protein={p * multiplier} carbs={c * multiplier} fat={f * multiplier} showGrams={false} />
         </View>
       </View>
 
       {/* Name */}
       <View style={s.group}>
         <Text style={s.label}>Name (optional)</Text>
-        <TextInput
+        <RevealTextInput
           style={s.textField}
           value={name}
           onChangeText={setName}
@@ -166,6 +245,50 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
           onSubmitEditing={() => calRef.current?.focus()}
           accessibilityLabel="Name"
         />
+      </View>
+
+      {/* Serving */}
+      <View style={s.group}>
+        <Text style={s.label}>Amount</Text>
+        <View style={s.unitRow} accessibilityRole="radiogroup">
+          {SERVING_UNITS.map((u) => {
+            const active = u === servingUnit;
+            return (
+              <Pressable
+                key={u}
+                style={[s.unitChip, active && s.unitChipActive]}
+                onPress={() => handleUnitChange(u)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={u === 'serving' ? 'Servings' : u}
+              >
+                <Text style={[s.unitText, active && s.unitTextActive]}>{u === 'serving' ? 'Servings' : u}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={s.row}>
+          <NumberField
+            label={servingUnit === 'serving' ? 'Servings' : 'How many'}
+            unit={servingUnit === 'serving' ? undefined : '×'}
+            value={count}
+            onChangeText={setCount}
+            onSubmitEditing={() => calRef.current?.focus()}
+          />
+          {servingUnit !== 'serving' && (
+            <NumberField
+              label="One serving is"
+              unit={servingUnit}
+              value={amount}
+              onChangeText={setAmount}
+              onSubmitEditing={() => calRef.current?.focus()}
+            />
+          )}
+        </View>
+        <Text style={s.hint}>
+          Enter calories and macros for one {servingUnit === 'serving' ? 'serving' : `${amount || DEFAULT_AMOUNT[servingUnit]} ${servingUnit}`}
+          {multiplier > 1 ? `; they're multiplied by ${multiplier}.` : '.'}
+        </Text>
       </View>
 
       {/* Energy */}
@@ -196,10 +319,10 @@ function QuickAddModal({ visible, mealSlot, targetHour, onDismiss, onAdded }: Pr
               <View key={g.key} style={[s.microRow, i > 0 && s.microDivider]}>
                 <View style={[s.microDot, { backgroundColor: g.color }]} />
                 <Text style={s.microLabel} numberOfLines={1}>{g.name}</Text>
-                <TextInput
+                <RevealTextInput
                   style={s.microInput}
                   value={microValues[g.key] || ''}
-                  onChangeText={(v) => handleMicroChange(g.key, v.replace(',', '.'))}
+                  onChangeText={(v) => handleMicroChange(g.key, sanitizeDecimal(v))}
                   placeholder="0"
                   placeholderTextColor={colors.textTertiary}
                   keyboardType="numeric"
@@ -261,6 +384,39 @@ const createStyles = (colors: ThemeColors) =>
     row: {
       flexDirection: 'row',
       gap: sw(8),
+    },
+    unitRow: {
+      flexDirection: 'row',
+      gap: sw(6),
+    },
+    unitChip: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: sw(8),
+      borderRadius: sw(10),
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    unitChipActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    unitText: {
+      color: colors.textSecondary,
+      fontSize: ms(12),
+      lineHeight: ms(16),
+      fontFamily: Fonts.semiBold,
+    },
+    unitTextActive: {
+      color: colors.textOnAccent,
+    },
+    hint: {
+      color: colors.textTertiary,
+      fontSize: ms(11),
+      lineHeight: ms(15),
+      fontFamily: Fonts.medium,
     },
     textField: {
       color: colors.textPrimary,

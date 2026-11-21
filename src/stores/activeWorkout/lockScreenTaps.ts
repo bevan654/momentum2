@@ -33,7 +33,14 @@ function _applyComplete(
   get().toggleSetComplete(exIdx, pos);
 
   const s = get();
-  if (!s.exercises[exIdx]?.sets[pos]?.completed) return false; // the app's rules said no
+  if (!s.exercises[exIdx]?.sets[pos]?.completed) {
+    // The app's rules said no (e.g. no weight): put back what the tap typed in, so the set
+    // isn't left with the Lock Screen's numbers but unticked.
+    const now = s.exercises[exIdx]?.sets[pos];
+    if (now && now.kg !== before.kg) get().updateSet(exIdx, pos, 'kg', before.kg);
+    if (now && now.reps !== before.reps) get().updateSet(exIdx, pos, 'reps', before.reps);
+    return false;
+  }
 
   set({
     exercises: s.exercises.map((ex, i) => (i !== exIdx ? ex : {

@@ -4,6 +4,14 @@ import type { User, Session } from '@supabase/supabase-js';
 import { cleanupNotifications, stopPushToken, clearPushTokenForSignOut } from '../services/notificationService';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useActiveWorkoutStore } from './useActiveWorkoutStore';
+import { useFoodLogStore } from './useFoodLogStore';
+import { useNutritionStore } from './useNutritionStore';
+import { useSavedMealsStore } from './useSavedMealsStore';
+import { useProteinPowderStore } from './useProteinPowderStore';
+import { useFavouritesStore } from './useFavouritesStore';
+import { useNutrientGoalStore } from './useNutrientGoalStore';
+import { useSupplementStore } from './useSupplementStore';
+import { setCurrentUserId } from '../lib/currentUser';
 import { clearWorkout as clearStoredWorkout } from '../utils/workoutStorage';
 import { AppState, Linking } from 'react-native';
 
@@ -112,6 +120,20 @@ function waitForOAuthCallback(): Promise<string | null> {
 
 /** Module-level ref so we can unsubscribe on signOut */
 let _authSubscription: { unsubscribe: () => void } | null = null;
+
+/**
+ * Drops the previous account's food diary, goals, saved meals, favourites and supplements from
+ * memory, so the next account on this phone starts clean. Their saved copies are kept per account.
+ */
+function resetFoodStores() {
+  useFoodLogStore.getState().resetForSignOut();
+  useNutritionStore.getState().resetForSignOut();
+  useSavedMealsStore.getState().resetForSignOut();
+  useFavouritesStore.getState().resetForSignOut();
+  useNutrientGoalStore.getState().resetForSignOut();
+  useSupplementStore.getState().resetForSignOut();
+  useProteinPowderStore.getState().resetForSignOut();
+}
 
 /**
  * After a verified sign-in, create the profile + default goal rows. Password
@@ -235,6 +257,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const prevUserId = get().user?.id;
       if (prevUserId && prevUserId !== session?.user?.id) {
         useActiveWorkoutStore.getState().resetForSignOut();
+        // The new account (or none) before the reset, so reloads it triggers read the right one.
+        setCurrentUserId(session?.user?.id ?? null);
+        resetFoodStores();
       }
       if (session?.user && _pendingWelcome) {
         set({ user: session.user, session, showWelcome: true, _pendingWelcome: false });
@@ -464,6 +489,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     useWorkoutStore.getState().clearCaches();
     // Drop the active workout from memory; its saved copy only comes back for this account
     useActiveWorkoutStore.getState().resetForSignOut();
+    // Cleared first: a screen still showing reloads its settings when the reset empties them,
+    // and must not read this account's again (offline, signOut() can fail without an event).
+    setCurrentUserId(null);
+    resetFoodStores();
     await supabase.auth.signOut();
     set({ user: null, session: null, profile: null, showWelcome: false, _pendingWelcome: false });
   },
@@ -510,6 +539,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     stopPushToken();
     useWorkoutStore.getState().clearCaches();
     useActiveWorkoutStore.getState().resetForSignOut();
+    setCurrentUserId(null); // as in signOut: nothing reloads the deleted account's settings
+    resetFoodStores();
     try {
       clearStoredWorkout();
     } catch {
@@ -556,3 +587,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return { error: null };
   },
 }));
+
+// Keep the shared signed-in id current for stores that can't import this one (see lib/currentUser).
+setCurrentUserId(useAuthStore.getState().user?.id ?? null);
+useAuthStore.subscribe((state) => setCurrentUserId(state.user?.id ?? null));

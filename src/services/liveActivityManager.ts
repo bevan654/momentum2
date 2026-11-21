@@ -442,7 +442,14 @@ export async function startWorkoutActivity(snapshot: WorkoutActivitySnapshot): P
     _snapshot = snapshot;
     startNative(snapshot, gen);
     // Lock Screen buttons (iOS 17+, 1.0.38+); also applies taps made while the app wasn't running.
-    if (Platform.OS === 'ios') watchLockScreenTaps();
+    // Queued after the start: reading the waiting taps first would let the start show the
+    // restored state over them until they're applied (native holds its start back only while
+    // taps are still waiting).
+    if (Platform.OS === 'ios') {
+      enqueueNative('watch taps', async () => {
+        if (gen === _gen && _active) watchLockScreenTaps();
+      });
+    }
     return;
   }
 

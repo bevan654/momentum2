@@ -15,7 +15,7 @@
  */
 
 import { Platform } from 'react-native';
-import { getHomeWidgetData, setHomeWidgetData } from '../../modules/workout-live-activity';
+import { getHomeWidgetData, setHomeWidgetData, supportsHomeWidgets } from '../../modules/workout-live-activity';
 import { sumMacros, sumMicros } from '../components/food/dayTotals';
 import { supabase } from '../lib/supabase';
 import { groupEntriesByMeal, OTHER_SLOT } from '../components/food/groupEntriesByMeal';
@@ -346,6 +346,9 @@ function _buildJson(): string | null {
 async function _write(): Promise<void> {
   _timer = null;
   const userId = useAuthStore.getState().user?.id;
+  // Signed out: the next sign-in (even the same account) loads its meal sections again, since
+  // the sign-out reset put them back to the defaults.
+  if (!userId) _mealsFetchedFor = null;
   if (userId && _mealsFetchedFor !== userId) {
     _mealsFetchedFor = userId;
     useFoodLogStore.getState().fetchMealConfigs(userId)
@@ -401,13 +404,15 @@ function _subscribe(): void {
 
 /** Starts keeping the widgets current. Call once at app start; does nothing off iOS or without widgets. */
 export function startHomeWidgets(): void {
-  if (_started || Platform.OS !== 'ios') return;
+  // Binaries without widgets (before 1.0.38): nothing to keep current.
+  if (_started || Platform.OS !== 'ios' || !supportsHomeWidgets()) return;
   _started = true;
   getHomeWidgetData()
     .then((json) => {
-      // null also on binaries without widgets: then there's nothing to keep current.
+      // Nothing written yet (or it couldn't be read): start from scratch, without clearing it.
       if (json == null) {
-        return setHomeWidgetData(null).then((supported) => { if (supported) _subscribe(); });
+        _subscribe();
+        return undefined;
       }
       try {
         _previous = JSON.parse(json) as Snapshot;
