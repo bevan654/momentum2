@@ -246,12 +246,14 @@ function CreateMealModal({
         if (!id) return; // not saved (signed out meanwhile): no "Saved", and Back still asks
         setEditingMealId(id);
       }
-      savedDraft.current = { name: mealName, items };
+      // Editing a logged meal: saving a copy as a template doesn't update the diary, so Back
+      // still asks before dropping the changes.
+      if (!editMealGroupId) savedDraft.current = { name: mealName, items };
     } finally {
       savingRef.current = false;
     }
     Alert.alert('Saved', `"${name}" has been saved.`);
-  }, [saveMeal, updateMeal]);
+  }, [saveMeal, updateMeal, editMealGroupId]);
 
   /* ── Leave ──────────────────────────────────────────── */
   // Back (header or Android) with unsaved changes asks before throwing them away.
