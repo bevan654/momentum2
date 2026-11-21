@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors, type ThemeColors } from '../../../theme/useColors';
 import { sw, ms } from '../../../theme/responsive';
 import { Fonts } from '../../../theme/typography';
-import { useTodayGlance } from './useTodayGlance';
+import { useWorkoutWeek } from './useTodayData';
+import { useStreakStore } from '../../../stores/useStreakStore';
 import ClaudeChatSheet from './ClaudeChatSheet';
 
 interface Props {
@@ -19,7 +20,8 @@ interface Props {
 function StartWorkoutButton({ isActive, onPress }: Props) {
   const colors = useColors();
   const s = useMemo(() => createStyles(colors), [colors]);
-  const { currentStreak, todayWorkout } = useTodayGlance();
+  const currentStreak = useStreakStore((st) => st.currentStreak);
+  const { todayWorkout } = useWorkoutWeek();
   const trained = !!todayWorkout && !isActive;
   const title = isActive ? 'Resume workout' : trained ? 'Trained today' : 'Start workout';
   const [chatOpen, setChatOpen] = useState(false);

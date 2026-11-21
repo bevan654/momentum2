@@ -2,13 +2,12 @@ import { useMemo } from 'react';
 import { useShallow } from 'zustand/shallow';
 import { useNutritionStore } from '../../../stores/useNutritionStore';
 import { useSupplementStore } from '../../../stores/useSupplementStore';
-import { useStreakStore } from '../../../stores/useStreakStore';
 import { useWorkoutStore } from '../../../stores/useWorkoutStore';
 import { useToday } from '../../../hooks/useToday';
 import { toLocalDateString } from '../../../utils/localDate';
 
-/** Today's numbers for the Home "at a glance" layouts. Reads the same stores the Home cards use. */
-export function useTodayGlance() {
+/** Intake numbers shown in the Today rings. */
+export function useTodayIntake() {
   const nutrition = useNutritionStore(
     useShallow((s) => ({
       calories: s.calories, calorieGoal: s.calorieGoal, protein: s.protein, proteinGoal: s.proteinGoal,
@@ -16,9 +15,11 @@ export function useTodayGlance() {
     })),
   );
   const { water, waterGoal } = useSupplementStore(useShallow((s) => ({ water: s.water, waterGoal: s.waterGoal })));
-  const { currentStreak, longestStreak } = useStreakStore(
-    useShallow((s) => ({ currentStreak: s.currentStreak, longestStreak: s.longestStreak })),
-  );
+  return { nutrition, water, waterGoal };
+}
+
+/** Last seven local days of workout history for the streak and workout action. */
+export function useWorkoutWeek() {
   const workouts = useWorkoutStore((s) => s.workouts);
   const today = useToday();
 
@@ -45,7 +46,7 @@ export function useTodayGlance() {
     return { week: list, todayWorkout: tw };
   }, [workouts, today]);
 
-  return { nutrition, water, waterGoal, currentStreak, longestStreak, week, todayWorkout };
+  return { week, todayWorkout };
 }
 
-export type NutritionTotals = ReturnType<typeof useTodayGlance>['nutrition'];
+export type NutritionTotals = ReturnType<typeof useTodayIntake>['nutrition'];
