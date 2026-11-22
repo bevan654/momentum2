@@ -102,7 +102,7 @@ export type WorkoutLiveActivityAction =
  * supplement's key, `day` the local day it was tapped on, `at` epoch ms. An undo whose add the
  * app already took carries the add's time (`addedAt`), so only the entry saved for it is removed.
  */
-export interface SupplementWidgetTap {
+interface SupplementWidgetTap {
   type: 'add' | 'undo';
   key: string;
   amount: number;
@@ -111,6 +111,9 @@ export interface SupplementWidgetTap {
   at: number;
   addedAt?: number;
 }
+
+/** A pending tap as read from the outbox, with its key there (`_key`, for removing it once saved). */
+export type PendingSupplementWidgetTap = SupplementWidgetTap & { _key: string };
 
 interface WorkoutLiveActivityNative {
   isSupported(): boolean;
@@ -126,7 +129,9 @@ interface WorkoutLiveActivityNative {
   setHomeWidgetData?(json: string | null, kinds: string[] | null): Promise<void>;
   getHomeWidgetData?(): Promise<string | null>;
   // 1.0.39+ on iOS only.
-  takePendingSupplementTaps?(): Promise<SupplementWidgetTap[]>;
+  readPendingSupplementTaps?(): Promise<PendingSupplementWidgetTap[]>;
+  removeSupplementTaps?(keys: string[]): Promise<string[]>;
+  reloadHomeWidgets?(kinds: string[]): Promise<void>;
 }
 
 const Native = requireOptionalNativeModule<WorkoutLiveActivityNative>('WorkoutLiveActivity');
@@ -207,20 +212,42 @@ export async function setHomeWidgetData(json: string | null, kinds: string[] | n
   }
 }
 
-/** Supplements widget taps not applied yet, oldest first; reading them clears them. [] where unsupported. */
-export async function takePendingSupplementTaps(): Promise<SupplementWidgetTap[]> {
-  if (!Native?.takePendingSupplementTaps) return [];
+/**
+ * Supplements widget taps not saved yet, oldest first, each with its outbox key; reading leaves
+ * them in place (remove each with removeSupplementTaps once saved). [] where unsupported.
+ */
+export async function readPendingSupplementTaps(): Promise<PendingSupplementWidgetTap[]> {
+  if (!Native?.readPendingSupplementTaps) return [];
   try {
-    const taps = await Native.takePendingSupplementTaps();
+    const taps = await Native.readPendingSupplementTaps();
     return Array.isArray(taps) ? taps : [];
   } catch {
     return [];
   }
 }
 
+/** Removes saved (or dropped) taps; resolves the keys that were still there. */
+export async function removeSupplementTaps(keys: string[]): Promise<string[]> {
+  if (!Native?.removeSupplementTaps || keys.length === 0) return [];
+  try {
+    const removed = await Native.removeSupplementTaps(keys);
+    return Array.isArray(removed) ? removed : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Redraws these home screen widget kinds even if their data didn't change. */
+export async function reloadHomeWidgets(kinds: string[]): Promise<void> {
+  if (!Native?.reloadHomeWidgets || kinds.length === 0) return;
+  try {
+    await Native.reloadHomeWidgets(kinds);
+  } catch {}
+}
+
 /** Calls `listener` when a Supplements widget button is tapped; null where unsupported (before 1.0.39). */
 export function addSupplementTapListener(listener: () => void): EventSubscription | null {
-  if (!Native?.addListener || !Native.takePendingSupplementTaps) return null;
+  if (!Native?.addListener || !Native.readPendingSupplementTaps) return null;
   try {
     return Native.addListener('onSupplementTap', listener);
   } catch {

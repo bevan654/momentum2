@@ -7,7 +7,7 @@ import Foundation
 //
 // A tap on the widget runs in the widget extension, not the app, so it can't reach the user's
 // account. Like the Lock Screen buttons (WorkoutActivityOutbox), each tap is left in the shared
-// App Group as its own key and the app is pinged with a Darwin notification; the app applies the
+// App Group as its own key and the app is pinged with a Darwin notification; the app saves the
 // taps (src/services/supplementWidgetTaps.ts) when it gets the ping, comes to the foreground or
 // starts. Its own key prefix and notification name keep it apart from the Lock Screen taps.
 //
@@ -44,30 +44,20 @@ enum SupplementTapOutbox {
     return key
   }
 
-  /// Taps not applied yet, oldest first, without removing them (the widget adds them to what it shows).
+  /// Taps not saved yet, oldest first, without removing them: the widget adds them to what it
+  /// shows, and the app removes each one only once it's saved (a failed save stays for a retry).
   static func pending() -> [(key: String, entry: [String: Any])] {
     keys().compactMap { key in defaults.dictionary(forKey: key).map { (key: key, entry: $0) } }
   }
 
-  /// Takes a tap back before the app applied it; false when it's gone (the app has it).
+  /// Removes a tap: the widget taking it back (Undo) or the app having saved it. False when it
+  /// was already gone (the other side got there first).
   static func remove(_ key: String) -> Bool {
     lock.lock()
     defer { lock.unlock() }
     guard defaults.object(forKey: key) != nil else { return false }
     defaults.removeObject(forKey: key)
     return true
-  }
-
-  /// Everything not applied yet, oldest first; taking removes only the keys it read.
-  static func takeAll() -> [[String: Any]] {
-    lock.lock()
-    defer { lock.unlock() }
-    var list: [[String: Any]] = []
-    for key in keys() {
-      if let entry = defaults.dictionary(forKey: key) { list.append(entry) }
-      defaults.removeObject(forKey: key)
-    }
-    return list
   }
 
   /// Tells the app (if it's running) to apply the taps now.

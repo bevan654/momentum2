@@ -73,7 +73,7 @@ public class WorkoutLiveActivityModule: Module {
     Name("WorkoutLiveActivity")
 
     // A Lock Screen button was tapped (JS reads the taps with takePendingActions), or a Supplements
-    // widget button (takePendingSupplementTaps).
+    // widget button (readPendingSupplementTaps).
     Events("onAction", "onSupplementTap")
 
     OnCreate {
@@ -138,15 +138,26 @@ public class WorkoutLiveActivityModule: Module {
       HomeWidgetStore.read()
     }
 
-    /// Supplements widget taps the app hasn't applied yet, oldest first; reading them clears them.
-    /// The widget showed them on top of the app's last data, so it's redrawn without them; the
-    /// app's next write brings the saved amounts (or, if a save failed, nothing changes there).
-    AsyncFunction("takePendingSupplementTaps") { () -> [[String: Any]] in
-      let taps = SupplementTapOutbox.takeAll()
-      if !taps.isEmpty, #available(iOS 14.0, *) {
-        WidgetCenter.shared.reloadTimelines(ofKind: "MomentumSupplements")
+    /// Supplements widget taps not saved yet, oldest first, each with its outbox key as `_key`.
+    /// Reading leaves them in place: the app removes each with removeSupplementTaps once saved.
+    AsyncFunction("readPendingSupplementTaps") { () -> [[String: Any]] in
+      SupplementTapOutbox.pending().map { item in
+        var entry = item.entry
+        entry["_key"] = item.key
+        return entry
       }
-      return taps
+    }
+
+    /// Removes saved (or dropped) taps; returns the keys that were still there (a missing one was
+    /// taken back on the widget meanwhile).
+    AsyncFunction("removeSupplementTaps") { (keys: [String]) -> [String] in
+      keys.filter { SupplementTapOutbox.remove($0) }
+    }
+
+    /// Redraws these widget kinds (their data may be unchanged, but what they showed on top of it was).
+    AsyncFunction("reloadHomeWidgets") { (kinds: [String]) in
+      guard #available(iOS 14.0, *) else { return }
+      for kind in kinds { WidgetCenter.shared.reloadTimelines(ofKind: kind) }
     }
   }
 }

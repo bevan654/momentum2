@@ -295,7 +295,7 @@ const checks = {
   supplementWidgetTaps() {
     const swift = read('targets/workout-activity/SupplementsWidget.swift');
     const ts = read('modules/workout-live-activity/index.ts');
-    const block = /export interface SupplementWidgetTap \{([^}]*)\}/.exec(ts)?.[1];
+    const block = /interface SupplementWidgetTap \{([^}]*)\}/.exec(ts)?.[1];
     const fieldMatches = block ? [...block.matchAll(/^\s*(\w+)(\??):/gm)] : [];
     const tsFields = fieldMatches.map((m) => m[1]);
     // Optional fields (`addedAt?:`) may be left out of an entry; required ones must be in every entry.

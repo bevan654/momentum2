@@ -14,7 +14,7 @@
  */
 
 import { Platform } from 'react-native';
-import { getHomeWidgetData, setHomeWidgetData, supportsHomeWidgets } from '../../modules/workout-live-activity';
+import { getHomeWidgetData, reloadHomeWidgets, setHomeWidgetData, supportsHomeWidgets } from '../../modules/workout-live-activity';
 import { sumMacros, sumMicros } from '../components/food/dayTotals';
 import { groupEntriesByMeal, OTHER_SLOT } from '../components/food/groupEntriesByMeal';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -245,7 +245,7 @@ function _buildJson(): string | null {
   });
 }
 
-async function _write(): Promise<void> {
+async function _write(redraw: string[] = []): Promise<void> {
   _timer = null;
   const userId = useAuthStore.getState().user?.id;
   // Signed out: the next sign-in (even the same account) loads its meal sections again, since
@@ -265,8 +265,28 @@ async function _write(): Promise<void> {
     if (!goals.loaded) goals.loadConfigs().catch(() => {});
   }
   const json = _buildJson();
-  if (json == null || json === _lastJson) return;
-  if (await setHomeWidgetData(json, _changedKinds(_lastJson, json))) _lastJson = json;
+  if (json == null) return;
+  if (json === _lastJson) {
+    // Unchanged data, but these widgets showed something on top of it that's gone (saved taps).
+    if (redraw.length > 0) await reloadHomeWidgets(redraw);
+    return;
+  }
+  const changed = _changedKinds(_lastJson, json);
+  if (await setHomeWidgetData(json, changed && [...new Set([...changed, ...redraw])])) _lastJson = json;
+}
+
+/**
+ * Writes the widgets' data now (not after the usual delay) and redraws the widgets showing these
+ * parts of it even if nothing changed: after the Supplements widget's taps are saved, so it swaps
+ * its own copy of them for the saved amounts in one go.
+ */
+export async function flushHomeWidgets(parts: string[]): Promise<void> {
+  if (!_started) return;
+  if (_timer) {
+    clearTimeout(_timer);
+    _timer = null;
+  }
+  await _write(parts.flatMap((p) => WIDGET_KINDS[p] ?? []));
 }
 
 function _schedule(): void {

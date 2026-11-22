@@ -146,7 +146,7 @@ struct SupplementsProvider: TimelineProvider {
     let taps: [(day: String, key: String, amount: Double)]
 
     init(preview: Bool) {
-      let data = preview ? (HomeWidgetData.load() ?? .preview) : HomeWidgetData.load()
+      let data: HomeWidgetData? = preview ? (HomeWidgetData.load() ?? .preview) : HomeWidgetData.load()
       self.data = data
       lastTap = SupplementWidgetState.lastTap
       page = SupplementWidgetState.page
