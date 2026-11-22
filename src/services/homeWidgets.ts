@@ -28,6 +28,39 @@ import { useThemeStore } from '../stores/useThemeStore';
 import { toLocalDateString } from '../utils/localDate';
 
 const WRITE_DELAY_MS = 1000;
+/**
+ * Which widgets show each part of the snapshot (their `kind` in targets/workout-activity, checked
+ * by check:links), so a write redraws only the widgets whose part changed. Any other part changing
+ * (sign-in, user, accent) redraws them all.
+ */
+const WIDGET_KINDS: Record<string, string[]> = {
+  nutrition: ['MomentumMacros'],
+  nutritionExtras: ['MomentumMacros'],
+  streak: ['MomentumStreak'],
+  supplements: ['MomentumSupplements'],
+};
+
+/** The widgets to redraw going from `before` to `after`; null = all of them. */
+function _changedKinds(before: string | null, after: string): string[] | null {
+  let a: Record<string, unknown>;
+  let b: Record<string, unknown>;
+  try {
+    a = before ? JSON.parse(before) : null;
+    b = JSON.parse(after);
+  } catch {
+    return null;
+  }
+  if (!a || !b) return null;
+  const kinds = new Set<string>();
+  for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (JSON.stringify(a[key]) === JSON.stringify(b[key])) continue;
+    const widgets = WIDGET_KINDS[key];
+    if (!widgets) return null;
+    widgets.forEach((k) => kinds.add(k));
+  }
+  return [...kinds];
+}
+
 /** The widgets' snapshot (the subset this module reads back; Swift ignores `userId`). */
 interface Snapshot {
   userId?: string;
@@ -228,7 +261,7 @@ async function _write(): Promise<void> {
   }
   const json = _buildJson();
   if (json == null || json === _lastJson) return;
-  if (await setHomeWidgetData(json)) _lastJson = json;
+  if (await setHomeWidgetData(json, _changedKinds(_lastJson, json))) _lastJson = json;
 }
 
 function _schedule(): void {

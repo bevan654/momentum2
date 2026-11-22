@@ -127,9 +127,10 @@ public class WorkoutLiveActivityModule: Module {
     }
 
     /// The home screen widgets' data (JSON, see HomeWidgetData.swift in targets/workout-activity),
-    /// or nil to clear it (signed out). Redraws the widgets only when it changed.
-    AsyncFunction("setHomeWidgetData") { (json: String?) in
-      HomeWidgetStore.write(json)
+    /// or nil to clear it (signed out). Redraws the widgets only when it changed: those of `kinds`
+    /// (the widgets whose part changed), or all of them when nil.
+    AsyncFunction("setHomeWidgetData") { (json: String?, kinds: [String]?) in
+      HomeWidgetStore.write(json, kinds: kinds)
     }
 
     /// What the widgets show now (written by an earlier run), or nil.
@@ -153,10 +154,15 @@ enum HomeWidgetStore {
 
   static func read() -> String? { defaults.string(forKey: key) }
 
-  static func write(_ json: String?) {
+  static func write(_ json: String?, kinds: [String]? = nil) {
     if defaults.string(forKey: key) == json { return }
     if let json { defaults.set(json, forKey: key) } else { defaults.removeObject(forKey: key) }
-    if #available(iOS 14.0, *) { WidgetCenter.shared.reloadAllTimelines() }
+    guard #available(iOS 14.0, *) else { return }
+    if let kinds {
+      for kind in kinds { WidgetCenter.shared.reloadTimelines(ofKind: kind) }
+    } else {
+      WidgetCenter.shared.reloadAllTimelines()
+    }
   }
 }
 

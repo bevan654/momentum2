@@ -121,7 +121,8 @@ interface WorkoutLiveActivityNative {
   takePendingActions?(): Promise<WorkoutLiveActivityAction[]>;
   clearPendingActions?(): Promise<void>;
   addListener?(event: 'onAction' | 'onSupplementTap', listener: () => void): EventSubscription;
-  setHomeWidgetData?(json: string | null): Promise<void>;
+  /** `kinds` (1.0.39+): the widget kinds to redraw; null = all. */
+  setHomeWidgetData?(json: string | null, kinds: string[] | null): Promise<void>;
   getHomeWidgetData?(): Promise<string | null>;
   // 1.0.39+ on iOS only.
   takePendingSupplementTaps?(): Promise<SupplementWidgetTap[]>;
@@ -195,10 +196,10 @@ export function addActionListener(listener: () => void): EventSubscription | nul
  * Hands the home screen widgets their data (a JSON string; null clears it) and redraws them if it
  * changed. Returns false where the binary has no widgets (Android, iOS builds before 1.0.38).
  */
-export async function setHomeWidgetData(json: string | null): Promise<boolean> {
+export async function setHomeWidgetData(json: string | null, kinds: string[] | null = null): Promise<boolean> {
   if (!Native?.setHomeWidgetData) return false;
   try {
-    await Native.setHomeWidgetData(json);
+    await Native.setHomeWidgetData(json, kinds);
     return true;
   } catch {
     return false;

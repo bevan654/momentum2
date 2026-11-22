@@ -134,20 +134,38 @@ struct SupplementsEntry: TimelineEntry {
   let pending: [String: Double]
 }
 
-/// Now, when the Undo line should go, and midnight (a new day).
+/// Now, when the Undo line should go, and midnight (a new day). The data, the pending taps and the
+/// widget's state are read once per timeline and shared by its entries.
 struct SupplementsProvider: TimelineProvider {
-  private func entry(at date: Date, preview: Bool = false) -> SupplementsEntry {
-    let data = preview ? (HomeWidgetData.load() ?? .preview) : HomeWidgetData.load()
-    var pending: [String: Double] = [:]
-    let day = HomeWidgetDay.key(date)
-    for (_, tap) in SupplementTapOutbox.pending() {
-      guard
-        tap["userId"] as? String == data?.userId, tap["day"] as? String == day,
-        let key = tap["key"] as? String, let amount = (tap["amount"] as? NSNumber)?.doubleValue
-      else { continue }
-      pending[key, default: 0] += (tap["type"] as? String == "undo" ? -amount : amount)
+  /// What every entry of one timeline shares.
+  private struct Shared {
+    let data: HomeWidgetData?
+    let lastTap: SupplementWidgetState.LastTap?
+    let page: Int
+    /// The taps the app hasn't applied yet, for the data's user: (day, key, amount; negative = undo).
+    let taps: [(day: String, key: String, amount: Double)]
+
+    init(preview: Bool) {
+      let data = preview ? (HomeWidgetData.load() ?? .preview) : HomeWidgetData.load()
+      self.data = data
+      lastTap = SupplementWidgetState.lastTap
+      page = SupplementWidgetState.page
+      taps = SupplementTapOutbox.pending().compactMap { item -> (day: String, key: String, amount: Double)? in
+        let tap = item.entry
+        guard
+          tap["userId"] as? String == data?.userId, let day = tap["day"] as? String,
+          let key = tap["key"] as? String, let amount = (tap["amount"] as? NSNumber)?.doubleValue
+        else { return nil }
+        return (day: day, key: key, amount: tap["type"] as? String == "undo" ? -amount : amount)
+      }
     }
-    return SupplementsEntry(date: date, data: data, lastTap: SupplementWidgetState.lastTap, page: SupplementWidgetState.page, pending: pending)
+
+    func entry(at date: Date) -> SupplementsEntry {
+      let day = HomeWidgetDay.key(date)
+      var pending: [String: Double] = [:]
+      for tap in taps where tap.day == day { pending[tap.key, default: 0] += tap.amount }
+      return SupplementsEntry(date: date, data: data, lastTap: lastTap, page: page, pending: pending)
+    }
   }
 
   func placeholder(in context: Context) -> SupplementsEntry {
@@ -155,19 +173,20 @@ struct SupplementsProvider: TimelineProvider {
   }
 
   func getSnapshot(in context: Context, completion: @escaping (SupplementsEntry) -> Void) {
-    completion(entry(at: Date(), preview: context.isPreview))
+    completion(Shared(preview: context.isPreview).entry(at: Date()))
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<SupplementsEntry>) -> Void) {
+    let shared = Shared(preview: false)
     let now = Date()
     let midnight = HomeWidgetDay.nextMidnight(after: now)
     var dates = [now]
-    if let last = SupplementWidgetState.lastTap {
+    if let last = shared.lastTap {
       let end = Date(timeIntervalSince1970: last.at + SupplementWidgetState.undoSeconds)
       if end > now && end < midnight { dates.append(end) }
     }
     dates.append(midnight)
-    completion(Timeline(entries: dates.map { entry(at: $0) }, policy: .after(midnight)))
+    completion(Timeline(entries: dates.map { shared.entry(at: $0) }, policy: .after(midnight)))
   }
 }
 

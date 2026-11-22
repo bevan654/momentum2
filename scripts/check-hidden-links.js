@@ -279,6 +279,24 @@ const checks = {
    * ContentState structs (Codable keys).
    */
   /**
+   * The widget kinds homeWidgets.ts redraws (WIDGET_KINDS) are the `kind`s the widgets register in
+   * targets/workout-activity; a misspelt one never redraws that widget when its data changes.
+   */
+  homeWidgetKinds() {
+    const ts = read('src/services/homeWidgets.ts');
+    const block = /const WIDGET_KINDS[^=]*=\s*\{([\s\S]*?)\n\};/.exec(ts)?.[1];
+    const used = block ? [...new Set([...block.matchAll(/'(\w+)'/g)].map((m) => m[1]))] : [];
+    const dir = 'targets/workout-activity';
+    const swift = fs.readdirSync(path.join(root, dir)).filter((f) => f.endsWith('.swift')).map((f) => read(`${dir}/${f}`)).join('\n');
+    const kinds = [...swift.matchAll(/StaticConfiguration\(kind: "(\w+)"/g)].map((m) => m[1]);
+    if (used.length === 0 || kinds.length === 0) return ['WIDGET_KINDS in src/services/homeWidgets.ts or the widgets\' StaticConfiguration kinds not found (the check needs updating)'];
+    const problems = [];
+    for (const k of used) if (!kinds.includes(k)) problems.push(`homeWidgets.ts redraws widget kind '${k}', which no widget in ${dir} registers`);
+    for (const k of kinds) if (!used.includes(k)) problems.push(`widget kind '${k}' is never redrawn by homeWidgets.ts (add it to WIDGET_KINDS)`);
+    return problems;
+  },
+
+  /**
    * A Supplements widget tap has the same fields where the widget writes it (the intents'
    * outbox entries in SupplementsWidget.swift) and where the app reads it (SupplementWidgetTap in
    * the module's index.ts); a renamed one is read as undefined and the tap is dropped.
