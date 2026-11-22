@@ -2,12 +2,12 @@ import SwiftUI
 import WidgetKit
 
 // The medium sizes of the Macros and Streak widgets. The small layouts and the shared pieces live
-// in NutritionWidgets.swift, TrainingWidgets.swift and HomeWidgetData.swift; Last workout is in
-// LastWorkoutWidget.swift.
+// in NutritionWidgets.swift, TrainingWidgets.swift and HomeWidgetData.swift.
 
 // MARK: - Macros (medium)
 
-/// The calorie ring (or calories eaten without a goal) beside the three bars, as eaten / goal.
+/// The calorie ring (or calories eaten without a goal) beside the three bars, as eaten / goal, with
+/// the Momentum mark above the bars (also the top of the large size).
 struct MacrosMediumView: View {
   let n: HomeWidgetData.Nutrition
   let accent: Color
@@ -23,10 +23,18 @@ struct MacrosMediumView: View {
         }
       }
       .frame(width: 108)
-      VStack(spacing: 10) {
-        MacroRow(name: "Protein", eaten: n.protein, goal: nutritionGoal(n.goalProtein), color: HomeWidgetColor.protein, showsTotal: true)
-        MacroRow(name: "Carbs", eaten: n.carbs, goal: nutritionGoal(n.goalCarbs), color: HomeWidgetColor.carbs, showsTotal: true)
-        MacroRow(name: "Fat", eaten: n.fat, goal: nutritionGoal(n.goalFat), color: HomeWidgetColor.fat, showsTotal: true)
+      VStack(spacing: 0) {
+        HStack {
+          Spacer(minLength: 0)
+          HomeWidgetBrand()
+        }
+        Spacer(minLength: 4)
+        VStack(spacing: 10) {
+          MacroRow(name: "Protein", eaten: n.protein, goal: nutritionGoal(n.goalProtein), color: HomeWidgetColor.protein, showsTotal: true)
+          MacroRow(name: "Carbs", eaten: n.carbs, goal: nutritionGoal(n.goalCarbs), color: HomeWidgetColor.carbs, showsTotal: true)
+          MacroRow(name: "Fat", eaten: n.fat, goal: nutritionGoal(n.goalFat), color: HomeWidgetColor.fat, showsTotal: true)
+        }
+        Spacer(minLength: 0)
       }
       .frame(maxWidth: .infinity)
     }
@@ -42,7 +50,7 @@ struct StreakMediumView: View {
   var body: some View {
     HStack(spacing: 14) {
       VStack(alignment: .leading, spacing: 2) {
-        HomeWidgetTitle(symbol: "flame.fill", text: "Streak", tint: HomeWidgetColor.orange)
+        HomeWidgetTitle(symbol: "flame.fill", text: "Streak", tint: HomeWidgetColor.orange, brand: false)
         Spacer(minLength: 0)
         Text("\(s.days)").font(.system(size: 40, weight: .bold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
         Text(s.lastSafeDay ? "Train today to keep it" : (s.days == 0 ? "Start a streak today" : (s.days == 1 ? "day" : "days")))
@@ -53,7 +61,15 @@ struct StreakMediumView: View {
         Text("Best: \(s.best) \(s.best == 1 ? "day" : "days")").font(.caption2).foregroundColor(.secondary).lineLimit(1)
       }
       .frame(width: 104, alignment: .leading)
-      calendar
+      VStack(spacing: 0) {
+        HStack {
+          Spacer(minLength: 0)
+          HomeWidgetBrand()
+        }
+        Spacer(minLength: 4)
+        calendar
+        Spacer(minLength: 0)
+      }
     }
   }
 

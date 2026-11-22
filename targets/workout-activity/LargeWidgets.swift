@@ -3,8 +3,7 @@ import WidgetKit
 
 // The large sizes of the Macros (ring, bars, meals, micronutrients, supplements) and Streak
 // (12 weeks) widgets. Small and medium layouts and the shared pieces live in NutritionWidgets.swift,
-// TrainingWidgets.swift, MediumWidgets.swift and HomeWidgetData.swift; Last workout is in
-// LastWorkoutWidget.swift.
+// TrainingWidgets.swift, MediumWidgets.swift and HomeWidgetData.swift.
 
 // MARK: - Macros (large)
 
@@ -21,13 +20,16 @@ struct MacrosLargeView: View {
     let water = extras?.water
     let creatine = extras?.creatine
     let meals = n.meals ?? []
-    // Sized to fit the large widget on every iPhone, the SE's (about 292 pt) included: with
-    // micronutrients or supplements below, 3 meals at most (then "+N more"), else 4.
-    let mealLimit = (!micros.isEmpty || water != nil || creatine != nil) ? 3 : 4
-    VStack(alignment: .leading, spacing: 5) {
+    // The diary's usual 4 meals always show (an empty one as "–"); more than 4 end in "+N more".
+    // Sized to fit the large widget on every iPhone, the SE's (about 292 pt) included.
+    let mealLimit = 4
+    // Each section after the ring and bars is set off by a divider; the gaps around the dividers
+    // share the height left over, so a widget without micronutrients or supplements spreads out
+    // evenly instead of leaving a gap at the bottom.
+    VStack(alignment: .leading, spacing: 0) {
       MacrosMediumView(n: n, accent: accent).frame(height: 104)
       if !meals.isEmpty {
-        Divider()
+        sectionBreak
         VStack(spacing: 4) {
           ForEach(Array(meals.prefix(mealLimit).enumerated()), id: \.offset) { item in
             MealMacrosRow(meal: item.element)
@@ -38,7 +40,7 @@ struct MacrosLargeView: View {
         }
       }
       if !micros.isEmpty {
-        Divider()
+        sectionBreak
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible())], spacing: 7) {
           ForEach(Array(micros.enumerated()), id: \.offset) { item in
             MicroRow(micro: item.element, amount: today ? item.element.amount : 0)
@@ -46,7 +48,7 @@ struct MacrosLargeView: View {
         }
       }
       if water != nil || creatine != nil {
-        Divider()
+        sectionBreak
         HStack(spacing: 14) {
           if let water {
             SupplementLabel(symbol: "drop.fill", text: "Water \(litres(today ? water.amount : 0)) / \(litres(water.goal)) L", done: today && water.goal > 0 && water.amount >= water.goal)
@@ -57,8 +59,18 @@ struct MacrosLargeView: View {
           Spacer(minLength: 0)
         }
       }
+      Spacer(minLength: 0)
     }
     .frame(maxHeight: .infinity, alignment: .top)
+  }
+
+  /// A divider with a flexible gap above and below (at least 5 pt each).
+  private var sectionBreak: some View {
+    VStack(spacing: 0) {
+      Spacer(minLength: 5)
+      Divider()
+      Spacer(minLength: 5)
+    }
   }
 
   private func litres(_ ml: Double) -> String {
@@ -132,63 +144,80 @@ private struct SupplementLabel: View {
 
 // MARK: - Streak (large)
 
-/// Streak, best and workouts in 12 weeks over a 12-week grid (a column per week, ending today).
+/// The streak and best over a 12-week grid (a column per week, ending today) that fills the space
+/// left, then this week's workouts, the weekly average and the 12 weeks' total.
 struct StreakLargeView: View {
   let s: StreakState
 
   var body: some View {
-    let weeks = stride(from: 0, to: s.twelveWeeks.count, by: 7).map { Array(s.twelveWeeks[$0..<min($0 + 7, s.twelveWeeks.count)]) }
     let workoutDays = s.twelveWeeks.filter(\.trained).count
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(alignment: .bottom) {
-        VStack(alignment: .leading, spacing: 0) {
-          HomeWidgetTitle(symbol: "flame.fill", text: "Streak", tint: HomeWidgetColor.orange)
-          (Text("\(s.days)").font(.system(size: 40, weight: .bold))
-            + Text(s.days == 1 ? " day" : " days").font(.subheadline.weight(.semibold)).foregroundColor(.secondary))
-            .monospacedDigit()
-            .lineLimit(1)
-          if s.lastSafeDay {
-            Text("Train today to keep it").font(.caption).foregroundColor(HomeWidgetColor.orange)
-          } else if s.days == 0 {
-            Text("Start a streak today").font(.caption).foregroundColor(.secondary)
-          }
-        }
+    VStack(alignment: .leading, spacing: 0) {
+      HomeWidgetTitle(symbol: "flame.fill", text: "Streak", tint: HomeWidgetColor.orange)
+      HStack(alignment: .lastTextBaseline) {
+        (Text("\(s.days)").font(.system(size: 40, weight: .bold))
+          + Text(s.days == 1 ? " day" : " days").font(.subheadline.weight(.semibold)).foregroundColor(.secondary))
+          .monospacedDigit()
+          .lineLimit(1)
         Spacer(minLength: 6)
-        VStack(alignment: .trailing, spacing: 2) {
-          Text("Best: \(s.best) \(s.best == 1 ? "day" : "days")").font(.caption).foregroundColor(.secondary)
-          Text("\(workoutDays) \(workoutDays == 1 ? "workout" : "workouts") · 12 weeks").font(.caption).foregroundColor(.secondary)
-        }
+        Text("Best: \(s.best) \(s.best == 1 ? "day" : "days")").font(.caption).foregroundColor(.secondary).lineLimit(1)
       }
-      // Rows are weekdays (labelled from the first week), columns are weeks; today is bottom right.
-      HStack(alignment: .top, spacing: 6) {
-        VStack(spacing: 5) {
-          ForEach(Array((weeks.first ?? []).enumerated()), id: \.offset) { item in
-            Text(item.element.letter).font(.system(size: 9, weight: .medium)).foregroundColor(.secondary).frame(height: 15)
+      if s.lastSafeDay {
+        Text("Train today to keep it").font(.caption).foregroundColor(HomeWidgetColor.orange)
+      } else if s.days == 0 {
+        Text("Start a streak today").font(.caption).foregroundColor(.secondary)
+      }
+      grid.padding(.vertical, 8)
+      HStack(spacing: 6) {
+        tile("This week", "\(s.thisWeek) \(s.thisWeek == 1 ? "workout" : "workouts")")
+        tile("Weekly avg", String(format: "%.1f", Double(workoutDays) / 12))
+        tile("12 weeks", "\(workoutDays) \(workoutDays == 1 ? "workout" : "workouts")")
+      }
+    }
+  }
+
+  /// Rows are weekdays (labelled from the first week), columns are weeks; today is bottom right.
+  /// The squares are as big as the space left allows, so the grid fills the widget on every iPhone.
+  private var grid: some View {
+    let weeks = stride(from: 0, to: s.twelveWeeks.count, by: 7).map { Array(s.twelveWeeks[$0..<min($0 + 7, s.twelveWeeks.count)]) }
+    let gap: CGFloat = 4
+    let labelWidth: CGFloat = 12
+    let captionHeight: CGFloat = 16
+    return GeometryReader { geo in
+      let byWidth = (geo.size.width - labelWidth - gap * CGFloat(weeks.count)) / CGFloat(max(weeks.count, 1))
+      let byHeight = (geo.size.height - captionHeight - gap * 6) / 7
+      let side = max(8, min(byWidth, byHeight, 22))
+      VStack(spacing: 3) {
+        HStack(alignment: .top, spacing: gap) {
+          VStack(spacing: gap) {
+            ForEach(Array((weeks.first ?? []).enumerated()), id: \.offset) { item in
+              Text(item.element.letter).font(.system(size: 9, weight: .medium)).foregroundColor(.secondary)
+                .frame(width: labelWidth, height: side)
+            }
           }
-        }
-        HStack(spacing: 5) {
           ForEach(Array(weeks.enumerated()), id: \.offset) { week in
-            VStack(spacing: 5) {
+            VStack(spacing: gap) {
               ForEach(Array(week.element.enumerated()), id: \.offset) { item in
-                square(item.element)
+                square(item.element, side: side)
               }
             }
-            .frame(maxWidth: .infinity)
           }
         }
+        HStack {
+          Text("12 weeks ago")
+          Spacer()
+          Text("Today")
+        }
+        .font(.caption2)
+        .foregroundColor(.secondary)
+        .padding(.leading, labelWidth + gap)
       }
-      HStack {
-        Text("12 weeks ago").font(.caption2).foregroundColor(.secondary)
-        Spacer()
-        Text("Today").font(.caption2).foregroundColor(.secondary)
-      }
-      Spacer(minLength: 0)
+      .frame(width: geo.size.width, height: geo.size.height)
     }
   }
 
   @ViewBuilder
-  private func square(_ day: StreakDay) -> some View {
-    let shape = RoundedRectangle(cornerRadius: 3, style: .continuous)
+  private func square(_ day: StreakDay, side: CGFloat) -> some View {
+    let shape = RoundedRectangle(cornerRadius: side > 16 ? 4 : 3, style: .continuous)
     Group {
       if day.trained {
         shape.fill(HomeWidgetColor.orange).widgetAccentable()
@@ -198,6 +227,17 @@ struct StreakLargeView: View {
         shape.fill(Color.primary.opacity(0.12))
       }
     }
-    .frame(width: 15, height: 15)
+    .frame(width: side, height: side)
+  }
+
+  private func tile(_ label: String, _ value: String) -> some View {
+    VStack(alignment: .leading, spacing: 1) {
+      Text(label).font(.caption2).foregroundColor(.secondary).lineLimit(1)
+      Text(value).font(.subheadline.weight(.semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+    }
+    .padding(.horizontal, 7)
+    .padding(.vertical, 5)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.06)))
   }
 }

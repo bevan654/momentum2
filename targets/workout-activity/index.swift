@@ -8,6 +8,5 @@ struct WorkoutActivityBundle: WidgetBundle {
     // Home screen widgets (small, medium and large); data from src/services/homeWidgets.ts.
     MacrosWidget()
     StreakWidget()
-    LastWorkoutWidget()
   }
 }

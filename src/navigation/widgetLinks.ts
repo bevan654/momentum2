@@ -1,15 +1,13 @@
 /**
  * Links from the home screen widgets: momentum://nutrition and momentum://workouts open that tab
- * (Nutrition on today's diary); momentum://workout/<id> (Last workout) opens that workout's
- * summary. A link that arrives before the tabs exist (cold start,
+ * (Nutrition on today's diary). A link that arrives before the tabs exist (cold start,
  * the splash or sign-in still showing) waits until TabNavigator mounts. Other momentum:// links
- * (the OAuth callback, the Live Activity's momentum://workout without an id) are left alone: they
+ * (the OAuth callback, the Live Activity's momentum://workout) are left alone: they
  * just open the app.
  */
 
 import { Linking } from 'react-native';
 import { navigationRef } from './navigationRef';
-import { openWorkoutSummary } from '../lib/navigationBridge';
 import { useFoodLogStore } from '../stores/useFoodLogStore';
 
 const TABS: Record<string, string> = {
@@ -17,8 +15,8 @@ const TABS: Record<string, string> = {
   workouts: 'Workouts',
 };
 
-/** Where a link goes: a tab, or one workout's summary. */
-type Target = { tab: string } | { workoutId: string };
+/** Where a link goes: a tab. */
+type Target = { tab: string };
 
 let _started = false;
 let _tabsReady = false;
@@ -28,18 +26,12 @@ const PENDING_MS = 30_000;
 
 function _targetFor(url: string | null): Target | null {
   const link = url?.trim() ?? '';
-  const workoutId = /^momentum:\/\/workout\/([0-9a-f-]{36})\/?$/i.exec(link)?.[1];
-  if (workoutId) return { workoutId: workoutId.toLowerCase() };
   const host = /^momentum:\/\/([a-z]+)\/?$/i.exec(link)?.[1];
   const tab = host ? TABS[host.toLowerCase()] : undefined;
   return tab ? { tab } : null;
 }
 
 function _open(target: Target): void {
-  if ('workoutId' in target) {
-    openWorkoutSummary(target.workoutId);
-    return;
-  }
   if (target.tab === 'Nutrition') useFoodLogStore.getState().goToday();
   (navigationRef as any).navigate(target.tab);
 }
@@ -66,6 +58,6 @@ export function setWidgetLinkTabsReady(ready: boolean): void {
   const { target, at } = _pending;
   _pending = null;
   if (Date.now() - at > PENDING_MS) return;
-  // After this render, so the tab navigator (and LinkedWorkoutSummary) are registered.
+  // After this render, so the tab navigator is registered.
   setTimeout(() => { if (navigationRef.isReady()) _open(target); }, 0);
 }

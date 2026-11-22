@@ -25,6 +25,8 @@ struct StreakState {
   let twelveWeeks: [StreakDay]
   /// Longest streak ever (the app's, or today's run if it has passed it since the app last wrote).
   let best: Int
+  /// Workout days since the start of this week (the phone's first weekday), today included.
+  let thisWeek: Int
 
   /// The last `count` days, oldest first, ending on `now`.
   private static func lastDays(_ count: Int, now: Date, trained: Set<String>) -> [StreakDay] {
@@ -46,6 +48,9 @@ struct StreakState {
     calendar = StreakState.lastDays(28, now: now, trained: recent)
     twelveWeeks = StreakState.lastDays(84, now: now, trained: recent)
     recentWorkoutDays = dots.filter(\.trained).count
+    let weekStart = Calendar.autoupdatingCurrent.dateInterval(of: .weekOfYear, for: now)?.start ?? now
+    let daysThisWeek = max(0, HomeWidgetDay.days(from: weekStart, to: now)) + 1
+    thisWeek = StreakState.lastDays(daysThisWeek, now: now, trained: recent).filter(\.trained).count
 
     // The rule in src/utils/streakCalculator.ts: alive while the last workout was under 4 days ago.
     var current = 0

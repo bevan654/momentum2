@@ -60,61 +60,6 @@ struct HomeWidgetData: Codable {
     var creatine: Amount?
   }
 
-  struct WorkoutTotals: Codable {
-    /// Epoch ms the workout was saved.
-    var at: Double
-    /// kg × reps over completed sets, as the app's workout totals.
-    var volume: Double
-    /// Nil when the app can't count it reliably (too near the oldest loaded workout).
-    var prs: Int?
-  }
-
-  struct LastWorkout: Codable {
-    var id: String
-    var title: String
-    var at: Double
-    var volume: Double
-    var prs: Int
-    /// The earlier session of the same routine or program day; nil = none in the loaded history.
-    var previous: WorkoutTotals?
-    /// No earlier session, and the app has the whole history: it really is the first time.
-    var firstTime: Bool?
-    /// Each exercise's heaviest working set, in workout order.
-    var exercises: [ExerciseBest]?
-    /// Seconds; nil = not recorded.
-    var duration: Double?
-    /// Completed sets.
-    var sets: Int?
-    /// Main muscle groups ("Chest"), up to 3.
-    var muscles: [String]?
-    /// Volume of the same workout's last sessions, oldest first, ending with this one (2+ when set).
-    var trend: [Double]?
-  }
-
-  /// A workout in the weekly plan: the active program's days, then each routine on each of its days.
-  struct PlannedDay: Codable {
-    /// 0 = Monday … 6 = Sunday.
-    var day: Int
-    var name: String
-  }
-
-  /// An exercise's heaviest completed working set (most reps at that weight), and the same
-  /// exercise's in the earlier session (nil = not done then).
-  struct ExerciseBest: Codable {
-    var name: String
-    /// The exercise type ("duration" keeps seconds in reps).
-    var kind: String?
-    var kg: Double
-    var reps: Int
-    var previousKg: Double?
-    var previousReps: Int?
-  }
-
-  /// Wrapped so "no workouts yet" (latest nil) differs from "not loaded" (the section missing).
-  struct LastWorkoutSection: Codable {
-    var latest: LastWorkout?
-  }
-
   /// The streak rule (src/utils/streakCalculator.ts): every day counts, rest days too, and it breaks
   /// after 3 rest days in a row. Today's streak = days from the first day of the current run of
   /// workouts to today, while the last workout was under 4 days ago.
@@ -134,10 +79,7 @@ struct HomeWidgetData: Codable {
   var accentHex: String?
   var nutrition: Nutrition?
   var streak: Streak?
-  var lastWorkout: LastWorkoutSection?
   var nutritionExtras: NutritionExtras?
-  /// Nil = not loaded yet; empty = nothing scheduled.
-  var plan: [PlannedDay]?
 
   static func load() -> HomeWidgetData? {
     guard
@@ -221,26 +163,12 @@ extension HomeWidgetData {
         ]
       ),
       streak: Streak(chainStart: dates.last, lastWorkout: dates.first, recentDates: dates, best: 34),
-      lastWorkout: LastWorkoutSection(latest: LastWorkout(
-        id: "preview", title: "Push day", at: (now.timeIntervalSince1970 - 86_400) * 1000, volume: 12450, prs: 2,
-        previous: WorkoutTotals(at: (now.timeIntervalSince1970 - 8 * 86_400) * 1000, volume: 11830, prs: 0),
-        exercises: [
-          ExerciseBest(name: "Bench press", kind: "weighted", kg: 82.5, reps: 8, previousKg: 80, previousReps: 8),
-          ExerciseBest(name: "Incline dumbbell press", kind: "weighted", kg: 30, reps: 10, previousKg: 30, previousReps: 9),
-          ExerciseBest(name: "Shoulder press", kind: "weighted", kg: 50, reps: 8, previousKg: 50, previousReps: 8),
-          ExerciseBest(name: "Tricep pushdown", kind: "weighted", kg: 35, reps: 12, previousKg: 35, previousReps: 13),
-          ExerciseBest(name: "Lateral raise", kind: "weighted", kg: 12, reps: 15, previousKg: nil, previousReps: nil),
-        ],
-        duration: 3840, sets: 18, muscles: ["Chest", "Triceps", "Shoulders"],
-        trend: [10200, 11400, 10900, 11830, 11600, 12450]
-      )),
       nutritionExtras: NutritionExtras(
         date: today,
         micros: [Micro(name: "Fiber", unit: "g", amount: 18, goal: 30), Micro(name: "Sodium", unit: "mg", amount: 1650, goal: 2300)],
         water: Amount(amount: 1800, goal: 3000),
         creatine: Amount(amount: 5, goal: 5)
-      ),
-      plan: [PlannedDay(day: (Calendar.current.component(.weekday, from: now) + 5) % 7, name: "Pull day")]
+      )
     )
   }
 }
@@ -255,8 +183,8 @@ enum HomeWidgetColor {
   static let orange = Color(red: 0xF5 / 255.0, green: 0x9E / 255.0, blue: 0x0B / 255.0)
   static let red = Color(red: 0xEF / 255.0, green: 0x44 / 255.0, blue: 0x44 / 255.0)
   static let green = Color(red: 0x34 / 255.0, green: 0xD3 / 255.0, blue: 0x99 / 255.0)
-  /// The PR crown (targets/workout-activity/WorkoutLockScreen.swift prGold).
-  static let gold = Color(red: 0xF5 / 255.0, green: 0xB7 / 255.0, blue: 0x00 / 255.0)
+  /// The app icon's red (assets/logo.png), for the Momentum mark.
+  static let brand = Color(red: 0xDC / 255.0, green: 0x2B / 255.0, blue: 0x2B / 255.0)
 
   static func accent(_ hex: String?) -> Color {
     guard var s = hex?.trimmingCharacters(in: .whitespaces), !s.isEmpty else { return .primary }
@@ -288,16 +216,60 @@ extension View {
   func homeWidgetBackground() -> some View { modifier(HomeWidgetBackground()) }
 }
 
-/// Title row: icon + label.
+/// The "M" of the app icon (assets/logo.png), drawn from its shapes so it stays sharp at any size.
+struct MomentumMark: Shape {
+  /// The icon's 1024 pt artwork, trimmed to the mark: x 152…866, y 357…660.
+  private static let artwork: [[(CGFloat, CGFloat)]] = [
+    [(313, 357), (473, 357), (510, 425), (545, 357), (707, 357), (787, 509), (393, 509)],
+    [(232, 509), (393, 509), (313, 660), (152, 660)],
+    [(393, 509), (553, 509), (633, 660), (473, 660)],
+    [(626, 509), (787, 509), (866, 660), (706, 660)],
+  ]
+  private static let pieces: [[CGPoint]] = artwork.map { piece in
+    piece.map { point in CGPoint(x: point.0 - 152, y: point.1 - 357) }
+  }
+  /// Width over height.
+  static let aspect: CGFloat = 714.0 / 303.0
+
+  func path(in rect: CGRect) -> Path {
+    let sx = rect.width / 714, sy = rect.height / 303
+    var path = Path()
+    for piece in Self.pieces {
+      path.addLines(piece.map { CGPoint(x: rect.minX + $0.x * sx, y: rect.minY + $0.y * sy) })
+      path.closeSubpath()
+    }
+    return path
+  }
+}
+
+/// The Momentum mark in the icon's red, top right of every widget.
+struct HomeWidgetBrand: View {
+  var height: CGFloat = 10
+
+  var body: some View {
+    MomentumMark()
+      .fill(HomeWidgetColor.brand)
+      .frame(width: height * MomentumMark.aspect, height: height)
+      .accessibilityLabel("Momentum")
+  }
+}
+
+/// Title row: icon + label, and the Momentum mark at the far end (`brand` false where the row
+/// doesn't span the widget and the mark sits elsewhere).
 struct HomeWidgetTitle: View {
   let symbol: String
   let text: String
   let tint: Color
+  var brand = true
 
   var body: some View {
     HStack(spacing: 4) {
       Image(systemName: symbol).font(.caption.weight(.semibold)).foregroundColor(tint).widgetAccentable()
       Text(text).font(.caption.weight(.semibold)).foregroundColor(.secondary).lineLimit(1)
+      if brand {
+        Spacer(minLength: 4)
+        HomeWidgetBrand()
+      }
     }
   }
 }
@@ -346,6 +318,4 @@ func homeWidgetBlocker(_ data: HomeWidgetData?, hasSection: Bool) -> String? {
 enum HomeWidgetLink {
   static let nutrition = URL(string: "momentum://nutrition")
   static let workouts = URL(string: "momentum://workouts")
-  /// One workout's summary (navigation/widgetLinks.ts).
-  static func workout(_ id: String) -> URL? { URL(string: "momentum://workout/" + id) }
 }
