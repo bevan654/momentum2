@@ -260,11 +260,7 @@ const checks = {
     const hosts = [...swift.matchAll(/"momentum:\/\/(\w+)/g)].map((m) => m[1]);
     if (tabKeys.length === 0 || hosts.length === 0) problems.push('widget links: TABS in widgetLinks.ts or HomeWidgetLink URLs in HomeWidgetData.swift not found (the check needs updating)');
     for (const host of hosts) {
-      if (host === 'workout') {
-        if (!links.includes('momentum:\\/\\/workout\\/')) problems.push('widget link momentum://workout/<id> is not handled by src/navigation/widgetLinks.ts');
-      } else if (!tabKeys.includes(host)) {
-        problems.push(`widget link momentum://${host} is not in TABS in src/navigation/widgetLinks.ts`);
-      }
+      if (!tabKeys.includes(host)) problems.push(`widget link momentum://${host} is not in TABS in src/navigation/widgetLinks.ts`);
     }
     const tabNavigator = read('src/navigation/TabNavigator.tsx');
     for (const name of tabNames) {
