@@ -74,12 +74,37 @@ struct HomeWidgetData: Codable {
     var best: Int?
   }
 
+  /// One tile of the Supplements widget: water or a tracked supplement.
+  struct SupplementTile: Codable {
+    /// "water" or the supplement's key.
+    var key: String
+    var name: String
+    var unit: String
+    var amount: Double
+    var goal: Double
+    /// What one tap adds (the first quick amount).
+    var step: Double
+    /// An SF Symbol.
+    var icon: String
+    /// "#RRGGBB"; nil = the water colour.
+    var color: String?
+  }
+
+  /// The Supplements widget: water first, then the supplements in the app's order, for one local day.
+  struct Supplements: Codable {
+    var date: String
+    var tiles: [SupplementTile]
+  }
+
   var signedIn: Bool
+  /// Who the data belongs to (taps carry it, so the app applies them to the right account).
+  var userId: String?
   /// The user's accent ("#RRGGBB"); nil = Mono (black or white, following light/dark).
   var accentHex: String?
   var nutrition: Nutrition?
   var streak: Streak?
   var nutritionExtras: NutritionExtras?
+  var supplements: Supplements?
 
   static func load() -> HomeWidgetData? {
     guard
@@ -152,6 +177,7 @@ extension HomeWidgetData {
     }
     return HomeWidgetData(
       signedIn: true,
+      userId: nil,
       accentHex: nil,
       nutrition: Nutrition(
         date: today, kcal: 1580, protein: 142, carbs: 160, fat: 48, goalKcal: 2500, goalProtein: 180, goalCarbs: 280, goalFat: 80,
@@ -168,7 +194,15 @@ extension HomeWidgetData {
         micros: [Micro(name: "Fiber", unit: "g", amount: 18, goal: 30), Micro(name: "Sodium", unit: "mg", amount: 1650, goal: 2300)],
         water: Amount(amount: 1800, goal: 3000),
         creatine: Amount(amount: 5, goal: 5)
-      )
+      ),
+      supplements: Supplements(date: today, tiles: [
+        SupplementTile(key: "water", name: "Water", unit: "ml", amount: 1800, goal: 3000, step: 250, icon: "drop.fill", color: nil),
+        SupplementTile(key: "creatine", name: "Creatine", unit: "g", amount: 5, goal: 5, step: 5, icon: "bolt.fill", color: "#FBBF24"),
+        SupplementTile(key: "vitamin_d", name: "Vitamin D", unit: "IU", amount: 0, goal: 2000, step: 1000, icon: "sun.max.fill", color: "#F97316"),
+        SupplementTile(key: "fish_oil", name: "Fish Oil", unit: "mg", amount: 1000, goal: 1000, step: 1000, icon: "fish.fill", color: "#06B6D4"),
+        SupplementTile(key: "magnesium", name: "Magnesium", unit: "mg", amount: 200, goal: 400, step: 200, icon: "sparkles", color: "#8B5CF6"),
+        SupplementTile(key: "caffeine", name: "Caffeine", unit: "mg", amount: 100, goal: 200, step: 100, icon: "cup.and.saucer.fill", color: "#92400E"),
+      ])
     )
   }
 }
@@ -183,6 +217,7 @@ enum HomeWidgetColor {
   static let orange = Color(red: 0xF5 / 255.0, green: 0x9E / 255.0, blue: 0x0B / 255.0)
   static let red = Color(red: 0xEF / 255.0, green: 0x44 / 255.0, blue: 0x44 / 255.0)
   static let green = Color(red: 0x34 / 255.0, green: 0xD3 / 255.0, blue: 0x99 / 255.0)
+  static let water = Color(red: 0x60 / 255.0, green: 0xA5 / 255.0, blue: 0xFA / 255.0)
   /// The app icon's red (assets/logo.png), for the Momentum mark.
   static let brand = Color(red: 0xDC / 255.0, green: 0x2B / 255.0, blue: 0x2B / 255.0)
 

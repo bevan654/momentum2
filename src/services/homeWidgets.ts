@@ -22,6 +22,7 @@ import { useFoodLogStore, type FoodEntry } from '../stores/useFoodLogStore';
 import { useNutrientGoalStore } from '../stores/useNutrientGoalStore';
 import { useNutritionStore, type TodayFoodRow } from '../stores/useNutritionStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
+import { PROTEIN_POWDER_KEY } from '../stores/useProteinPowderStore';
 import { useStreakStore } from '../stores/useStreakStore';
 import { useThemeStore } from '../stores/useThemeStore';
 import { toLocalDateString } from '../utils/localDate';
@@ -33,6 +34,7 @@ interface Snapshot {
   nutrition?: unknown;
   streak?: unknown;
   nutritionExtras?: unknown;
+  supplements?: unknown;
 }
 
 let _started = false;
@@ -132,6 +134,49 @@ function _nutritionExtras(userId: string): unknown {
   };
 }
 
+/** The supplements' Ionicons (useSupplementStore presets; custom ones are medical-outline) as SF Symbols. */
+const SUPPLEMENT_SYMBOLS: Record<string, string> = {
+  'flash-outline': 'bolt.fill',
+  'sunny-outline': 'sun.max.fill',
+  'fish-outline': 'fish.fill',
+  'sparkles-outline': 'sparkles',
+  'shield-outline': 'shield.fill',
+  'cafe-outline': 'cup.and.saucer.fill',
+  'leaf-outline': 'leaf.fill',
+  'medical-outline': 'pills.fill',
+};
+
+/**
+ * The Supplements widget's tiles: water first, then each tracked supplement in the app's order
+ * (protein powder left out: adding it also logs a snack). `step` is what one tap adds (the first
+ * quick amount); `color` null = the widget's water colour.
+ */
+function _supplements(userId: string): unknown {
+  const day = toLocalDateString();
+  const sup = useSupplementStore.getState();
+  const loaded = sup.goalsFor === userId && sup.todayFor?.userId === userId && sup.todayFor.day === day;
+  if (!loaded) {
+    // Until loaded, what the widget shows; another day's amounts count as 0 today.
+    const stored = _previousSection(userId, 'supplements') as { date?: string; tiles?: { amount: number }[] } | null;
+    if (!stored || stored.date === day || !Array.isArray(stored.tiles)) return stored;
+    return { ...stored, date: day, tiles: stored.tiles.map((tile) => ({ ...tile, amount: 0 })) };
+  }
+  const water = { key: 'water', name: 'Water', unit: 'ml', amount: sup.water, goal: sup.waterGoal, step: sup.waterIncrements[0] ?? 250, icon: 'drop.fill', color: null };
+  const others = sup.supplementConfigs
+    .filter((c) => c.key !== PROTEIN_POWDER_KEY)
+    .map((c) => ({
+      key: c.key,
+      name: c.name,
+      unit: c.unit,
+      amount: sup.supplementTotals[c.key] ?? 0,
+      goal: c.dailyGoal,
+      step: c.increments[0] ?? c.dailyGoal,
+      icon: SUPPLEMENT_SYMBOLS[c.icon] ?? 'pills.fill',
+      color: c.color,
+    }));
+  return { date: day, tiles: [water, ...others].filter((tile) => tile.step > 0) };
+}
+
 function _streak(userId: string): unknown {
   const s = useStreakStore.getState();
   if (s.computedFor !== userId) return _previousSection(userId, 'streak');
@@ -140,7 +185,7 @@ function _streak(userId: string): unknown {
 
 function _previousSection(
   userId: string,
-  key: 'nutrition' | 'streak' | 'nutritionExtras',
+  key: 'nutrition' | 'streak' | 'nutritionExtras' | 'supplements',
 ): unknown {
   return _previous?.userId === userId ? _previous[key] ?? null : null;
 }
@@ -158,6 +203,7 @@ function _buildJson(): string | null {
     nutrition: _nutrition(userId),
     streak: _streak(userId),
     nutritionExtras: _nutritionExtras(userId),
+    supplements: _supplements(userId),
   });
 }
 
@@ -208,7 +254,8 @@ function _subscribe(): void {
   useNutrientGoalStore.subscribe((s, prev) => { if (s.microGoals !== prev.microGoals || s.loaded !== prev.loaded) _schedule(); });
   useSupplementStore.subscribe((s, prev) => {
     if (s.water !== prev.water || s.waterGoal !== prev.waterGoal || s.supplementTotals !== prev.supplementTotals
-      || s.supplementConfigs !== prev.supplementConfigs || s.todayFor !== prev.todayFor || s.goalsFor !== prev.goalsFor) _schedule();
+      || s.supplementConfigs !== prev.supplementConfigs || s.todayFor !== prev.todayFor || s.goalsFor !== prev.goalsFor
+      || s.waterIncrements !== prev.waterIncrements) _schedule();
   });
   useThemeStore.subscribe((s, prev) => { if (s.accent !== prev.accent) _schedule(); });
   _schedule();

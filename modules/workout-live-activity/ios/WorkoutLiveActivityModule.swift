@@ -72,17 +72,22 @@ public class WorkoutLiveActivityModule: Module {
   public func definition() -> ModuleDefinition {
     Name("WorkoutLiveActivity")
 
-    // A Lock Screen button was tapped; JS reads the taps with takePendingActions.
-    Events("onAction")
+    // A Lock Screen button was tapped (JS reads the taps with takePendingActions), or a Supplements
+    // widget button (takePendingSupplementTaps).
+    Events("onAction", "onSupplementTap")
 
     OnCreate {
-      WorkoutActivityTapObserver.shared.start { [weak self] in
+      DarwinTapObserver.workout.start { [weak self] in
         self?.sendEvent("onAction", [:])
+      }
+      DarwinTapObserver.supplements.start { [weak self] in
+        self?.sendEvent("onSupplementTap", [:])
       }
     }
 
     OnDestroy {
-      WorkoutActivityTapObserver.shared.stop()
+      DarwinTapObserver.workout.stop()
+      DarwinTapObserver.supplements.stop()
     }
 
     Function("isSupported") { () -> Bool in
@@ -131,6 +136,11 @@ public class WorkoutLiveActivityModule: Module {
     AsyncFunction("getHomeWidgetData") { () -> String? in
       HomeWidgetStore.read()
     }
+
+    /// Supplements widget taps the app hasn't applied yet, oldest first; reading them clears them.
+    AsyncFunction("takePendingSupplementTaps") { () -> [[String: Any]] in
+      SupplementTapOutbox.takeAll()
+    }
   }
 }
 
@@ -150,11 +160,18 @@ enum HomeWidgetStore {
   }
 }
 
-/// Listens for the Darwin notification a Lock Screen tap posts (from the app or the extension).
-final class WorkoutActivityTapObserver {
-  static let shared = WorkoutActivityTapObserver()
+/// Listens for the Darwin notification a tap posts (from the app or the extension): one for the
+/// Lock Screen buttons, one for the Supplements widget's.
+final class DarwinTapObserver {
+  static let workout = DarwinTapObserver(name: WorkoutActivityOutbox.darwinName)
+  static let supplements = DarwinTapObserver(name: SupplementTapOutbox.darwinName)
+  private let name: String
   private var handler: (() -> Void)?
   private var observing = false
+
+  private init(name: String) {
+    self.name = name
+  }
 
   func start(_ handler: @escaping () -> Void) {
     self.handler = handler
@@ -165,10 +182,10 @@ final class WorkoutActivityTapObserver {
       Unmanaged.passUnretained(self).toOpaque(),
       { _, observer, _, _, _ in
         guard let observer else { return }
-        let me = Unmanaged<WorkoutActivityTapObserver>.fromOpaque(observer).takeUnretainedValue()
+        let me = Unmanaged<DarwinTapObserver>.fromOpaque(observer).takeUnretainedValue()
         DispatchQueue.main.async { me.handler?() }
       },
-      WorkoutActivityOutbox.darwinName as CFString,
+      name as CFString,
       nil,
       .deliverImmediately
     )
@@ -181,7 +198,7 @@ final class WorkoutActivityTapObserver {
     CFNotificationCenterRemoveObserver(
       CFNotificationCenterGetDarwinNotifyCenter(),
       Unmanaged.passUnretained(self).toOpaque(),
-      CFNotificationName(WorkoutActivityOutbox.darwinName as CFString),
+      CFNotificationName(name as CFString),
       nil
     )
   }

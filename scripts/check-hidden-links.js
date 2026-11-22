@@ -206,9 +206,12 @@ const checks = {
     const ext = 'targets/workout-activity';
     const norm = (s) => s.replace(/\r\n/g, '\n');
     const problems = [];
-    const shared = 'WorkoutActivityShared.swift';
-    if (!exists(`${app}/${shared}`) || !exists(`${ext}/${shared}`)) problems.push(`${shared} is missing from ${app} or ${ext}`);
-    else if (norm(read(`${app}/${shared}`)) !== norm(read(`${ext}/${shared}`))) problems.push(`${app}/${shared} and ${ext}/${shared} differ (they must be identical)`);
+    // WorkoutActivityShared: the Lock Screen intents and outbox; HomeWidgetTaps: the Supplements
+    // widget's outbox (written by the widget, read by the module).
+    for (const shared of ['WorkoutActivityShared.swift', 'HomeWidgetTaps.swift']) {
+      if (!exists(`${app}/${shared}`) || !exists(`${ext}/${shared}`)) problems.push(`${shared} is missing from ${app} or ${ext}`);
+      else if (norm(read(`${app}/${shared}`)) !== norm(read(`${ext}/${shared}`))) problems.push(`${app}/${shared} and ${ext}/${shared} differ (they must be identical)`);
+    }
     const attrs = 'WorkoutActivityAttributes.swift';
     const body = (rel) => {
       const t = norm(read(rel));
@@ -275,6 +278,29 @@ const checks = {
    * the Expo module's Records (a key they don't know is dropped silently) and the ActivityKit
    * ContentState structs (Codable keys).
    */
+  /**
+   * A Supplements widget tap has the same fields where the widget writes it (the intents'
+   * outbox entries in SupplementsWidget.swift) and where the app reads it (SupplementWidgetTap in
+   * the module's index.ts); a renamed one is read as undefined and the tap is dropped.
+   */
+  supplementWidgetTaps() {
+    const swift = read('targets/workout-activity/SupplementsWidget.swift');
+    const ts = read('modules/workout-live-activity/index.ts');
+    const block = /export interface SupplementWidgetTap \{([^}]*)\}/.exec(ts)?.[1];
+    const tsFields = block ? [...block.matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1]) : [];
+    const entries = [...swift.matchAll(/SupplementTapOutbox\.append\(\[([\s\S]*?)\]\)/g)].map((m) => m[1]);
+    if (tsFields.length === 0 || entries.length === 0) {
+      return ['SupplementWidgetTap in modules/workout-live-activity/index.ts or SupplementTapOutbox.append in SupplementsWidget.swift not found (the check needs updating)'];
+    }
+    const problems = [];
+    entries.forEach((entry, i) => {
+      const keys = [...entry.matchAll(/"(\w+)":/g)].map((m) => m[1]);
+      for (const f of tsFields) if (!keys.includes(f)) problems.push(`SupplementsWidget.swift outbox entry ${i + 1} has no "${f}" (SupplementWidgetTap.${f})`);
+      for (const k of keys) if (!tsFields.includes(k)) problems.push(`SupplementsWidget.swift writes "${k}", which SupplementWidgetTap doesn't declare`);
+    });
+    return problems;
+  },
+
   liveActivityStateShape() {
     const ts = read('modules/workout-live-activity/index.ts');
     const mod = read('modules/workout-live-activity/ios/WorkoutLiveActivityModule.swift');
