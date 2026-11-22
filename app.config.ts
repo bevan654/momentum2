@@ -6,7 +6,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: 'momentum',
   scheme: 'momentum',
   owner: 'shajanbevan',
-  version: '1.0.38',
+  version: '1.0.39',
   orientation: 'portrait',
   icon: './assets/logo.png',
   userInterfaceStyle: 'dark',

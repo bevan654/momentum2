@@ -1,8 +1,8 @@
 import SwiftUI
 import WidgetKit
 
-// Small home screen widgets for today's food: Calories (ring), Protein, Macros. Each opens the
-// Nutrition tab. Totals from another day count as nothing eaten yet (the day rolled over and the app
+// The small Macros widget for today's food, and the pieces its medium and large sizes share (the
+// calorie ring, the macro bars). It opens the Nutrition tab. Totals from another day count as nothing eaten yet (the day rolled over and the app
 // hasn't written today's), so they reset at midnight on their own.
 
 private extension HomeWidgetData.Nutrition {
@@ -42,44 +42,6 @@ func calorieColor(eaten: Double, goal: Double, accent: Color) -> Color {
 func nutritionOf(_ entry: HomeWidgetEntry) -> HomeWidgetData.Nutrition {
   entry.data?.nutrition?.on(entry.date)
     ?? HomeWidgetData.Nutrition(date: HomeWidgetDay.key(entry.date), kcal: 0, protein: 0, carbs: 0, fat: 0)
-}
-
-// MARK: - A · Calories
-
-struct CaloriesWidgetView: View {
-  let entry: HomeWidgetEntry
-
-  var body: some View {
-    let accent = HomeWidgetColor.accent(entry.data?.accentHex)
-    Group {
-      if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.nutrition != nil) {
-        HomeWidgetMessage(symbol: "flame.fill", title: "Calories", tint: accent, message: message)
-      } else {
-        content(nutritionOf(entry), accent: accent)
-      }
-    }
-    .homeWidgetBackground()
-    .widgetURL(HomeWidgetLink.nutrition)
-  }
-
-  @ViewBuilder
-  private func content(_ n: HomeWidgetData.Nutrition, accent: Color) -> some View {
-    VStack(spacing: 4) {
-      HomeWidgetTitle(symbol: "flame.fill", text: "Calories", tint: accent)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      if let target = nutritionGoal(n.goalKcal) {
-        CalorieRingView(eaten: n.kcal, goal: target, accent: accent)
-          .padding(.horizontal, 10)
-          .frame(maxHeight: .infinity)
-        Text("\(kcalText(n.kcal)) / \(kcalText(target))")
-          .font(.caption2)
-          .monospacedDigit()
-          .foregroundColor(.secondary)
-      } else {
-        NoGoalView(value: "\(kcalText(n.kcal))", unit: "kcal eaten")
-      }
-    }
-  }
 }
 
 /// The calorie ring with "920 kcal left" (or "120 kcal over" in red) in the middle.
@@ -130,61 +92,7 @@ struct NoGoalView: View {
   }
 }
 
-// MARK: - B · Protein
-
-struct ProteinWidgetView: View {
-  let entry: HomeWidgetEntry
-  @Environment(\.widgetFamily) private var family
-
-  var body: some View {
-    Group {
-      if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.nutrition != nil) {
-        HomeWidgetMessage(symbol: "fork.knife", title: "Protein", tint: HomeWidgetColor.protein, message: message)
-      } else if family == .systemLarge {
-        ProteinLargeView(n: nutritionOf(entry), week: entry.data?.proteinWeek ?? [], now: entry.date)
-      } else if family == .systemMedium {
-        ProteinMediumView(n: nutritionOf(entry))
-      } else {
-        content(nutritionOf(entry))
-      }
-    }
-    .homeWidgetBackground()
-    .widgetURL(HomeWidgetLink.nutrition)
-  }
-
-  @ViewBuilder
-  private func content(_ n: HomeWidgetData.Nutrition) -> some View {
-    VStack(alignment: .leading, spacing: 2) {
-      HomeWidgetTitle(symbol: "fork.knife", text: "Protein", tint: HomeWidgetColor.protein)
-      if let target = nutritionGoal(n.goalProtein) {
-        Spacer(minLength: 0)
-        (Text("\(Int(n.protein.rounded()))").font(.largeTitle.weight(.bold))
-          + Text(" g").font(.headline).foregroundColor(.secondary))
-          .monospacedDigit()
-          .lineLimit(1)
-          .minimumScaleFactor(0.6)
-        if n.protein >= target {
-          Label("Goal hit", systemImage: "checkmark")
-            .font(.caption.weight(.semibold))
-            .foregroundColor(HomeWidgetColor.protein)
-        } else {
-          Text("of \(grams(target)) · \(grams(target - n.protein)) to go")
-            .font(.caption)
-            .foregroundColor(.secondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-        }
-        Spacer(minLength: 0)
-        HomeWidgetBar(fraction: n.protein / target, color: HomeWidgetColor.protein)
-      } else {
-        NoGoalView(value: grams(n.protein), unit: "protein eaten")
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-  }
-}
-
-// MARK: - C · Macros
+// MARK: - Macros
 
 struct MacrosWidgetView: View {
   let entry: HomeWidgetEntry
@@ -272,24 +180,6 @@ struct MacroRow: View {
 }
 
 // MARK: - Widgets
-
-struct CaloriesWidget: Widget {
-  var body: some WidgetConfiguration {
-    StaticConfiguration(kind: "MomentumCalories", provider: HomeWidgetProvider()) { CaloriesWidgetView(entry: $0) }
-      .configurationDisplayName("Calories")
-      .description("Calories left today against your goal.")
-      .supportedFamilies([.systemSmall])
-  }
-}
-
-struct ProteinWidget: Widget {
-  var body: some WidgetConfiguration {
-    StaticConfiguration(kind: "MomentumProtein", provider: HomeWidgetProvider()) { ProteinWidgetView(entry: $0) }
-      .configurationDisplayName("Protein")
-      .description("Protein eaten today and how much is left to your goal; per meal (medium and large) and the last 7 days (large).")
-      .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
-  }
-}
 
 struct MacrosWidget: Widget {
   var body: some WidgetConfiguration {

@@ -4,8 +4,8 @@ import WidgetKit
 // The home screen widgets' data. The app writes it as JSON to the shared App Group
 // (src/services/homeWidgets.ts → HomeWidgetStore in the workout-live-activity module) whenever what
 // they show changes; the widgets only read it. Things that change with time alone (a new day, the
-// streak counting up, recovery) are worked out here from dates, so the widgets stay right without
-// the app running.
+// streak counting up) are worked out here from dates, so the widgets stay right without the app
+// running.
 
 /// Same key as HomeWidgetStore in modules/workout-live-activity (npm run check:links checks).
 let homeWidgetDataKey = "momentum.homeWidgets.v1"
@@ -60,12 +60,6 @@ struct HomeWidgetData: Codable {
     var creatine: Amount?
   }
 
-  /// Protein eaten on one earlier day (the large Protein widget's 7 days; today comes from Nutrition).
-  struct DayProtein: Codable {
-    var date: String
-    var protein: Double
-  }
-
   struct WorkoutTotals: Codable {
     /// Epoch ms the workout was saved.
     var at: Double
@@ -85,8 +79,23 @@ struct HomeWidgetData: Codable {
     var previous: WorkoutTotals?
     /// No earlier session, and the app has the whole history: it really is the first time.
     var firstTime: Bool?
-    /// Each exercise's heaviest working set, in workout order (the large size).
+    /// Each exercise's heaviest working set, in workout order.
     var exercises: [ExerciseBest]?
+    /// Seconds; nil = not recorded.
+    var duration: Double?
+    /// Completed sets.
+    var sets: Int?
+    /// Main muscle groups ("Chest"), up to 3.
+    var muscles: [String]?
+    /// Volume of the same workout's last sessions, oldest first, ending with this one (2+ when set).
+    var trend: [Double]?
+  }
+
+  /// A workout in the weekly plan: the active program's days, then each routine on each of its days.
+  struct PlannedDay: Codable {
+    /// 0 = Monday … 6 = Sunday.
+    var day: Int
+    var name: String
   }
 
   /// An exercise's heaviest completed working set (most reps at that weight), and the same
@@ -120,29 +129,15 @@ struct HomeWidgetData: Codable {
     var best: Int?
   }
 
-  struct RecoveryGroup: Codable {
-    var name: String
-    /// Epoch ms when it was last trained as a primary muscle in the last 7 days; nil = recovered.
-    var trainedAt: Double?
-    /// Hours it takes to recover fully.
-    var hours: Double
-  }
-
-  struct Recovery: Codable {
-    var groups: [RecoveryGroup]
-    /// "male" or "female": which body outline the fully recovered state shows.
-    var body: String
-  }
-
   var signedIn: Bool
   /// The user's accent ("#RRGGBB"); nil = Mono (black or white, following light/dark).
   var accentHex: String?
   var nutrition: Nutrition?
   var streak: Streak?
-  var recovery: Recovery?
   var lastWorkout: LastWorkoutSection?
   var nutritionExtras: NutritionExtras?
-  var proteinWeek: [DayProtein]?
+  /// Nil = not loaded yet; empty = nothing scheduled.
+  var plan: [PlannedDay]?
 
   static func load() -> HomeWidgetData? {
     guard
@@ -186,11 +181,9 @@ struct HomeWidgetEntry: TimelineEntry {
   let data: HomeWidgetData?
 }
 
-/// One entry now and one at midnight (a new day); `hourly` adds one every hour until then
-/// (recovery moves with time). The app also redraws the widgets whenever their data changes.
+/// One entry now and one at midnight (a new day). The app also redraws the widgets whenever their
+/// data changes.
 struct HomeWidgetProvider: TimelineProvider {
-  var hourly = false
-
   func placeholder(in context: Context) -> HomeWidgetEntry {
     HomeWidgetEntry(date: Date(), data: .preview)
   }
@@ -203,16 +196,7 @@ struct HomeWidgetProvider: TimelineProvider {
     let data = HomeWidgetData.load()
     let now = Date()
     let midnight = HomeWidgetDay.nextMidnight(after: now)
-    var dates = [now]
-    if hourly {
-      var next = now.addingTimeInterval(3600)
-      while next < midnight {
-        dates.append(next)
-        next = next.addingTimeInterval(3600)
-      }
-    }
-    dates.append(midnight)
-    completion(Timeline(entries: dates.map { HomeWidgetEntry(date: $0, data: data) }, policy: .after(midnight)))
+    completion(Timeline(entries: [now, midnight].map { HomeWidgetEntry(date: $0, data: data) }, policy: .after(midnight)))
   }
 }
 
@@ -237,11 +221,6 @@ extension HomeWidgetData {
         ]
       ),
       streak: Streak(chainStart: dates.last, lastWorkout: dates.first, recentDates: dates, best: 34),
-      recovery: Recovery(groups: [
-        RecoveryGroup(name: "Back", trainedAt: nil, hours: 48),
-        RecoveryGroup(name: "Quads", trainedAt: (now.timeIntervalSince1970 - 40 * 3600) * 1000, hours: 72),
-        RecoveryGroup(name: "Biceps", trainedAt: (now.timeIntervalSince1970 - 30 * 3600) * 1000, hours: 48),
-      ], body: "male"),
       lastWorkout: LastWorkoutSection(latest: LastWorkout(
         id: "preview", title: "Push day", at: (now.timeIntervalSince1970 - 86_400) * 1000, volume: 12450, prs: 2,
         previous: WorkoutTotals(at: (now.timeIntervalSince1970 - 8 * 86_400) * 1000, volume: 11830, prs: 0),
@@ -250,7 +229,10 @@ extension HomeWidgetData {
           ExerciseBest(name: "Incline dumbbell press", kind: "weighted", kg: 30, reps: 10, previousKg: 30, previousReps: 9),
           ExerciseBest(name: "Shoulder press", kind: "weighted", kg: 50, reps: 8, previousKg: 50, previousReps: 8),
           ExerciseBest(name: "Tricep pushdown", kind: "weighted", kg: 35, reps: 12, previousKg: 35, previousReps: 13),
-        ]
+          ExerciseBest(name: "Lateral raise", kind: "weighted", kg: 12, reps: 15, previousKg: nil, previousReps: nil),
+        ],
+        duration: 3840, sets: 18, muscles: ["Chest", "Triceps", "Shoulders"],
+        trend: [10200, 11400, 10900, 11830, 11600, 12450]
       )),
       nutritionExtras: NutritionExtras(
         date: today,
@@ -258,9 +240,7 @@ extension HomeWidgetData {
         water: Amount(amount: 1800, goal: 3000),
         creatine: Amount(amount: 5, goal: 5)
       ),
-      proteinWeek: [1, 2, 3, 4, 5, 6].compactMap { back in
-        Calendar.current.date(byAdding: .day, value: -back, to: now).map { DayProtein(date: HomeWidgetDay.key($0), protein: Double([182, 175, 140, 190, 120, 185][back - 1])) }
-      }
+      plan: [PlannedDay(day: (Calendar.current.component(.weekday, from: now) + 5) % 7, name: "Pull day")]
     )
   }
 }
@@ -366,7 +346,6 @@ func homeWidgetBlocker(_ data: HomeWidgetData?, hasSection: Bool) -> String? {
 enum HomeWidgetLink {
   static let nutrition = URL(string: "momentum://nutrition")
   static let workouts = URL(string: "momentum://workouts")
-  static let recovery = URL(string: "momentum://recovery")
   /// One workout's summary (navigation/widgetLinks.ts).
   static func workout(_ id: String) -> URL? { URL(string: "momentum://workout/" + id) }
 }

@@ -3,36 +3,31 @@
  *
  * Widgets can't run the app's code, so this writes one JSON snapshot (shape: HomeWidgetData in
  * targets/workout-activity/HomeWidgetData.swift) whenever something they show changes: today's
- * nutrition and goals, the streak, recent workouts (recovery), the accent, sign-in. Writes are
+ * nutrition and goals, the streak, recent workouts, the accent, sign-in. Writes are
  * debounced and skipped when nothing changed; native redraws the widgets only on a real change.
- * What changes with time alone (a new day, the streak counting up, recovery) the widgets work out
- * from the dates in the snapshot.
+ * What changes with time alone (a new day, the streak counting up) the widgets work out from the
+ * dates in the snapshot.
  *
  * Each section is written only from data that really loaded for the signed-in user (a store's
- * starting values, or a failed fetch offline, would show 0 kcal / a 0-day streak / fully
- * recovered). Until a section has loaded this run, the one already on the widgets is kept (read
+ * starting values, or a failed fetch offline, would show 0 kcal / a 0-day streak / no workouts). Until a section has loaded this run, the one already on the widgets is kept (read
  * back at start, when it belongs to the same user). Plain module, no React state.
  */
 
 import { Platform } from 'react-native';
 import { getHomeWidgetData, setHomeWidgetData, supportsHomeWidgets } from '../../modules/workout-live-activity';
 import { sumMacros, sumMicros } from '../components/food/dayTotals';
-import { supabase } from '../lib/supabase';
 import { groupEntriesByMeal, OTHER_SLOT } from '../components/food/groupEntriesByMeal';
-import { RECOVERY_HOURS } from '../constants/muscles';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useFoodLogStore, type FoodEntry } from '../stores/useFoodLogStore';
-import { lastTrainedByGroup } from '../stores/useMuscleAnalysisStore';
 import { useNutrientGoalStore } from '../stores/useNutrientGoalStore';
 import { useNutritionStore, type TodayFoodRow } from '../stores/useNutritionStore';
+import { useProgramStore } from '../stores/useProgramStore';
 import { useSupplementStore } from '../stores/useSupplementStore';
 import { useRoutineStore } from '../stores/useRoutineStore';
 import { useStreakStore } from '../stores/useStreakStore';
 import { useThemeStore } from '../stores/useThemeStore';
-import { useWeightStore } from '../stores/useWeightStore';
 import { useWorkoutStore, type WorkoutWithDetails } from '../stores/useWorkoutStore';
-import { parseLocalDate, toLocalDateString } from '../utils/localDate';
-import { ownBodyweightKg } from '../utils/muscleLoad';
+import { toLocalDateString } from '../utils/localDate';
 import { titleCase } from '../utils/titleCase';
 
 const WRITE_DELAY_MS = 1000;
@@ -40,9 +35,9 @@ const WRITE_DELAY_MS = 1000;
 const HISTORY_LIMIT = 30;
 /** Older workouts a PR count needs behind it to be trusted (see _lastWorkout). */
 const PR_LOOKBACK = 10;
+/** Sessions in the large Last workout widget's volume chart, the latest included. */
+const TREND_SESSIONS = 6;
 
-const GROUPS = ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms', 'abs', 'quads', 'hamstrings', 'glutes', 'calves'] as const;
-const GROUP_HOURS = RECOVERY_HOURS as Record<(typeof GROUPS)[number], number>;
 const groupName = (g: string) => g.charAt(0).toUpperCase() + g.slice(1);
 
 /** The widgets' snapshot (the subset this module reads back; Swift ignores `userId`). */
@@ -50,10 +45,9 @@ interface Snapshot {
   userId?: string;
   nutrition?: unknown;
   streak?: unknown;
-  recovery?: unknown;
   lastWorkout?: unknown;
   nutritionExtras?: unknown;
-  proteinWeek?: unknown;
+  plan?: unknown;
 }
 
 let _started = false;
@@ -65,9 +59,12 @@ let _previous: Snapshot | null = null;
 let _totals: { userId: string; day: string; rows: TodayFoodRow[] } | null = null;
 /** The user whose meal sections were requested (they're only fetched when the diary opens otherwise). */
 let _mealsFetchedFor: string | null = null;
-/** Protein eaten on each of the 6 days before today, for one user and day; refetched the next day. */
-let _week: { userId: string; day: string; days: { date: string; protein: number }[] } | null = null;
-let _weekLoading = false;
+/**
+ * The user whose routines / programs loaded (the stores have no marker of their own: set when
+ * their list changes, cleared when the user changes); until both have, the plan on the widgets stays.
+ */
+let _routinesFor: string | null = null;
+let _programsFor: string | null = null;
 
 function _captureTotals(n: ReturnType<typeof useNutritionStore.getState>): void {
   if (!n.totalsFor) return;
@@ -75,7 +72,7 @@ function _captureTotals(n: ReturnType<typeof useNutritionStore.getState>): void 
 }
 
 /**
- * Protein per meal, in the diary's meals and order (planned food left out, as in the diary); the
+ * Calories and macros per meal, in the diary's meals and order (planned food left out, as in the diary); the
  * meals on the widgets until this user's meal sections have loaded.
  */
 function _meals(userId: string, day: string, rows: TodayFoodRow[]): unknown {
@@ -157,73 +154,10 @@ function _nutritionExtras(userId: string): unknown {
   };
 }
 
-/**
- * Protein on the 6 days before today, plus today's (so after midnight the widget still has
- * yesterday's; it shows today's from the live nutrition section).
- */
-function _proteinWeek(userId: string): unknown {
-  const stored = (_previousSection(userId, 'proteinWeek') ?? []) as { date: string; protein: number }[];
-  // A week fetched on an earlier day misses the days since: fill them from what the widgets show.
-  const fetched = _week?.userId === userId ? _week.days : [];
-  const oldest = parseLocalDate(toLocalDateString());
-  oldest.setDate(oldest.getDate() - 7);
-  const cutoff = toLocalDateString(oldest);
-  // Only the days the chart can show, so the list doesn't grow day after day.
-  const earlier = [...fetched, ...stored.filter((d) => !fetched.some((f) => f.date === d.date))]
-    .filter((d) => d.date >= cutoff);
-  if (!_totals || _totals.userId !== userId) return earlier;
-  const today = {
-    date: _totals.day,
-    protein: Math.round(sumMacros(_totals.rows as unknown as FoodEntry[]).protein),
-  };
-  const days = Array.isArray(earlier) ? (earlier as { date: string }[]).filter((d) => d.date !== today.date) : [];
-  return [...days, today];
-}
-
-/** Loads _week for this user and day (one small request a day), then writes again. */
-function _loadProteinWeek(userId: string): void {
-  const today = toLocalDateString();
-  if (_weekLoading || (_week?.userId === userId && _week.day === today)) return;
-  _weekLoading = true;
-  const start = parseLocalDate(today);
-  start.setDate(start.getDate() - 6);
-  const end = parseLocalDate(today);
-  supabase
-    .from('food_entries')
-    .select('protein, is_planned, created_at')
-    .eq('user_id', userId)
-    .gte('created_at', start.toISOString())
-    .lt('created_at', end.toISOString())
-    .limit(2000)
-    .then(({ data, error }) => {
-      if (error || !data || useAuthStore.getState().user?.id !== userId) return;
-      const byDay = new Map<string, number>();
-      for (const row of data) {
-        if (row.is_planned) continue;
-        const key = toLocalDateString(new Date(row.created_at));
-        byDay.set(key, (byDay.get(key) ?? 0) + (Number(row.protein) || 0));
-      }
-      _week = { userId, day: today, days: [...byDay].map(([date, protein]) => ({ date, protein: Math.round(protein) })) };
-      _schedule();
-    })
-    .then(() => { _weekLoading = false; }, () => { _weekLoading = false; });
-}
-
 function _streak(userId: string): unknown {
   const s = useStreakStore.getState();
   if (s.computedFor !== userId) return _previousSection(userId, 'streak');
   return { chainStart: s.chainStart, lastWorkout: s.lastWorkout, recentDates: s.recentDates, best: s.longestStreak };
-}
-
-function _recovery(userId: string, gender: string | null | undefined, startingWeight: number | null | undefined): unknown {
-  const { workouts, catalogMap, historyUserId } = useWorkoutStore.getState();
-  if (historyUserId !== userId) return _previousSection(userId, 'recovery');
-  const bodyweightKg = ownBodyweightKg(useWeightStore.getState().current, startingWeight);
-  const trained = lastTrainedByGroup(workouts, catalogMap, bodyweightKg, new Date());
-  return {
-    groups: GROUPS.map((g) => ({ name: groupName(g), trainedAt: trained[g] ?? null, hours: GROUP_HOURS[g] })),
-    body: gender === 'female' ? 'female' : 'male',
-  };
 }
 
 /** What the app would call this workout: program day, routine, program, else its main muscles. */
@@ -251,6 +185,20 @@ function _sameBefore(latest: WorkoutWithDetails, older: WorkoutWithDetails[]): W
     if (shared > bestShared) { best = w; bestShared = shared; }
   }
   return best;
+}
+
+/**
+ * Every earlier session of the same workout in the loaded history, newest first: same routine,
+ * same program day, else sharing at least half of its exercises (as _sameBefore).
+ */
+function _sameSessions(latest: WorkoutWithDetails, older: WorkoutWithDetails[]): WorkoutWithDetails[] {
+  if (latest.routineId) return older.filter((w) => w.routineId === latest.routineId);
+  if (latest.programDayLabel) {
+    return older.filter((w) => w.programDayLabel === latest.programDayLabel && w.programName === latest.programName);
+  }
+  const names = new Set(latest.exercises.map((e) => e.name.toLowerCase()));
+  const needed = Math.max(1, Math.ceil(names.size / 2));
+  return older.filter((w) => new Set(w.exercises.map((e) => e.name.toLowerCase()).filter((n) => names.has(n))).size >= needed);
 }
 
 /** Assisted machine or band exercises (the same test as utils/muscleLoad.ts isAssisted). */
@@ -294,6 +242,8 @@ function _lastWorkout(userId: string): unknown {
   if (!Number.isFinite(at)) return _previousSection(userId, 'lastWorkout');
   const previous = _sameBefore(latest, older);
   const previousAt = previous ? Date.parse(previous.created_at) : NaN;
+  // Volume of the same workout over its last sessions, oldest first, ending with this one.
+  const trend = [..._sameSessions(latest, older).slice(0, TREND_SESSIONS - 1).reverse(), latest].map((w) => w.totalVolume);
   // prCount only looks back through the loaded history, so for a workout near its oldest end it
   // counts lifts as PRs that weren't: leave that one out.
   const previousIndex = previous ? workouts.indexOf(previous) : -1;
@@ -312,14 +262,36 @@ function _lastWorkout(userId: string): unknown {
         : null,
       // No earlier session in the whole loaded history: really the first time only if that's all of it.
       firstTime: !previous && workouts.length < HISTORY_LIMIT,
+      // Seconds; 0 = not recorded (old builds).
+      duration: latest.duration > 0 ? latest.duration : null,
+      sets: latest.completedSets,
+      muscles: latest.muscleGroups.slice(0, 3).map(groupName),
+      trend: trend.length >= 2 ? trend : null,
       exercises: _exerciseBests(latest, previous && Number.isFinite(previousAt) ? previous : null),
     },
   };
 }
 
+/**
+ * The weekly plan, as the Workouts tab's "Today's workout": the active program's days (those with
+ * exercises), then each routine on each of its days. `day` 0 = Monday … 6 = Sunday. The widget
+ * picks the next one itself, so it moves on at midnight without the app.
+ */
+function _plan(userId: string): unknown {
+  if (_routinesFor !== userId || _programsFor !== userId) return _previousSection(userId, 'plan');
+  const days: { day: number; name: string }[] = [];
+  for (const d of useProgramStore.getState().activeProgram?.days ?? []) {
+    if (d.exercises.length > 0) days.push({ day: d.day_of_week, name: d.label });
+  }
+  for (const r of useRoutineStore.getState().routines) {
+    for (const day of r.days) days.push({ day, name: r.name });
+  }
+  return days;
+}
+
 function _previousSection(
   userId: string,
-  key: 'nutrition' | 'streak' | 'recovery' | 'lastWorkout' | 'nutritionExtras' | 'proteinWeek',
+  key: 'nutrition' | 'streak' | 'lastWorkout' | 'nutritionExtras' | 'plan',
 ): unknown {
   return _previous?.userId === userId ? _previous[key] ?? null : null;
 }
@@ -336,10 +308,9 @@ function _buildJson(): string | null {
     accentHex: useThemeStore.getState().accent ?? null,
     nutrition: _nutrition(userId),
     streak: _streak(userId),
-    recovery: _recovery(userId, auth.profile?.gender, auth.profile?.starting_weight),
     lastWorkout: _lastWorkout(userId),
     nutritionExtras: _nutritionExtras(userId),
-    proteinWeek: _proteinWeek(userId),
+    plan: _plan(userId),
   });
 }
 
@@ -359,7 +330,6 @@ async function _write(): Promise<void> {
       });
   }
   if (userId) {
-    _loadProteinWeek(userId);
     const goals = useNutrientGoalStore.getState();
     if (!goals.loaded) goals.loadConfigs().catch(() => {});
   }
@@ -381,12 +351,20 @@ function _subscribe(): void {
     if (s.totalsFor && s.totalsFor !== prev.totalsFor) _captureTotals(s);
     _schedule();
   });
+  // Lists that loaded before this subscription existed (an empty one may be the store's default).
+  const userId = useAuthStore.getState().user?.id ?? null;
+  if (useRoutineStore.getState().routines.length > 0) _routinesFor = userId;
+  if (useProgramStore.getState().programs.length > 0) _programsFor = userId;
   useAuthStore.subscribe((s, prev) => {
-    if (s.initialized !== prev.initialized || s.user !== prev.user || s.profile !== prev.profile) _schedule();
+    if (s.user?.id !== prev.user?.id) {
+      _routinesFor = null;
+      _programsFor = null;
+    }
+    if (s.initialized !== prev.initialized || s.user !== prev.user) _schedule();
   });
   useStreakStore.subscribe(_schedule);
   useWorkoutStore.subscribe((s, prev) => {
-    if (s.workouts !== prev.workouts || s.catalogMap !== prev.catalogMap || s.historyUserId !== prev.historyUserId) _schedule();
+    if (s.workouts !== prev.workouts || s.historyUserId !== prev.historyUserId) _schedule();
   });
   useFoodLogStore.subscribe((s, prev) => {
     if (s.mealConfigs !== prev.mealConfigs || s.mealConfigsFor !== prev.mealConfigsFor) _schedule();
@@ -396,8 +374,16 @@ function _subscribe(): void {
     if (s.water !== prev.water || s.waterGoal !== prev.waterGoal || s.supplementTotals !== prev.supplementTotals
       || s.supplementConfigs !== prev.supplementConfigs || s.todayFor !== prev.todayFor || s.goalsFor !== prev.goalsFor) _schedule();
   });
-  useRoutineStore.subscribe((s, prev) => { if (s.routines !== prev.routines) _schedule(); });
-  useWeightStore.subscribe((s, prev) => { if (s.current !== prev.current) _schedule(); });
+  useRoutineStore.subscribe((s, prev) => {
+    if (s.routines === prev.routines) return;
+    _routinesFor = useAuthStore.getState().user?.id ?? null;
+    _schedule();
+  });
+  useProgramStore.subscribe((s, prev) => {
+    if (s.programs === prev.programs && s.activeProgram === prev.activeProgram) return;
+    _programsFor = useAuthStore.getState().user?.id ?? null;
+    _schedule();
+  });
   useThemeStore.subscribe((s, prev) => { if (s.accent !== prev.accent) _schedule(); });
   _schedule();
 }

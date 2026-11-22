@@ -1,7 +1,7 @@
 /**
- * Links from the home screen widgets: momentum://nutrition, momentum://workouts and
- * momentum://recovery open that tab (Nutrition on today's diary); momentum://workout/<id> (Last
- * workout) opens that workout's summary. A link that arrives before the tabs exist (cold start,
+ * Links from the home screen widgets: momentum://nutrition and momentum://workouts open that tab
+ * (Nutrition on today's diary); momentum://workout/<id> (Last workout) opens that workout's
+ * summary. A link that arrives before the tabs exist (cold start,
  * the splash or sign-in still showing) waits until TabNavigator mounts. Other momentum:// links
  * (the OAuth callback, the Live Activity's momentum://workout without an id) are left alone: they
  * just open the app.
@@ -15,7 +15,6 @@ import { useFoodLogStore } from '../stores/useFoodLogStore';
 const TABS: Record<string, string> = {
   nutrition: 'Nutrition',
   workouts: 'Workouts',
-  recovery: 'Recovery',
 };
 
 /** Where a link goes: a tab, or one workout's summary. */
