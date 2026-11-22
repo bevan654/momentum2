@@ -99,7 +99,7 @@ struct UndoSupplementTapIntent: AppIntent {
     if !SupplementTapOutbox.remove(last.outboxKey) {
       SupplementTapOutbox.append([
         "type": "undo", "key": last.key, "amount": last.amount, "userId": last.userId, "day": last.day,
-        "at": (Date().timeIntervalSince1970 * 1000).rounded(),
+        "at": (Date().timeIntervalSince1970 * 1000).rounded(), "addedAt": (last.at * 1000).rounded(),
       ])
       SupplementTapOutbox.notifyApp()
     }
@@ -315,11 +315,15 @@ struct SupplementsWidgetView: View {
 
   @ViewBuilder
   private func tileButton(_ tile: HomeWidgetData.SupplementTile, amount: Double, today: String) -> some View {
-    if #available(iOS 17.0, *), let userId = entry.data?.userId {
-      Button(intent: AddSupplementTapIntent(tile: tile, userId: userId, day: today)) {
+    if #available(iOS 17.0, *) {
+      if let userId = entry.data?.userId {
+        Button(intent: AddSupplementTapIntent(tile: tile, userId: userId, day: today)) {
+          tileView(tile, amount: amount)
+        }
+        .buttonStyle(.plain)
+      } else {
         tileView(tile, amount: amount)
       }
-      .buttonStyle(.plain)
     } else {
       tileView(tile, amount: amount)
     }

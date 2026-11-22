@@ -139,8 +139,14 @@ public class WorkoutLiveActivityModule: Module {
     }
 
     /// Supplements widget taps the app hasn't applied yet, oldest first; reading them clears them.
+    /// The widget showed them on top of the app's last data, so it's redrawn without them; the
+    /// app's next write brings the saved amounts (or, if a save failed, nothing changes there).
     AsyncFunction("takePendingSupplementTaps") { () -> [[String: Any]] in
-      SupplementTapOutbox.takeAll()
+      let taps = SupplementTapOutbox.takeAll()
+      if !taps.isEmpty, #available(iOS 14.0, *) {
+        WidgetCenter.shared.reloadTimelines(ofKind: "MomentumSupplements")
+      }
+      return taps
     }
   }
 }

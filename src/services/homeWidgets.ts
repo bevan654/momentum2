@@ -194,18 +194,23 @@ function _supplements(userId: string): unknown {
     if (!stored || stored.date === day || !Array.isArray(stored.tiles)) return stored;
     return { ...stored, date: day, tiles: stored.tiles.map((tile) => ({ ...tile, amount: 0 })) };
   }
-  const water = { key: 'water', name: 'Water', unit: 'ml', amount: sup.water, goal: sup.waterGoal, step: sup.waterIncrements[0] ?? 250, icon: 'drop.fill', color: null };
+  // Every value as the widget decodes it (a phone-cached config can hold strings; NaN would be null).
+  const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const water = {
+    key: 'water', name: 'Water', unit: 'ml', amount: num(sup.water), goal: num(sup.waterGoal),
+    step: num(sup.waterIncrements[0] ?? 250), icon: 'drop.fill', color: null,
+  };
   const others = sup.supplementConfigs
-    .filter((c) => c.key !== PROTEIN_POWDER_KEY)
+    .filter((c) => c && c.key && c.key !== PROTEIN_POWDER_KEY)
     .map((c) => ({
-      key: c.key,
-      name: c.name,
-      unit: c.unit,
-      amount: sup.supplementTotals[c.key] ?? 0,
-      goal: c.dailyGoal,
-      step: c.increments[0] ?? c.dailyGoal,
+      key: String(c.key),
+      name: String(c.name ?? ''),
+      unit: String(c.unit ?? ''),
+      amount: num(sup.supplementTotals[c.key]),
+      goal: num(c.dailyGoal),
+      step: num(Array.isArray(c.increments) ? c.increments[0] ?? c.dailyGoal : c.dailyGoal),
       icon: SUPPLEMENT_SYMBOLS[c.icon] ?? 'pills.fill',
-      color: c.color,
+      color: typeof c.color === 'string' ? c.color : null,
     }));
   return { date: day, tiles: [water, ...others].filter((tile) => tile.step > 0) };
 }

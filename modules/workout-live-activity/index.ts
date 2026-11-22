@@ -100,7 +100,7 @@ export type WorkoutLiveActivityAction =
 /**
  * A Supplements widget tap the app hasn't applied yet (HomeWidgetTaps.swift): `key` is "water" or a
  * supplement's key, `day` the local day it was tapped on, `at` epoch ms. An undo whose add the
- * app already applied takes back the latest entry of that key.
+ * app already took carries the add's time (`addedAt`), so only the entry saved for it is removed.
  */
 export interface SupplementWidgetTap {
   type: 'add' | 'undo';
@@ -109,6 +109,7 @@ export interface SupplementWidgetTap {
   userId: string;
   day: string;
   at: number;
+  addedAt?: number;
 }
 
 interface WorkoutLiveActivityNative {

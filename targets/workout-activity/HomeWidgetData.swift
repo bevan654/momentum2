@@ -115,6 +115,50 @@ struct HomeWidgetData: Codable {
   }
 }
 
+// MARK: - Decoding: one part the widgets can't read never blanks the others
+
+extension HomeWidgetData {
+  /// Each part decodes on its own: one with a value the widgets can't read (renamed, null, the
+  /// wrong type) is left out, so its widget asks to open the app while the others still show.
+  init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    signedIn = try c.decode(Bool.self, forKey: .signedIn)
+    userId = try? c.decodeIfPresent(String.self, forKey: .userId)
+    accentHex = try? c.decodeIfPresent(String.self, forKey: .accentHex)
+    nutrition = try? c.decodeIfPresent(Nutrition.self, forKey: .nutrition)
+    streak = try? c.decodeIfPresent(Streak.self, forKey: .streak)
+    nutritionExtras = try? c.decodeIfPresent(NutritionExtras.self, forKey: .nutritionExtras)
+    supplements = try? c.decodeIfPresent(Supplements.self, forKey: .supplements)
+  }
+}
+
+/// Decodes anything, to step past an array element that didn't decode.
+private struct SkippedValue: Decodable {
+  init(from decoder: Decoder) throws {}
+}
+
+extension HomeWidgetData.Supplements {
+  /// A tile that can't be read is skipped; the rest still show.
+  init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    date = try c.decode(String.self, forKey: .date)
+    var list = try c.nestedUnkeyedContainer(forKey: .tiles)
+    var tiles: [HomeWidgetData.SupplementTile] = []
+    while !list.isAtEnd {
+      let index = list.currentIndex
+      if (try? list.decodeNil()) == true { continue }
+      if let tile = try? list.decode(HomeWidgetData.SupplementTile.self) {
+        tiles.append(tile)
+      } else {
+        _ = try? list.decode(SkippedValue.self)
+      }
+      // Never loop on an element that couldn't be stepped past.
+      if list.currentIndex == index { break }
+    }
+    self.tiles = tiles
+  }
+}
+
 // MARK: - Dates (local, like the app)
 
 enum HomeWidgetDay {

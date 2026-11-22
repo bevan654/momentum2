@@ -589,7 +589,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 }));
 
 // Keep the shared signed-in user current for stores that can't import this one (see lib/currentUser).
-const shareCurrentUser = (state: { user: User | null; profile: { starting_weight?: number | null } | null }) =>
-  setCurrentUser(state.user?.id ?? null, state.profile?.starting_weight ?? null);
+// The starting weight only from this user's own profile: during an account switch the previous
+// account's profile is still in state until fetchProfile finishes.
+const shareCurrentUser = (state: { user: User | null; profile: { id?: string; starting_weight?: number | null } | null }) =>
+  setCurrentUser(
+    state.user?.id ?? null,
+    state.profile && state.profile.id === state.user?.id ? state.profile.starting_weight ?? null : null,
+  );
 shareCurrentUser(useAuthStore.getState());
 useAuthStore.subscribe(shareCurrentUser);

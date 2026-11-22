@@ -270,11 +270,6 @@ const checks = {
   },
 
   /**
-   * The state JS sends the Live Activity has the same field names in all three places: the TS types,
-   * the Expo module's Records (a key they don't know is dropped silently) and the ActivityKit
-   * ContentState structs (Codable keys).
-   */
-  /**
    * The widget kinds homeWidgets.ts redraws (WIDGET_KINDS) are the `kind`s the widgets register in
    * targets/workout-activity; a misspelt one never redraws that widget when its data changes.
    */
@@ -301,7 +296,10 @@ const checks = {
     const swift = read('targets/workout-activity/SupplementsWidget.swift');
     const ts = read('modules/workout-live-activity/index.ts');
     const block = /export interface SupplementWidgetTap \{([^}]*)\}/.exec(ts)?.[1];
-    const tsFields = block ? [...block.matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1]) : [];
+    const fieldMatches = block ? [...block.matchAll(/^\s*(\w+)(\??):/gm)] : [];
+    const tsFields = fieldMatches.map((m) => m[1]);
+    // Optional fields (`addedAt?:`) may be left out of an entry; required ones must be in every entry.
+    const required = fieldMatches.filter((m) => !m[2]).map((m) => m[1]);
     const entries = [...swift.matchAll(/SupplementTapOutbox\.append\(\[([\s\S]*?)\]\)/g)].map((m) => m[1]);
     if (tsFields.length === 0 || entries.length === 0) {
       return ['SupplementWidgetTap in modules/workout-live-activity/index.ts or SupplementTapOutbox.append in SupplementsWidget.swift not found (the check needs updating)'];
@@ -309,12 +307,17 @@ const checks = {
     const problems = [];
     entries.forEach((entry, i) => {
       const keys = [...entry.matchAll(/"(\w+)":/g)].map((m) => m[1]);
-      for (const f of tsFields) if (!keys.includes(f)) problems.push(`SupplementsWidget.swift outbox entry ${i + 1} has no "${f}" (SupplementWidgetTap.${f})`);
+      for (const f of required) if (!keys.includes(f)) problems.push(`SupplementsWidget.swift outbox entry ${i + 1} has no "${f}" (SupplementWidgetTap.${f})`);
       for (const k of keys) if (!tsFields.includes(k)) problems.push(`SupplementsWidget.swift writes "${k}", which SupplementWidgetTap doesn't declare`);
     });
     return problems;
   },
 
+  /**
+   * The state JS sends the Live Activity has the same field names in all three places: the TS types,
+   * the Expo module's Records (a key they don't know is dropped silently) and the ActivityKit
+   * ContentState structs (Codable keys).
+   */
   liveActivityStateShape() {
     const ts = read('modules/workout-live-activity/index.ts');
     const mod = read('modules/workout-live-activity/ios/WorkoutLiveActivityModule.swift');

@@ -11,9 +11,9 @@ import Foundation
 // taps (src/services/supplementWidgetTaps.ts) when it gets the ping, comes to the foreground or
 // starts. Its own key prefix and notification name keep it apart from the Lock Screen taps.
 //
-// Entries: { type: "add" | "undo", key, amount, userId, day, at } (`key` "water" or a supplement's
-// key, `day` the local day "2026-11-22", `at` epoch ms). Mirrors SupplementWidgetTap in
-// modules/workout-live-activity/index.ts.
+// Entries: { type: "add" | "undo", key, amount, userId, day, at, addedAt? } (`key` "water" or a
+// supplement's key, `day` the local day "2026-11-22", `at` epoch ms; an undo also has its add's
+// time). Mirrors SupplementWidgetTap in modules/workout-live-activity/index.ts.
 
 enum SupplementTapOutbox {
   static let appGroup = "group.com.momentum.fitnessapp"
