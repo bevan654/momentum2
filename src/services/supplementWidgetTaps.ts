@@ -12,8 +12,9 @@
  * 3. Remove the done taps from the outbox and write the widget data at once, so the widget swaps
  *    its own copy of them for the saved amounts in one go.
  * A tap whose save failed (offline) stays, still showing on the widget, and is tried again on the
- * next read. If today's totals couldn't be reloaded yet, today's taps also stay and are read again
- * shortly (their saves are then recognised as done). Taps for another account are dropped.
+ * next read. If today's totals couldn't be reloaded yet (a save in the app is running, offline),
+ * today's saved taps stay too and are removed the moment the totals do reload. An Undo delete that
+ * fails is tried again on the next read. Taps for another account are dropped.
  *
  * Read when a tap pings the app, when the app comes to the foreground, when the signed-in user
  * changes, and at start (taps made while the app wasn't running). Only while signed in. Plain
@@ -56,8 +57,12 @@ async function _add(userId: string, tap: PendingSupplementWidgetTap): Promise<bo
 
 /** Deletes the entry with this id; true once it's gone (deleting a missing one is fine too). */
 async function _delete(userId: string, id: string): Promise<boolean> {
-  const { error } = await supabase.from('supplement_entries').delete().eq('id', id).eq('user_id', userId);
-  return !error;
+  try {
+    const { error } = await supabase.from('supplement_entries').delete().eq('id', id).eq('user_id', userId);
+    return !error;
+  } catch {
+    return false;
+  }
 }
 
 function _isValid(t: PendingSupplementWidgetTap, earliest: string, today: string): boolean {
@@ -85,6 +90,69 @@ function _retrySoon(): void {
   }, RETRY_MS);
 }
 
+type Held = { userId: string; day: string; keys: string[]; saved: Map<string, string> };
+
+/**
+ * Today's saved taps waiting for today's totals to reload (a save in the app was running, or the
+ * reload failed). They're released the moment the totals reload, before the app's own (delayed)
+ * widget write, so the widget never counts them twice. Reads leave them alone meanwhile.
+ */
+let _held: Held | null = null;
+let _heldUnsubscribe: (() => void) | null = null;
+
+function _hold(userId: string, day: string, keys: string[], saved: Map<string, string>): void {
+  const earlier = _held && _held.userId === userId && _held.day === day ? _held : null;
+  const mine = [...saved].filter(([key]) => keys.includes(key));
+  _held = {
+    userId,
+    day,
+    keys: [...new Set([...(earlier ? earlier.keys : []), ...keys])],
+    saved: new Map([...(earlier ? [...earlier.saved] : []), ...mine]),
+  };
+  if (_heldUnsubscribe) return;
+  _heldUnsubscribe = useSupplementStore.subscribe((s, prev) => {
+    const current = _held;
+    if (!current || s.todayFor === prev.todayFor) return;
+    if (s.todayFor?.userId !== current.userId || s.todayFor.day !== current.day) return;
+    const released = _takeHeld(current.userId, current.day);
+    if (released) _finish(released.userId, released.keys, released.saved).catch(() => {});
+  });
+}
+
+/** The held taps for this user and day, now released (null when none). */
+function _takeHeld(userId: string, day: string): Held | null {
+  const held = _held;
+  if (!held || held.userId !== userId || held.day !== day) return null;
+  _held = null;
+  _heldUnsubscribe?.();
+  _heldUnsubscribe = null;
+  return held;
+}
+
+/** Undo deletes (of adds taken back while being saved) that failed: tried again on each read. */
+let _failedDeletes: { userId: string; id: string }[] = [];
+
+/**
+ * Removes done taps from the outbox and writes the widget data at once. An add the widget took
+ * back (Undo) while it was being saved is no longer there: its entry is deleted again.
+ */
+async function _finish(userId: string, keys: string[], saved: Map<string, string>): Promise<void> {
+  if (keys.length === 0) return;
+  const removed = await WorkoutLiveActivity.removeSupplementTaps(keys);
+  if (!removed) {
+    // Unknown whether they went: leave them; their saves are recognised as done next time.
+    _retrySoon();
+    return;
+  }
+  await flushHomeWidgets(['supplements']);
+  const takenBack = [...saved].filter(([key]) => keys.includes(key) && !removed.includes(key)).map(([, id]) => id);
+  if (takenBack.length === 0) return;
+  for (const id of takenBack) {
+    if (!(await _delete(userId, id))) _failedDeletes.push({ userId, id });
+  }
+  if (await _reloadToday(userId)) await flushHomeWidgets(['supplements']);
+}
+
 /** Saves the taps in order, one at a time, then brings the outbox, the app and the widget in line. */
 async function _apply(taps: PendingSupplementWidgetTap[], userId: string): Promise<void> {
   const today = toLocalDateString();
@@ -92,12 +160,23 @@ async function _apply(taps: PendingSupplementWidgetTap[], userId: string): Promi
   oldest.setDate(oldest.getDate() - MAX_DAYS_BACK);
   const earliest = toLocalDateString(oldest);
 
+  // Undo deletes that failed earlier.
+  let retriedDelete = false;
+  const failed = _failedDeletes.filter((d) => d.userId === userId);
+  _failedDeletes = _failedDeletes.filter((d) => d.userId !== userId);
+  for (const d of failed) {
+    if (await _delete(userId, d.id)) retriedDelete = true;
+    else _failedDeletes.push(d);
+  }
+
   /** Done taps (saved, or dropped: another account, too old, unreadable) → their day ('' = dropped). */
   const done = new Map<string, string>();
   /** Saved adds: outbox key → entry id. */
   const saved = new Map<string, string>();
+  const held = new Set(_held && _held.userId === userId ? _held.keys : []);
   const valid: PendingSupplementWidgetTap[] = [];
   for (const t of taps) {
+    if (t && held.has(t._key)) continue; // saved already, waiting for today's totals
     if (t?.userId === userId && _isValid(t, earliest, today)) valid.push(t);
     else if (typeof t?._key === 'string') done.set(t._key, '');
   }
@@ -126,38 +205,36 @@ async function _apply(taps: PendingSupplementWidgetTap[], userId: string): Promi
       if (__DEV__) console.warn('[SupplementWidget] saving a tap failed:', e);
     }
   }
-  if (done.size === 0 || useAuthStore.getState().user?.id !== userId) return;
+  if (useAuthStore.getState().user?.id !== userId) return;
 
-  // Today's totals first, while the taps are still on the widget. Not reloaded: today's taps wait
-  // (still showing) and are read again shortly.
+  // Today's totals first, while the taps are still on the widget.
   const savedDays = new Set([...done.values()].filter(Boolean));
-  let toRemove = [...done.keys()];
-  if (savedDays.has(today) && !(await _reloadToday(userId))) {
-    toRemove = toRemove.filter((key) => done.get(key) !== today);
-    _retrySoon();
+  const todayKeys = [...done.keys()].filter((key) => done.get(key) === today);
+  let keys = [...done.keys()].filter((key) => done.get(key) !== today);
+  let finishSaved = saved;
+  if (todayKeys.length > 0 || held.size > 0 || retriedDelete) {
+    if (await _reloadToday(userId)) {
+      keys = [...keys, ...todayKeys];
+      // Taps held from an earlier read go with them (unless the reload already released them).
+      const earlier = _takeHeld(userId, today);
+      if (earlier) {
+        keys = [...keys, ...earlier.keys];
+        finishSaved = new Map([...saved, ...earlier.saved]);
+      }
+      if (keys.length === 0) await flushHomeWidgets(['supplements']);
+    } else if (todayKeys.length > 0 || held.size > 0) {
+      // Not reloaded: today's taps wait (still showing) until it is.
+      if (todayKeys.length > 0) _hold(userId, today, todayKeys, saved);
+      _retrySoon();
+    }
   }
   const store = useSupplementStore.getState();
   if (store.dateEntriesDate && savedDays.has(store.dateEntriesDate)) {
     store.fetchDateSupplements(userId, store.dateEntriesDate).catch(() => {});
   }
-  if (toRemove.length === 0) return;
-
-  const removed = await WorkoutLiveActivity.removeSupplementTaps(toRemove);
-  if (!removed) {
-    // Unknown whether they went: leave them; their saves are recognised as done next time.
-    _retrySoon();
-    return;
-  }
-  _retries = 0;
-  await flushHomeWidgets(['supplements']);
-
-  // An add the widget took back (Undo) while it was being saved: delete the entry it created,
-  // then update the app and the widget again.
-  const takenBack = [...saved].filter(([key]) => toRemove.includes(key) && !removed.includes(key));
-  if (takenBack.length === 0) return;
-  for (const [, id] of takenBack) await _delete(userId, id).catch(() => false);
-  await _reloadToday(userId);
-  await flushHomeWidgets(['supplements']);
+  if (keys.length === 0) return;
+  if (!_held) _retries = 0;
+  await _finish(userId, keys, finishSaved);
 }
 
 async function _read(): Promise<void> {

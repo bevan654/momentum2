@@ -20,6 +20,8 @@ enum SupplementTapOutbox {
   static let appGroup = "group.com.momentum.fitnessapp"
   static let darwinName = "com.momentum.fitnessapp.homeWidgets.supplementTap"
   private static let prefix = "homeWidgets.supplementTap."
+  /// More unsaved taps than this (a long time offline) drops the oldest: a guard against filling
+  /// the shared storage, far beyond normal use.
   private static let maxEntries = 100
   /// Within one process; across processes the per-tap keys keep writers apart.
   private static let lock = NSLock()
