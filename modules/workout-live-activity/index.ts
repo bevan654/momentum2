@@ -98,18 +98,19 @@ export type WorkoutLiveActivityAction =
   | { type: 'endRest'; workoutId: string; at: number };
 
 /**
- * A Supplements widget tap the app hasn't applied yet (HomeWidgetTaps.swift): `key` is "water" or a
- * supplement's key, `day` the local day it was tapped on, `at` epoch ms. An undo whose add the
- * app already took carries the add's time (`addedAt`), so only the entry saved for it is removed.
+ * A Supplements widget tap the app hasn't saved yet (HomeWidgetTaps.swift): `key` is "water" or a
+ * supplement's key, `day` the local day it was tapped on, `at` epoch ms. `id` is the
+ * `supplement_entries` id: an add is saved under it (so a retry can't save it twice) and an undo
+ * removes the entry with it.
  */
 interface SupplementWidgetTap {
   type: 'add' | 'undo';
+  id: string;
   key: string;
   amount: number;
   userId: string;
   day: string;
   at: number;
-  addedAt?: number;
 }
 
 /** A pending tap as read from the outbox, with its key there (`_key`, for removing it once saved). */
@@ -226,14 +227,18 @@ export async function readPendingSupplementTaps(): Promise<PendingSupplementWidg
   }
 }
 
-/** Removes saved (or dropped) taps; resolves the keys that were still there. */
-export async function removeSupplementTaps(keys: string[]): Promise<string[]> {
-  if (!Native?.removeSupplementTaps || keys.length === 0) return [];
+/**
+ * Removes saved (or dropped) taps; resolves the keys that were still there, or null when that
+ * isn't known (the call failed: nothing may have been removed).
+ */
+export async function removeSupplementTaps(keys: string[]): Promise<string[] | null> {
+  if (keys.length === 0) return [];
+  if (!Native?.removeSupplementTaps) return null;
   try {
     const removed = await Native.removeSupplementTaps(keys);
-    return Array.isArray(removed) ? removed : [];
+    return Array.isArray(removed) ? removed : null;
   } catch {
-    return [];
+    return null;
   }
 }
 

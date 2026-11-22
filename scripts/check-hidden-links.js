@@ -298,7 +298,7 @@ const checks = {
     const block = /interface SupplementWidgetTap \{([^}]*)\}/.exec(ts)?.[1];
     const fieldMatches = block ? [...block.matchAll(/^\s*(\w+)(\??):/gm)] : [];
     const tsFields = fieldMatches.map((m) => m[1]);
-    // Optional fields (`addedAt?:`) may be left out of an entry; required ones must be in every entry.
+    // Optional fields (`name?:`) may be left out of an entry; required ones must be in every entry.
     const required = fieldMatches.filter((m) => !m[2]).map((m) => m[1]);
     const entries = [...swift.matchAll(/SupplementTapOutbox\.append\(\[([\s\S]*?)\]\)/g)].map((m) => m[1]);
     if (tsFields.length === 0 || entries.length === 0) {

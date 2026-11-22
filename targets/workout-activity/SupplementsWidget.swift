@@ -11,8 +11,10 @@ import WidgetKit
 /// The widget's own state in the App Group: the page shown and the last tap (for its Undo line).
 enum SupplementWidgetState {
   struct LastTap: Codable {
-    /// The outbox entry, while the app hasn't taken it.
+    /// The outbox entry, while the app hasn't saved it.
     var outboxKey: String
+    /// The id the add is saved under (`supplement_entries.id`), so Undo removes exactly that entry.
+    var entryId: String
     var key: String
     var name: String
     var unit: String
@@ -72,13 +74,16 @@ struct AddSupplementTapIntent: AppIntent {
 
   func perform() async throws -> some IntentResult {
     let now = Date()
+    // Made here, once: the app saves the entry under it, so a retried save (its reply lost) is
+    // recognised as already saved instead of adding it twice.
+    let entryId = UUID().uuidString.lowercased()
     let outboxKey = SupplementTapOutbox.append([
-      "type": "add", "key": key, "amount": amount, "userId": userId, "day": day,
+      "type": "add", "id": entryId, "key": key, "amount": amount, "userId": userId, "day": day,
       "at": (now.timeIntervalSince1970 * 1000).rounded(),
     ])
     SupplementWidgetState.lastTap = .init(
-      outboxKey: outboxKey, key: key, name: name, unit: unit, amount: amount, userId: userId, day: day,
-      at: now.timeIntervalSince1970
+      outboxKey: outboxKey, entryId: entryId, key: key, name: name, unit: unit, amount: amount,
+      userId: userId, day: day, at: now.timeIntervalSince1970
     )
     SupplementTapOutbox.notifyApp()
     return .result()
@@ -95,11 +100,11 @@ struct UndoSupplementTapIntent: AppIntent {
   func perform() async throws -> some IntentResult {
     guard let last = SupplementWidgetState.lastTap else { return .result() }
     SupplementWidgetState.lastTap = nil
-    // Not applied yet: take it back. Applied: ask the app to remove that supplement's latest entry.
+    // Not saved yet: take it back. Saved: ask the app to remove the entry saved under its id.
     if !SupplementTapOutbox.remove(last.outboxKey) {
       SupplementTapOutbox.append([
-        "type": "undo", "key": last.key, "amount": last.amount, "userId": last.userId, "day": last.day,
-        "at": (Date().timeIntervalSince1970 * 1000).rounded(), "addedAt": (last.at * 1000).rounded(),
+        "type": "undo", "id": last.entryId, "key": last.key, "amount": last.amount, "userId": last.userId,
+        "day": last.day, "at": (Date().timeIntervalSince1970 * 1000).rounded(),
       ])
       SupplementTapOutbox.notifyApp()
     }
