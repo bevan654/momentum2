@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useWeightStore } from './useWeightStore';
-import { useAuthStore } from './useAuthStore';
+import { getCurrentStartingWeight } from '../lib/currentUser';
 import {
   estimateOneRepMax,
   effectiveLoad,
@@ -115,7 +115,7 @@ const DEFAULT_RANK: RankInfo = {
 function rankBodyweight(): number {
   const current = useWeightStore.getState().current;
   if (isPlausibleBodyweight(current)) return current;
-  const starting = useAuthStore.getState().profile?.starting_weight;
+  const starting = getCurrentStartingWeight();
   if (isPlausibleBodyweight(starting)) return starting;
   return 70;
 }

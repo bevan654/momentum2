@@ -11,7 +11,7 @@
 
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../stores/useAuthStore';
+import { getCurrentUserId } from '../lib/currentUser';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { isSupported as liveActivitiesSupported } from '../../modules/workout-live-activity';
 
@@ -49,7 +49,7 @@ export function getExerciseHistorySets(name: string, workoutId: string | null): 
   // Only the iOS Lock Screen Live Activity shows PRs (not Android, nor the older notification on
   // iOS < 16.2 or with Live Activities off): no requests elsewhere.
   if (Platform.OS !== 'ios' || !liveActivitiesSupported()) return undefined;
-  const userId = useAuthStore.getState().user?.id;
+  const userId = getCurrentUserId();
   if (!userId || !name) return undefined;
   const key = `${userId}|${workoutId ?? ''}`;
   if (key !== _key) {

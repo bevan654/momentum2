@@ -7,7 +7,7 @@ import { makeUuid } from '../utils/uuid';
 import { useWorkoutStore } from './useWorkoutStore';
 import { useStreakStore } from './useStreakStore';
 import { useRankStore } from './useRankStore';
-import { useAuthStore } from './useAuthStore';
+import { getCurrentUserId } from '../lib/currentUser';
 import { useWeightStore } from './useWeightStore';
 import { startWorkoutActivity, updateWorkoutActivity, stopWorkoutActivity, clearStaleWorkoutActivity } from '../services/liveActivityManager';
 import { EMPTY_SET } from './activeWorkout/constants';
@@ -63,7 +63,7 @@ function _newExerciseId(): string {
 
 /** Retries deletes of discarded (undone) workouts that failed offline. */
 async function _flushPendingDeletes(): Promise<void> {
-  const userId = useAuthStore.getState().user?.id;
+  const userId = getCurrentUserId();
   if (!userId) return;
   // Only this account's: another account's delete would match no rows under RLS
   // and be dropped from the queue without ever running.
@@ -72,7 +72,7 @@ async function _flushPendingDeletes(): Promise<void> {
   const { error } = await supabase.from('workouts').delete().in('id', ids).eq('user_id', userId);
   if (error) return; // try again next launch
   await removePendingWorkoutDeletes(ids);
-  if (useAuthStore.getState().user?.id === userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
+  if (getCurrentUserId() === userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
 }
 
 /** Loads the persisted workout (if any) into the store. Use `restoreWorkout`, which runs this once. */
@@ -87,7 +87,7 @@ async function _restoreSavedWorkout(
   if (gen !== _sessionGen) return; // Signed out while loading; the next sign-in restores again
   // A workout another account left on this device isn't this user's to continue.
   // Its copy is left in storage, so it's still there if that account signs back in.
-  const userId = useAuthStore.getState().user?.id;
+  const userId = getCurrentUserId();
   if (saved?.userId && userId && saved.userId !== userId) {
     saved = null;
   }
@@ -461,7 +461,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     // Discarding a workout reopened with Undo deletes the saved copy, as Undo used to.
     const { workoutId, saveMode } = get();
     if (saveMode === 'replace' && workoutId) {
-      const ownerId = useAuthStore.getState().user?.id;
+      const ownerId = getCurrentUserId();
       supabase.from('workouts').delete().eq('id', workoutId).then(({ error }) => {
         if (error) {
           // Offline or failed: retried on the next launch (_flushPendingDeletes)
@@ -469,7 +469,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
           if (ownerId) addPendingWorkoutDelete(workoutId, ownerId).catch(() => {});
           return;
         }
-        const userId = useAuthStore.getState().user?.id;
+        const userId = getCurrentUserId();
         if (userId) useWorkoutStore.getState().fetchWorkoutHistory(userId);
       }, () => { if (ownerId) addPendingWorkoutDelete(workoutId, ownerId).catch(() => {}); });
     }
@@ -694,7 +694,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>((set, get) => ({
     _persistTimeout = setTimeout(() => {
       const { isActive, startTime, exercises, restDuration, restStartedAt, restTotal, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode } = get();
       if (!isActive || !startTime) return;
-      const userId = useAuthStore.getState().user?.id ?? null;
+      const userId = getCurrentUserId();
       saveWorkout({ startTime, exercises, restDuration, restStartedAt, restTotal, startedFromRoutine, startedFromProgram, programWeek, workoutTitle, restAnchor, ghostUserName, workoutId, saveMode, userId });
     }, 500);
   },
