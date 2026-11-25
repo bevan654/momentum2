@@ -206,9 +206,12 @@ const checks = {
     const ext = 'targets/workout-activity';
     const norm = (s) => s.replace(/\r\n/g, '\n');
     const problems = [];
-    const shared = 'WorkoutActivityShared.swift';
-    if (!exists(`${app}/${shared}`) || !exists(`${ext}/${shared}`)) problems.push(`${shared} is missing from ${app} or ${ext}`);
-    else if (norm(read(`${app}/${shared}`)) !== norm(read(`${ext}/${shared}`))) problems.push(`${app}/${shared} and ${ext}/${shared} differ (they must be identical)`);
+    // WorkoutActivityShared: the Lock Screen intents and outbox; HomeWidgetTaps: the Supplements
+    // widget's outbox (written by the widget, read by the module).
+    for (const shared of ['WorkoutActivityShared.swift', 'HomeWidgetTaps.swift']) {
+      if (!exists(`${app}/${shared}`) || !exists(`${ext}/${shared}`)) problems.push(`${shared} is missing from ${app} or ${ext}`);
+      else if (norm(read(`${app}/${shared}`)) !== norm(read(`${ext}/${shared}`))) problems.push(`${app}/${shared} and ${ext}/${shared} differ (they must be identical)`);
+    }
     const attrs = 'WorkoutActivityAttributes.swift';
     const body = (rel) => {
       const t = norm(read(rel));
@@ -257,16 +260,56 @@ const checks = {
     const hosts = [...swift.matchAll(/"momentum:\/\/(\w+)/g)].map((m) => m[1]);
     if (tabKeys.length === 0 || hosts.length === 0) problems.push('widget links: TABS in widgetLinks.ts or HomeWidgetLink URLs in HomeWidgetData.swift not found (the check needs updating)');
     for (const host of hosts) {
-      if (host === 'workout') {
-        if (!links.includes('momentum:\\/\\/workout\\/')) problems.push('widget link momentum://workout/<id> is not handled by src/navigation/widgetLinks.ts');
-      } else if (!tabKeys.includes(host)) {
-        problems.push(`widget link momentum://${host} is not in TABS in src/navigation/widgetLinks.ts`);
-      }
+      if (!tabKeys.includes(host)) problems.push(`widget link momentum://${host} is not in TABS in src/navigation/widgetLinks.ts`);
     }
     const tabNavigator = read('src/navigation/TabNavigator.tsx');
     for (const name of tabNames) {
       if (!new RegExp(`name=["']${name}["']`).test(tabNavigator)) problems.push(`widgetLinks.ts opens tab '${name}', which TabNavigator.tsx doesn't register`);
     }
+    return problems;
+  },
+
+  /**
+   * The widget kinds homeWidgets.ts redraws (WIDGET_KINDS) are the `kind`s the widgets register in
+   * targets/workout-activity; a misspelt one never redraws that widget when its data changes.
+   */
+  homeWidgetKinds() {
+    const ts = read('src/services/homeWidgets.ts');
+    const block = /const WIDGET_KINDS[^=]*=\s*\{([\s\S]*?)\n\};/.exec(ts)?.[1];
+    const used = block ? [...new Set([...block.matchAll(/'(\w+)'/g)].map((m) => m[1]))] : [];
+    const dir = 'targets/workout-activity';
+    const swift = fs.readdirSync(path.join(root, dir)).filter((f) => f.endsWith('.swift')).map((f) => read(`${dir}/${f}`)).join('\n');
+    const kinds = [...swift.matchAll(/StaticConfiguration\(kind: "(\w+)"/g)].map((m) => m[1]);
+    if (used.length === 0 || kinds.length === 0) return ['WIDGET_KINDS in src/services/homeWidgets.ts or the widgets\' StaticConfiguration kinds not found (the check needs updating)'];
+    const problems = [];
+    for (const k of used) if (!kinds.includes(k)) problems.push(`homeWidgets.ts redraws widget kind '${k}', which no widget in ${dir} registers`);
+    for (const k of kinds) if (!used.includes(k)) problems.push(`widget kind '${k}' is never redrawn by homeWidgets.ts (add it to WIDGET_KINDS)`);
+    return problems;
+  },
+
+  /**
+   * A Supplements widget tap has the same fields where the widget writes it (the intents'
+   * outbox entries in SupplementsWidget.swift) and where the app reads it (SupplementWidgetTap in
+   * the module's index.ts); a renamed one is read as undefined and the tap is dropped.
+   */
+  supplementWidgetTaps() {
+    const swift = read('targets/workout-activity/SupplementsWidget.swift');
+    const ts = read('modules/workout-live-activity/index.ts');
+    const block = /interface SupplementWidgetTap \{([^}]*)\}/.exec(ts)?.[1];
+    const fieldMatches = block ? [...block.matchAll(/^\s*(\w+)(\??):/gm)] : [];
+    const tsFields = fieldMatches.map((m) => m[1]);
+    // Optional fields (`name?:`) may be left out of an entry; required ones must be in every entry.
+    const required = fieldMatches.filter((m) => !m[2]).map((m) => m[1]);
+    const entries = [...swift.matchAll(/SupplementTapOutbox\.append\(\[([\s\S]*?)\]\)/g)].map((m) => m[1]);
+    if (tsFields.length === 0 || entries.length === 0) {
+      return ['SupplementWidgetTap in modules/workout-live-activity/index.ts or SupplementTapOutbox.append in SupplementsWidget.swift not found (the check needs updating)'];
+    }
+    const problems = [];
+    entries.forEach((entry, i) => {
+      const keys = [...entry.matchAll(/"(\w+)":/g)].map((m) => m[1]);
+      for (const f of required) if (!keys.includes(f)) problems.push(`SupplementsWidget.swift outbox entry ${i + 1} has no "${f}" (SupplementWidgetTap.${f})`);
+      for (const k of keys) if (!tsFields.includes(k)) problems.push(`SupplementsWidget.swift writes "${k}", which SupplementWidgetTap doesn't declare`);
+    });
     return problems;
   },
 

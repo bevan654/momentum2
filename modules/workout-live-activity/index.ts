@@ -97,6 +97,25 @@ export type WorkoutLiveActivityAction =
   | { type: 'reps'; workoutId: string; exerciseId: string; setPosition: number; reps: number; at: number }
   | { type: 'endRest'; workoutId: string; at: number };
 
+/**
+ * A Supplements widget tap the app hasn't saved yet (HomeWidgetTaps.swift): `key` is "water" or a
+ * supplement's key, `day` the local day it was tapped on, `at` epoch ms. `id` is the
+ * `supplement_entries` id: an add is saved under it (so a retry can't save it twice) and an undo
+ * removes the entry with it.
+ */
+interface SupplementWidgetTap {
+  type: 'add' | 'undo';
+  id: string;
+  key: string;
+  amount: number;
+  userId: string;
+  day: string;
+  at: number;
+}
+
+/** A pending tap as read from the outbox, with its key there (`_key`, for removing it once saved). */
+export type PendingSupplementWidgetTap = SupplementWidgetTap & { _key: string };
+
 interface WorkoutLiveActivityNative {
   isSupported(): boolean;
   start(state: WorkoutLiveActivityState): Promise<string | null>;
@@ -106,9 +125,14 @@ interface WorkoutLiveActivityNative {
   // 1.0.38+ on iOS only.
   takePendingActions?(): Promise<WorkoutLiveActivityAction[]>;
   clearPendingActions?(): Promise<void>;
-  addListener?(event: 'onAction', listener: () => void): EventSubscription;
-  setHomeWidgetData?(json: string | null): Promise<void>;
+  addListener?(event: 'onAction' | 'onSupplementTap', listener: () => void): EventSubscription;
+  /** `kinds` (1.0.39+): the widget kinds to redraw; null = all. */
+  setHomeWidgetData?(json: string | null, kinds: string[] | null): Promise<void>;
   getHomeWidgetData?(): Promise<string | null>;
+  // 1.0.39+ on iOS only.
+  readPendingSupplementTaps?(): Promise<PendingSupplementWidgetTap[]>;
+  removeSupplementTaps?(keys: string[]): Promise<string[]>;
+  reloadHomeWidgets?(kinds: string[]): Promise<void>;
 }
 
 const Native = requireOptionalNativeModule<WorkoutLiveActivityNative>('WorkoutLiveActivity');
@@ -179,13 +203,61 @@ export function addActionListener(listener: () => void): EventSubscription | nul
  * Hands the home screen widgets their data (a JSON string; null clears it) and redraws them if it
  * changed. Returns false where the binary has no widgets (Android, iOS builds before 1.0.38).
  */
-export async function setHomeWidgetData(json: string | null): Promise<boolean> {
+export async function setHomeWidgetData(json: string | null, kinds: string[] | null = null): Promise<boolean> {
   if (!Native?.setHomeWidgetData) return false;
   try {
-    await Native.setHomeWidgetData(json);
+    await Native.setHomeWidgetData(json, kinds);
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Supplements widget taps not saved yet, oldest first, each with its outbox key; reading leaves
+ * them in place (remove each with removeSupplementTaps once saved). [] where unsupported; null
+ * when the read failed (the outbox isn't known to be empty: a tap missing from it means nothing).
+ */
+export async function readPendingSupplementTaps(): Promise<PendingSupplementWidgetTap[] | null> {
+  if (!Native?.readPendingSupplementTaps) return [];
+  try {
+    const taps = await Native.readPendingSupplementTaps();
+    return Array.isArray(taps) ? taps : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Removes saved (or dropped) taps; resolves the keys that were still there, or null when that
+ * isn't known (the call failed: nothing may have been removed).
+ */
+export async function removeSupplementTaps(keys: string[]): Promise<string[] | null> {
+  if (keys.length === 0) return [];
+  if (!Native?.removeSupplementTaps) return null;
+  try {
+    const removed = await Native.removeSupplementTaps(keys);
+    return Array.isArray(removed) ? removed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Redraws these home screen widget kinds even if their data didn't change. */
+export async function reloadHomeWidgets(kinds: string[]): Promise<void> {
+  if (!Native?.reloadHomeWidgets || kinds.length === 0) return;
+  try {
+    await Native.reloadHomeWidgets(kinds);
+  } catch {}
+}
+
+/** Calls `listener` when a Supplements widget button is tapped; null where unsupported (before 1.0.39). */
+export function addSupplementTapListener(listener: () => void): EventSubscription | null {
+  if (!Native?.addListener || !Native.readPendingSupplementTaps) return null;
+  try {
+    return Native.addListener('onSupplementTap', listener);
+  } catch {
+    return null;
   }
 }
 

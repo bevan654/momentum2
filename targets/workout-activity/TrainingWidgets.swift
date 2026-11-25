@@ -1,12 +1,11 @@
 import SwiftUI
 import WidgetKit
 
-// Small home screen widgets for training: Streak (opens Workouts) and Recovery (opens Recovery; the
-// three least recovered groups, or a green body when everything is recovered).
-// Both are worked out from dates at the time each entry shows, so they move on without the app:
-// the streak counts up at midnight and warns on the last safe day; recovery climbs each hour.
+// The small Streak widget (opens Workouts). It's worked out from dates at the time each entry
+// shows, so it moves on without the app: the streak counts up at midnight and warns on the last
+// safe day.
 
-// MARK: - D · Streak
+// MARK: - Streak
 
 struct StreakDay {
   let letter: String
@@ -26,6 +25,8 @@ struct StreakState {
   let twelveWeeks: [StreakDay]
   /// Longest streak ever (the app's, or today's run if it has passed it since the app last wrote).
   let best: Int
+  /// Workout days since the start of this week (the phone's first weekday), today included.
+  let thisWeek: Int
 
   /// The last `count` days, oldest first, ending on `now`.
   private static func lastDays(_ count: Int, now: Date, trained: Set<String>) -> [StreakDay] {
@@ -47,6 +48,9 @@ struct StreakState {
     calendar = StreakState.lastDays(28, now: now, trained: recent)
     twelveWeeks = StreakState.lastDays(84, now: now, trained: recent)
     recentWorkoutDays = dots.filter(\.trained).count
+    let weekStart = Calendar.autoupdatingCurrent.dateInterval(of: .weekOfYear, for: now)?.start ?? now
+    let daysThisWeek = max(0, HomeWidgetDay.days(from: weekStart, to: now)) + 1
+    thisWeek = StreakState.lastDays(daysThisWeek, now: now, trained: recent).filter(\.trained).count
 
     // The rule in src/utils/streakCalculator.ts: alive while the last workout was under 4 days ago.
     var current = 0
@@ -147,107 +151,6 @@ struct StreakWidget: Widget {
     StaticConfiguration(kind: "MomentumStreak", provider: HomeWidgetProvider()) { StreakWidgetView(entry: $0) }
       .configurationDisplayName("Streak")
       .description("Your workout streak, with the last 7 days (small), 28 days (medium) or 12 weeks (large).")
-      .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
-  }
-}
-
-// MARK: - F · Recovery
-
-extension HomeWidgetData.RecoveryGroup {
-  /// 0...100, as the app's recovery: hours since last trained over the group's recovery hours.
-  func percent(at now: Date) -> Int {
-    guard let trainedAt, hours > 0 else { return 100 }
-    let elapsed = (now.timeIntervalSince1970 * 1000 - trainedAt) / 3_600_000
-    return Int(min(100, max(0, elapsed / hours * 100)).rounded())
-  }
-}
-
-/// The app's recovery colours and thresholds (src/constants/muscleMap.ts): fatigued below 40,
-/// recovering below 70, else ready.
-func recoveryColor(_ percent: Int) -> Color {
-  if percent < 40 { return HomeWidgetColor.red }
-  if percent < 70 { return HomeWidgetColor.orange }
-  return HomeWidgetColor.green
-}
-
-struct RecoveryWidgetView: View {
-  let entry: HomeWidgetEntry
-  @Environment(\.widgetFamily) private var family
-
-  var body: some View {
-    Group {
-      if let message = homeWidgetBlocker(entry.data, hasSection: entry.data?.recovery?.groups.isEmpty == false) {
-        HomeWidgetMessage(symbol: "heart.text.square.fill", title: "Recovery", tint: HomeWidgetColor.green, message: message)
-      } else if family == .systemLarge {
-        RecoveryLargeView(groups: entry.data?.recovery?.groups ?? [], now: entry.date)
-      } else if family == .systemMedium {
-        RecoveryMediumView(groups: entry.data?.recovery?.groups ?? [], now: entry.date)
-      } else {
-        content(entry.data?.recovery)
-      }
-    }
-    .homeWidgetBackground()
-    .widgetURL(HomeWidgetLink.recovery)
-  }
-
-  @ViewBuilder
-  private func content(_ recovery: HomeWidgetData.Recovery?) -> some View {
-    let groups = (recovery?.groups ?? []).enumerated()
-      .map { (index: $0.offset, name: $0.element.name, percent: $0.element.percent(at: entry.date)) }
-    // Least recovered first (what still needs rest); ties keep the app's group order.
-    let top = groups.sorted { $0.percent != $1.percent ? $0.percent < $1.percent : $0.index < $1.index }.prefix(3)
-    VStack(alignment: .leading, spacing: 0) {
-      HomeWidgetTitle(symbol: "heart.text.square.fill", text: "Recovery", tint: HomeWidgetColor.green)
-      if groups.allSatisfy({ $0.percent >= 100 }) {
-        FullyRecoveredView(gender: recovery?.body ?? "male")
-      } else {
-        Spacer(minLength: 6)
-        VStack(spacing: 9) {
-          ForEach(Array(top), id: \.index) { g in
-            VStack(spacing: 3) {
-              HStack {
-                Text(g.name).font(.caption.weight(.semibold)).lineLimit(1)
-                Spacer(minLength: 4)
-                Text("\(g.percent)%").font(.caption).monospacedDigit().foregroundColor(.secondary)
-              }
-              HomeWidgetBar(fraction: Double(g.percent) / 100, color: recoveryColor(g.percent))
-            }
-          }
-        }
-        Spacer(minLength: 0)
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-  }
-}
-
-/// A green body (the profile's) and "Fully recovered · Ready for anything".
-private struct FullyRecoveredView: View {
-  /// "male" or "female" (HomeWidgetData.Recovery.body).
-  let gender: String
-
-  var body: some View {
-    VStack(spacing: 4) {
-      Image(gender == "female" ? "BodyFemale" : "BodyMale")
-        .resizable()
-        .renderingMode(.template)
-        .aspectRatio(contentMode: .fit)
-        .foregroundColor(HomeWidgetColor.green)
-        .widgetAccentable()
-        .frame(maxHeight: .infinity)
-        .padding(.vertical, 4)
-      Text("Fully recovered").font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
-      Text("Ready for anything").font(.caption2).foregroundColor(.secondary).lineLimit(1)
-    }
-    .frame(maxWidth: .infinity)
-  }
-}
-
-struct RecoveryWidget: Widget {
-  var body: some WidgetConfiguration {
-    StaticConfiguration(kind: "MomentumRecovery", provider: HomeWidgetProvider(hourly: true)) { RecoveryWidgetView(entry: $0) }
-      .configurationDisplayName("Recovery")
-      .description("The muscle groups still recovering, updated through the day.")
       .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
   }
 }

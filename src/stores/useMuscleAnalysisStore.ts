@@ -83,10 +83,9 @@ function primaryGroupsOf(
 
 /**
  * When each body group was last trained as a primary muscle (epoch ms, the workout's created_at)
- * within the recovery window; a group missing from the result is fully recovered. Also feeds the
- * home screen Recovery widget, which works the percentages out over time itself.
+ * within the recovery window; a group missing from the result is fully recovered.
  */
-export function lastTrainedByGroup(
+function lastTrainedByGroup(
   workouts: WorkoutWithDetails[],
   catalogMap: Record<string, CatalogEntry>,
   bodyweightKg: number,

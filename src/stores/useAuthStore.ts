@@ -11,7 +11,7 @@ import { useProteinPowderStore } from './useProteinPowderStore';
 import { useFavouritesStore } from './useFavouritesStore';
 import { useNutrientGoalStore } from './useNutrientGoalStore';
 import { useSupplementStore } from './useSupplementStore';
-import { setCurrentUserId } from '../lib/currentUser';
+import { setCurrentUser, setCurrentUserId } from '../lib/currentUser';
 import { clearWorkout as clearStoredWorkout } from '../utils/workoutStorage';
 import { AppState, Linking } from 'react-native';
 
@@ -588,6 +588,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 }));
 
-// Keep the shared signed-in id current for stores that can't import this one (see lib/currentUser).
-setCurrentUserId(useAuthStore.getState().user?.id ?? null);
-useAuthStore.subscribe((state) => setCurrentUserId(state.user?.id ?? null));
+// Keep the shared signed-in user current for stores that can't import this one (see lib/currentUser).
+// The starting weight only from this user's own profile: during an account switch the previous
+// account's profile is still in state until fetchProfile finishes.
+const shareCurrentUser = (state: { user: User | null; profile: { id?: string; starting_weight?: number | null } | null }) =>
+  setCurrentUser(
+    state.user?.id ?? null,
+    state.profile && state.profile.id === state.user?.id ? state.profile.starting_weight ?? null : null,
+  );
+shareCurrentUser(useAuthStore.getState());
+useAuthStore.subscribe(shareCurrentUser);

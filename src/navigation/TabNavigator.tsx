@@ -19,7 +19,6 @@ import WorkoutsNavigator from './WorkoutsNavigator';
 import ActiveWorkoutSheet from '../components/workout-sheet/ActiveWorkoutSheet';
 import GhostFinishScreen from '../components/workout-sheet/GhostFinishScreen';
 import WorkoutSummaryModal from '../components/workout-sheet/WorkoutSummaryModal';
-import LinkedWorkoutSummary from '../components/workouts/history/LinkedWorkoutSummary';
 import FloatingWorkoutBanner from '../components/workout-sheet/FloatingWorkoutBanner';
 import Sheet from '../components/ui/Sheet';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -347,7 +346,6 @@ export default function TabNavigator() {
           />
         )}
       </Sheet>
-      <LinkedWorkoutSummary />
     </View>
   );
 }

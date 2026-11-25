@@ -4,8 +4,8 @@ import WidgetKit
 // The home screen widgets' data. The app writes it as JSON to the shared App Group
 // (src/services/homeWidgets.ts → HomeWidgetStore in the workout-live-activity module) whenever what
 // they show changes; the widgets only read it. Things that change with time alone (a new day, the
-// streak counting up, recovery) are worked out here from dates, so the widgets stay right without
-// the app running.
+// streak counting up) are worked out here from dates, so the widgets stay right without the app
+// running.
 
 /// Same key as HomeWidgetStore in modules/workout-live-activity (npm run check:links checks).
 let homeWidgetDataKey = "momentum.homeWidgets.v1"
@@ -60,52 +60,6 @@ struct HomeWidgetData: Codable {
     var creatine: Amount?
   }
 
-  /// Protein eaten on one earlier day (the large Protein widget's 7 days; today comes from Nutrition).
-  struct DayProtein: Codable {
-    var date: String
-    var protein: Double
-  }
-
-  struct WorkoutTotals: Codable {
-    /// Epoch ms the workout was saved.
-    var at: Double
-    /// kg × reps over completed sets, as the app's workout totals.
-    var volume: Double
-    /// Nil when the app can't count it reliably (too near the oldest loaded workout).
-    var prs: Int?
-  }
-
-  struct LastWorkout: Codable {
-    var id: String
-    var title: String
-    var at: Double
-    var volume: Double
-    var prs: Int
-    /// The earlier session of the same routine or program day; nil = none in the loaded history.
-    var previous: WorkoutTotals?
-    /// No earlier session, and the app has the whole history: it really is the first time.
-    var firstTime: Bool?
-    /// Each exercise's heaviest working set, in workout order (the large size).
-    var exercises: [ExerciseBest]?
-  }
-
-  /// An exercise's heaviest completed working set (most reps at that weight), and the same
-  /// exercise's in the earlier session (nil = not done then).
-  struct ExerciseBest: Codable {
-    var name: String
-    /// The exercise type ("duration" keeps seconds in reps).
-    var kind: String?
-    var kg: Double
-    var reps: Int
-    var previousKg: Double?
-    var previousReps: Int?
-  }
-
-  /// Wrapped so "no workouts yet" (latest nil) differs from "not loaded" (the section missing).
-  struct LastWorkoutSection: Codable {
-    var latest: LastWorkout?
-  }
-
   /// The streak rule (src/utils/streakCalculator.ts): every day counts, rest days too, and it breaks
   /// after 3 rest days in a row. Today's streak = days from the first day of the current run of
   /// workouts to today, while the last workout was under 4 days ago.
@@ -120,29 +74,37 @@ struct HomeWidgetData: Codable {
     var best: Int?
   }
 
-  struct RecoveryGroup: Codable {
+  /// One tile of the Supplements widget: water or a tracked supplement.
+  struct SupplementTile: Codable {
+    /// "water" or the supplement's key.
+    var key: String
     var name: String
-    /// Epoch ms when it was last trained as a primary muscle in the last 7 days; nil = recovered.
-    var trainedAt: Double?
-    /// Hours it takes to recover fully.
-    var hours: Double
+    var unit: String
+    var amount: Double
+    var goal: Double
+    /// What one tap adds (the first quick amount).
+    var step: Double
+    /// An SF Symbol.
+    var icon: String
+    /// "#RRGGBB"; nil = the water colour.
+    var color: String?
   }
 
-  struct Recovery: Codable {
-    var groups: [RecoveryGroup]
-    /// "male" or "female": which body outline the fully recovered state shows.
-    var body: String
+  /// The Supplements widget: water first, then the supplements in the app's order, for one local day.
+  struct Supplements: Codable {
+    var date: String
+    var tiles: [SupplementTile]
   }
 
   var signedIn: Bool
+  /// Who the data belongs to (taps carry it, so the app applies them to the right account).
+  var userId: String?
   /// The user's accent ("#RRGGBB"); nil = Mono (black or white, following light/dark).
   var accentHex: String?
   var nutrition: Nutrition?
   var streak: Streak?
-  var recovery: Recovery?
-  var lastWorkout: LastWorkoutSection?
   var nutritionExtras: NutritionExtras?
-  var proteinWeek: [DayProtein]?
+  var supplements: Supplements?
 
   static func load() -> HomeWidgetData? {
     guard
@@ -150,6 +112,50 @@ struct HomeWidgetData: Codable {
       let data = json.data(using: .utf8)
     else { return nil }
     return try? JSONDecoder().decode(HomeWidgetData.self, from: data)
+  }
+}
+
+// MARK: - Decoding: one part the widgets can't read never blanks the others
+
+extension HomeWidgetData {
+  /// Each part decodes on its own: one with a value the widgets can't read (renamed, null, the
+  /// wrong type) is left out, so its widget asks to open the app while the others still show.
+  init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    signedIn = try c.decode(Bool.self, forKey: .signedIn)
+    userId = try? c.decodeIfPresent(String.self, forKey: .userId)
+    accentHex = try? c.decodeIfPresent(String.self, forKey: .accentHex)
+    nutrition = try? c.decodeIfPresent(Nutrition.self, forKey: .nutrition)
+    streak = try? c.decodeIfPresent(Streak.self, forKey: .streak)
+    nutritionExtras = try? c.decodeIfPresent(NutritionExtras.self, forKey: .nutritionExtras)
+    supplements = try? c.decodeIfPresent(Supplements.self, forKey: .supplements)
+  }
+}
+
+/// Decodes anything, to step past an array element that didn't decode.
+private struct SkippedValue: Decodable {
+  init(from decoder: Decoder) throws {}
+}
+
+extension HomeWidgetData.Supplements {
+  /// A tile that can't be read is skipped; the rest still show.
+  init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    date = try c.decode(String.self, forKey: .date)
+    var list = try c.nestedUnkeyedContainer(forKey: .tiles)
+    var tiles: [HomeWidgetData.SupplementTile] = []
+    while !list.isAtEnd {
+      let index = list.currentIndex
+      if (try? list.decodeNil()) == true { continue }
+      if let tile = try? list.decode(HomeWidgetData.SupplementTile.self) {
+        tiles.append(tile)
+      } else {
+        _ = try? list.decode(SkippedValue.self)
+      }
+      // Never loop on an element that couldn't be stepped past.
+      if list.currentIndex == index { break }
+    }
+    self.tiles = tiles
   }
 }
 
@@ -186,11 +192,9 @@ struct HomeWidgetEntry: TimelineEntry {
   let data: HomeWidgetData?
 }
 
-/// One entry now and one at midnight (a new day); `hourly` adds one every hour until then
-/// (recovery moves with time). The app also redraws the widgets whenever their data changes.
+/// One entry now and one at midnight (a new day). The app also redraws the widgets whenever their
+/// data changes.
 struct HomeWidgetProvider: TimelineProvider {
-  var hourly = false
-
   func placeholder(in context: Context) -> HomeWidgetEntry {
     HomeWidgetEntry(date: Date(), data: .preview)
   }
@@ -203,16 +207,7 @@ struct HomeWidgetProvider: TimelineProvider {
     let data = HomeWidgetData.load()
     let now = Date()
     let midnight = HomeWidgetDay.nextMidnight(after: now)
-    var dates = [now]
-    if hourly {
-      var next = now.addingTimeInterval(3600)
-      while next < midnight {
-        dates.append(next)
-        next = next.addingTimeInterval(3600)
-      }
-    }
-    dates.append(midnight)
-    completion(Timeline(entries: dates.map { HomeWidgetEntry(date: $0, data: data) }, policy: .after(midnight)))
+    completion(Timeline(entries: [now, midnight].map { HomeWidgetEntry(date: $0, data: data) }, policy: .after(midnight)))
   }
 }
 
@@ -226,6 +221,7 @@ extension HomeWidgetData {
     }
     return HomeWidgetData(
       signedIn: true,
+      userId: nil,
       accentHex: nil,
       nutrition: Nutrition(
         date: today, kcal: 1580, protein: 142, carbs: 160, fat: 48, goalKcal: 2500, goalProtein: 180, goalCarbs: 280, goalFat: 80,
@@ -237,30 +233,20 @@ extension HomeWidgetData {
         ]
       ),
       streak: Streak(chainStart: dates.last, lastWorkout: dates.first, recentDates: dates, best: 34),
-      recovery: Recovery(groups: [
-        RecoveryGroup(name: "Back", trainedAt: nil, hours: 48),
-        RecoveryGroup(name: "Quads", trainedAt: (now.timeIntervalSince1970 - 40 * 3600) * 1000, hours: 72),
-        RecoveryGroup(name: "Biceps", trainedAt: (now.timeIntervalSince1970 - 30 * 3600) * 1000, hours: 48),
-      ], body: "male"),
-      lastWorkout: LastWorkoutSection(latest: LastWorkout(
-        id: "preview", title: "Push day", at: (now.timeIntervalSince1970 - 86_400) * 1000, volume: 12450, prs: 2,
-        previous: WorkoutTotals(at: (now.timeIntervalSince1970 - 8 * 86_400) * 1000, volume: 11830, prs: 0),
-        exercises: [
-          ExerciseBest(name: "Bench press", kind: "weighted", kg: 82.5, reps: 8, previousKg: 80, previousReps: 8),
-          ExerciseBest(name: "Incline dumbbell press", kind: "weighted", kg: 30, reps: 10, previousKg: 30, previousReps: 9),
-          ExerciseBest(name: "Shoulder press", kind: "weighted", kg: 50, reps: 8, previousKg: 50, previousReps: 8),
-          ExerciseBest(name: "Tricep pushdown", kind: "weighted", kg: 35, reps: 12, previousKg: 35, previousReps: 13),
-        ]
-      )),
       nutritionExtras: NutritionExtras(
         date: today,
         micros: [Micro(name: "Fiber", unit: "g", amount: 18, goal: 30), Micro(name: "Sodium", unit: "mg", amount: 1650, goal: 2300)],
         water: Amount(amount: 1800, goal: 3000),
         creatine: Amount(amount: 5, goal: 5)
       ),
-      proteinWeek: [1, 2, 3, 4, 5, 6].compactMap { back in
-        Calendar.current.date(byAdding: .day, value: -back, to: now).map { DayProtein(date: HomeWidgetDay.key($0), protein: Double([182, 175, 140, 190, 120, 185][back - 1])) }
-      }
+      supplements: Supplements(date: today, tiles: [
+        SupplementTile(key: "water", name: "Water", unit: "ml", amount: 1800, goal: 3000, step: 250, icon: "drop.fill", color: nil),
+        SupplementTile(key: "creatine", name: "Creatine", unit: "g", amount: 5, goal: 5, step: 5, icon: "bolt.fill", color: "#FBBF24"),
+        SupplementTile(key: "vitamin_d", name: "Vitamin D", unit: "IU", amount: 0, goal: 2000, step: 1000, icon: "sun.max.fill", color: "#F97316"),
+        SupplementTile(key: "fish_oil", name: "Fish Oil", unit: "mg", amount: 1000, goal: 1000, step: 1000, icon: "fish.fill", color: "#06B6D4"),
+        SupplementTile(key: "magnesium", name: "Magnesium", unit: "mg", amount: 200, goal: 400, step: 200, icon: "sparkles", color: "#8B5CF6"),
+        SupplementTile(key: "caffeine", name: "Caffeine", unit: "mg", amount: 100, goal: 200, step: 100, icon: "cup.and.saucer.fill", color: "#92400E"),
+      ])
     )
   }
 }
@@ -275,8 +261,9 @@ enum HomeWidgetColor {
   static let orange = Color(red: 0xF5 / 255.0, green: 0x9E / 255.0, blue: 0x0B / 255.0)
   static let red = Color(red: 0xEF / 255.0, green: 0x44 / 255.0, blue: 0x44 / 255.0)
   static let green = Color(red: 0x34 / 255.0, green: 0xD3 / 255.0, blue: 0x99 / 255.0)
-  /// The PR crown (targets/workout-activity/WorkoutLockScreen.swift prGold).
-  static let gold = Color(red: 0xF5 / 255.0, green: 0xB7 / 255.0, blue: 0x00 / 255.0)
+  static let water = Color(red: 0x60 / 255.0, green: 0xA5 / 255.0, blue: 0xFA / 255.0)
+  /// The app icon's red (assets/logo.png), for the Momentum mark.
+  static let brand = Color(red: 0xDC / 255.0, green: 0x2B / 255.0, blue: 0x2B / 255.0)
 
   static func accent(_ hex: String?) -> Color {
     guard var s = hex?.trimmingCharacters(in: .whitespaces), !s.isEmpty else { return .primary }
@@ -308,16 +295,60 @@ extension View {
   func homeWidgetBackground() -> some View { modifier(HomeWidgetBackground()) }
 }
 
-/// Title row: icon + label.
+/// The "M" of the app icon (assets/logo.png), drawn from its shapes so it stays sharp at any size.
+struct MomentumMark: Shape {
+  /// The icon's 1024 pt artwork, trimmed to the mark: x 152…866, y 357…660.
+  private static let artwork: [[(CGFloat, CGFloat)]] = [
+    [(313, 357), (473, 357), (510, 425), (545, 357), (707, 357), (787, 509), (393, 509)],
+    [(232, 509), (393, 509), (313, 660), (152, 660)],
+    [(393, 509), (553, 509), (633, 660), (473, 660)],
+    [(626, 509), (787, 509), (866, 660), (706, 660)],
+  ]
+  private static let pieces: [[CGPoint]] = artwork.map { piece in
+    piece.map { point in CGPoint(x: point.0 - 152, y: point.1 - 357) }
+  }
+  /// Width over height.
+  static let aspect: CGFloat = 714.0 / 303.0
+
+  func path(in rect: CGRect) -> Path {
+    let sx = rect.width / 714, sy = rect.height / 303
+    var path = Path()
+    for piece in Self.pieces {
+      path.addLines(piece.map { CGPoint(x: rect.minX + $0.x * sx, y: rect.minY + $0.y * sy) })
+      path.closeSubpath()
+    }
+    return path
+  }
+}
+
+/// The Momentum mark in the icon's red, top right of every widget.
+struct HomeWidgetBrand: View {
+  var height: CGFloat = 10
+
+  var body: some View {
+    MomentumMark()
+      .fill(HomeWidgetColor.brand)
+      .frame(width: height * MomentumMark.aspect, height: height)
+      .accessibilityLabel("Momentum")
+  }
+}
+
+/// Title row: icon + label, and the Momentum mark at the far end (`brand` false where the row
+/// doesn't span the widget and the mark sits elsewhere).
 struct HomeWidgetTitle: View {
   let symbol: String
   let text: String
   let tint: Color
+  var brand = true
 
   var body: some View {
     HStack(spacing: 4) {
       Image(systemName: symbol).font(.caption.weight(.semibold)).foregroundColor(tint).widgetAccentable()
       Text(text).font(.caption.weight(.semibold)).foregroundColor(.secondary).lineLimit(1)
+      if brand {
+        Spacer(minLength: 4)
+        HomeWidgetBrand()
+      }
     }
   }
 }
@@ -366,7 +397,4 @@ func homeWidgetBlocker(_ data: HomeWidgetData?, hasSection: Bool) -> String? {
 enum HomeWidgetLink {
   static let nutrition = URL(string: "momentum://nutrition")
   static let workouts = URL(string: "momentum://workouts")
-  static let recovery = URL(string: "momentum://recovery")
-  /// One workout's summary (navigation/widgetLinks.ts).
-  static func workout(_ id: String) -> URL? { URL(string: "momentum://workout/" + id) }
 }

@@ -72,17 +72,22 @@ public class WorkoutLiveActivityModule: Module {
   public func definition() -> ModuleDefinition {
     Name("WorkoutLiveActivity")
 
-    // A Lock Screen button was tapped; JS reads the taps with takePendingActions.
-    Events("onAction")
+    // A Lock Screen button was tapped (JS reads the taps with takePendingActions), or a Supplements
+    // widget button (readPendingSupplementTaps).
+    Events("onAction", "onSupplementTap")
 
     OnCreate {
-      WorkoutActivityTapObserver.shared.start { [weak self] in
+      DarwinTapObserver.workout.start { [weak self] in
         self?.sendEvent("onAction", [:])
+      }
+      DarwinTapObserver.supplements.start { [weak self] in
+        self?.sendEvent("onSupplementTap", [:])
       }
     }
 
     OnDestroy {
-      WorkoutActivityTapObserver.shared.stop()
+      DarwinTapObserver.workout.stop()
+      DarwinTapObserver.supplements.stop()
     }
 
     Function("isSupported") { () -> Bool in
@@ -122,14 +127,37 @@ public class WorkoutLiveActivityModule: Module {
     }
 
     /// The home screen widgets' data (JSON, see HomeWidgetData.swift in targets/workout-activity),
-    /// or nil to clear it (signed out). Redraws the widgets only when it changed.
-    AsyncFunction("setHomeWidgetData") { (json: String?) in
-      HomeWidgetStore.write(json)
+    /// or nil to clear it (signed out). Redraws the widgets only when it changed: those of `kinds`
+    /// (the widgets whose part changed), or all of them when nil.
+    AsyncFunction("setHomeWidgetData") { (json: String?, kinds: [String]?) in
+      HomeWidgetStore.write(json, kinds: kinds)
     }
 
     /// What the widgets show now (written by an earlier run), or nil.
     AsyncFunction("getHomeWidgetData") { () -> String? in
       HomeWidgetStore.read()
+    }
+
+    /// Supplements widget taps not saved yet, oldest first, each with its outbox key as `_key`.
+    /// Reading leaves them in place: the app removes each with removeSupplementTaps once saved.
+    AsyncFunction("readPendingSupplementTaps") { () -> [[String: Any]] in
+      SupplementTapOutbox.pending().map { item in
+        var entry = item.entry
+        entry["_key"] = item.key
+        return entry
+      }
+    }
+
+    /// Removes saved (or dropped) taps; returns the keys that were still there (a missing one was
+    /// taken back on the widget meanwhile).
+    AsyncFunction("removeSupplementTaps") { (keys: [String]) -> [String] in
+      keys.filter { SupplementTapOutbox.remove($0) }
+    }
+
+    /// Redraws these widget kinds (their data may be unchanged, but what they showed on top of it was).
+    AsyncFunction("reloadHomeWidgets") { (kinds: [String]) in
+      guard #available(iOS 14.0, *) else { return }
+      for kind in kinds { WidgetCenter.shared.reloadTimelines(ofKind: kind) }
     }
   }
 }
@@ -143,18 +171,30 @@ enum HomeWidgetStore {
 
   static func read() -> String? { defaults.string(forKey: key) }
 
-  static func write(_ json: String?) {
+  static func write(_ json: String?, kinds: [String]? = nil) {
     if defaults.string(forKey: key) == json { return }
     if let json { defaults.set(json, forKey: key) } else { defaults.removeObject(forKey: key) }
-    if #available(iOS 14.0, *) { WidgetCenter.shared.reloadAllTimelines() }
+    guard #available(iOS 14.0, *) else { return }
+    if let kinds {
+      for kind in kinds { WidgetCenter.shared.reloadTimelines(ofKind: kind) }
+    } else {
+      WidgetCenter.shared.reloadAllTimelines()
+    }
   }
 }
 
-/// Listens for the Darwin notification a Lock Screen tap posts (from the app or the extension).
-final class WorkoutActivityTapObserver {
-  static let shared = WorkoutActivityTapObserver()
+/// Listens for the Darwin notification a tap posts (from the app or the extension): one for the
+/// Lock Screen buttons, one for the Supplements widget's.
+final class DarwinTapObserver {
+  static let workout = DarwinTapObserver(name: WorkoutActivityOutbox.darwinName)
+  static let supplements = DarwinTapObserver(name: SupplementTapOutbox.darwinName)
+  private let name: String
   private var handler: (() -> Void)?
   private var observing = false
+
+  private init(name: String) {
+    self.name = name
+  }
 
   func start(_ handler: @escaping () -> Void) {
     self.handler = handler
@@ -165,10 +205,10 @@ final class WorkoutActivityTapObserver {
       Unmanaged.passUnretained(self).toOpaque(),
       { _, observer, _, _, _ in
         guard let observer else { return }
-        let me = Unmanaged<WorkoutActivityTapObserver>.fromOpaque(observer).takeUnretainedValue()
+        let me = Unmanaged<DarwinTapObserver>.fromOpaque(observer).takeUnretainedValue()
         DispatchQueue.main.async { me.handler?() }
       },
-      WorkoutActivityOutbox.darwinName as CFString,
+      name as CFString,
       nil,
       .deliverImmediately
     )
@@ -181,7 +221,7 @@ final class WorkoutActivityTapObserver {
     CFNotificationCenterRemoveObserver(
       CFNotificationCenterGetDarwinNotifyCenter(),
       Unmanaged.passUnretained(self).toOpaque(),
-      CFNotificationName(WorkoutActivityOutbox.darwinName as CFString),
+      CFNotificationName(name as CFString),
       nil
     )
   }

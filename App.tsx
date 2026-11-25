@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './src/navigation/navigationRef';
 import { startWidgetLinks } from './src/navigation/widgetLinks';
 import { startHomeWidgets } from './src/services/homeWidgets';
+import { watchSupplementWidgetTaps } from './src/services/supplementWidgetTaps';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PortalHost } from './src/components/ui/Portal';
@@ -152,9 +153,11 @@ function App() {
     initialize();
     useThemeStore.getState().loadTheme();
     useChangelogStore.getState().check();
-    // Home screen widgets (iOS): their links, and keeping their data current.
+    // Home screen widgets (iOS): their links, keeping their data current, and the Supplements
+    // widget's taps.
     startWidgetLinks();
     startHomeWidgets();
+    watchSupplementWidgetTaps();
   }, []);
 
   if (!fontsLoaded || !initialized || !themeReady) {
