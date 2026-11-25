@@ -61,7 +61,7 @@ function _changedKinds(before: string | null, after: string): string[] | null {
   return [...kinds];
 }
 
-/** The widgets' snapshot (the subset this module reads back; Swift ignores `userId`). */
+/** The widgets' snapshot (the subset this module reads back; the Supplements widget's taps carry `userId`). */
 interface Snapshot {
   userId?: string;
   nutrition?: unknown;

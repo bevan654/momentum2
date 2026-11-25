@@ -129,6 +129,15 @@ function _takeHeld(userId: string, day: string): Held | null {
   return held;
 }
 
+/**
+ * Outbox keys this run is removing or has removed. A read that started before a remove finished
+ * can still list them; it skips them, or it would save them again and then, finding them gone
+ * from the outbox, take them for an Undo and delete their entry. Keys are unique (time + UUID).
+ */
+const _removing = new Set<string>();
+const _removed = new Set<string>();
+const MAX_REMEMBERED = 500;
+
 /** Undo deletes (of adds taken back while being saved) that failed: tried again on each read. */
 let _failedDeletes: { userId: string; id: string }[] = [];
 
@@ -138,7 +147,18 @@ let _failedDeletes: { userId: string; id: string }[] = [];
  */
 async function _finish(userId: string, keys: string[], saved: Map<string, string>): Promise<void> {
   if (keys.length === 0) return;
-  const removed = await WorkoutLiveActivity.removeSupplementTaps(keys);
+  keys.forEach((key) => _removing.add(key));
+  const removed = await WorkoutLiveActivity.removeSupplementTaps(keys).finally(() => {
+    keys.forEach((key) => _removing.delete(key));
+  });
+  if (removed) {
+    removed.forEach((key) => _removed.add(key));
+    // Oldest first (insertion order); only a guard, far beyond one run's taps.
+    for (const key of _removed) {
+      if (_removed.size <= MAX_REMEMBERED) break;
+      _removed.delete(key);
+    }
+  }
   if (!removed) {
     // Unknown whether they went: leave them; their saves are recognised as done next time.
     _retrySoon();
@@ -173,10 +193,14 @@ async function _apply(taps: PendingSupplementWidgetTap[], userId: string): Promi
   const done = new Map<string, string>();
   /** Saved adds: outbox key → entry id. */
   const saved = new Map<string, string>();
+  // Held on an earlier day: that day's totals never reload now, so let this read save them again
+  // (already saved) and remove them.
+  if (_held && _held.userId === userId && _held.day !== today) _takeHeld(userId, _held.day);
   const held = new Set(_held && _held.userId === userId ? _held.keys : []);
   const valid: PendingSupplementWidgetTap[] = [];
   for (const t of taps) {
     if (t && held.has(t._key)) continue; // saved already, waiting for today's totals
+    if (t && (_removing.has(t._key) || _removed.has(t._key))) continue; // being removed (or gone) already
     if (t?.userId === userId && _isValid(t, earliest, today)) valid.push(t);
     else if (typeof t?._key === 'string') done.set(t._key, '');
   }
