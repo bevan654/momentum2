@@ -138,6 +138,13 @@ const _removing = new Set<string>();
 const _removed = new Set<string>();
 const MAX_REMEMBERED = 500;
 
+/**
+ * Adds whose save failed (outbox key → entry): the insert may still have gone through (reply
+ * lost). If the widget then takes the tap back (Undo before the app saved it), the key leaves the
+ * outbox without being removed here, and the entry it may have saved is deleted.
+ */
+const _unconfirmed = new Map<string, { userId: string; id: string }>();
+
 /** Undo deletes (of adds taken back while being saved) that failed: tried again on each read. */
 let _failedDeletes: { userId: string; id: string }[] = [];
 
@@ -147,17 +154,22 @@ let _failedDeletes: { userId: string; id: string }[] = [];
  */
 async function _finish(userId: string, keys: string[], saved: Map<string, string>): Promise<void> {
   if (keys.length === 0) return;
+  // Gone because this module removed them earlier (another account's read dropped them), not
+  // taken back on the widget: never deleted as an Undo.
+  const removedEarlier = new Set(keys.filter((key) => _removed.has(key)));
   keys.forEach((key) => _removing.add(key));
-  const removed = await WorkoutLiveActivity.removeSupplementTaps(keys).finally(() => {
-    keys.forEach((key) => _removing.delete(key));
-  });
-  if (removed) {
-    removed.forEach((key) => _removed.add(key));
+  let removed: string[] | null = null;
+  try {
+    removed = await WorkoutLiveActivity.removeSupplementTaps(keys);
+    // Into _removed before leaving _removing, so a read never sees them in neither.
+    removed?.forEach((key) => _removed.add(key));
     // Oldest first (insertion order); only a guard, far beyond one run's taps.
     for (const key of _removed) {
       if (_removed.size <= MAX_REMEMBERED) break;
       _removed.delete(key);
     }
+  } finally {
+    keys.forEach((key) => _removing.delete(key));
   }
   if (!removed) {
     // Unknown whether they went: leave them; their saves are recognised as done next time.
@@ -165,7 +177,9 @@ async function _finish(userId: string, keys: string[], saved: Map<string, string
     return;
   }
   await flushHomeWidgets(['supplements']);
-  const takenBack = [...saved].filter(([key]) => keys.includes(key) && !removed.includes(key)).map(([, id]) => id);
+  const takenBack = [...saved]
+    .filter(([key]) => keys.includes(key) && !removed.includes(key) && !removedEarlier.has(key))
+    .map(([, id]) => id);
   if (takenBack.length === 0) return;
   for (const id of takenBack) {
     if (!(await _delete(userId, id))) _failedDeletes.push({ userId, id });
@@ -187,6 +201,15 @@ async function _apply(taps: PendingSupplementWidgetTap[], userId: string): Promi
   for (const d of failed) {
     if (await _delete(userId, d.id)) retriedDelete = true;
     else _failedDeletes.push(d);
+  }
+
+  // Adds that failed to save and have since been taken back on the widget: delete what they may have saved.
+  const listed = new Set(taps.map((t) => t?._key));
+  for (const [key, entry] of [..._unconfirmed]) {
+    if (entry.userId !== userId || listed.has(key) || _removing.has(key) || _removed.has(key)) continue;
+    _unconfirmed.delete(key);
+    if (await _delete(userId, entry.id)) retriedDelete = true;
+    else _failedDeletes.push(entry);
   }
 
   /** Done taps (saved, or dropped: another account, too old, unreadable) → their day ('' = dropped). */
@@ -221,8 +244,10 @@ async function _apply(taps: PendingSupplementWidgetTap[], userId: string): Promi
     // Signed out (or switched account) meanwhile: leave the rest for their account.
     if (useAuthStore.getState().user?.id !== userId) return;
     try {
+      if (tap.type === 'add') _unconfirmed.set(tap._key, { userId, id: tap.id });
       const ok = tap.type === 'add' ? await _add(userId, tap) : await _delete(userId, tap.id);
       if (!ok) continue; // stays in the outbox for the next read
+      _unconfirmed.delete(tap._key);
       if (tap.type === 'add') saved.set(tap._key, tap.id);
       done.set(tap._key, tap.day);
     } catch (e) {
@@ -274,7 +299,8 @@ async function _read(): Promise<void> {
       // Not signed in (yet): leave the taps until someone is.
       if (!auth.initialized || !userId) return;
       const taps = await WorkoutLiveActivity.readPendingSupplementTaps();
-      if (taps.length > 0) await _apply(taps, userId);
+      // Also with an empty outbox: an unconfirmed add may have been taken back, a delete may need a retry.
+      if (taps.length > 0 || _unconfirmed.size > 0 || _failedDeletes.length > 0) await _apply(taps, userId);
     } while (_readAgain);
   })().finally(() => { _reading = null; });
   return _reading;
@@ -292,6 +318,9 @@ export function watchSupplementWidgetTaps(): void {
     _read();
   });
   useAuthStore.subscribe((s, prev) => {
+    // Another account (or none): the previous one's held taps are dropped from the outbox by the
+    // next read (they're saved), so they must not be released later as if taken back.
+    if (s.user?.id !== prev.user?.id && _held) _takeHeld(_held.userId, _held.day);
     if (s.initialized !== prev.initialized || s.user?.id !== prev.user?.id) _read();
   });
   _read();
