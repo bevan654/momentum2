@@ -215,15 +215,16 @@ export async function setHomeWidgetData(json: string | null, kinds: string[] | n
 
 /**
  * Supplements widget taps not saved yet, oldest first, each with its outbox key; reading leaves
- * them in place (remove each with removeSupplementTaps once saved). [] where unsupported.
+ * them in place (remove each with removeSupplementTaps once saved). [] where unsupported; null
+ * when the read failed (the outbox isn't known to be empty: a tap missing from it means nothing).
  */
-export async function readPendingSupplementTaps(): Promise<PendingSupplementWidgetTap[]> {
+export async function readPendingSupplementTaps(): Promise<PendingSupplementWidgetTap[] | null> {
   if (!Native?.readPendingSupplementTaps) return [];
   try {
     const taps = await Native.readPendingSupplementTaps();
-    return Array.isArray(taps) ? taps : [];
+    return Array.isArray(taps) ? taps : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
